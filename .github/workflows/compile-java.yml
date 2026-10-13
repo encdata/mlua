@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   compile:
-    name: ${{ matrix.target }} / Fabric
+    name: ${{ matrix.target }} / ${{ matrix.loader }}
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch'
     strategy:
@@ -38,10 +38,34 @@ jobs:
         include:
           - target: 1.20.1
             java: '21'
+            loader: fabric
+          - target: 1.20.1
+            java: '21'
+            loader: forge
           - target: 1.21.1
             java: '21'
+            loader: fabric
+          - target: 1.21.1
+            java: '21'
+            loader: forge
+          - target: 1.21.1
+            java: '21'
+            loader: neoforge
           - target: 26.1
             java: '25'
+            loader: fabric
+          - target: 26.1
+            java: '25'
+            loader: neoforge
+          - target: 26.1.1
+            java: '25'
+            loader: fabric
+          - target: 26.1.2
+            java: '25'
+            loader: fabric
+          - target: 26.1.2
+            java: '25'
+            loader: neoforge
     steps:
       - uses: actions/checkout@v4
 
@@ -57,8 +81,8 @@ jobs:
           sh gradlew --no-daemon
           --max-workers=1
           -PmluaTarget=${{ matrix.target }}
-          -PmluaLoader=fabric
-          :fabric:${{ matrix.target }}:compileJava
+          -PmluaLoader=${{ matrix.loader }}
+          :${{ matrix.loader }}:${{ matrix.target }}:compileJava
 
   compile-selected:
     name: ${{ inputs.target }} / Fabric
