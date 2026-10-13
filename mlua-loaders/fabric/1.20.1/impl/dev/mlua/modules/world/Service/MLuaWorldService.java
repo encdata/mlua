@@ -289,7 +289,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
             }
          }
 
-         return nearest == null ? LuaValue.NIL : MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(nearest));
+         return nearest == null ? LuaValue.NIL : MLuaPlayerWrapper.playerTable(
+            MCServerPlayerImpl.fromReal(nearest), this.context.mlua().registration());
       }));
       bindWorldAlias(table, implementations, "GetNearestPlayer", "FindNearestPlayer");
       bindWorldMethod(table, implementations, "FindNearestEntity", levelFn(supplier, (level, args) -> {
@@ -528,7 +529,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       int index = 1;
       for (ServerPlayer player : serverLevel.players()) {
          if (box == null || box.contains(player.position())) {
-            list.set(index++, MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player)));
+            list.set(index++, MLuaPlayerWrapper.playerTable(
+               MCServerPlayerImpl.fromReal(player), this.context.mlua().registration()));
          }
       }
       return list;
