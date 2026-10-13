@@ -34,18 +34,15 @@ public final class MLuaApi {
       MLuaApi.bridge = Objects.requireNonNull(bridge, "bridge");
    }
 
-   /** Starts a fluent Java addon service declaration. Call {@link ServiceBuilder#register()} to publish it. */
    public static ServiceBuilder service(String name, Function<MLuaService.Context, MLuaService> factory) {
       return new ServiceBuilder(name, null, factory);
    }
 
-   /** Starts a fluent declaration with an explicit Lua-facing service class name. */
    public static ServiceBuilder service(String name, String className,
                                         Function<MLuaService.Context, MLuaService> factory) {
       return new ServiceBuilder(name, className, factory);
    }
 
-   /** Collects a service contract and registers its live factory when {@link #register()} is called. */
    public static final class ServiceBuilder {
       private final String name;
       private final Function<MLuaService.Context, MLuaService> factory;
@@ -119,7 +116,6 @@ public final class MLuaApi {
       return MLuaApiPolicy.VERSION;
    }
 
-   /** Registers an addon-owned Java value type for reflective Java service arguments and results. */
    public static <T> AdapterRegistration registerLuaAdapter(Adapter<T> adapter) {
       return MLuaLuaCoercions.registerAdapter(adapter);
    }
@@ -191,92 +187,68 @@ public final class MLuaApi {
       });
    }
 
-   /** @deprecated Declare a service through {@link #service(String, Function)} and describe every function. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory) {
       registerService(name, Side.BOTH, factory, null, Map.of());
    }
 
-   /** @deprecated Use {@link #service(String, Function)} and declare its side and described functions. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory) {
       registerService(name, side, factory, null, Map.of());
    }
 
-   /** @deprecated A service description alone is insufficient; use {@link #service(String, Function)}. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory, String description) {
       registerService(name, factory, description, Map.of());
    }
 
-   /** @deprecated A service description alone is insufficient; use {@link #service(String, Function)}. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                       String description) {
       registerService(name, side, factory, description, Map.of());
    }
 
-   /**
-    * Registers a Lua-facing service with descriptions for the service and its exposed functions.
-    * Every live service instance must expose each function declared in {@code functionDescriptions}.
-    * Each exported function on a reflective service, or in a described raw service table, must have a description.
-    */
    public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory,
                                       String description, Map<String, String> functionDescriptions) {
       registerService(name, Side.BOTH, factory, description, functionDescriptions);
    }
 
-   /**
-    * Registers a side-specific Lua service with descriptions for its service and exposed functions.
-    * Every live service instance must expose each function declared in {@code functionDescriptions}.
-    * Each exported function on a reflective service, or in a described raw service table, must have a description.
-    */
    public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                       String description, Map<String, String> functionDescriptions) {
       Map<String, String> descriptions = validateServiceRegistration(name, side, factory, description, functionDescriptions);
       requireBridge().registerService(name, side, factory, description, descriptions);
    }
 
-   /** @deprecated Use {@link #service(String, String, Function)} and describe every function. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className,
                                       Function<MLuaService.Context, MLuaService> factory) {
       registerService(name, className, Side.BOTH, factory, null, Map.of());
    }
 
-   /** @deprecated Use {@link #service(String, String, Function)} and declare its side and methods. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className, Side side,
                                       Function<MLuaService.Context, MLuaService> factory) {
       registerService(name, className, side, factory, null, Map.of());
    }
 
-   /** @deprecated A service description alone is insufficient; use {@link #service(String, String, Function)}. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className,
                                       Function<MLuaService.Context, MLuaService> factory, String description) {
       registerService(name, className, Side.BOTH, factory, description, Map.of());
    }
 
-   /** @deprecated A service description alone is insufficient; use {@link #service(String, String, Function)}. */
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className, Side side,
                                       Function<MLuaService.Context, MLuaService> factory, String description) {
       registerService(name, className, side, factory, description, Map.of());
    }
 
-   /**
-    * Registers a service with an explicit Lua-facing class name and method descriptions.
-    * Every live service instance must expose each function declared in {@code functionDescriptions}.
-    * Each exported function on a reflective service, or in a described raw service table, must have a description.
-    */
    public static void registerService(String name, String className,
                                       Function<MLuaService.Context, MLuaService> factory,
                                       String description, Map<String, String> functionDescriptions) {
       registerService(name, className, Side.BOTH, factory, description, functionDescriptions);
    }
 
-   /** Registers a side-specific service with an explicit Lua-facing class name. */
    public static void registerService(String name, String className, Side side,
                                       Function<MLuaService.Context, MLuaService> factory,
                                       String description, Map<String, String> functionDescriptions) {
