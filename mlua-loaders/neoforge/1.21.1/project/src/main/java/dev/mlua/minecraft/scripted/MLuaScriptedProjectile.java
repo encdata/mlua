@@ -34,6 +34,7 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 public class MLuaScriptedProjectile extends Entity {
+   private final String luaClassName;
    private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(MLuaScriptedProjectile.class, EntityDataSerializers.FLOAT);
 
    private Vec3 direction;
@@ -59,7 +60,12 @@ public class MLuaScriptedProjectile extends Entity {
    private boolean destroyed;
 
    public MLuaScriptedProjectile(EntityType<? extends MLuaScriptedProjectile> type, Level level) {
+      this(type, level, "Projectile");
+   }
+
+   public MLuaScriptedProjectile(EntityType<? extends MLuaScriptedProjectile> type, Level level, String luaClassName) {
       super(type, level);
+      this.luaClassName = luaClassName == null || luaClassName.isBlank() ? "Projectile" : luaClassName;
       this.projectileSize = 0.25f;
       this.damage = 0;
       this.speed = 0;
@@ -384,7 +390,7 @@ public class MLuaScriptedProjectile extends Entity {
             return LuaValue.NONE;
          }
       });
-      return MLuaScriptRuntimeRegistration.forLevel(this.level()).attachClassInstance(table, "Projectile", "Instance");
+      return MLuaScriptRuntimeRegistration.forLevel(this.level()).attachClassInstance(table, this.luaClassName, "Projectile");
    }
 
    private Entity resolveOwner() {
