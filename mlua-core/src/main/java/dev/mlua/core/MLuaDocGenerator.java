@@ -8,7 +8,7 @@ public final class MLuaDocGenerator {
    }
 
    public static void main(String[] args) {
-      MLuaModuleLoader.get().loadAll();
+      MLuaModuleLoader.get().loadForDocumentation();
       MLuaDocumentation.generate(Paths.get("run"));
    }
 }
