@@ -3,6 +3,7 @@ package dev.mlua.modules.bossbar.Service;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.bossbar.MLuaBossBarRegistry;
@@ -112,20 +113,21 @@ public final class MLuaBossBarService extends MLuaServiceBase {
         String name = key.name();
         LuaTable handle = new LuaTable();
         handle.set("__name", name);
+        this.registration.attachClassInstance(handle, "BossBarHandle", null);
 
-        handle.set("SetTitle", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "SetTitle", fn((args) -> {
             requireServer();
             event.setName(Component.literal(args.checkjstring(2)));
             return LuaValue.NONE;
         }));
 
-        handle.set("SetHealth", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "SetHealth", fn((args) -> {
             requireServer();
             event.setProgress((float) args.checkdouble(2));
             return LuaValue.NONE;
         }));
 
-        handle.set("SetColor", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "SetColor", fn((args) -> {
             requireServer();
             String colorName = args.checkjstring(2);
             try {
@@ -136,7 +138,7 @@ public final class MLuaBossBarService extends MLuaServiceBase {
             return LuaValue.NONE;
         }));
 
-        handle.set("SetStyle", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "SetStyle", fn((args) -> {
             requireServer();
             String styleName = args.checkjstring(2);
             try {
@@ -147,59 +149,58 @@ public final class MLuaBossBarService extends MLuaServiceBase {
             return LuaValue.NONE;
         }));
 
-        handle.set("SetVisible", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "SetVisible", fn((args) -> {
             requireServer();
             event.setVisible(args.checkboolean(2));
             return LuaValue.NONE;
         }));
 
-        handle.set("GetTitle", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "GetTitle", fn((args) -> {
             requireServer();
             return LuaValue.valueOf(event.getName().getString());
         }));
 
-        handle.set("GetHealth", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "GetHealth", fn((args) -> {
             requireServer();
             return LuaValue.valueOf(event.getProgress());
         }));
 
-        handle.set("GetColor", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "GetColor", fn((args) -> {
             requireServer();
             return LuaValue.valueOf(event.getColor().name());
         }));
 
-        handle.set("GetStyle", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "GetStyle", fn((args) -> {
             requireServer();
             return LuaValue.valueOf(event.getOverlay().name());
         }));
 
-        handle.set("IsVisible", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "IsVisible", fn((args) -> {
             requireServer();
             return LuaValue.valueOf(event.isVisible());
         }));
 
-        handle.set("AddPlayer", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "AddPlayer", fn((args) -> {
             requireServer();
             ServerPlayer player = extractPlayer(args.arg(2));
             event.addPlayer(player);
             return LuaValue.NONE;
         }));
 
-        handle.set("RemovePlayer", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "RemovePlayer", fn((args) -> {
             requireServer();
             ServerPlayer player = extractPlayer(args.arg(2));
             event.removePlayer(player);
             return LuaValue.NONE;
         }));
 
-        handle.set("Remove", fn((args) -> {
+        MLuaClassMethods.setInstanceMethod(handle, "Remove", fn((args) -> {
             requireServer();
             event.removeAllPlayers();
             bossBars.remove(key, event);
             return LuaValue.NONE;
         }));
 
-        this.registration.attachClassInstance(handle, "BossBarHandle", null);
         return handle;
     }
 

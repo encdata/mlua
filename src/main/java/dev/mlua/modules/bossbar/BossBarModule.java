@@ -47,8 +47,24 @@ public class BossBarModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "BossBarHandle", "AddPlayer", "Adds a player to the boss bar.");
         MLuaClassMethods.registerInstanceMethod(registration, "BossBarHandle", "RemovePlayer", "Removes a player from the boss bar.");
         MLuaClassMethods.registerInstanceMethod(registration, "BossBarHandle", "Remove", "Removes the boss bar and all attached players.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BossBarHandle", "Title", "GetTitle", "SetTitle",
+            "string", "server:Server", "Gets or changes the boss bar title.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BossBarHandle", "Health", "GetHealth", "SetHealth",
+            "number", "server:Server", "Gets or changes the displayed progress from zero to one.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BossBarHandle", "Color", "GetColor", "SetColor",
+            "string", "server:Server", "Gets or changes the boss bar color.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BossBarHandle", "Style", "GetStyle", "SetStyle",
+            "string", "server:Server", "Gets or changes the boss bar overlay style.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BossBarHandle", "Visible", "IsVisible", "SetVisible",
+            "boolean", "server:Server", "Gets or changes boss bar visibility.");
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
         docs.service("BossBar", "MLuaBossBarService", "Creates and manages server boss bars.", "services/boss-bar.html");
+        docs.clazz("BossBarHandle", "MLuaBossBarService", "A live handle for reading, updating, and removing a server boss bar.", "classes/boss-bar-handle.html", "Instance");
+        docs.property("BossBarHandle", "BossBarHandle.Title", "string", "Gets or changes the boss bar title.", "server:Server");
+        docs.property("BossBarHandle", "BossBarHandle.Health", "number", "Gets or changes the displayed progress from zero to one.", "server:Server");
+        docs.property("BossBarHandle", "BossBarHandle.Color", "string", "Gets or changes the boss bar color.", "server:Server");
+        docs.property("BossBarHandle", "BossBarHandle.Style", "string", "Gets or changes the boss bar overlay style.", "server:Server");
+        docs.property("BossBarHandle", "BossBarHandle.Visible", "boolean", "Gets or changes boss bar visibility.", "server:Server");
     }
 }
