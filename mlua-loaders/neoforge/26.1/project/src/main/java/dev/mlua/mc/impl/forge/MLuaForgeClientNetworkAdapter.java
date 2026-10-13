@@ -4,11 +4,10 @@ import dev.mlua.minecraft.network.MLuaNetworkManager;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.common.EventBusSubscriber.Bus;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
 
 /** Registers clientbound MLua payloads without loading client networking classes on a server. */
-@EventBusSubscriber(modid = "mlua", bus = Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = "mlua", value = Dist.CLIENT)
 public final class MLuaForgeClientNetworkAdapter {
     private MLuaForgeClientNetworkAdapter() {}
 

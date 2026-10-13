@@ -36,7 +36,7 @@ if (!documentationOnly && requestedBuildTarget == null) {
     project(':mlua-mc').projectDir = file('mlua-mc')
 }
 if (findProject(':fabric') != null) project(':fabric').projectDir = file('mlua-loaders/fabric')
-project(':forge').projectDir = file('mlua-loaders/forge')
+if (findProject(':forge') != null) project(':forge').projectDir = file('mlua-loaders/forge')
 if (findProject(':neoforge') != null) project(':neoforge').projectDir = file('mlua-loaders/neoforge')
 
 def targetConfig = new JsonSlurper().parse(file('gradle/mlua-targets.json'))

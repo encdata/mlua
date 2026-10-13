@@ -170,8 +170,9 @@ public final class MLuaScriptedProjectile extends Entity {
         }
 
         AABB search = getBoundingBox().expandTowards(velocity).inflate(0.1);
-        EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(level(), this, start, end, search,
-            candidate -> candidate.isAlive() && candidate != owner && candidate instanceof LivingEntity);
+        EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(this, start, end, search,
+            candidate -> candidate.isAlive() && candidate != owner && candidate instanceof LivingEntity,
+            velocity.lengthSqr());
         if (entityHit != null && entityHit.getEntity() instanceof LivingEntity target) {
             end = entityHit.getLocation();
             if (!onHitEntity.isnil()) {
@@ -192,7 +193,6 @@ public final class MLuaScriptedProjectile extends Entity {
         setPos(end.x, end.y, end.z);
         setDeltaMovement(velocity);
         if (velocity.lengthSqr() > 1.0E-8) direction = velocity.normalize();
-        hasImpulse = true;
     }
 
     private LuaTable callback(String key, LuaValue value) {

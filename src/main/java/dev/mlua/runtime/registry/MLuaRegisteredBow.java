@@ -58,12 +58,23 @@ final class MLuaRegisteredBow extends BowItem {
       return handled != null ? handled : super.useOn(context);
    }
 
+   //--version 1.20.1,1.21.1
    @Override
    public boolean hurtEnemy(ItemStack stack, net.minecraft.world.entity.LivingEntity target,
                             net.minecraft.world.entity.LivingEntity attacker) {
       return MLuaItemFactory.invokeOnAttackEntity(this.registryKey, stack, target, attacker)
          && super.hurtEnemy(stack, target, attacker);
    }
+   //--endversion
+
+   //--version 26.1
+   @Override
+   public void hurtEnemy(ItemStack stack, net.minecraft.world.entity.LivingEntity target,
+                         net.minecraft.world.entity.LivingEntity attacker) {
+      MLuaItemFactory.invokeOnAttackEntity(this.registryKey, stack, target, attacker);
+      super.hurtEnemy(stack, target, attacker);
+   }
+   //--endversion
 
    //--version 1.20.1,1.21.1
    @Override

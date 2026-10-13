@@ -32,7 +32,7 @@ if (is26Family) {
 }
 def prepareCommonVersionSources = registerMergedTree(project, 'prepareCommonVersionSources', targetPathChain('mlua-versions/common/%s', targetVersion))
 def neoForgeProjectExcludes = [
-    'dev/mlua/api/**', 'dev/mlua/modules/**', 'dev/mlua/transformer/MLuaTransformService.java',
+    'dev/mlua/api/**', 'dev/mlua/transformer/MLuaTransformService.java',
     'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
     'dev/mlua/loader/impl/forge/**', 'dev/mlua/runtime/forge/**'
 ]
@@ -61,6 +61,7 @@ def neoForgeRootExcludes = [
     'dev/mlua/runtime/config/MLuaConfigRegistry.java', 'dev/mlua/runtime/forge/ForgeLoaderProvider.java',
     'dev/mlua/runtime/forge/MLuaRuntimeForgeMod.java', 'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
     'dev/mlua/runtime/registry/MLuaItemHooks.java', 'dev/mlua/loader/impl/forge/ForgeClientBridge.java',
+    'dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java',
     'dev/mlua/loader/impl/forge/ForgeConfigBridge.java', 'dev/mlua/loader/impl/forge/ForgeEventBridge.java',
     'dev/mlua/loader/impl/forge/ForgeLifecycleBridge.java', 'dev/mlua/loader/impl/forge/ForgeNetworkBridge.java',
     'dev/mlua/loader/impl/forge/ForgeNetworkContext.java', 'dev/mlua/loader/impl/forge/ForgePlatformBridge.java',
@@ -80,8 +81,8 @@ if (is26Family) {
     neoForgeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedEntity.java'
     neoForgeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java'
     neoForgeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectileType.java'
-    neoForgeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java'
     neoForgeRootExcludes += 'dev/mlua/modules/combat/MLuaProjectileDefinition.java'
+    neoForgeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java'
     neoForgeRootExcludes += 'dev/mlua/modules/world/Service/MLuaWorldService.java'
     neoForgeRootExcludes += 'dev/mlua/runtime/client/MLuaClientRenderManager.java'
     neoForgeRootExcludes += 'dev/mlua/runtime/client/MLuaGuiRenderer.java'
@@ -146,6 +147,9 @@ if (is26Family) {
                 fileTree(dir).matching { include '**/*.java' }.each { source ->
                     def text = source.getText('UTF-8')
 
+                    text = text.replaceAll('\\.dimension\\(\\)\\.location\\(\\)', '.dimension().identifier()')
+                        .replaceAll('\\.isClientSide\\b(?!\\s*\\()', '.isClientSide()')
+
                     text = text.replace('GuiGraphicsExtractorExtractor', 'GuiGraphicsExtractor')
                     text = text.replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
                         .replace('ResourceLocationArgument', 'IdentifierArgument')
@@ -177,6 +181,7 @@ if (is26Family) {
                     if (source.name == 'MLuaRuntime.java') text = text.replace('player.displayClientMessage(Component.literal(message), false);', 'player.sendSystemMessage(Component.literal(message));').replace('source.hasPermission(4)', 'dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(source, 4)')
                     if (source.name == 'MLuaGeneratedAssetPack.java') text = text.replace('MetadataSectionSerializer', 'MetadataSectionType')
                     if (source.name == 'MLuaBlockWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId))', 'BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference -> reference.value()).orElse(null)')
+                    if (source.name == 'MLuaClientSoundManager.java') text = text.replace('BuiltInRegistries.SOUND_EVENT.get(location)', 'BuiltInRegistries.SOUND_EVENT.get(location).map(reference -> reference.value()).orElse(null)')
                     if (source.name == 'MLuaItemWrapper.java') text = text.replace('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)').replace('tag.keySet()', 'tag.getAllKeys()')
                     if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getOverworldClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '/* clock mutation moved to 26.1 */')
                     if (source.name == 'MLuaMinecraftEnums.java') text = text.replace('d.getKey()', 'd.getSerializedName()')

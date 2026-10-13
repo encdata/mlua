@@ -18,7 +18,7 @@ public final class MLuaScriptedProjectileType {
     public static EntityType<MLuaScriptedProjectile> createType() {
         Identifier id = Identifier.fromNamespaceAndPath(MOD_ID, ENTITY_NAME);
         ResourceKey<EntityType<?>> key = ResourceKey.create(Registries.ENTITY_TYPE, id);
-        return EntityType.Builder.of(MLuaScriptedProjectile::new, MobCategory.MISC)
+        return EntityType.Builder.<MLuaScriptedProjectile>of(MLuaScriptedProjectile::new, MobCategory.MISC)
             .sized(0.25f, 0.25f)
             .clientTrackingRange(10)
             .updateInterval(2)

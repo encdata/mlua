@@ -74,7 +74,7 @@ public class MLuaScriptedItem extends Item {
     }
 
     @Override public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
-        if (!level.isClientSide) {
+        if (!level.isClientSide()) {
             LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onConsume");
             if (!callback.isnil()) try {
                 var registration = MLuaScriptRuntimeRegistration.forLevel(level);
@@ -93,15 +93,16 @@ public class MLuaScriptedItem extends Item {
         return super.finishUsingItem(stack, level, entity);
     }
 
-    @Override public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+    @Override public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level,
+                                        Entity entity, net.minecraft.world.entity.EquipmentSlot equipmentSlot) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onInventoryTick");
         if (!callback.isnil()) try {
             var registration = MLuaScriptRuntimeRegistration.forLevel(level);
             LuaTable context = new LuaTable();
             context.set("World", level.dimension().identifier().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-            context.set("Slot", slot);
-            context.set("Selected", LuaValue.valueOf(selected));
+            context.set("Slot", equipmentSlot.ordinal());
+            context.set("Selected", LuaValue.valueOf(entity instanceof Player player && player.getMainHandItem() == stack));
             context.set("Entity", MLuaEntityWrapper.entityTable(entity, registration));
             if (entity instanceof ServerPlayer player) {
                 context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration));
@@ -110,10 +111,10 @@ public class MLuaScriptedItem extends Item {
         } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua item onInventoryTick callback failed for '{}': {}", behaviorKey, exception.getMessage());
         }
-        super.inventoryTick(stack, level, entity, slot, selected);
+        super.inventoryTick(stack, level, entity, equipmentSlot);
     }
 
-    @Override public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+    @Override public void hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onAttackEntity");
         if (!callback.isnil()) try {
             var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
@@ -132,19 +133,21 @@ public class MLuaScriptedItem extends Item {
                 context.set("Player", attackerTable);
             }
             Varargs result = callback.invoke(context);
-            if (result.arg1().isboolean() && !result.arg1().toboolean()) return false;
+            // In 26.1 the hook no longer returns the vanilla durability flag.
+            // Keep MLua's false return behavior by skipping the superclass hook.
+            if (result.arg1().isboolean() && !result.arg1().toboolean()) return;
         } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", behaviorKey, exception.getMessage());
         }
-        return super.hurtEnemy(stack, target, attacker);
+        super.hurtEnemy(stack, target, attacker);
     }
 
-    @Override public void onCraftedBy(ItemStack stack, Level level, Player player) {
+    @Override public void onCraftedBy(ItemStack stack, Player player) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onCrafted");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaScriptRuntimeRegistration.forLevel(player.level());
             LuaTable context = new LuaTable();
-            context.set("World", level.dimension().identifier().toString());
+            context.set("World", player.level().dimension().identifier().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             if (player instanceof ServerPlayer serverPlayer) {
                 context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration));
@@ -153,7 +156,7 @@ public class MLuaScriptedItem extends Item {
         } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}", behaviorKey, exception.getMessage());
         }
-        super.onCraftedBy(stack, level, player);
+        super.onCraftedBy(stack, player);
     }
 
     private static LuaTable position(BlockPos position) {

@@ -12,9 +12,10 @@ ext.selectMluaBuildTargets = { Map config, Object requested, boolean documentati
     if (targetName == null && documentationOnly) targetName = config.defaultTarget?.toString()
     if (targetName == null) return config.targets
 
-    def selected = config.targets.findAll {
-        it.minecraft == targetName || it.minecraft.startsWith(targetName + '.')
-    }
+    def exact = config.targets.findAll { it.minecraft == targetName }
+    def selected = exact.isEmpty() ? config.targets.findAll {
+        it.minecraft.startsWith(targetName + '.')
+    } : exact
     if (selected.isEmpty()) throw new GradleException("Unknown MLua target '${targetName}'")
     selected
 }

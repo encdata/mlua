@@ -34,7 +34,7 @@ public final class MLuaBlockCallbackDispatcher {
         if (behaviorKey == null || isDuplicate("place", level, pos, player)) {
             return;
         }
-        LuaValue onPlace = MLuaBehaviorRegistry.getBlockOnPlace(behaviorKey);
+        LuaValue onPlace = MLuaBehaviorRegistry.getBehavior("block", behaviorKey, "onPlace");
         if (onPlace.isnil()) {
             return;
         }
@@ -53,7 +53,7 @@ public final class MLuaBlockCallbackDispatcher {
         if (behaviorKey == null || isDuplicate("break", level, pos, player)) {
             return;
         }
-        LuaValue onBreak = MLuaBehaviorRegistry.getBlockOnBreak(behaviorKey);
+        LuaValue onBreak = MLuaBehaviorRegistry.getBehavior("block", behaviorKey, "onBreak");
         if (onBreak.isnil()) {
             return;
         }
@@ -72,7 +72,7 @@ public final class MLuaBlockCallbackDispatcher {
         if (behaviorKey == null || isDuplicate("step", level, pos, entity)) {
             return;
         }
-        LuaValue onStepOn = MLuaBehaviorRegistry.getBlockOnStepOn(behaviorKey);
+        LuaValue onStepOn = MLuaBehaviorRegistry.getBehavior("block", behaviorKey, "onStepOn");
         if (onStepOn.isnil()) {
             return;
         }

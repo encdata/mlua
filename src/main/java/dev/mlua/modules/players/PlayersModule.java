@@ -143,7 +143,7 @@ public class PlayersModule implements MLuaModule {
         registration.registerClass("LivingEntity", "Entity",
             "A living entity with health, damage, equipment, and attributes.");
         for (String method : List.of("GetHealth", "SetHealth", "GetMaxHealth", "GetArmor", "Damage",
-                "GetAttribute", "SetAttribute", "GetEquipment", "SetEquipment", "GetIsJumping", "GetIsSwimming")) {
+                "GetAttribute", "GetAttributeInstance", "SetAttribute", "GetEquipment", "SetEquipment", "GetIsJumping", "GetIsSwimming")) {
             String description = switch (method) {
                 case "GetHealth" -> "Returns this entity's current health.";
                 case "SetHealth" -> "Sets this entity's current health.";
@@ -153,6 +153,7 @@ public class PlayersModule implements MLuaModule {
                 case "GetIsSwimming" -> "Returns whether this entity is swimming.";
                 case "Damage" -> "Applies damage, optionally using a registered damage source and attacker.";
                 case "GetAttribute" -> "Returns the value of a registered living entity attribute.";
+                case "GetAttributeInstance" -> "Returns a live AttributeInstance for a registered attribute.";
                 case "SetAttribute" -> "Sets the base value of a registered living entity attribute.";
                 case "GetEquipment" -> "Returns the item equipped in the given equipment slot.";
                 default -> "Sets the item equipped in the given equipment slot.";

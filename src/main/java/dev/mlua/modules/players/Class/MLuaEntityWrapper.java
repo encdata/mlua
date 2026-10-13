@@ -410,6 +410,22 @@ public final class MLuaEntityWrapper {
          net.minecraft.world.entity.ai.attributes.AttributeInstance instance = ((net.minecraft.world.entity.LivingEntity)((MCLivingEntityImpl)wrapped).inner()).getAttribute(attr);
           return instance == null ? LuaValue.NIL : LuaValue.valueOf(instance.getValue());
        }));
+       MLuaClassMethods.setInstanceMethod(table, "GetAttributeInstance", varArg((args) -> {
+          String attrName = args.checkjstring(2);
+          //--version 1.21.1
+          Holder<net.minecraft.world.entity.ai.attributes.Attribute> attr = BuiltInRegistries.ATTRIBUTE.getHolder(MLuaResourceLocations.parse(attrName)).orElse(null);
+          //--endversion
+          //--version 26.1
+          Holder<net.minecraft.world.entity.ai.attributes.Attribute> attr = BuiltInRegistries.ATTRIBUTE.get(MLuaResourceLocations.parse(attrName)).orElse(null);
+          //--endversion
+          //--version 1.20.1
+          net.minecraft.world.entity.ai.attributes.Attribute attr = BuiltInRegistries.ATTRIBUTE.get(MLuaResourceLocations.parse(attrName));
+          //--endversion
+          if (attr == null) return LuaValue.NIL;
+          net.minecraft.world.entity.ai.attributes.AttributeInstance instance = ((net.minecraft.world.entity.LivingEntity)((MCLivingEntityImpl)wrapped).inner()).getAttribute(attr);
+          return instance == null ? LuaValue.NIL : dev.mlua.minecraft.binding.MLuaAttributeInstance.create(registration,
+             MLuaResourceLocations.parse(attrName).toString(), instance);
+       }));
        MLuaClassMethods.setInstanceMethod(table, "SetAttribute", varArg((args) -> {
           String attrName = args.checkjstring(2);
           double value = args.checkdouble(3);
