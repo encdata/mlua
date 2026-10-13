@@ -114,6 +114,14 @@ public final class MLuaItemWrapper {
    private static LuaTable createClass(MLuaRegistration registration) {
       LuaTable classTable = registration.registerClass("Item", registration.requireInstanceBaseClassName(), "A live item stack instance with count, durability, display name, tags, and enchantments.");
       registration.registerClass("BlockItem", "Item", "An item instance that places its associated block.");
+      LuaTable weaponClass = registration.registerClass("Weapon", "Item", "A scriptable weapon base for melee, ranged, thrown, and other item actions.");
+      if (!weaponClass.rawget("__initialized").toboolean()) {
+         registration.registerClassFunction("Weapon", "GetDurabilityRemaining", selfItem((self, ignored) -> {
+            net.minecraft.world.item.ItemStack itemStack = stack(self);
+            return LuaValue.valueOf(itemStack.isDamageableItem() ? itemStack.getMaxDamage() - itemStack.getDamageValue() : -1);
+         }), "Returns remaining durability, or -1 when this item has no durability.");
+         weaponClass.set("__initialized", LuaValue.TRUE);
+      }
       if (!classTable.rawget("__initialized").toboolean()) {
          registration.registerClassFunction("Item", "new", new VarArgFunction() {
             @Override
