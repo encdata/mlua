@@ -166,10 +166,19 @@ public class MLuaScriptedItem extends Item {
        if (!onAttack.isnil()) {
           try {
              LuaTable ctx = new LuaTable();
-             ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(target.level())));
-             ctx.set("Entity", MLuaEntityWrapper.entityTable(target, MLuaScriptRuntimeRegistration.forLevel(target.level())));
+             var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
+             LuaTable targetTable = target instanceof ServerPlayer targetPlayer
+                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(targetPlayer), registration)
+                : MLuaEntityWrapper.entityTable(target, registration);
+             LuaTable attackerTable = attacker instanceof ServerPlayer attackerPlayer
+                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(attackerPlayer), registration)
+                : MLuaEntityWrapper.entityTable(attacker, registration);
+             ctx.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+             ctx.set("Entity", targetTable);
+             ctx.set("Target", targetTable);
+             ctx.set("Attacker", attackerTable);
               if (attacker instanceof ServerPlayer sp) {
-                 ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(target.level())));
+                 ctx.set("Player", attackerTable);
               }
               ctx.set("ItemStack", this.behaviorKey);
               Varargs result = onAttack.invoke(ctx);
