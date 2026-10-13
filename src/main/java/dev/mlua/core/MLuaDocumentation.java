@@ -2117,8 +2117,12 @@ function deactivate() {}
          String methods = registeredMethodReference(classTable, className);
          if (!methods.isEmpty()) details.append(section("Registered Methods", "Methods and descriptions supplied by class registration.", methods));
       } else {
-         details.append("<p>Backed by <code>").append(htmlEscape(entry.className())).append("</code>.</p>")
-            .append("<p>No runtime class metadata is available for this reference.</p>");
+         if (entry.className() != null && !entry.className().isBlank()) {
+            details.append("<p>Backed by <code>").append(htmlEscape(entry.className())).append("</code>.</p>");
+         } else {
+            details.append("<p>This Lua class has no Java backing class.</p>");
+         }
+         details.append("<p>No runtime class metadata is available for this reference.</p>");
       }
       return section("Reference", "", details.toString());
    }
