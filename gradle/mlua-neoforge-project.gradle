@@ -178,7 +178,7 @@ if (is26Family) {
                     if (source.name == 'MLuaBlockWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId))', 'BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference -> reference.value()).orElse(null)')
                     if (source.name == 'MLuaClientSoundManager.java') text = text.replace('BuiltInRegistries.SOUND_EVENT.get(location)', 'BuiltInRegistries.SOUND_EVENT.get(location).map(reference -> reference.value()).orElse(null)')
                     if (source.name == 'MLuaItemWrapper.java') text = text.replace('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)').replace('tag.keySet()', 'tag.getAllKeys()')
-                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getOverworldClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '/* clock mutation moved to 26.1 */')
+                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getDefaultClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '((net.minecraft.world.clock.ServerClockManager) serverLevel.clockManager()).setTotalTicks(serverLevel.dimensionType().defaultClock().orElseThrow(() -> new LuaError("[MLua] This dimension does not define a world clock.")), args.checklong(2));')
                     if (source.name == 'MLuaMinecraftEnums.java') text = text.replace('d.getKey()', 'd.getSerializedName()')
                     if (source.name == 'MLuaNbtWrapper.java') text = text.replace('byteTag.getAsByte()', 'byteTag.byteValue()')
                     if (source.name == 'MLuaSlot.java') text = text.replace('rawIndexSupplier.intValue()', 'rawIndexSupplier.getAsInt()')
@@ -204,7 +204,7 @@ if (is26Family) {
                     if (source.name == 'MCResourceKeyImpl.java') text = text.replace('inner.location()', 'inner.identifier()')
                     if (source.name == 'MCPlayerListImpl.java') text = text.replace('return inner.isOp(profile);', 'return inner.isOp(new net.minecraft.server.players.NameAndId(profile));')
                     if (source.name == 'MCSoundEventImpl.java') text = text.replace('inner.getLocation()', 'inner.location()')
-                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getOverworldClockTime();')
+                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getDefaultClockTime();')
                     if (source.name == 'MLuaCameraController.java') text = text.replace('camera.getPosition()', 'camera.position()').replace('camera.getLookVector()', 'camera.forwardVector()').replace('Vector3f look = camera.forwardVector();', 'Vector3f look = new Vector3f(camera.forwardVector());')
                     if (source.name == 'MLuaKeybindController.java') text = text.replace('new KeyMapping(label, keyType(key), keyValue(key), category)', 'new KeyMapping(label, keyType(key), keyValue(key), KeyMapping.Category.MISC)').replace('options.setKey(keyMapping, key(keyMapping));', 'keyMapping.setKey(key(keyMapping));')
                     if (source.name == 'RuntimeMLuaApiBridge.java') {

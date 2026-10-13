@@ -178,7 +178,7 @@ public final class MLuaResourceLocations { private MLuaResourceLocations(){} pub
                     if (source.name == 'MLuaGeneratedAssetPack.java') text = text.replace('MetadataSectionSerializer', 'MetadataSectionType')
                     if (source.name == 'MLuaBlockWrapper.java') text = text.replace('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId))', 'BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference -> reference.value()).orElse(null)')
                     if (source.name == 'MLuaItemWrapper.java') text = text.replace('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)').replace('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)').replace('tag.keySet()', 'tag.getAllKeys()')
-                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.getDayTime()', '.getOverworldClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '/* clock mutation moved to 26.1 */')
+                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.getDayTime()', '.getDefaultClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '((net.minecraft.world.clock.ServerClockManager) serverLevel.clockManager()).setTotalTicks(serverLevel.dimensionType().defaultClock().orElseThrow(() -> new LuaError("[MLua] This dimension does not define a world clock.")), args.checklong(2));')
                     if (source.name == 'MLuaMinecraftEnums.java') text = text.replace('d.getKey()', 'd.getSerializedName()')
                     if (source.name == 'MLuaCameraController.java') text = text.replace('camera.getPosition()', 'camera.position()').replace('camera.getLookVector()', 'camera.forwardVector()')
                     if (source.name == 'MLuaCameraController.java') text = text.replace('Vector3f look = camera.forwardVector();', 'Vector3f look = new Vector3f(camera.forwardVector());')
@@ -249,7 +249,7 @@ public class ForgeClientBridge implements ClientBridge { public ForgeClientBridg
                     if (source.name == 'MCResourceKeyImpl.java') text = text.replace('inner.location()', 'inner.identifier()')
                     if (source.name == 'MCPlayerListImpl.java') text = text.replace('return inner.isOp(profile);', 'return inner.isOp(new net.minecraft.server.players.NameAndId(profile));')
                     if (source.name == 'MCSoundEventImpl.java') text = text.replace('inner.getLocation()', 'inner.location()')
-                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getOverworldClockTime();')
+                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getDefaultClockTime();')
                     if (source.name == 'MLuaClientParticleManager.java') text = text
                         .replace('BuiltInRegistries.BLOCK.get(blockId)', 'BuiltInRegistries.BLOCK.getValue(blockId)')
                         .replace('new ItemStack(BuiltInRegistries.ITEM.get(itemId))', 'BuiltInRegistries.ITEM.getValue(itemId)')

@@ -203,7 +203,7 @@ if (isUnobfuscated) {
                     if (source.name == 'MCItemImpl.java') text = text.replace('return inner.getEnchantmentValue() > 0;', 'return inner.getDefaultInstance().get(net.minecraft.core.component.DataComponents.ENCHANTABLE) != null && inner.getDefaultInstance().get(net.minecraft.core.component.DataComponents.ENCHANTABLE).value() > 0;')
                     if (source.name == 'MCResourceKeyImpl.java') text = text.replace('inner.location()', 'inner.identifier()')
                     if (source.name == 'MCSoundEventImpl.java') text = text.replace('inner.getLocation()', 'inner.location()')
-                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getOverworldClockTime();')
+                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getDefaultClockTime();')
                     if (source.name == 'MCPlayerListImpl.java') text = text.replace('return inner.isOp(profile);', 'return inner.isOp(new net.minecraft.server.players.NameAndId(profile));')
                     if (source.name == 'MCPlayerImpl.java') text = text.replace('inv.getSelectedSlot() = slot', 'inv.setSelectedSlot(slot)')
                     if (source.name == 'MCPotionImpl.java') text = text.replace('return Potion.getName(java.util.Optional.empty(), prefix);', 'return prefix + inner.name();')
@@ -215,7 +215,7 @@ if (isUnobfuscated) {
                         if (!text.contains('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference')) text = text.replace('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId))', 'BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference -> reference.value()).orElse(null)')
                         if (!text.contains('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference')) text = text.replace('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)')
                     }
-                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getOverworldClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '/* clock mutation moved to 26.1 data API */')
+                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getDefaultClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '((net.minecraft.world.clock.ServerClockManager) serverLevel.clockManager()).setTotalTicks(serverLevel.dimensionType().defaultClock().orElseThrow(() -> new LuaError("[MLua] This dimension does not define a world clock.")), args.checklong(2));')
                     if (source.name == 'MLuaItemWrapper.java') {
                         text = text.replace('tag.keySet()', 'tag.getAllKeys()')
                         if (!text.contains('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference')) text = text.replace('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)')
