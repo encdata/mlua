@@ -19,13 +19,15 @@ public final class MLuaClassMethods {
       if (classTable == null) throw new IllegalStateException("Lua class is not registered: " + className);
       LuaValue existing = classTable.rawget(methodName);
       if (existing.isfunction()) {
+         LuaTable dispatchers = instanceDispatchers(classTable);
+         if (dispatchers.rawget(methodName).isnil()) dispatchers.rawset(methodName, LuaValue.FALSE);
          registration.registerClassFunction(className, methodName, existing, description);
          return;
       }
       if (!existing.isnil()) {
          throw new IllegalStateException("Lua class '" + className + "' already defines non-function member '" + methodName + "'");
       }
-      registration.registerClassFunction(className, methodName, new VarArgFunction() {
+      LuaValue dispatcher = new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             LuaValue receiver = args.arg1();
@@ -35,7 +37,9 @@ public final class MLuaClassMethods {
             }
             return method.invoke(args);
          }
-      }, description);
+      };
+      instanceDispatchers(classTable).rawset(methodName, LuaValue.TRUE);
+      registration.registerClassFunction(className, methodName, dispatcher, description);
    }
 
    /** Registers a class property that delegates reads and optional writes to live instance methods. */
@@ -53,6 +57,10 @@ public final class MLuaClassMethods {
                                                String side, String description) {
       if (getterMethod == null || getterMethod.isBlank()) {
          throw new IllegalArgumentException("Property getter method must be non-empty");
+      }
+      requirePropertyMethod(registration, className, propertyName, getterMethod);
+      if (setterMethod != null && !setterMethod.isBlank()) {
+         requirePropertyMethod(registration, className, propertyName, setterMethod);
       }
       LuaValue getter = new OneArgFunction() {
          @Override
@@ -83,6 +91,15 @@ public final class MLuaClassMethods {
       registration.registerClassProperty(className, propertyName, getter, setter, valueType, side, description);
    }
 
+   private static void requirePropertyMethod(MLuaRegistration registration, String className,
+                                             String propertyName, String methodName) {
+      String methodDescription = registration.classMethodDescription(className, methodName);
+      if (methodDescription == null || methodDescription.isBlank()) {
+         throw new IllegalStateException("Lua class '" + className + "' property '" + propertyName
+            + "' requires the registered method '" + methodName + "'");
+      }
+   }
+
    /** Registers a stable class dispatcher and binds this instance's implementation. */
    public static void bindInstanceMethod(MLuaRegistration registration, String className, LuaTable instance,
                                          String methodName, LuaValue implementation, String description) {
@@ -107,6 +124,10 @@ public final class MLuaClassMethods {
       }
       if (!instance.get(methodName).isfunction()) {
          throw new IllegalStateException("Lua instance has no registered class function named '" + methodName + "'");
+      }
+      LuaValue dispatchers = instance.rawget("__mlua_instance_dispatchers");
+      if (!dispatchers.istable() || !dispatchers.checktable().rawget(methodName).toboolean()) {
+         throw new IllegalStateException("Lua class function '" + methodName + "' is not an instance dispatcher");
       }
       LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
       if (!documentedMethods.istable() || !documentedMethods.checktable().rawget(methodName).isstring()) {
@@ -316,5 +337,13 @@ public final class MLuaClassMethods {
          if (method.isfunction()) return method;
       }
       return receiver.get(key);
+   }
+
+   private static LuaTable instanceDispatchers(LuaTable classTable) {
+      LuaValue dispatchers = classTable.rawget("__mlua_instance_dispatchers");
+      if (dispatchers.istable()) return dispatchers.checktable();
+      LuaTable result = new LuaTable();
+      classTable.rawset("__mlua_instance_dispatchers", result);
+      return result;
    }
 }

@@ -510,6 +510,7 @@ public final class MLuaClassRegistry {
             instance.rawset("__type", LuaValue.NIL);
          }
          instance.rawset("__mlua_doc_parents", LuaValue.NIL);
+         instance.rawset("__mlua_instance_dispatchers", LuaValue.NIL);
          LuaValue descriptionsValue = instance.rawget("__mlua_doc_methods");
          if (descriptionsValue.istable()) {
             LuaTable instanceDescriptions = new LuaTable();
@@ -851,6 +852,9 @@ public final class MLuaClassRegistry {
          }
       }
       instance.rawset("__mlua_doc_methods", methodDescriptions);
+      LuaTable instanceDispatchers = new LuaTable();
+      this.collectInstanceDispatchers(className, instanceDispatchers, new HashSet<>());
+      instance.rawset("__mlua_instance_dispatchers", instanceDispatchers);
       LuaTable propertyDescriptions = new LuaTable();
       this.collectPropertyDescriptions(className, propertyDescriptions, new HashSet<>());
       instance.rawset("__mlua_doc_properties", propertyDescriptions);
@@ -917,6 +921,48 @@ public final class MLuaClassRegistry {
          LuaValue key = LuaValue.NIL;
          while (true) {
             Varargs next = parentDescriptions.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
+         }
+      }
+   }
+
+   private void collectInstanceDispatchers(String className, LuaTable output, Set<String> visited) {
+      if (!visited.add(className)) return;
+      LuaTable classTable = this.classes.get(className);
+      if (classTable != null) {
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = classTable.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            if (!key.isstring() || !next.arg(2).isfunction()) continue;
+            String methodName = key.tojstring();
+            if (methodName.startsWith("__") || MLuaRegistration.isReservedFunctionName(methodName)) continue;
+            LuaValue declared = classTable.rawget("__mlua_instance_dispatchers");
+            LuaValue isDispatcher = declared.istable() ? declared.checktable().rawget(key) : LuaValue.NIL;
+            output.rawset(key, isDispatcher.toboolean() ? LuaValue.TRUE : LuaValue.FALSE);
+         }
+      }
+      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
+         LuaTable mixin = this.mixins.get(mixinName);
+         if (mixin == null) continue;
+         LuaTable methods = this.mixinMethods(mixin);
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = methods.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            if (output.rawget(key).isnil()) output.rawset(key, LuaValue.FALSE);
+         }
+      }
+      for (String parentName : this.parents.getOrDefault(className, List.of())) {
+         LuaTable parentDispatchers = new LuaTable();
+         this.collectInstanceDispatchers(parentName, parentDispatchers, new HashSet<>(visited));
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = parentDispatchers.next(key);
             key = next.arg1();
             if (key.isnil()) break;
             if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
@@ -1005,6 +1051,9 @@ public final class MLuaClassRegistry {
             this.instanceDescriptions.put(instance, new InstanceDescription(false, null));
          }
          instance.rawset("__mlua_doc_parents", copyTableOrNil(registeredClass.rawget("__mlua_doc_parents")));
+         LuaTable dispatchers = new LuaTable();
+         this.collectInstanceDispatchers(className, dispatchers, new HashSet<>());
+         instance.rawset("__mlua_instance_dispatchers", dispatchers);
          LuaTable descriptions = new LuaTable();
          this.collectMethodDescriptions(className, descriptions, new HashSet<>());
          LuaValue previousValue = instance.rawget("__mlua_doc_methods");

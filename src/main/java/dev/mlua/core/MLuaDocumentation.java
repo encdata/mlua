@@ -2537,8 +2537,37 @@ function deactivate() {}
     private static String gettingStartedContent(List<MLuaDocBuilder.Contribution> contributions) {
       StringBuilder body = new StringBuilder();
       body.append(renderGettingStartedContributions(contributions));
+      if (body.isEmpty()) body.append(builtInGettingStartedContent());
       return content("Getting Started", "Setup steps and starter scripts contributed by MLua and installed addons.", null,
          body.toString());
+    }
+
+    private static String builtInGettingStartedContent() {
+       List<MLuaExampleScripts.ExampleScript> examples = MLuaExampleScripts.scripts();
+       MLuaExampleScripts.ExampleScript server = examples.stream()
+          .filter(example -> example.name().equals("01-basic-server.server.lua"))
+          .findFirst().orElse(null);
+       MLuaExampleScripts.ExampleScript registry = examples.stream()
+          .filter(example -> example.name().equals("02-custom-item.registry.lua"))
+          .findFirst().orElse(null);
+       StringBuilder html = new StringBuilder();
+       html.append("<section class=\"tutorial-step\"><h3>Step 1: Create a server script</h3>")
+          .append("<p>After launching Minecraft with MLua installed, create this file in the game directory. ")
+          .append("The <code>.server.lua</code> suffix runs it on the server when a world starts.</p>")
+          .append(codeBlock("<game directory>/mlua/scripts/hello.server.lua"))
+          .append(codeBlock(server == null
+             ? "local Players = Minecraft:GetService(\"Players\")\n\nPlayers.PlayerAdded:Connect(function(player)\n    player:SendMessage(\"Welcome to my world!\")\nend)"
+             : server.source()))
+          .append("</section><section class=\"tutorial-step\"><h3>Step 2: Register an item</h3>")
+          .append("<p>Registry scripts run before Minecraft freezes content registries. Save this as ")
+          .append("<code>&lt;game directory&gt;/mlua/scripts/ruby.registry.lua</code>, then start a new world.</p>")
+          .append(codeBlock(registry == null
+             ? "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.Items:Register(\"ruby\", {\n    maxStackSize = 64\n})"
+             : registry.source()))
+          .append("</section><section class=\"tutorial-step\"><h3>Step 3: Find the next API</h3>")
+          .append("<p>Use the API pages in this folder to explore services, classes, and registration options. ")
+          .append("The documentation site uses local HTML, CSS, and JavaScript files, so it can be opened without an internet connection.</p></section>");
+       return html.toString();
     }
 
     private static String renderGettingStartedContributions(List<MLuaDocBuilder.Contribution> contributions) {
