@@ -9,11 +9,8 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.engine.MLuaLuaBindings;
-import dev.mlua.core.classes.MLuaClassMethods;
-import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
-import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import java.util.Iterator;
@@ -70,7 +67,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
             if (MLuaPlayersService.this.isClientSide()) {
                int index = 1;
                for (AbstractClientPlayer player : MLuaPlayersService.this.clientPlayers()) {
-                  players.set(index++, MLuaPlayersService.clientPlayerTable(player, MLuaPlayersService.this.context.mlua().registration()));
+                  players.set(index++, MLuaPlayerWrapper.clientPlayerTable(player, MLuaPlayersService.this.context.mlua().registration()));
                }
             } else if (MLuaPlayersService.this.server() != null) {
                int index = 1;
@@ -93,7 +90,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
             }
             if (MLuaPlayersService.this.isClientSide()) {
                for (AbstractClientPlayer player : MLuaPlayersService.this.clientPlayers()) {
-                  if (player.getName().getString().equals(args.checkjstring(2))) return MLuaPlayersService.clientPlayerTable(player, MLuaPlayersService.this.context.mlua().registration());
+                  if (player.getName().getString().equals(args.checkjstring(2))) return MLuaPlayerWrapper.clientPlayerTable(player, MLuaPlayersService.this.context.mlua().registration());
                }
             }
             return LuaValue.NIL;
@@ -107,7 +104,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
             if (player != null) return MLuaPlayersService.playerTable(player, MLuaPlayersService.this.context.mlua().registration());
             if (MLuaPlayersService.this.isClientSide()) {
                for (AbstractClientPlayer local : MLuaPlayersService.this.clientPlayers()) {
-                  if (uuid.equals(local.getUUID())) return MLuaPlayersService.clientPlayerTable(local, MLuaPlayersService.this.context.mlua().registration());
+                  if (uuid.equals(local.getUUID())) return MLuaPlayerWrapper.clientPlayerTable(local, MLuaPlayersService.this.context.mlua().registration());
                }
             }
             return LuaValue.NIL;
@@ -123,7 +120,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
             }
             if (MLuaPlayersService.this.isClientSide()) {
                for (AbstractClientPlayer local : MLuaPlayersService.this.clientPlayers()) {
-                  if (local.getId() == id) return MLuaPlayersService.clientPlayerTable(local, MLuaPlayersService.this.context.mlua().registration());
+                  if (local.getId() == id) return MLuaPlayerWrapper.clientPlayerTable(local, MLuaPlayersService.this.context.mlua().registration());
                }
             }
             return LuaValue.NIL;
@@ -162,30 +159,6 @@ public final class MLuaPlayersService extends MLuaServiceBase {
       return MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration);
    }
 
-    private static LuaTable clientPlayerTable(AbstractClientPlayer player, dev.mlua.module.MLuaRegistration registration) {
-      MLuaPlayerWrapper.classTable(registration);
-      if (player instanceof LocalPlayer local) {
-         return MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(local), registration);
-      }
-      LuaTable cachedPlayer = MLuaEntityWrapper.cachedPlayerTable(player, registration);
-      if (cachedPlayer != null) {
-         LuaValue cachedEntity = cachedPlayer.rawget("__entity");
-         if (cachedEntity.isuserdata(net.minecraft.world.entity.Entity.class)
-               && cachedEntity.touserdata(net.minecraft.world.entity.Entity.class) == player) {
-            return cachedPlayer;
-         }
-      }
-      LuaTable table = MLuaEntityWrapper.entityTable(player, registration);
-      registration.attachClassInstance(table, "Player", "LivingEntity");
-      table.rawset("__entity", LuaValue.userdataOf(player));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", valueFunction(() -> LuaValue.FALSE));
-      MLuaClassMethods.setInstanceMethod(table, "GetUserId", valueFunction(() -> LuaValue.valueOf(player.getId())));
-      MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", valueFunction(() -> LuaValue.valueOf(player.getDisplayName().getString())));
-      MLuaClassMethods.setInstanceMethod(table, "IsOnline", valueFunction(() -> LuaValue.TRUE));
-      MLuaEntityWrapper.attachEntityProperties(table);
-      MLuaEntityWrapper.cachePlayerTable(player, registration, table);
-      return table;
-   }
    private java.util.List<AbstractClientPlayer> clientPlayers() {
       if (!this.isClientSide()) return java.util.List.of();
       Minecraft minecraft = MLuaMinecraftClient.instance();
@@ -198,7 +171,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
          return LuaValue.NIL;
       } else {
          LocalPlayer player = MLuaMinecraftClient.localPlayer();
-         return (LuaValue)(player == null ? LuaValue.NIL : clientPlayerTable(player, context.mlua().registration()));
+         return (LuaValue)(player == null ? LuaValue.NIL : MLuaPlayerWrapper.clientPlayerTable(player, context.mlua().registration()));
       }
    }
 
@@ -210,9 +183,4 @@ public final class MLuaPlayersService extends MLuaServiceBase {
       return this.context.mlua().server();
    }
 
-   private static VarArgFunction valueFunction(java.util.function.Supplier<LuaValue> value) {
-      return new VarArgFunction() {
-         @Override public Varargs invoke(Varargs args) { return value.get(); }
-      };
-   }
 }

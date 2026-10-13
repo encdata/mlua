@@ -17,6 +17,7 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
 import dev.mlua.minecraft.binding.MLuaPlayerAbilities;
 import dev.mlua.modules.effects.Service.MLuaPotionEffectsService;
@@ -58,6 +59,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.lang.ref.WeakReference;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -472,6 +475,42 @@ public final class MLuaPlayerWrapper {
       LuaTable attached = MLuaEntityWrapper.attachEntityProperties(table);
       MLuaEntityWrapper.cachePlayerTable(raw, registration, attached);
       return attached;
+   }
+
+   public static LuaTable clientPlayerTable(AbstractClientPlayer player, MLuaRegistration registration) {
+      classTable(registration);
+      if (player instanceof LocalPlayer local) {
+         return localPlayerTable(MCLocalPlayerImpl.fromReal(local), registration);
+      }
+      LuaTable cachedPlayer = MLuaEntityWrapper.cachedPlayerTable(player, registration);
+      if (cachedPlayer != null) {
+         LuaValue cachedEntity = cachedPlayer.rawget("__entity");
+         if (cachedEntity.isuserdata(net.minecraft.world.entity.Entity.class)
+               && cachedEntity.touserdata(net.minecraft.world.entity.Entity.class) == player) {
+            return cachedPlayer;
+         }
+      }
+      LuaTable table = MLuaEntityWrapper.entityTable(player, registration);
+      registration.attachClassInstance(table, "Player", "LivingEntity");
+      table.rawset("__entity", LuaValue.userdataOf(player));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", luaFn(() -> LuaValue.FALSE));
+      MLuaClassMethods.setInstanceMethod(table, "GetUserId", luaFn(() -> LuaValue.valueOf(player.getId())));
+      MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", luaFn(() -> LuaValue.valueOf(player.getDisplayName().getString())));
+      MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> LuaValue.TRUE));
+      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> MLuaLevelWrapper.levelTable(player.level(), registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(player.level(), registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(player.level().dimension().location().toString())));
+      MLuaClassMethods.setInstanceMethod(table, "GetHeldItem", luaFn(() -> {
+         var stack = player.getMainHandItem();
+         return stack.isEmpty() ? LuaValue.NIL : MLuaItemWrapper.itemTable(stack, registration);
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetOffhandItem", luaFn(() -> {
+         var stack = player.getOffhandItem();
+         return stack.isEmpty() ? LuaValue.NIL : MLuaItemWrapper.itemTable(stack, registration);
+      }));
+      MLuaEntityWrapper.attachEntityProperties(table);
+      MLuaEntityWrapper.cachePlayerTable(player, registration, table);
+      return table;
    }
 
    public static LuaTable localPlayerTable(MCLocalPlayer player) {
