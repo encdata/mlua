@@ -137,8 +137,51 @@ public final class MLuaBlockWrapper {
    }
 
    private static LuaTable createClass(MLuaRegistration registration) {
+      LuaTable blockEntityClass = registration.registerClass("BlockEntity", registration.requireInstanceBaseClassName(),
+         "A live block entity attached to a block position, with persistent state and optional inventory.");
+      if (!blockEntityClass.rawget("__initialized").toboolean()) {
+         registration.registerClassFunction("BlockEntity", "GetPosition", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               net.minecraft.world.level.block.entity.BlockEntity entity = blockEntity(args.arg1());
+               return MLuaVector.vector3(entity.getBlockPos().getX(), entity.getBlockPos().getY(), entity.getBlockPos().getZ());
+            }
+         }, "Returns this block entity's world position.");
+         registration.registerClassFunction("BlockEntity", "GetBlock", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               LuaTable self = args.arg1().checktable();
+               return blockTable((net.minecraft.world.level.Level)self.rawget("__level").touserdata(net.minecraft.world.level.Level.class),
+                  (net.minecraft.core.BlockPos)self.rawget("__block_pos").touserdata(net.minecraft.core.BlockPos.class), registration);
+            }
+         }, "Returns the live block that owns this block entity.");
+         registration.registerClassFunction("BlockEntity", "GetType", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               return LuaValue.valueOf(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity(args.arg1()).getType()).toString());
+            }
+         }, "Returns this block entity type's registry identifier.");
+         registration.registerClassFunction("BlockEntity", "SetChanged", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               blockEntity(args.arg1()).setChanged();
+               return LuaValue.NONE;
+            }
+         }, "Marks this block entity's saved state as changed.");
+         blockEntityClass.set("__initialized", LuaValue.TRUE);
+      }
       LuaTable classTable = registration.registerClass("Block", registration.requireInstanceBaseClassName(), "A live block instance at a position in a Minecraft world.");
       if (!classTable.rawget("__initialized").toboolean()) {
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetBlockEntity", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            net.minecraft.world.level.block.entity.BlockEntity entity = rawLevel.getBlockEntity(rawPos);
+            if (entity == null) return LuaValue.NIL;
+            String id = BuiltInRegistries.BLOCK.getKey(rawLevel.getBlockState(rawPos).getBlock()).toString();
+            String entityClass = MLuaBehaviorRegistry.getContentClass("block_entity", id);
+            LuaTable fields = new LuaTable();
+            fields.rawset("__side", LuaValue.valueOf("Both"));
+            fields.rawset("__block_entity", LuaValue.userdataOf(entity));
+            fields.rawset("__level", LuaValue.userdataOf(rawLevel));
+            fields.rawset("__block_pos", LuaValue.userdataOf(rawPos.immutable()));
+            return MLuaServiceProperties.attach(registration.createClassInstance(entityClass == null ? "BlockEntity" : entityClass, fields));
+         }), "Returns the block entity at this position, or nil when none exists.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetId", selfBlock((self, ignored) -> LuaValue.valueOf(blockId(level(self), pos(self)))), "Returns the registered block identifier at this position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetLevel", selfBlock((self, ignored) -> MLuaLevelWrapper.levelTable(((MCLevelImpl) level(self)).inner(), registration)), "Returns the live world containing this block.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetDimension", selfBlock((self, ignored) -> LuaValue.valueOf(((MCLevelImpl) level(self)).inner().dimension().location().toString())), "Returns the dimension identifier containing this block.");
@@ -305,6 +348,14 @@ public final class MLuaBlockWrapper {
          throw new LuaError("[MLua] Block instance lost its position reference");
       }
       return dev.mlua.mc.impl.core.MCBlockPosImpl.fromReal(pos);
+   }
+
+   private static net.minecraft.world.level.block.entity.BlockEntity blockEntity(LuaValue self) {
+      LuaValue value = self.checktable().rawget("__block_entity");
+      if (!value.isuserdata(net.minecraft.world.level.block.entity.BlockEntity.class)) {
+         throw new LuaError("[MLua] BlockEntity instance lost its block entity reference");
+      }
+      return (net.minecraft.world.level.block.entity.BlockEntity)value.touserdata(net.minecraft.world.level.block.entity.BlockEntity.class);
    }
 
    private static LuaValue selfBlock(BiFunction<LuaValue, Varargs, LuaValue> body) {

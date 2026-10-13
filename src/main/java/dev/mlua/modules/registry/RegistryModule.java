@@ -188,9 +188,18 @@ public class RegistryModule implements MLuaModule {
         docs.clazz("Block", "MLuaBlockWrapper",
                 "A live block instance at a position in a Minecraft world.",
                 "classes/block.html", "Instance");
+        docs.clazz("BlockEntity", "MLuaBlockWrapper",
+                "A live block entity attached to a block position, with persistent state and optional inventory.",
+                "classes/block-entity.html", "Instance");
+        docs.guideStep("BlockEntity", "Extend a block with saved state",
+                "Register a Lua class under BlockEntity and assign it in the block definition. Retrieve the live instance from Block:GetBlockEntity().",
+                "Minecraft:RegisterClass(\"RuneChestEntity\", \"BlockEntity\", \"Stores a rune chest's state.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"MarkUpdated\", function(self)\n    self:SetChanged()\nend, \"Saves this block entity's changed state.\")\n\nRegistry.Blocks:Register(\"rune_chest\", {\n    container = { Rows = 3 },\n    blockEntity = { className = \"RuneChestEntity\" }\n})\n\nlocal block = World:GetBlock(position)\nlocal entity = block:GetBlockEntity()\nentity:MarkUpdated()");
         docs.guideStep("Block", "Inspect a block from the world",
                 "World:GetBlock returns a live Block wrapper at the requested position. Read its registered id and use its instance methods to change or break it.",
                 "local World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(Vector3.new(0, 64, 0))\nprint(block.Id, block.Name)\nblock:Break(false)");
+        docs.guideStep("BlockItem", "Extend the item form of a block",
+                "A block item is an Item subclass. Register its class under BlockItem and pass that class to RegisterItem; callbacks receive the same live subclass.",
+                "Minecraft:RegisterClass(\"SignalBlockItem\", \"BlockItem\", \"The item form of a signal block.\")\nMinecraft:RegisterClassFunction(\"SignalBlockItem\", \"IsSignalBlock\", function(self)\n    return self:GetId() == \"myaddon:signal_block\"\nend, \"Checks which registered block this item places.\")\n\nRegistry.Blocks:Register(\"signal_block\", {})\nRegistry.Blocks:RegisterItem(\"signal_block\", { className = \"SignalBlockItem\" })");
         docs.clazz("ScriptedEntity", "MLuaScriptedEntity",
                 "A registered Lua-controlled mob with navigation, sensing, combat, and persistent AI data.",
                 "classes/scripted-entity.html", "LivingEntity");
@@ -251,7 +260,15 @@ public class RegistryModule implements MLuaModule {
             "hardness?", "number", "Block mining hardness.", "resistance?", "number", "Explosion resistance.",
             "lightLevel?", "number", "Emitted light level.", "mineableWith?", "string", "Required tool group.",
             "requiredToolTier?", "number", "Minimum tool tier.",
-            "className?", "string", "Registered Lua class inheriting from Block.");
+            "className?", "string", "Registered Lua class inheriting from Block.",
+            "blockEntity?", "BlockEntityDefinition", "Lua block entity class and behavior settings.",
+            "blockEntityClass?", "string", "Registered Lua class inheriting from BlockEntity.");
+        schema(docs, "BlockEntityDefinition", "Lua class assigned to a block's live block entity.",
+            "className?", "string", "Registered Lua class inheriting from BlockEntity.");
+        schema(docs, "BlockItemDefinition", "Options and callbacks for a block's item form.",
+            "className?", "string", "Registered Lua class inheriting from BlockItem.",
+            "onUse?", "fun(context: ItemUseContext): boolean", "Runs when a player uses this block item.",
+            "onUseOnBlock?", "fun(context: ItemUseOnBlockContext): boolean", "Runs when this item is used on a block.");
         schema(docs, "EntityDefinition", "Properties, callbacks, and scripted AI for a registered entity.",
             "onTick?", "fun(entity: Entity)", "Runs on an entity tick.",
             "onHurt?", "fun(self: Entity, amount: number, source: string)", "Runs after damage is accepted.",
@@ -314,7 +331,7 @@ public class RegistryModule implements MLuaModule {
         docs.signature("Registry.Items", "Registry.Items:GetId(name: string)", null);
         docs.signature("Registry.Items", "Registry.Items:Exists(name: string)", null);
         docs.signature("Registry.Blocks", "Registry.Blocks:Register(id: string, props: BlockDefinition)", null);
-        docs.signature("Registry.Blocks", "Registry.Blocks:RegisterItem(id: string)", null);
+        docs.signature("Registry.Blocks", "Registry.Blocks:RegisterItem(id: string, definition?: BlockItemDefinition)", null);
         docs.signature("Registry.Blocks", "Registry.Blocks:RegisterState(id: string, blockState: string)", null);
         docs.signature("Registry.Blocks", "Registry.Blocks:GetId(name: string)", null);
         docs.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null);

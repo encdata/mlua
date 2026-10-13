@@ -113,6 +113,7 @@ public final class MLuaItemWrapper {
 
    private static LuaTable createClass(MLuaRegistration registration) {
       LuaTable classTable = registration.registerClass("Item", registration.requireInstanceBaseClassName(), "A live item stack instance with count, durability, display name, tags, and enchantments.");
+      registration.registerClass("BlockItem", "Item", "An item instance that places its associated block.");
       if (!classTable.rawget("__initialized").toboolean()) {
          registration.registerClassFunction("Item", "new", new VarArgFunction() {
             @Override

@@ -252,6 +252,19 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
             String className = MLuaRegistryService.requireContentClass(registration, propsTable, "Block");
+            LuaValue blockEntityDefinition = propsTable == null ? LuaValue.NIL : propsTable.get("blockEntity");
+            if (blockEntityDefinition.isnil() && propsTable != null) blockEntityDefinition = propsTable.get("BlockEntity");
+            LuaTable blockEntityProperties = blockEntityDefinition.istable() ? blockEntityDefinition.checktable() : null;
+            String blockEntityClass = blockEntityProperties != null
+               ? MLuaRegistryService.requireContentClass(registration, blockEntityProperties, "BlockEntity") : "BlockEntity";
+            if (propsTable != null && !propsTable.get("blockEntityClass").isnil()) {
+               blockEntityClass = propsTable.get("blockEntityClass").checkjstring();
+               if (registration.classTable(blockEntityClass) == null || !registration.isSubclassOf(blockEntityClass, "BlockEntity")) {
+                  throw new LuaError("[MLua] Content class '" + blockEntityClass + "' must be registered and inherit from BlockEntity");
+               }
+            }
+            MLuaBehaviorRegistry.registerContentClass("block_entity", key,
+               "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
             MLuaBehaviorRegistry.clearBlockCallbacks(key);
             MLuaBehaviorRegistry.ContainerDefinition containerDefinition = null;
             if (propsTable != null) {
@@ -319,6 +332,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             Map<String, Object> props = propsTable != null ? MLuaLuaBindings.mapFromLua(propsTable) : Map.of();
             String key = owner + ":" + name;
+            dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
+            String className = MLuaRegistryService.requireContentClass(registration, propsTable, "BlockItem");
             boolean hasCallbacks = registerItemCallbacks(propsTable, key);
 
             MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
@@ -336,6 +351,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   return new dev.mlua.runtime.registry.MLuaNamedBlockItem((Block)blockRO.get(), new net.minecraft.world.item.Item.Properties(), key);
                });
             }
+
+            MLuaBehaviorRegistry.registerContentClass("item", key, className);
 
             return LuaValue.NONE;
          }

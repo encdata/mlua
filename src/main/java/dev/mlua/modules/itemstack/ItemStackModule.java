@@ -46,6 +46,7 @@ public final class ItemStackModule implements MLuaModule {
             "Create, clone, inspect, and mutate Minecraft ItemStack values.",
             "services/item-stack.html");
         docs.clazz("Item", "MLuaItemWrapper", "A live item stack instance with count, durability, display name, tags, and enchantments.", "classes/item.html", "Instance");
+        docs.clazz("BlockItem", "MLuaItemWrapper", "An item instance that places its associated block and inherits the item stack API.", "classes/block-item.html", "Instance");
         docs.guideStep("Item", "Read and change a live item stack",
             "Item values are live stack wrappers returned by player inventory and held-item methods. Use Item.Find to create a stack when you need one directly.",
             "local item = Item.Find(\"minecraft:torch\", 4)\nprint(item:GetId(), item:GetCount())\nitem:SetCount(8)");
