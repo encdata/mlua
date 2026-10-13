@@ -8,6 +8,7 @@ public final class MLuaDocBuilder {
     private final List<DocEntry> entries = new ArrayList();
     private final List<MethodDoc> methods = new ArrayList();
     private final List<SignatureDoc> signatures = new ArrayList<>();
+    private final List<ServiceFunctionDoc> serviceFunctions = new ArrayList<>();
     private final List<GuideStep> guideSteps = new ArrayList();
     private final List<MemberDoc> members = new ArrayList();
     private final List<TypeDoc> types = new ArrayList<>();
@@ -64,6 +65,18 @@ public final class MLuaDocBuilder {
     }
 
     public List<SignatureDoc> signatures() { return List.copyOf(this.signatures); }
+
+    /** Adds a method from a declared service contract to its generated reference page. */
+    public void serviceFunction(String service, String name, String description) {
+        if (service == null || service.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Service function name must be non-empty");
+        if (description == null || description.isBlank()) throw new IllegalArgumentException("Service function description must be non-empty");
+        ServiceFunctionDoc doc = new ServiceFunctionDoc(service, name, description);
+        if (this.serviceFunctions.contains(doc)) throw new IllegalArgumentException("Service function is already documented: " + service + "." + name);
+        this.serviceFunctions.add(doc);
+    }
+
+    public List<ServiceFunctionDoc> serviceFunctions() { return List.copyOf(this.serviceFunctions); }
 
     /** Registers a documented property on a service or live class instance. */
     public void property(String receiver, String signature, String type, String description, String side) {
@@ -180,6 +193,8 @@ public final class MLuaDocBuilder {
     }
 
     public record SignatureDoc(String receiver, String signature, String returns) { }
+
+    public record ServiceFunctionDoc(String service, String name, String description) { }
 
     public record GuideStep(String receiver, String title, String explanation, String example) {
         public GuideStep {

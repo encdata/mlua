@@ -418,6 +418,9 @@ public final class MLuaModuleLoader {
     public void generateDocs(MLuaDocBuilder docs) {
         for (MLuaModule module : this.modules) {
             this.invoke(module, "docs", () -> module.contributeDocs(docs));
+            this.invoke(module, "service docs", () -> module.services().forEach(service ->
+                service.functionDescriptions().forEach((name, description) ->
+                    docs.serviceFunction(service.name(), name, description))));
         }
     }
 

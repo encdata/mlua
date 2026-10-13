@@ -68,7 +68,7 @@ public final class MLuaDocumentation {
              Path outPath = docs.resolve(fp);
              Files.createDirectories(outPath.getParent());
              String title = entry.name() + (entry.type() == MLuaDocBuilder.DocEntryType.SERVICE ? " Service" : "");
-             String content = moduleReferenceContent(entry, builder.guideSteps(), builder.methods(), builder.signatures(), builder.members());
+             String content = moduleReferenceContent(entry, builder.guideSteps(), builder.methods(), builder.signatures(), builder.serviceFunctions(), builder.members());
              write(outPath, page(title + " - MLua", sidebar(sidebarKey), content));
           }
 
@@ -1984,6 +1984,7 @@ function deactivate() {}
                                                List<MLuaDocBuilder.GuideStep> guideSteps,
                                                List<MLuaDocBuilder.MethodDoc> methodDocs,
                                                List<MLuaDocBuilder.SignatureDoc> signatureDocs,
+                                               List<MLuaDocBuilder.ServiceFunctionDoc> serviceFunctions,
                                                List<MLuaDocBuilder.MemberDoc> memberDocs) {
       String ctx = switch (entry.type()) {
          case SERVICE -> ctx("Minecraft:GetService(\"" + entry.name() + "\")", entry.name());
@@ -1996,10 +1997,8 @@ function deactivate() {}
       extra += registeredGuideSteps(entry, guideSteps);
       extra += registeredMethodDocs(entry, methodDocs);
       extra += registeredSignatureDocs(entry, signatureDocs);
+      extra += registeredServiceFunctions(entry, serviceFunctions);
       extra += registeredMemberDocs(entry, memberDocs);
-      if (entry.type() == MLuaDocBuilder.DocEntryType.SERVICE) {
-         extra += serviceContractDocs(entry);
-      }
 
       Optional<Path> root = currentGameDir == null ? Optional.empty() : MLuaApiDocScanner.findSourceRoot(currentGameDir);
       Optional<String> sourcePath = root.isEmpty() ? Optional.empty() : resolveSourcePath(root.get(), entry.className());
@@ -2041,16 +2040,19 @@ function deactivate() {}
       return section("Methods", "Typed signatures declared by the owning module.", methods.toString());
    }
 
-   private static String serviceContractDocs(MLuaDocBuilder.DocEntry entry) {
-      MLuaRuntime runtime = MLuaRuntime.get();
-      var metadata = runtime.services().metadata(entry.name());
-      if (metadata == null || metadata.functionDescriptions().isEmpty()) return "";
+   private static String registeredServiceFunctions(MLuaDocBuilder.DocEntry entry,
+                                                    List<MLuaDocBuilder.ServiceFunctionDoc> serviceFunctions) {
+      if (entry.type() != MLuaDocBuilder.DocEntryType.SERVICE) return "";
+      List<MLuaDocBuilder.ServiceFunctionDoc> matching = serviceFunctions.stream()
+         .filter(function -> function.service().equals(entry.name()))
+         .toList();
+      if (matching.isEmpty()) return "";
       StringBuilder methods = new StringBuilder();
-      for (Map.Entry<String, String> function : metadata.functionDescriptions().entrySet()) {
-         methods.append(memberFull("<code>" + htmlEscape(entry.name() + ":" + function.getKey() + "(...)") + "</code>",
-            "any", htmlEscape(function.getValue()), "<div class=\"member-flags\"><span class=\"badge shared\">Registered service method</span></div>"));
+      for (MLuaDocBuilder.ServiceFunctionDoc function : matching) {
+         methods.append(memberFull("<code>" + htmlEscape(entry.name() + ":" + function.name()) + "</code>",
+            "function", htmlEscape(function.description()), "<div class=\"member-flags\"><span class=\"badge shared\">Service method</span></div>"));
       }
-      return section("Service methods", "Methods declared by this service's registration contract.", methods.toString());
+      return section("Methods", "Functions declared by this service's registration contract.", methods.toString());
    }
 
    private static String registeredMethodDocs(MLuaDocBuilder.DocEntry entry,
