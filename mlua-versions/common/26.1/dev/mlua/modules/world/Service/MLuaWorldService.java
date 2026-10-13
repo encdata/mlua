@@ -49,7 +49,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.Container;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.gamerules.GameRule;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
@@ -66,16 +67,6 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaWorldService implements MLuaService, LuaBackedService {
-    private static final Map<String, GameRules.Key<?>> GAME_RULE_KEYS = new HashMap<>();
-    static {
-        GameRules.visitGameRuleTypes(new GameRules.GameRuleTypeVisitor() {
-            @Override
-            public <T extends GameRules.Value<T>> void visit(GameRules.Key<T> key, GameRules.Type<T> type) {
-                GAME_RULE_KEYS.put(key.getId(), key);
-            }
-        });
-    }
-
     private final MLuaService.Context context;
     private final Map<Level, WeakReference<LuaTable>> worldInstances = new WeakHashMap<>();
 
@@ -96,7 +87,25 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
         table.set("Get", function(args -> worldValue(resolveLevel(args.checkjstring(2)))));
         table.set("GetAll", function(args -> allWorlds()));
         table.set("GetSide", function(args -> LuaValue.valueOf(context.mlua().side().name())));
+        table.set("GetWeather", currentWorldMethod("GetWeather"));
+        table.set("SetWeather", currentWorldMethod("SetWeather"));
         return table;
+    }
+
+    private VarArgFunction currentWorldMethod(String methodName) {
+        return function(args -> {
+            Level level = currentLevel();
+            if (level == null) return LuaValue.NIL;
+            LuaTable instance = world(level);
+            LuaValue method = instance.get(methodName);
+            if (!method.isfunction()) {
+                throw new LuaError("[MLua] Current World instance does not implement " + methodName + ".");
+            }
+            LuaValue[] forwarded = new LuaValue[Math.max(1, args.narg())];
+            forwarded[0] = instance;
+            for (int index = 2; index <= args.narg(); index++) forwarded[index - 1] = args.arg(index);
+            return method.invoke(LuaValue.varargsOf(forwarded)).arg1();
+        });
     }
 
     private Level currentLevel() {
@@ -266,7 +275,7 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
             boolean includeFluids = args.optboolean(9, false);
             BlockHitResult hit = world.clip(new ClipContext(origin, origin.add(direction.scale(distance)),
                 ClipContext.Block.COLLIDER,
-                includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, null));
+                includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity) null));
             if (hit.getType() == HitResult.Type.MISS) return LuaValue.NIL;
             LuaTable resultTable = new LuaTable();
             resultTable.set("Type", LuaValue.valueOf("block"));
@@ -554,49 +563,60 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
     }
 
     private static LuaTable listGameRules(Level level) {
+        ServerLevel serverLevel = requireServerWorld(level, "ListGameRules");
+        GameRules rules = serverLevel.getGameRules();
         LuaTable table = new LuaTable();
         int index = 1;
-        List<String> names = new ArrayList<>(GAME_RULE_KEYS.keySet());
-        names.sort(String::compareTo);
-        for (String name : names) {
-            LuaValue value = getGameRule(level, name);
+        List<GameRule<?>> availableRules = rules.availableRules().sorted(java.util.Comparator.comparing(GameRule::id)).toList();
+        for (GameRule<?> rule : availableRules) {
+            String name = rule.getIdentifier().getPath();
+            LuaValue value = gameRuleValue(rules, rule);
             LuaTable entry = new LuaTable();
             entry.set("Name", LuaValue.valueOf(name));
             entry.set("Value", value);
             table.set(index++, entry);
             table.set(name, value);
+            table.set(rule.getIdentifier().toString(), value);
         }
         return table;
     }
 
     private static LuaValue getGameRule(Level level, String name) {
-        GameRules.Key<?> key = GAME_RULE_KEYS.get(name);
-        if (key == null) throw new LuaError("[MLua] Unknown gamerule: " + name);
-        return gameRuleValue(level.getGameRules(), key);
+        ServerLevel serverLevel = requireServerWorld(level, "GetGameRule");
+        GameRules rules = serverLevel.getGameRules();
+        GameRule<?> rule = findGameRule(rules, name);
+        if (rule == null) throw new LuaError("[MLua] Unknown gamerule: " + name);
+        return gameRuleValue(rules, rule);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private void setGameRule(ServerLevel level, String name, LuaValue value) {
-        GameRules.Key<?> key = GAME_RULE_KEYS.get(name);
-        if (key == null) throw new LuaError("[MLua] Unknown gamerule: " + name);
-        GameRules.Value rule = level.getGameRules().getRule((GameRules.Key) key);
-        if (rule instanceof GameRules.BooleanValue booleanValue) {
-            booleanValue.set(value.checkboolean(), context.mlua().server());
-            return;
+        GameRules rules = level.getGameRules();
+        GameRule rule = findGameRule(rules, name);
+        if (rule == null) throw new LuaError("[MLua] Unknown gamerule: " + name);
+        String serialized = value.isboolean() ? Boolean.toString(value.toboolean()) : value.tojstring();
+        var parsed = rule.deserialize(serialized);
+        if (parsed.error().isPresent()) {
+            throw new LuaError("[MLua] Invalid value for gamerule " + name + ": " + parsed.error().get().message());
         }
-        if (rule instanceof GameRules.IntegerValue integerValue) {
-            integerValue.set(value.checkint(), context.mlua().server());
-            return;
-        }
-        throw new LuaError("[MLua] Unsupported gamerule type: " + name);
+        rules.set(rule, parsed.result().orElseThrow(), context.mlua().server());
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static LuaValue gameRuleValue(GameRules rules, GameRules.Key<?> key) {
-        GameRules.Value rule = rules.getRule((GameRules.Key) key);
-        if (rule instanceof GameRules.BooleanValue booleanValue) return LuaValue.valueOf(booleanValue.get());
-        if (rule instanceof GameRules.IntegerValue integerValue) return LuaValue.valueOf(integerValue.get());
-        return LuaValue.valueOf(rule.toString());
+    private static LuaValue gameRuleValue(GameRules rules, GameRule<?> rule) {
+        Object value = rules.get((GameRule) rule);
+        if (value instanceof Boolean booleanValue) return LuaValue.valueOf(booleanValue);
+        if (value instanceof Number number) return LuaValue.valueOf(number.doubleValue());
+        return LuaValue.valueOf(String.valueOf(value));
+    }
+
+    private static GameRule<?> findGameRule(GameRules rules, String name) {
+        return rules.availableRules()
+            .filter(rule -> rule.id().equals(name)
+                || rule.getIdentifier().getPath().equals(name)
+                || rule.getIdentifier().toString().equals(name))
+            .findFirst()
+            .orElse(null);
     }
 
     private static ServerLevel requireServerWorld(Level level, String method) {

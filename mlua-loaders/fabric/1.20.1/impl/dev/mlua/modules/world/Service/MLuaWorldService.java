@@ -88,7 +88,25 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("Get", varArg((args) -> this.worldValue(this.resolveLevel(args.checkjstring(2)))));
       table.set("GetAll", varArg((args) -> this.allWorlds()));
       table.set("GetSide", varArg((args) -> LuaValue.valueOf(this.context.mlua().side().name())));
+      table.set("GetWeather", this.currentWorldMethod("GetWeather"));
+      table.set("SetWeather", this.currentWorldMethod("SetWeather"));
       return table;
+   }
+
+   private LuaValue currentWorldMethod(String methodName) {
+      return this.varArg(args -> {
+         Level level = this.currentLevel();
+         if (level == null) return LuaValue.NIL;
+         LuaTable instance = this.worldTable(() -> level);
+         LuaValue method = instance.get(methodName);
+         if (!method.isfunction()) {
+            throw new LuaError("[MLua] Current World instance does not implement " + methodName + ".");
+         }
+         LuaValue[] forwarded = new LuaValue[Math.max(1, args.narg())];
+         forwarded[0] = instance;
+         for (int index = 2; index <= args.narg(); index++) forwarded[index - 1] = args.arg(index);
+         return method.invoke(LuaValue.varargsOf(forwarded)).arg1();
+      });
    }
 
    private LuaValue worldValue(Level level) {
