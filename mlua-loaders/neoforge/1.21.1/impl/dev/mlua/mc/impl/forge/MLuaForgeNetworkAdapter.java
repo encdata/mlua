@@ -26,7 +26,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 public final class MLuaForgeNetworkAdapter {
-    private static final String DEFAULT_PROTOCOL_VERSION = "1";
+    private static final String DEFAULT_PROTOCOL_VERSION = "2";
     private static final ResourceLocation REMOTE_ID = MLuaResourceLocations.build("mlua", "remote");
     private static final ResourceLocation RELOAD_ID = MLuaResourceLocations.build("mlua", "reload");
     private static final ResourceLocation CLIENT_COMMAND_ID = MLuaResourceLocations.build("mlua", "client_command");
@@ -162,24 +162,27 @@ public final class MLuaForgeNetworkAdapter {
         }
     }
 
-    public record AnimationSyncPayload(int entityId, List<MLuaAnimationSyncPacket.BonePoseEntry> poses) implements CustomPacketPayload {
+    public record AnimationSyncPayload(int entityId, UUID entityUuid, ResourceLocation dimension,
+                                       List<MLuaAnimationSyncPacket.BonePoseEntry> poses) implements CustomPacketPayload {
         public static final Type<AnimationSyncPayload> TYPE = new Type<>(ANIMATION_SYNC_ID);
         public static final StreamCodec<RegistryFriendlyByteBuf, AnimationSyncPayload> CODEC = CustomPacketPayload.codec(AnimationSyncPayload::write, AnimationSyncPayload::new);
 
         public AnimationSyncPayload(MLuaAnimationSyncPacket packet) {
-            this(packet.entityId(), packet.poses());
+            this(packet.entityId(), packet.entityUuid(), packet.dimension(), packet.poses());
         }
 
         public AnimationSyncPayload(RegistryFriendlyByteBuf buf) {
-            this(buf.readVarInt(), readPoses(buf));
+            this(buf.readVarInt(), buf.readUUID(), buf.readResourceLocation(), readPoses(buf));
         }
 
         public MLuaAnimationSyncPacket toPacket() {
-            return new MLuaAnimationSyncPacket(this.entityId, this.poses);
+            return new MLuaAnimationSyncPacket(this.entityId, this.entityUuid, this.dimension, this.poses);
         }
 
         private void write(RegistryFriendlyByteBuf buf) {
             buf.writeVarInt(this.entityId);
+            buf.writeUUID(this.entityUuid);
+            buf.writeResourceLocation(this.dimension);
             buf.writeVarInt(this.poses.size());
             for (MLuaAnimationSyncPacket.BonePoseEntry pose : this.poses) {
                 pose.encode(buf);

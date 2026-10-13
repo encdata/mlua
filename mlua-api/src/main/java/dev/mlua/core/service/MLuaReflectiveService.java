@@ -19,13 +19,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/**
- * Builds a live Lua service from public Java instance methods. Each exported method
- * must be documented with {@link MLuaDescription} or the service registration's
- * function descriptions; collections and arrays are converted to Lua tables, and
- * trailing {@link java.util.Optional} parameters accept omitted or nil Lua arguments.
- * Addon-specific values can use {@link MLuaLuaCoercions#registerAdapter}.
- */
 public abstract class MLuaReflectiveService extends MLuaServiceBase {
    public MLuaReflectiveService(Context context) {
       super(context);
@@ -66,7 +59,6 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
             throw new IllegalStateException("Reflective service '" + this.name()
                + "' method name is reserved for MLua metadata: " + name);
          }
-         // These methods define the Java service contract; they are not Lua service functions.
          if ((name.equals("name") || name.equals("toLua")) && method.getParameterCount() == 0) continue;
          if (!exportedNames.add(name)) {
             throw new IllegalStateException("Reflective service '" + this.name() + "' has overloaded Lua method '" + name + "'; Lua services require unique exported method names");
@@ -122,12 +114,10 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       return 0;
    }
 
-   /** Converts one Lua argument; override to support addon-specific Java parameter types. */
    protected Object toJavaValue(LuaValue value, Type targetType) {
       return MLuaLuaCoercions.javaValue(value, targetType);
    }
 
-   /** Converts one Java result to Lua; override to expose addon-specific values as live wrappers. */
    protected LuaValue toLuaValue(Object value) {
       return MLuaLuaCoercions.toLuaValue(value);
    }
@@ -195,7 +185,6 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          && java.util.Optional.class.isAssignableFrom(rawType);
    }
 
-   /** Method annotations are not inherited by Java, so preserve the contract when a service overrides a method. */
    private static MLuaDescription findMethodDescription(Method method) {
       MLuaDescription description = method.getAnnotation(MLuaDescription.class);
       if (description != null) return description;
@@ -221,7 +210,6 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
                .getAnnotation(MLuaDescription.class);
             if (description != null) return description;
          } catch (NoSuchMethodException ignored) {
-            // This parent does not declare this signature; another bridge signature or parent may.
          }
       }
       for (Class<?> parentInterface : type.getInterfaces()) {

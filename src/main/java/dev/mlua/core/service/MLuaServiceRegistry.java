@@ -13,18 +13,15 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
-/** Dynamic registry of addon and built-in services with their public Lua metadata. */
 public final class MLuaServiceRegistry {
    private final Map<String, Map<Side, Registration>> registrations = new LinkedHashMap<>();
    private final Map<String, String> explicitClassNames = new LinkedHashMap<>();
 
-   /** @deprecated Service registrations require a service description. */
    @Deprecated(forRemoval = false)
    public synchronized void register(String name, Function<MLuaService.Context, MLuaService> factory) {
       throw new IllegalArgumentException("Service '" + name + "' needs a description; register it with the described overload");
    }
 
-   /** @deprecated Service registrations require a service description. */
    @Deprecated(forRemoval = false)
    public synchronized void register(String name, Side side, Function<MLuaService.Context, MLuaService> factory) {
       throw new IllegalArgumentException("Service '" + name + "' needs a description; register it with the described overload");
@@ -150,12 +147,10 @@ public final class MLuaServiceRegistry {
       return name != null && this.registrations.containsKey(name);
    }
 
-   /** Returns an explicitly selected Lua class name for a registered service. */
    public synchronized String explicitClassName(String name) {
       return this.explicitClassNames.get(name);
    }
 
-   /** Assigns the Lua class name used for one service, rejecting conflicting addon registrations. */
    public synchronized void assignClassName(String name, String className) {
       requireServiceName(name);
       if (className == null || className.isBlank()) {
@@ -170,14 +165,12 @@ public final class MLuaServiceRegistry {
       }
    }
 
-   /** Clears a class name only when it still matches the failed registration being rolled back. */
    public synchronized void clearClassName(String name, String expectedClassName) {
       if (name != null && expectedClassName != null) {
          this.explicitClassNames.remove(name, expectedClassName);
       }
    }
 
-   /** Returns only services available to scripts running on the requested side. */
    public synchronized Set<String> availableNames(Side side) {
       if (side == null || side == Side.BOTH) {
          throw new IllegalArgumentException("A concrete client or server side is required");
@@ -195,7 +188,6 @@ public final class MLuaServiceRegistry {
       return bySide != null && (bySide.containsKey(side) || bySide.containsKey(Side.BOTH));
    }
 
-   /** Returns the shared public metadata for a service registered on one or both sides. */
    public synchronized ServiceMetadata metadata(String name) {
       Map<Side, Registration> bySide = this.registrations.get(name);
       if (bySide == null || bySide.isEmpty()) return null;
@@ -268,7 +260,6 @@ public final class MLuaServiceRegistry {
 
       public Registration {
          requireServiceName(name);
-         // Service identity and Lua class identity match unless the caller selects another class.
          if (className == null) className = name;
          if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
          Objects.requireNonNull(factory, "factory");

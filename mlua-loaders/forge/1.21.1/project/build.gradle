@@ -45,12 +45,20 @@ def forgeImplExcludes = [
     'dev/mlua/mc/impl/util/**',
     'dev/mlua/mc/impl/world/**',
 ]
+def forgeProjectExcludes = [
+    'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedItem.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java',
+]
 def prepareCommonVersionSources = registerMergedTree(project, 'prepareCommonVersionSources',
     targetPathChain('mlua-versions/common/%s', targetVersion))
 def prepareForgeVersionSources = registerMergedTree(project, 'prepareForgeVersionSources',
     targetPathChain('mlua-versions/forge/%s', targetVersion), forgeImplExcludes)
 def prepareForgeProjectSources = registerMergedTree(project, 'prepareForgeProjectSources',
-    targetPathChain('mlua-loaders/forge/%s/project/src/main/java', targetVersion))
+    targetPathChain('mlua-loaders/forge/%s/project/src/main/java', targetVersion), forgeProjectExcludes)
 def prepareForgeProjectResources = registerMergedTree(project, 'prepareForgeProjectResources',
     targetPathChain('mlua-loaders/forge/%s/project/src/main/resources', targetVersion))
 
@@ -100,12 +108,6 @@ def forgeRootExcludes = [
     'dev/mlua/loader/impl/forge/ForgeNetworkContext.java',
     'dev/mlua/api/RuntimeMLuaApiBridge.java',
     'dev/mlua/minecraft/MLuaResourceLocations.java',
-    'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java',
-    'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java',
-    'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java',
-    'dev/mlua/minecraft/scripted/MLuaScriptedItem.java',
-    'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java',
-    'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java',
     'dev/mlua/modules/advancements/Service/MLuaAdvancementService.java',
     'dev/mlua/modules/attribute/Service/MLuaAttributeService.java',
     'dev/mlua/modules/commands/Service/MLuaCommandsService.java',

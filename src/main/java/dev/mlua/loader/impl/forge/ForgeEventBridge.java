@@ -223,13 +223,25 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onExplosion(ExplosionCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((ExplosionEvent.Start event) ->
-            callback.handle(event.getLevel(), event.getExplosion().getPosition()));
+        MinecraftForge.EVENT_BUS.addListener((ExplosionEvent.Start event) -> {
+            //--version 1.20.1
+            callback.handle(event.getLevel(), event.getExplosion().getPosition());
+            //--endversion
+            //--version 1.21.1
+            callback.handle(event.getLevel(), event.getExplosion().center());
+            //--endversion
+        });
     }
 
     @Override
     public void onAdvancement(AdvancementCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) ->
-            callback.handle(event.getEntity(), event.getAdvancement().getId().toString()));
+        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) -> {
+            //--version 1.20.1
+            callback.handle(event.getEntity(), event.getAdvancement().getId().toString());
+            //--endversion
+            //--version 1.21.1
+            callback.handle(event.getEntity(), event.getAdvancement().id().toString());
+            //--endversion
+        });
     }
 }

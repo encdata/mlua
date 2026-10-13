@@ -11,8 +11,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Adds service documentation and validates documented methods on the live Lua table. */
-public final class MLuaDescribedService implements MLuaService, LuaBackedService {
+public final class MLuaDescribedService implements MLuaService {
    private final MLuaService delegate;
    private final String description;
    private final Map<String, String> methodDescriptions;
@@ -83,10 +82,6 @@ public final class MLuaDescribedService implements MLuaService, LuaBackedService
       validateMethodDescriptionEntries(table, docs);
       if (!methodDescriptions.isEmpty()) {
          methodDescriptions.forEach((name, value) -> {
-            // Services may expose methods through a class or metatable instead of
-            // storing every dispatcher directly on the instance table. Validate
-            // against the same lookup Lua callers use so described live instances
-            // remain compatible with dynamic service classes.
             if (!table.get(name).isfunction()) {
                 throw new IllegalArgumentException("Service '" + this.name() + "' has no exposed function named '" + name + "'");
             }
