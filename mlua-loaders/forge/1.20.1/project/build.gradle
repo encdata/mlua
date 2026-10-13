@@ -70,6 +70,7 @@ def forgeRootExcludes = [
     // This legacy bootstrap declares a second mod id (mlua_loader), while
     // the current runtime is represented by the single mlua entry.
     'dev/mlua/loader/forge/MLuaForgeMod.java',
+    'dev/mlua/loader/impl/forge/ForgePlatformBridge.java',
     'dev/mlua/modules/mixin/Service/CameraInvoker.java',
     'dev/mlua/modules/mixin/Service/CameraMixin.java',
     'dev/mlua/modules/mixin/Service/HumanoidModelMixin.java',

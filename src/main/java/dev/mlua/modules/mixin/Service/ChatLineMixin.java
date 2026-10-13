@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 /** Lets client scripts edit each chat component before the native chat HUD stores it. */
 @Mixin(targets = "net.minecraft.client.gui.components.ChatComponent")
 public abstract class ChatLineMixin {
+    //--version 1.20.1
     @ModifyVariable(
         method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;I"
             + "Lnet/minecraft/client/GuiMessageTag;Z)V",
@@ -21,7 +22,9 @@ public abstract class ChatLineMixin {
     private Component mlua$beforeLegacyChatLineAdded(Component message) {
         return MLuaGuiService.beforeChatLineAdded(message);
     }
+    //--endversion
 
+    //--version 1.21.1
     @ModifyVariable(
         method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;"
             + "Lnet/minecraft/client/GuiMessageTag;)V",
@@ -33,7 +36,9 @@ public abstract class ChatLineMixin {
     private Component mlua$beforeTaggedChatLineAdded(Component message) {
         return MLuaGuiService.beforeChatLineAdded(message);
     }
+    //--endversion
 
+    //--version 26.1
     @ModifyVariable(
         method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;"
             + "Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/GuiMessageTag;)V",
@@ -45,4 +50,5 @@ public abstract class ChatLineMixin {
     private Component mlua$beforeSourcedChatLineAdded(Component message) {
         return MLuaGuiService.beforeChatLineAdded(message);
     }
+    //--endversion
 }

@@ -95,6 +95,7 @@ def forgeRootExcludes = [
     'dev/mlua/modules/mixin/Service/HumanoidModelMixin.java',
     'dev/mlua/modules/mixin/Service/MouseHandlerMixin.java',
     'dev/mlua/modules/mixin/Service/PlayerModelMixin.java',
+    'dev/mlua/loader/impl/forge/ForgePlatformBridge.java',
     'dev/mlua/loader/impl/forge/ForgeClientBridge.java',
     'dev/mlua/loader/impl/forge/ForgeNetworkContext.java',
     'dev/mlua/api/RuntimeMLuaApiBridge.java',
