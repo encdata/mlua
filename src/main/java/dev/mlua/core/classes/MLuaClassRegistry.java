@@ -1343,7 +1343,6 @@ public final class MLuaClassRegistry {
       return false;
    }
 
-   /** Returns the registry-owned class identity for an attached instance. */
    public synchronized String classNameOf(LuaValue value) {
       if (value == null || !value.istable()) return null;
       LuaTable table = value.checktable();
