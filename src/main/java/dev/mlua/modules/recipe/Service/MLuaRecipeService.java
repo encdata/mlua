@@ -9,6 +9,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import java.util.ArrayList;
@@ -50,8 +51,9 @@ public final class MLuaRecipeService extends MLuaServiceBase {
             final Map<String, String> keyMap = new LinkedHashMap<>();
 
             LuaTable builder = new LuaTable();
+            attachBuilder(builder, "ShapedRecipeBuilder");
 
-            builder.set("Row", new VarArgFunction() {
+            MLuaClassMethods.setInstanceMethod(builder, "Row", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     if (args.narg() < 2) throw new LuaError("[MLua] Shaped:Row requires at least one row");
                     if (nextRow[0] + args.narg() - 1 > pattern.length) {
@@ -77,7 +79,7 @@ public final class MLuaRecipeService extends MLuaServiceBase {
                 }
             });
 
-            builder.set("WithKey", new VarArgFunction() {
+            MLuaClassMethods.setInstanceMethod(builder, "WithKey", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     String ch = args.checkjstring(2);
                     String itemId = args.checkjstring(3);
@@ -89,7 +91,7 @@ public final class MLuaRecipeService extends MLuaServiceBase {
                 }
             });
 
-            builder.set("Build", new VarArgFunction() {
+            MLuaClassMethods.setInstanceMethod(builder, "Build", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     for (int i = 0; i < pattern.length; i++) {
                         if (pattern[i] == null) {
@@ -129,8 +131,6 @@ public final class MLuaRecipeService extends MLuaServiceBase {
                 }
             });
 
-            attachBuilder(builder, "ShapedRecipeBuilder");
-
             return builder;
         }));
 
@@ -143,8 +143,9 @@ public final class MLuaRecipeService extends MLuaServiceBase {
             final List<String> ingredients = new ArrayList<>();
 
             LuaTable builder = new LuaTable();
+            attachBuilder(builder, "ShapelessRecipeBuilder");
 
-            builder.set("AddIngredient", new VarArgFunction() {
+            MLuaClassMethods.setInstanceMethod(builder, "AddIngredient", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     String itemId = args.checkjstring(2);
                     MLuaResourceLocations.parse(itemId);
@@ -154,7 +155,7 @@ public final class MLuaRecipeService extends MLuaServiceBase {
                 }
             });
 
-            builder.set("Build", new VarArgFunction() {
+            MLuaClassMethods.setInstanceMethod(builder, "Build", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     if (ingredients.isEmpty()) {
                         throw new LuaError("[MLua] Shapeless recipe must have at least one ingredient");
@@ -172,8 +173,6 @@ public final class MLuaRecipeService extends MLuaServiceBase {
                     return LuaValue.valueOf(recipe.toString());
                 }
             });
-
-            attachBuilder(builder, "ShapelessRecipeBuilder");
 
             return builder;
         }));
