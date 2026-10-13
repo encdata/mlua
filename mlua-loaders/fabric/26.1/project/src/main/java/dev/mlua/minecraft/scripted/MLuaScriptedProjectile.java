@@ -35,6 +35,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Server-side projectile whose behavior is configured by a Lua projectile type. */
 public final class MLuaScriptedProjectile extends Entity {
+    private final String luaClassName;
     private Vec3 direction = Vec3.ZERO;
     private Vec3 origin;
     private double speed;
@@ -58,7 +59,12 @@ public final class MLuaScriptedProjectile extends Entity {
     private LuaValue onTick = LuaValue.NIL;
 
     public MLuaScriptedProjectile(EntityType<? extends MLuaScriptedProjectile> type, Level level) {
+        this(type, level, "Projectile");
+    }
+
+    public MLuaScriptedProjectile(EntityType<? extends MLuaScriptedProjectile> type, Level level, String luaClassName) {
         super(type, level);
+        this.luaClassName = luaClassName == null || luaClassName.isBlank() ? "Projectile" : luaClassName;
     }
 
     public void init(Vec3 direction, double speed, double damage, boolean gravity, boolean piercing,
@@ -260,7 +266,7 @@ public final class MLuaScriptedProjectile extends Entity {
             }
         });
         var registration = callbackContext != null ? callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
-        return registration.attachClassInstance(table, "Projectile", "Instance");
+        return registration.attachClassInstance(table, this.luaClassName, "Projectile");
     }
 
     @Override public EntityDimensions getDimensions(Pose pose) { return EntityDimensions.scalable(size, size); }
