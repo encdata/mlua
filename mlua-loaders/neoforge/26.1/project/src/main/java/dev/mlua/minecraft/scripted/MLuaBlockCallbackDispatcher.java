@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
@@ -79,7 +80,7 @@ public final class MLuaBlockCallbackDispatcher {
         try {
             LuaTable ctx = baseContext(level, pos, entity instanceof Player player ? player : null);
             if (entity instanceof LivingEntity living) {
-                ctx.set("Entity", MLuaEntityWrapper.entityTable(living, MLuaScriptRuntimeRegistration.forLevel(level)));
+                ctx.set("Entity", MLuaEntityWrapper.entityTable(living, MLuaRuntime.registrationForLevel(level)));
             }
             onStepOn.invoke(ctx);
         } catch (Exception ex) {
@@ -91,7 +92,7 @@ public final class MLuaBlockCallbackDispatcher {
         LuaTable ctx = new LuaTable();
         ctx.set("World", level.dimension().identifier().toString());
         ctx.set("Position", MLuaPlayerWrapper.positionTable(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5));
-        var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+        var registration = MLuaRuntime.registrationForLevel(level);
         ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, registration));
         if (player instanceof ServerPlayer serverPlayer) {
             ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration));

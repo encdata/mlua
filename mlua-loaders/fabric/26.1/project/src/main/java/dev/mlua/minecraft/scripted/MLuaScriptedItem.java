@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
@@ -37,9 +38,9 @@ public class MLuaScriptedItem extends Item {
             context.set("World", level.dimension().identifier().toString());
             context.set("Hand", hand.name().toLowerCase(java.util.Locale.ROOT));
             context.set("Position", position(player.blockPosition()));
-            context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), MLuaScriptRuntimeRegistration.forLevel(level)));
+            context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), MLuaRuntime.registrationForLevel(level)));
             if (player instanceof ServerPlayer serverPlayer) {
-                context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), MLuaScriptRuntimeRegistration.forLevel(level)));
+                context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), MLuaRuntime.registrationForLevel(level)));
             }
             Varargs result = callback.invoke(context);
             if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.SUCCESS;
@@ -54,7 +55,7 @@ public class MLuaScriptedItem extends Item {
         if (!callback.isnil()) try {
             Level level = context.getLevel();
             BlockPos position = context.getClickedPos();
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             LuaTable values = new LuaTable();
             values.set("World", level.dimension().identifier().toString());
             values.set("Position", position(position));
@@ -77,7 +78,7 @@ public class MLuaScriptedItem extends Item {
         if (!level.isClientSide()) {
             LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onConsume");
             if (!callback.isnil()) try {
-                var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+                var registration = MLuaRuntime.registrationForLevel(level);
                 LuaTable context = new LuaTable();
                 context.set("World", level.dimension().identifier().toString());
                 context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
@@ -97,7 +98,7 @@ public class MLuaScriptedItem extends Item {
                                         Entity entity, net.minecraft.world.entity.EquipmentSlot equipmentSlot) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onInventoryTick");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             LuaTable context = new LuaTable();
             context.set("World", level.dimension().identifier().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
@@ -117,7 +118,7 @@ public class MLuaScriptedItem extends Item {
     @Override public void hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onAttackEntity");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
+            var registration = MLuaRuntime.registrationForLevel(target.level());
             LuaTable context = new LuaTable();
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             LuaTable targetTable = target instanceof ServerPlayer player
@@ -145,7 +146,7 @@ public class MLuaScriptedItem extends Item {
     @Override public void onCraftedBy(ItemStack stack, Player player) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", behaviorKey, "onCrafted");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(player.level());
+            var registration = MLuaRuntime.registrationForLevel(player.level());
             LuaTable context = new LuaTable();
             context.set("World", player.level().dimension().identifier().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));

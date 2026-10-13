@@ -5,8 +5,7 @@ import org.luaj.vm2.Varargs;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
-import dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration;
-
+import dev.mlua.core.MLuaRuntime;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -22,7 +21,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     @Override public InteractionResult use(Level level, Player player, InteractionHand hand) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUse");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             LuaTable ctx = new LuaTable();
             ctx.set("World", level.dimension().identifier().toString());
             ctx.set("Hand", hand.name().toLowerCase(java.util.Locale.ROOT));
@@ -39,7 +38,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     @Override public InteractionResult useOn(UseOnContext context) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUseOnBlock");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(context.getLevel());
+            var registration = MLuaRuntime.registrationForLevel(context.getLevel());
             var position = context.getClickedPos();
             LuaTable values = new LuaTable();
             values.set("World", context.getLevel().dimension().identifier().toString());

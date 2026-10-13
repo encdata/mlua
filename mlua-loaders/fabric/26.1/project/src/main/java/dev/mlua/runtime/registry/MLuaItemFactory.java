@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.item.context.UseOnContext;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
-import dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration;
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.minecraft.scripted.MLuaScriptedItem;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
@@ -88,7 +88,7 @@ public final class MLuaItemFactory {
         if (callback.isnil()) return null;
         try {
             LuaTable context = new LuaTable();
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             context.set("World", level.dimension().identifier().toString());
             context.set("Position", MLuaPlayerWrapper.positionTable(player.getX(), player.getY(), player.getZ()));
             context.set("Hand", hand.name().toLowerCase(Locale.ROOT));
@@ -112,7 +112,7 @@ public final class MLuaItemFactory {
             LuaTable values = new LuaTable();
             var level = context.getLevel();
             var position = context.getClickedPos();
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             values.set("World", level.dimension().identifier().toString());
             values.set("Position", MLuaPlayerWrapper.positionTable(position.getX(), position.getY(), position.getZ()));
             values.set("Block", MLuaBlockWrapper.blockTable(level, position, registration));
@@ -136,7 +136,7 @@ public final class MLuaItemFactory {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onAttackEntity");
         if (callback.isnil()) return true;
         try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
+            var registration = MLuaRuntime.registrationForLevel(target.level());
             LuaTable targetTable = target instanceof net.minecraft.server.level.ServerPlayer player
                 ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
                 : MLuaEntityWrapper.entityTable(target, registration);
@@ -163,7 +163,7 @@ public final class MLuaItemFactory {
         if (callback.isnil()) return;
         try {
             LuaTable context = new LuaTable();
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             context.set("World", level.dimension().identifier().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             context.set("Slot", slot.ordinal());
@@ -184,7 +184,7 @@ public final class MLuaItemFactory {
         if (callback.isnil()) return;
         try {
             LuaTable context = new LuaTable();
-            var registration = MLuaScriptRuntimeRegistration.forLevel(player.level());
+            var registration = MLuaRuntime.registrationForLevel(player.level());
             context.set("World", player.level().dimension().identifier().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             context.set("ItemStack", key);

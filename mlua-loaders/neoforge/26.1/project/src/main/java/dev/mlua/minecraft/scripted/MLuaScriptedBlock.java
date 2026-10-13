@@ -1,4 +1,6 @@
 package dev.mlua.minecraft.scripted;
+
+import dev.mlua.core.MLuaRuntime;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -23,7 +25,7 @@ public class MLuaScriptedBlock extends Block {
     @Override protected InteractionResult useWithoutItem(net.minecraft.world.level.block.state.BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRightClick");
         if (!callback.isnil()) try {
-            var registration = MLuaScriptRuntimeRegistration.forLevel(level);
+            var registration = MLuaRuntime.registrationForLevel(level);
             LuaTable ctx = new LuaTable();
             ctx.set("World", level.dimension().identifier().toString());
             LuaTable coordinates = new LuaTable();

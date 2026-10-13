@@ -81,7 +81,7 @@ public final class MLuaPlayerWrapper {
 
    public static LuaTable playerTable(MCServerPlayer player) {
       net.minecraft.world.entity.Entity raw = ((MCEntityImpl) player).inner();
-      return playerTable(player, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(raw.level()));
+      return playerTable(player, MLuaRuntime.registrationForLevel(raw.level()));
    }
 
    public static LuaTable playerTable(MCServerPlayer player, MLuaRegistration registration) {
@@ -476,7 +476,7 @@ public final class MLuaPlayerWrapper {
 
    public static LuaTable localPlayerTable(MCLocalPlayer player) {
       net.minecraft.world.entity.Entity raw = ((MCEntityImpl) player).inner();
-      return localPlayerTable(player, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(raw.level()));
+      return localPlayerTable(player, MLuaRuntime.registrationForLevel(raw.level()));
    }
 
    public static LuaTable localPlayerTable(MCLocalPlayer player, MLuaRegistration registration) {

@@ -1,5 +1,6 @@
 package dev.mlua.modules.players.Service;
 
+import dev.mlua.core.MLuaRuntime;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -154,7 +155,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
    }
 
    public static LuaTable playerTable(ServerPlayer player) {
-      return playerTable(player, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(player.level()));
+      return playerTable(player, MLuaRuntime.registrationForLevel(player.level()));
    }
 
    public static LuaTable playerTable(ServerPlayer player, dev.mlua.module.MLuaRegistration registration) {

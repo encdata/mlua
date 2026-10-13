@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
@@ -232,7 +233,7 @@ public class MLuaScriptedProjectile extends Entity {
          try {
             LuaTable ctx = new LuaTable();
             ctx.set("Projectile", this.toLuaHandle(false));
-             ctx.set("Entity", MLuaEntityWrapper.entityTable(target, MLuaScriptRuntimeRegistration.forLevel(target.level())));
+             ctx.set("Entity", MLuaEntityWrapper.entityTable(target, MLuaRuntime.registrationForLevel(target.level())));
             ctx.set("Position", MLuaVector.vector3(hitPos.x, hitPos.y, hitPos.z));
             ctx.set("Damage", this.damage);
             this.onHitEntityCallback.invoke(ctx);
@@ -342,9 +343,9 @@ public class MLuaScriptedProjectile extends Entity {
          try {
             Entity owner = this.resolveOwner();
             if (owner instanceof net.minecraft.server.level.ServerPlayer player) {
-               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), MLuaScriptRuntimeRegistration.forLevel(player.level())));
+               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), MLuaRuntime.registrationForLevel(player.level())));
             } else if (owner instanceof LivingEntity living) {
-               table.set("Owner", MLuaEntityWrapper.entityTable(living, MLuaScriptRuntimeRegistration.forLevel(living.level())));
+               table.set("Owner", MLuaEntityWrapper.entityTable(living, MLuaRuntime.registrationForLevel(living.level())));
             }
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("Failed to attach projectile owner wrapper", exception);
@@ -390,7 +391,7 @@ public class MLuaScriptedProjectile extends Entity {
             return LuaValue.NONE;
          }
       });
-      return MLuaScriptRuntimeRegistration.forLevel(this.level()).attachClassInstance(table, this.luaClassName, "Projectile");
+      return MLuaRuntime.registrationForLevel(this.level()).attachClassInstance(table, this.luaClassName, "Projectile");
    }
 
    private Entity resolveOwner() {

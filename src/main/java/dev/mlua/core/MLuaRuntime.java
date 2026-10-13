@@ -56,6 +56,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import org.luaj.vm2.LuaTable;
 
 public final class MLuaRuntime implements MLuaRegistration {
@@ -127,6 +128,14 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public static MLuaRuntime get() {
       return INSTANCE;
+   }
+
+   public static MLuaRegistration registrationForLevel(Level level) {
+      if (level != null && !level.isClientSide() && level.getServer() != null) {
+         MLuaRuntimeSession session = MLuaRuntimeSession.forServer(level.getServer());
+         if (session != null && session.registration() != null) return session.registration();
+      }
+      return get();
    }
 
    public MLuaRuntimeSession session() {

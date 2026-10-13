@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
@@ -102,10 +103,10 @@ public class MLuaScriptedBlockItem extends BlockItem {
             try {
                 LuaTable ctx = new LuaTable();
                 if (livingEntity instanceof ServerPlayer sp) {
-                    ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(level)));
+                    ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaRuntime.registrationForLevel(level)));
                 }
                 ctx.set("World", level.dimension().location().toString());
-                ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(level)));
+                ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
                 onConsume.invoke(ctx);
             } catch (Exception exception) {
                 MLuaLogger.LOGGER.error("MLua block item onConsume callback failed for '{}': {}", this.behaviorKey, exception.getMessage());
@@ -132,7 +133,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
         if (!onCrafted.isnil()) {
             try {
                 LuaTable ctx = this.createContext(player, player.getUsedItemHand());
-                ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(level)));
+                ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
                 onCrafted.invoke(ctx);
             } catch (Exception exception) {
                 MLuaLogger.LOGGER.error("MLua block item onCrafted callback failed for '{}': {}", this.behaviorKey, exception.getMessage());
@@ -144,12 +145,12 @@ public class MLuaScriptedBlockItem extends BlockItem {
     private LuaTable createContext(Player player, InteractionHand hand) {
         LuaTable ctx = new LuaTable();
         if (player instanceof ServerPlayer sp) {
-           ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(player.level())));
+           ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaRuntime.registrationForLevel(player.level())));
         }
         ctx.set("World", player.level().dimension().location().toString());
         ctx.set("Position", MLuaPlayerWrapper.positionTable(player.position().x, player.position().y, player.position().z));
         ctx.set("Hand", hand.name().toLowerCase());
-        ctx.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), MLuaScriptRuntimeRegistration.forLevel(player.level())));
+        ctx.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), MLuaRuntime.registrationForLevel(player.level())));
         ctx.set("ItemStack", this.behaviorKey);
         return ctx;
     }
@@ -158,15 +159,15 @@ public class MLuaScriptedBlockItem extends BlockItem {
         LuaTable ctx = new LuaTable();
         Player player = context.getPlayer();
         if (player instanceof ServerPlayer sp) {
-           ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(context.getLevel())));
+           ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaRuntime.registrationForLevel(context.getLevel())));
         }
         BlockPos pos = context.getClickedPos();
         ctx.set("World", context.getLevel().dimension().location().toString());
         ctx.set("Position", MLuaPlayerWrapper.positionTable((double) pos.getX() + 0.5, (double) pos.getY() + 0.5, (double) pos.getZ() + 0.5));
-        ctx.set("Block", MLuaBlockWrapper.blockTable(context.getLevel(), pos, MLuaScriptRuntimeRegistration.forLevel(context.getLevel())));
+        ctx.set("Block", MLuaBlockWrapper.blockTable(context.getLevel(), pos, MLuaRuntime.registrationForLevel(context.getLevel())));
         ctx.set("Face", context.getClickedFace().getName());
         ctx.set("Hand", context.getHand().name().toLowerCase());
-        ctx.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), MLuaScriptRuntimeRegistration.forLevel(context.getLevel())));
+        ctx.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), MLuaRuntime.registrationForLevel(context.getLevel())));
         ctx.set("ItemStack", this.behaviorKey);
         return ctx;
     }
@@ -174,15 +175,15 @@ public class MLuaScriptedBlockItem extends BlockItem {
     private LuaTable createInventoryContext(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
         LuaTable ctx = new LuaTable();
         if (entity instanceof ServerPlayer sp) {
-            ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(level)));
+            ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaRuntime.registrationForLevel(level)));
         }
         ctx.set("World", level.dimension().location().toString());
         if (entity instanceof LivingEntity living) {
-            ctx.set("Entity", MLuaEntityWrapper.entityTable(living, MLuaScriptRuntimeRegistration.forLevel(level)));
+            ctx.set("Entity", MLuaEntityWrapper.entityTable(living, MLuaRuntime.registrationForLevel(level)));
         }
         ctx.set("Slot", slot);
         ctx.set("Selected", LuaValue.valueOf(selected));
-        ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(level)));
+        ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
         ctx.set("ItemStack", this.behaviorKey);
         return ctx;
     }

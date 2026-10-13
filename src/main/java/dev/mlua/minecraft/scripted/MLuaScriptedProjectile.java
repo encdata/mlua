@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.ZeroArgFunction;
@@ -265,7 +266,7 @@ public class MLuaScriptedProjectile extends Entity {
          try {
             LuaTable ctx = new LuaTable();
             ctx.set("Projectile", this.toLuaHandle(false));
-            ctx.set("Entity", MLuaEntityWrapper.entityTable(target, this.callbackContext != null ? callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level())));
+            ctx.set("Entity", MLuaEntityWrapper.entityTable(target, this.callbackContext != null ? callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level())));
             ctx.set("Position", MLuaVector.vector3(hitPos.x, hitPos.y, hitPos.z));
             ctx.set("Damage", this.damage);
             invokeCallback(this.onHitEntityCallback, ctx);
@@ -382,7 +383,7 @@ public class MLuaScriptedProjectile extends Entity {
    }
 
    public LuaTable toLuaHandle(boolean includeOwner) {
-      var registration = this.callbackContext != null ? this.callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
+      var registration = this.callbackContext != null ? this.callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level());
       LuaTable table = MLuaEntityWrapper.entityTable(this, registration);
       registration.attachClassInstance(table, this.luaClassName, "Projectile");
       if (this.direction != null) {
@@ -398,9 +399,9 @@ public class MLuaScriptedProjectile extends Entity {
          try {
             Entity owner = this.resolveOwner();
             if (owner instanceof net.minecraft.server.level.ServerPlayer player) {
-               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), this.callbackContext != null ? this.callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(player.level())));
+               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), this.callbackContext != null ? this.callbackContext.registration() : MLuaRuntime.registrationForLevel(player.level())));
             } else if (owner instanceof LivingEntity living) {
-               table.set("Owner", MLuaEntityWrapper.entityTable(living, this.callbackContext != null ? callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level())));
+               table.set("Owner", MLuaEntityWrapper.entityTable(living, this.callbackContext != null ? callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level())));
             }
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("Failed to attach projectile owner wrapper", exception);

@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -132,7 +133,7 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 
    private LuaTable effectContext(LivingEntity entity, int amplifier) {
       LuaTable ctx = new LuaTable();
-      ctx.set("Entity", MLuaEntityWrapper.entityTable(entity, MLuaScriptRuntimeRegistration.forLevel(entity.level())));
+      ctx.set("Entity", MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(entity.level())));
       ctx.set("Amplifier", LuaValue.valueOf(amplifier));
       ctx.set("Effect", LuaValue.valueOf(this.behaviorKey));
       if (this.iconTexture != null) {

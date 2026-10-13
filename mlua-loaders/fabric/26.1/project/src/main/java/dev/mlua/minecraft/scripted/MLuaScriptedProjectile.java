@@ -177,7 +177,7 @@ public final class MLuaScriptedProjectile extends Entity {
             end = entityHit.getLocation();
             if (!onHitEntity.isnil()) {
                 LuaTable args = callback("Position", MLuaVector.vector3(end.x, end.y, end.z));
-                args.set("Entity", MLuaEntityWrapper.entityTable(target, callbackContext != null ? callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level())));
+                args.set("Entity", MLuaEntityWrapper.entityTable(target, callbackContext != null ? callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level())));
                 args.set("Damage", LuaValue.valueOf(damage));
                 invoke(onHitEntity, args);
             }
@@ -230,7 +230,7 @@ public final class MLuaScriptedProjectile extends Entity {
         table.set("Knockback", knockback);
         table.set("Tick", ticksAlive);
         if (includeOwner && owner instanceof LivingEntity living) {
-            var registration = callbackContext != null ? callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
+            var registration = callbackContext != null ? callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level());
             if (owner instanceof ServerPlayer player) {
                 table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player),
                     registration));
@@ -265,7 +265,7 @@ public final class MLuaScriptedProjectile extends Entity {
                 return LuaValue.NONE;
             }
         });
-        var registration = callbackContext != null ? callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
+        var registration = callbackContext != null ? callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level());
         return registration.attachClassInstance(table, this.luaClassName, "Projectile");
     }
 

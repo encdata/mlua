@@ -116,7 +116,7 @@ public final class MLuaEntityWrapper {
    }
 
     public static LuaTable entityTable(net.minecraft.world.entity.Entity entity) {
-      return entityTable(entity, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(entity.level()));
+      return entityTable(entity, MLuaRuntime.registrationForLevel(entity.level()));
     }
 
     public static LuaTable entityTable(net.minecraft.world.entity.Entity entity, MLuaRegistration registration) {
@@ -273,7 +273,7 @@ public final class MLuaEntityWrapper {
    }
 
     public static LuaTable entityTable(net.minecraft.world.entity.LivingEntity entity) {
-      return entityTable(entity, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(entity.level()));
+      return entityTable(entity, MLuaRuntime.registrationForLevel(entity.level()));
     }
 
     public static LuaTable entityTable(net.minecraft.world.entity.LivingEntity entity, MLuaRegistration registration) {

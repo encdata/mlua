@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.math.MLuaCFrame;
@@ -168,7 +169,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          if (!onInteract.isnil()) {
             try {
                LuaValue playerTable = MLuaEntityWrapper.entityTable(
-                  player, MLuaScriptRuntimeRegistration.forLevel(this.level()));
+                  player, MLuaRuntime.registrationForLevel(this.level()));
                LuaValue handled = onInteract.invoke(LuaValue.varargsOf(new LuaValue[]{
                   this.entityTable(), playerTable, LuaValue.valueOf(hand.name())
                })).arg1();
@@ -213,7 +214,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
    }
 
    public LuaTable entityTable() {
-      dev.mlua.module.MLuaRegistration registration = MLuaScriptRuntimeRegistration.forLevel(this.level());
+      dev.mlua.module.MLuaRegistration registration = MLuaRuntime.registrationForLevel(this.level());
       LuaTable table = MLuaEntityWrapper.entityTable(this, registration);
       if (registration.classTable("ScriptedEntity") == null) {
          throw new IllegalStateException("ScriptedEntity class must be registered before creating scripted entities");
@@ -372,7 +373,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
                }
             }
             return nearest == null ? LuaValue.NIL : MLuaBlockWrapper.blockTable(
-               MLuaScriptedEntity.this.level(), nearest, MLuaScriptRuntimeRegistration.forLevel(MLuaScriptedEntity.this.level()));
+               MLuaScriptedEntity.this.level(), nearest, MLuaRuntime.registrationForLevel(MLuaScriptedEntity.this.level()));
          }
       });
       methods.set("NavigateTo", new VarArgFunction() {
@@ -729,7 +730,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
    }
 
    private LuaTable entityToLua(LivingEntity entity) {
-      return MLuaEntityWrapper.entityTable(entity, MLuaScriptRuntimeRegistration.forLevel(entity.level()));
+      return MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(entity.level()));
    }
 
    private BlockPos blockArg(Varargs args, int index) {
