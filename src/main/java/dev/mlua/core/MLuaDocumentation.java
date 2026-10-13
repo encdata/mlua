@@ -2059,6 +2059,7 @@ function deactivate() {}
 
    private static String registeredMethodDocs(MLuaDocBuilder.DocEntry entry,
                                                List<MLuaDocBuilder.MethodDoc> methodDocs) {
+      if (entry.type() != MLuaDocBuilder.DocEntryType.CLASS) return "";
       List<MLuaDocBuilder.MethodDoc> matching = methodDocs.stream()
          .filter(method -> method.receiver().equals(entry.name()))
          .toList();
@@ -2073,7 +2074,9 @@ function deactivate() {}
             description.append(codeBlock(method.example()));
          }
          String signature = method.signature();
-         if (method.returns() != null && !method.returns().isBlank()) {
+         int closeParen = signature.lastIndexOf(')');
+         boolean hasReturnType = closeParen >= 0 && !signature.substring(closeParen + 1).isBlank();
+         if (!hasReturnType && method.returns() != null && !method.returns().isBlank()) {
             signature += ": " + method.returns();
          }
          String side = method.side() == null || method.side().isBlank()
@@ -2081,7 +2084,7 @@ function deactivate() {}
          members.append(memberFull("<code>" + htmlEscape(signature) + "</code>", null,
             description.toString(), registeredMethodFlags(side)));
       }
-      return section("Registered API", "Signatures and usage registered by the owning module.", members.toString());
+      return section("Methods", "Signatures and usage registered by the owning module.", members.toString());
    }
 
    private static String registeredMemberDocs(MLuaDocBuilder.DocEntry entry,
