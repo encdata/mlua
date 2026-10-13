@@ -216,7 +216,7 @@ public class PlayersModule implements MLuaModule {
         for (String method : List.of("GetDisplayName", "SendMessage", "SendTitle", "SendActionBar",
                 "GetEyeCFrame", "GetCameraCFrame", "GiveItem", "ClearInventory", "GiveEffect",
                 "RemoveEffect", "HasEffect", "ClearEffects", "PlaySound", "GetNearbyEntities",
-                "GetNearbyPlayers", "GetAbilities", "GetPersistentData", "GetSyncedData",
+                "GetNearbyPlayers", "GetPersistentData", "GetSyncedData",
                 "SetData", "GetData", "RemoveData", "HasPermission", "IsOperator")) {
             String description = switch (method) {
                 case "GetDisplayName" -> "Returns this player's display name.";
@@ -234,7 +234,6 @@ public class PlayersModule implements MLuaModule {
                 case "PlaySound" -> "Plays a sound for this player.";
                 case "GetNearbyEntities" -> "Returns nearby entities.";
                 case "GetNearbyPlayers" -> "Returns nearby players.";
-                case "GetAbilities" -> "Returns this player's abilities.";
                 case "GetPersistentData" -> "Returns this player's persistent data.";
                 case "GetSyncedData" -> "Returns this player's synchronized data.";
                 case "SetData" -> "Sets a value in this player's persistent data.";

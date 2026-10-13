@@ -14077,9 +14077,6 @@ function Player.DistanceTo(self, entityOrPosition) end
 function Player.EnderChest(self) end
 
 ---@return any
-function Player.GetAbilities(self) end
-
----@return any
 function Player.GetArmor(self) end
 
 ---@return Slot[]

@@ -19,7 +19,6 @@ import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
-import dev.mlua.minecraft.binding.MLuaPlayerAbilities;
 import dev.mlua.modules.effects.Service.MLuaPotionEffectsService;
 import dev.mlua.minecraft.client.MLuaCameraController;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
@@ -372,9 +371,6 @@ public final class MLuaPlayerWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetOffhandSlot", varArg((args) -> {
          return invokeInstance(inventory, "SetOffhandSlot", args.arg(2));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetAbilities", luaFn(() -> {
-         return MLuaPlayerAbilities.abilitiesTable((net.minecraft.world.entity.player.Player) ((MCEntityImpl) player).inner());
       }));
       bindLevelMethods(table, ((MCLevelImpl) player.level()).inner(), registration);
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {

@@ -41,6 +41,9 @@ public final class MLuaItemWrapper {
       fields.rawset("__item_stack", LuaValue.userdataOf(stack));
       String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
       String className = MLuaBehaviorRegistry.getContentClass("item", itemId);
+      if (className == null && stack.getItem() instanceof net.minecraft.world.item.BlockItem) {
+         className = "BlockItem";
+      }
       LuaTable table = registration.createClassInstance(className == null ? "Item" : className, fields);
       return MLuaServiceProperties.attach(table);
    }
@@ -113,7 +116,18 @@ public final class MLuaItemWrapper {
 
    private static LuaTable createClass(MLuaRegistration registration) {
       LuaTable classTable = registration.registerClass("Item", registration.requireInstanceBaseClassName(), "A live item stack instance with count, durability, display name, tags, and enchantments.");
-      registration.registerClass("BlockItem", "Item", "An item instance that places its associated block.");
+      LuaTable blockItemClass = registration.registerClass("BlockItem", "Item", "An item instance that places its associated block.");
+      if (!blockItemClass.rawget("__initialized").toboolean()) {
+         MLuaClassMethods.registerClassMethod(registration, "BlockItem", blockItemClass, "GetBlockId",
+            selfItem((self, ignored) -> {
+               net.minecraft.world.item.Item item = ((MCItemImpl)stack(self).getItem()).inner();
+               if (!(item instanceof net.minecraft.world.item.BlockItem blockItem)) {
+                  throw new LuaError("[MLua] BlockItem instance does not contain a block item stack.");
+               }
+               return LuaValue.valueOf(BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()).toString());
+            }), "Returns the identifier of the block placed by this item.");
+         blockItemClass.rawset("__initialized", LuaValue.TRUE);
+      }
       LuaTable weaponClass = registration.registerClass("Weapon", "Item", "A scriptable weapon base for melee, ranged, thrown, and other item actions.");
       if (!weaponClass.rawget("__initialized").toboolean()) {
          registration.registerClassFunction("Weapon", "GetDurabilityRemaining", selfItem((self, ignored) -> {
