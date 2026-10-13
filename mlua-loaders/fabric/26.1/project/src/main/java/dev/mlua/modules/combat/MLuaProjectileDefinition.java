@@ -47,7 +47,9 @@ public class MLuaProjectileDefinition {
       int maxTicks = props.get("MaxTicks").optint(200);
       float size = (float)props.get("Size").optdouble(0.25);
       String damageSource = props.get("DamageSource").optjstring("generic");
-      String className = props.get("className").optjstring("Projectile");
+      LuaValue classNameValue = props.get("className");
+      if (classNameValue.isnil()) classNameValue = props.get("ClassName");
+      String className = classNameValue.optjstring("Projectile");
       MLuaRegistration registration = context == null ? MLuaRuntime.get() : context.registration();
       if (registration != null && (registration.classTable(className) == null || !registration.isSubclassOf(className, "Projectile"))) {
          throw new LuaError("[MLua] Projectile class '" + className + "' must be registered and inherit from Projectile");

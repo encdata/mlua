@@ -47,6 +47,13 @@ public class MLuaProjectileDefinition {
       int maxTicks = props.get("MaxTicks").optint(200);
       float size = (float)props.get("Size").optdouble(0.25);
       String damageSource = props.get("DamageSource").optjstring("generic");
+      LuaValue classNameValue = props.get("className");
+      if (classNameValue.isnil()) classNameValue = props.get("ClassName");
+      String className = classNameValue.optjstring("Projectile");
+      MLuaRegistration registration = context == null ? MLuaRuntime.get() : context.registration();
+      if (registration != null && (registration.classTable(className) == null || !registration.isSubclassOf(className, "Projectile"))) {
+         throw new LuaError("[MLua] Projectile class '" + className + "' must be registered and inherit from Projectile");
+      }
       int fireTicks = props.get("FireTicks").optint(0);
       double knockback = props.get("Knockback").optdouble(0.0);
       LuaValue onHitEntity = props.get("OnHitEntity");
@@ -57,7 +64,7 @@ public class MLuaProjectileDefinition {
          onHitEntity.isnil() ? LuaValue.NIL : onHitEntity,
          onHitBlock.isnil() ? LuaValue.NIL : onHitBlock,
          onExpired.isnil() ? LuaValue.NIL : onExpired,
-         onTick.isnil() ? LuaValue.NIL : onTick, runtimeOwner, ownerModId, context);
+         onTick.isnil() ? LuaValue.NIL : onTick, runtimeOwner, ownerModId, context, className);
       if (DEFINITIONS.putIfAbsent(key, definition) != null) {
          throw new LuaError("[MLua] Projectile '" + name + "' is already registered");
       }
@@ -102,6 +109,7 @@ public class MLuaProjectileDefinition {
       table.set("DamageSource", def.damageSource);
       table.set("FireTicks", def.fireTicks);
       table.set("Knockback", def.knockback);
+      table.set("ClassName", def.className);
       table.set("Fire", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
@@ -172,7 +180,7 @@ public class MLuaProjectileDefinition {
             throw new LuaError("[MLua] Projectile entity type not yet registered");
          }
 
-         MLuaScriptedProjectile projectile = new MLuaScriptedProjectile(projType, level);
+         MLuaScriptedProjectile projectile = new MLuaScriptedProjectile(projType, level, def.className);
          projectile.setPos(ox, oy, oz);
          projectile.init(dir, speed, damage, gravity, piercing, maxDistance, maxTicks, size, owner, damageSource, fireTicks, knockback, onHitEntity, onHitBlock, onExpired, onTick, runtimeOwner, ownerModId, def.context);
 
@@ -209,5 +217,5 @@ public class MLuaProjectileDefinition {
       public Key { if (ownerModId == null) ownerModId = ""; }
    }
 
-   public record ProjectileDef(double speed, double damage, boolean gravity, boolean piercing, double maxDistance, int maxTicks, float size, String damageSource, int fireTicks, double knockback, LuaValue onHitEntity, LuaValue onHitBlock, LuaValue onExpired, LuaValue onTick, Object runtimeOwner, String ownerModId, MLuaContext context) {}
+   public record ProjectileDef(double speed, double damage, boolean gravity, boolean piercing, double maxDistance, int maxTicks, float size, String damageSource, int fireTicks, double knockback, LuaValue onHitEntity, LuaValue onHitBlock, LuaValue onExpired, LuaValue onTick, Object runtimeOwner, String ownerModId, MLuaContext context, String className) {}
 }
