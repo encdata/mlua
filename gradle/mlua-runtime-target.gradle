@@ -47,7 +47,7 @@ minecraft {
 }
 
 def targetVer = target.minecraft
-def filterMluaVersionMarkers = { File directory, String targetVersion ->
+def filterMluaVersionMarkers = { File directory, String versionToFilter ->
     fileTree(directory).matching { include '**/*.java' }.each { file ->
         def filtered = []
         def activeVersions = null
@@ -56,7 +56,7 @@ def filterMluaVersionMarkers = { File directory, String targetVersion ->
             def trimmed = line.trim()
             if (trimmed.startsWith('//--version ')) {
                 def versions = trimmed.substring('//--version '.length()).tokenize(',')*.trim()
-                activeVersions = versions.contains(targetVersion) ? null : versions
+                activeVersions = versions.contains(versionToFilter) ? null : versions
             } else if (trimmed == '//--endversion') {
                 activeVersions = null
                 justEndedVersion = true
