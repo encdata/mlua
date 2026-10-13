@@ -411,7 +411,7 @@ public final class MLuaPlayerWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "RemoveEffect", varArg((args) -> {
          net.minecraft.world.entity.LivingEntity rawEntity = (net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner();
-         //--version 1.21.1
+         //--version 1.21.1,26.1
          return LuaValue.valueOf(rawEntity.removeEffect(MLuaPotionEffectsService.resolveHolderFromLua(args.arg(2))));
          //--endversion
          //--version 1.20.1
@@ -420,7 +420,7 @@ public final class MLuaPlayerWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "HasEffect", varArg((args) -> {
          net.minecraft.world.entity.LivingEntity rawEntity = (net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner();
-         //--version 1.21.1
+         //--version 1.21.1,26.1
          return LuaValue.valueOf(rawEntity.hasEffect(MLuaPotionEffectsService.resolveHolderFromLua(args.arg(2))));
          //--endversion
          //--version 1.20.1
@@ -438,7 +438,12 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "PlaySound", varArg((args) -> {
          MCResourceLocation loc = MCResourceLocation.parse(args.checkjstring(2));
          net.minecraft.resources.ResourceLocation rawLoc = MLuaResourceLocations.parse(loc.toString());
-         net.minecraft.sounds.SoundEvent rawSound = (net.minecraft.sounds.SoundEvent)BuiltInRegistries.SOUND_EVENT.get(rawLoc);
+         //--version 26.1
+         net.minecraft.sounds.SoundEvent rawSound = BuiltInRegistries.SOUND_EVENT.get(rawLoc).map(reference -> reference.value()).orElse(null);
+         //--endversion
+         //--version 1.20.1,1.21.1
+         net.minecraft.sounds.SoundEvent rawSound = BuiltInRegistries.SOUND_EVENT.get(rawLoc);
+         //--endversion
          if (rawSound == null) {
             throw new LuaError("[MLua] Unknown sound: " + args.checkjstring(2));
          }
