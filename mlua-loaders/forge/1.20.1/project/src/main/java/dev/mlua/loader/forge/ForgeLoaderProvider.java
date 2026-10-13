@@ -62,4 +62,9 @@ public class ForgeLoaderProvider implements LoaderApi.LoaderProvider {
     public ClientBridge client() {
         return client;
     }
+
+    @Override
+    public dev.mlua.common.mixin.MLuaMappingResolver mappings() {
+        return new dev.mlua.common.mixin.MLuaGeneratedMappingResolver("forge");
+    }
 }
