@@ -8,7 +8,6 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.LuaBackedService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
@@ -41,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.IdentityHashMap;
 import net.minecraft.network.chat.Component;
 
-public final class MLuaGuiService implements MLuaService, LuaBackedService {
+public final class MLuaGuiService implements MLuaService {
     private static final Map<MLuaTaskSchedulerView, GuiState> STATES = new WeakHashMap<>();
     private final MLuaService.Context context;
     private final GuiState state;
@@ -64,7 +63,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         return getForScheduler(runtime.session().clientScheduler());
     }
 
-    /** Allows Lua listeners to edit the plain text before Minecraft stores a chat line. */
     public static Component beforeChatLineAdded(Component message) {
         MLuaGuiService service = getInstance();
         MLuaRuntime runtime = MLuaRuntime.get();
@@ -87,7 +85,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         }
     }
 
-    /** Checks addon-registered screen class aliases against a live Minecraft screen. */
     public static boolean matchesRegisteredScreenTarget(MLuaTaskSchedulerView scheduler, String target, Object screen) {
         if (scheduler == null || target == null || screen == null) return false;
         GuiState state;
@@ -97,14 +94,12 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         return registered != null && ScreenGui.matchesScreenClass(screen.getClass(), registered.className());
     }
 
-    /** Returns fresh live control wrappers for the widgets owned by a native screen. */
     public static LuaTable getNativeControls(Object screen) {
         MLuaGuiService service = getInstance();
         if (service == null) throw new LuaError("[MLua] Gui service is not active on the client");
         return service.nativeControls(LuaValue.NIL, false, screen);
     }
 
-    /** Returns live controls through the GUI state owned by the supplied runtime scheduler. */
     public static LuaTable getNativeControls(MLuaTaskSchedulerView scheduler, Object screen) {
         MLuaGuiService service = getForScheduler(scheduler);
         if (service == null) throw new LuaError("[MLua] Gui service is not active for this client runtime");
@@ -125,7 +120,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         }
     }
 
-    /** Called by the native Screen hook after Minecraft has created its widgets. */
     public static void applyNativeLayouts(Object screen) {
         MLuaGuiService service = getInstance();
         if (service != null) {
@@ -327,7 +321,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
                 if (firstOnly) break;
             }
         } catch (ReflectiveOperationException ignored) {
-            // A screen without the standard child widget API has no queryable NativeControl instances.
         }
         return result;
     }
@@ -416,7 +409,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         for (Object screen : affectedScreens) this.applyLayouts(screen);
     }
 
-    /** Restores and reapplies active rules in registration order after a layout edit. */
     private void recomposeLayouts(Object screen, NativeLayout changedLayout) {
         if (screen == null) return;
         List<NativeLayout> layouts = List.copyOf(this.state.nativeLayouts);
@@ -452,7 +444,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         }
     }
 
-    /** Keeps the original native action when a Lua GuiButton replaces its rendering. */
     public static void activateNativeReplacement(GuiButton button, double mouseX, double mouseY) {
         Object nativeWidget;
         synchronized (REPLACEMENT_ACTIONS) { nativeWidget = REPLACEMENT_ACTIONS.get(button); }
@@ -818,7 +809,6 @@ public final class MLuaGuiService implements MLuaService, LuaBackedService {
         this.state.clear();
     }
 
-    /** Removes screens, UI descendants, and native layouts contributed by one addon. */
     public int clearOwned(String ownerId) {
         if (ownerId == null || ownerId.isBlank()) return 0;
         int removed = 0;

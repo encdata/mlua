@@ -11,7 +11,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.LuaBackedService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -23,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-public final class MLuaModalService implements MLuaService, LuaBackedService {
+public final class MLuaModalService implements MLuaService {
     private static final Map<MLuaTaskSchedulerView, ModalState> STATES = new WeakHashMap<>();
     private final MLuaService.Context context;
     private final ModalState state;
