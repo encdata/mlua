@@ -2,6 +2,7 @@ package dev.mlua.modules.players.Class;
 
 import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaAnimation;
 import dev.mlua.minecraft.animation.MLuaAnimationController;
@@ -125,41 +126,36 @@ public final class MLuaEntityWrapper {
       table.rawset("__entity", LuaValue.userdataOf(entity));
       registration.attachClassInstance(table, "Entity", "Instance");
       if (cached == null) cache.put(cacheKey, table);
-      table.rawset("GetId", luaFn(() -> LuaValue.valueOf(wrapped.getId())));
-      table.rawset("GetType", luaFn(() -> LuaValue.valueOf(entityTypeName(wrapped))));
-      table.rawset("GetName", luaFn(() -> LuaValue.valueOf(entityName(wrapped))));
-      table.rawset("GetUUID", luaFn(() -> LuaValue.valueOf(entityStringUuid(wrapped))));
-      table.rawset("GetPosition", luaFn(() -> {
+                              MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
          MCVec3 p = wrapped.position();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
       }));
-      table.rawset("GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
-      table.rawset("GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.position().y())));
-      table.rawset("GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.position().z())));
-      table.rawset("GetEntityType", luaFn(() -> LuaValue.valueOf(entityTypeName(wrapped))));
-      table.rawset("SetPosition", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.position().y())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.position().z())));
+            MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
          ((MCEntityImpl)wrapped).inner().setPos(pos[0], pos[1], pos[2]);
          return LuaValue.NONE;
       }));
-      table.rawset("Teleport", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg((args) -> {
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
          ((MCEntityImpl)wrapped).inner().teleportTo(pos[0], pos[1], pos[2]);
          return LuaValue.NONE;
       }));
-      table.rawset("GetVelocity", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
          MCVec3 v = wrapped.getDeltaMovement();
          return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
       }));
-      table.rawset("SetVelocity", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
          double[] vel = MLuaPlayerWrapper.positionArgs(args, 2);
          wrapped.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
          ((MCEntityImpl)wrapped).inner().hurtMarked = true;
          return LuaValue.NONE;
       }));
-      table.rawset("GetRotation", luaFn(() -> MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot())));
-      table.rawset("GetRotationRadians", luaFn(() -> MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()))));
-      table.rawset("SetRotationRadians", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot())));
+      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()))));
+      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
          LuaValue value = args.arg(2);
          if (!value.istable()) {
             throw new LuaError("[MLua] SetRotationRadians expects Vector2(pitch, yaw)");
@@ -170,35 +166,35 @@ public final class MLuaEntityWrapper {
          applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(pitch), Math.toDegrees(yaw)));
          return LuaValue.NONE;
       }));
-      table.rawset("GetCFrame", luaFn(() -> cframe(wrapped).toLua()));
-      table.rawset("GetLookVector", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> cframe(wrapped).toLua()));
+      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
          MCVec3 look = lookAngle(wrapped);
          return MLuaPlayerWrapper.positionTable(look.x(), look.y(), look.z());
       }));
-      table.rawset("SetCFrame", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetCFrame", varArg((args) -> {
          MLuaCFrame cf = MLuaCFrame.fromLua(args.arg(2));
          applyCFrame(wrapped, cf);
          return LuaValue.NONE;
       }));
-      table.rawset("SetRotation", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
          applyRotation(wrapped, args.arg(2));
          return LuaValue.NONE;
       }));
-      table.rawset("LookAt", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
          double[] target = targetPosition(args.arg(2));
          MCVec3 p = wrapped.position();
          applyCFrame(wrapped, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
          return LuaValue.NONE;
       }));
-      table.rawset("Kill", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
          ((MCEntityImpl)wrapped).inner().kill();
          return LuaValue.NONE;
       }));
-      table.rawset("Remove", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {
          ((MCEntityImpl)wrapped).inner().remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
          return LuaValue.NONE;
       }));
-      table.rawset("DistanceTo", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
          double[] other = MLuaPlayerWrapper.positionArgs(args, 2);
          MCVec3 p = wrapped.position();
          double dx = p.x() - other[0];
@@ -206,20 +202,20 @@ public final class MLuaEntityWrapper {
          double dz = p.z() - other[2];
          return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
       }));
-      table.rawset("GetIsAlive", luaFn(() -> LuaValue.valueOf(wrapped.isAlive())));
-      table.rawset("GetIsOnGround", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().onGround())));
-      table.rawset("GetIsInWater", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isInWater())));
-      table.rawset("GetIsOnFire", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isOnFire())));
-      table.rawset("GetIsMoving", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetIsAlive", luaFn(() -> LuaValue.valueOf(wrapped.isAlive())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsOnGround", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().onGround())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsInWater", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isInWater())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsOnFire", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isOnFire())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsMoving", luaFn(() -> {
          MCVec3 v = wrapped.getDeltaMovement();
          double hSpeed = Math.sqrt(v.x() * v.x() + v.z() * v.z());
          return LuaValue.valueOf(hSpeed > 0.05);
       }));
-      table.rawset("GetIsFalling", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetIsFalling", luaFn(() -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
          return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y < -0.08);
       }));
-      table.rawset("GetNbt", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
          if (args.narg() < 2 || args.arg(2).isnil()) {
             return MLuaDataManager.entityPersistentData(raw, !raw.level().isClientSide);
@@ -227,8 +223,8 @@ public final class MLuaEntityWrapper {
          if (raw.level().isClientSide) return LuaValue.NIL;
          return MLuaNbtWrapper.get(MLuaDataManager.entityPersistentTag(raw), args.checkjstring(2));
       }));
-      table.rawset("GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
-      table.rawset("GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
+      MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
       table.rawset("getNbt", table.get("GetNbt"));
       table.rawset("SetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
@@ -276,68 +272,55 @@ public final class MLuaEntityWrapper {
        LuaTable table = cached != null ? cached : new LuaTable();
        table.rawset("__side", LuaValue.valueOf("Shared"));
        table.rawset("__entity", LuaValue.userdataOf(entity));
-       registration.attachClassInstance(table, "Entity", "Instance");
+       registration.attachClassInstance(table, "LivingEntity", "Entity");
        if (cached == null) cache.put(cacheKey, table);
-       table.rawset("GetId", luaFn(() -> {
-          return LuaValue.valueOf(wrapped.getId());
-       }));
-       table.rawset("GetType", luaFn(() -> {
-          return LuaValue.valueOf(entityTypeName(wrapped));
-       }));
-       table.rawset("GetName", luaFn(() -> {
-          return LuaValue.valueOf(entityName(wrapped));
-       }));
-       table.rawset("GetUUID", luaFn(() -> {
-          return LuaValue.valueOf(entityStringUuid(wrapped));
-       }));
-      table.rawset("GetPosition", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
          MCVec3 p = wrapped.position();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
       }));
-      table.rawset("GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
-      table.rawset("GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.position().y())));
-      table.rawset("GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.position().z())));
-       table.rawset("GetEntityType", luaFn(() -> LuaValue.valueOf(entityTypeName(wrapped))));
-      table.rawset("SetPosition", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.position().y())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.position().z())));
+             MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
          ((MCEntityImpl)wrapped).inner().setPos(pos[0], pos[1], pos[2]);
          return LuaValue.NONE;
       }));
-      table.rawset("Teleport", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg((args) -> {
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
          ((MCEntityImpl)wrapped).inner().teleportTo(pos[0], pos[1], pos[2]);
          return LuaValue.NONE;
       }));
-      table.rawset("GetVelocity", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
          MCVec3 v = wrapped.getDeltaMovement();
          return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
       }));
-      table.rawset("SetVelocity", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
          double[] vel = MLuaPlayerWrapper.positionArgs(args, 2);
          wrapped.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
          ((MCEntityImpl)wrapped).inner().hurtMarked = true;
          return LuaValue.NONE;
       }));
-      table.rawset("GetHealth", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetHealth", luaFn(() -> {
          return LuaValue.valueOf((double)wrapped.getHealth());
       }));
-      table.rawset("SetHealth", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetHealth", varArg((args) -> {
          wrapped.setHealth((float)args.checkdouble(2));
          return LuaValue.NONE;
       }));
-      table.rawset("GetMaxHealth", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetMaxHealth", luaFn(() -> {
          return LuaValue.valueOf((double)wrapped.getMaxHealth());
       }));
-      table.rawset("GetArmor", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetArmor", luaFn(() -> {
          return LuaValue.valueOf(wrapped.getArmorValue());
       }));
-      table.rawset("GetRotation", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> {
          return MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot());
       }));
-      table.rawset("GetRotationRadians", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> {
          return MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()));
       }));
-      table.rawset("SetRotationRadians", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
          LuaValue value = args.arg(2);
          if (!value.istable()) {
             throw new LuaError("[MLua] SetRotationRadians expects Vector2(pitch, yaw)");
@@ -349,37 +332,37 @@ public final class MLuaEntityWrapper {
             return LuaValue.NONE;
          }
       }));
-      table.rawset("GetCFrame", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> {
          return cframe(wrapped).toLua();
       }));
-      table.rawset("GetLookVector", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
          MCVec3 look = lookAngle(wrapped);
          return MLuaPlayerWrapper.positionTable(look.x(), look.y(), look.z());
       }));
-      table.rawset("SetCFrame", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetCFrame", varArg((args) -> {
          MLuaCFrame cf = MLuaCFrame.fromLua(args.arg(2));
          applyCFrame(wrapped, cf);
          return LuaValue.NONE;
       }));
-      table.rawset("SetRotation", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
          applyRotation(wrapped, args.arg(2));
          return LuaValue.NONE;
       }));
-      table.rawset("LookAt", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
          double[] target = targetPosition(args.arg(2));
          MCVec3 p = wrapped.position();
          applyCFrame(wrapped, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
          return LuaValue.NONE;
       }));
-      table.rawset("Kill", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
          ((MCEntityImpl)wrapped).inner().kill();
          return LuaValue.NONE;
       }));
-      table.rawset("Remove", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {
          ((MCEntityImpl)wrapped).inner().remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
          return LuaValue.NONE;
       }));
-       table.rawset("Damage", varArg((args) -> {
+       MLuaClassMethods.setInstanceMethod(table, "Damage", varArg((args) -> {
           float amount = (float)args.checkdouble(2);
           String sourceStr = args.optjstring(3, "generic");
           net.minecraft.world.entity.Entity attacker = entityFromLua(args.arg(4));
@@ -387,7 +370,7 @@ public final class MLuaEntityWrapper {
           wrapped.hurt(new MCDamageSourceImpl(mcSource), amount);
           return LuaValue.NONE;
        }));
-      table.rawset("GetAttribute", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetAttribute", varArg((args) -> {
          String attrName = args.checkjstring(2);
          net.minecraft.world.entity.ai.attributes.Attribute attr = BuiltInRegistries.ATTRIBUTE.get(MLuaResourceLocations.parse(attrName));
          if (attr == null) {
@@ -396,7 +379,7 @@ public final class MLuaEntityWrapper {
          net.minecraft.world.entity.ai.attributes.AttributeInstance instance = ((net.minecraft.world.entity.LivingEntity)((MCLivingEntityImpl)wrapped).inner()).getAttribute(attr);
           return instance == null ? LuaValue.NIL : LuaValue.valueOf(instance.getValue());
        }));
-       table.rawset("SetAttribute", varArg((args) -> {
+       MLuaClassMethods.setInstanceMethod(table, "SetAttribute", varArg((args) -> {
           String attrName = args.checkjstring(2);
           double value = args.checkdouble(3);
           net.minecraft.world.entity.ai.attributes.Attribute attr = BuiltInRegistries.ATTRIBUTE.get(MLuaResourceLocations.parse(attrName));
@@ -410,17 +393,17 @@ public final class MLuaEntityWrapper {
          instance.setBaseValue(value);
          return LuaValue.TRUE;
       }));
-      table.rawset("GetEquipment", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetEquipment", varArg((args) -> {
          net.minecraft.world.entity.EquipmentSlot slot = MLuaMinecraftEnums.resolveSlot(args.arg(2));
           return MLuaItemWrapper.itemTable(((net.minecraft.world.entity.LivingEntity)((MCLivingEntityImpl)wrapped).inner()).getItemBySlot(slot));
       }));
-      table.rawset("SetEquipment", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetEquipment", varArg((args) -> {
          net.minecraft.world.entity.EquipmentSlot slot = MLuaMinecraftEnums.resolveSlot(args.arg(2));
          net.minecraft.world.item.ItemStack stack = MLuaItemWrapper.toItemStack(args.arg(3));
          ((MCLivingEntityImpl)wrapped).inner().setItemSlot(slot, stack);
          return LuaValue.NONE;
       }));
-      table.rawset("DistanceTo", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
          double[] other = MLuaPlayerWrapper.positionArgs(args, 2);
          MCVec3 p = wrapped.position();
          double dx = p.x() - other[0];
@@ -428,35 +411,35 @@ public final class MLuaEntityWrapper {
          double dz = p.z() - other[2];
          return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
       }));
-      table.rawset("GetIsAlive", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetIsAlive", luaFn(() -> {
          return LuaValue.valueOf(wrapped.isAlive());
       }));
-      table.rawset("GetIsOnGround", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetIsOnGround", luaFn(() -> {
          return LuaValue.valueOf(((MCEntityImpl)wrapped).inner().onGround());
       }));
-      table.rawset("GetIsInWater", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetIsInWater", luaFn(() -> {
          return LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isInWater());
       }));
-       table.rawset("GetIsOnFire", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsOnFire", luaFn(() -> {
           return LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isOnFire());
        }));
-       table.rawset("GetIsMoving", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsMoving", luaFn(() -> {
           MCVec3 v = wrapped.getDeltaMovement();
           double hSpeed = Math.sqrt(v.x() * v.x() + v.z() * v.z());
           return LuaValue.valueOf(hSpeed > 0.05);
        }));
-       table.rawset("GetIsJumping", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsJumping", luaFn(() -> {
           net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
           return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y > 0.08);
        }));
-       table.rawset("GetIsFalling", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsFalling", luaFn(() -> {
           net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
           return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y < -0.08);
        }));
-       table.rawset("GetIsSwimming", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsSwimming", luaFn(() -> {
           return LuaValue.valueOf(((MCLivingEntityImpl)wrapped).inner().isSwimming());
        }));
-      table.rawset("GetNbt", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
           if (args.narg() < 2 || args.arg(2).isnil()) {
             return MLuaDataManager.entityPersistentData(raw, !raw.level().isClientSide);
@@ -464,8 +447,8 @@ public final class MLuaEntityWrapper {
           if (raw.level().isClientSide) return LuaValue.NIL;
           return MLuaNbtWrapper.get(MLuaDataManager.entityPersistentTag(raw), args.checkjstring(2));
        }));
-       table.rawset("GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
-       table.rawset("GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
+       MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
+       MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
        table.rawset("getNbt", table.get("GetNbt"));
       table.rawset("SetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();

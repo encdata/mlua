@@ -472,7 +472,7 @@ public final class MLuaEntityWrapper {
           double hSpeed = Math.sqrt(v.x() * v.x() + v.z() * v.z());
           return LuaValue.valueOf(hSpeed > 0.05);
        }));
-       table.rawset("GetIsJumping", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsJumping", luaFn(() -> {
           net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
           return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y > 0.08);
        }));
@@ -480,7 +480,7 @@ public final class MLuaEntityWrapper {
           net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
           return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y < -0.08);
        }));
-       table.rawset("GetIsSwimming", luaFn(() -> {
+       MLuaClassMethods.setInstanceMethod(table, "GetIsSwimming", luaFn(() -> {
           return LuaValue.valueOf(((MCLivingEntityImpl)wrapped).inner().isSwimming());
        }));
        table.rawset("GetNbt", varArg((args) -> {
@@ -578,9 +578,6 @@ public final class MLuaEntityWrapper {
          MLuaAnimationController.stopAll(entity, registration);
          return LuaValue.NONE;
       }));
-      // Player-facing aliases: models use the same attachment lifecycle as
-      // BBModel animations, while ordinary LoadAnimation remains available
-      // for vanilla-compatible bone animation tracks.
       table.rawset("LoadModel", table.get("LoadAnimation"));
       table.rawset("ResetModel", table.get("ResetAnimation"));
       table.rawset("PlayAnimation", varArg((args) -> {

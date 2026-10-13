@@ -120,12 +120,14 @@ public class PlayersModule implements MLuaModule {
         registration.registerClass("LivingEntity", "Entity",
             "A living entity with health, damage, equipment, and attributes.");
         for (String method : List.of("GetHealth", "SetHealth", "GetMaxHealth", "GetArmor", "Damage",
-                "GetAttribute", "SetAttribute", "GetEquipment", "SetEquipment")) {
+                "GetAttribute", "SetAttribute", "GetEquipment", "SetEquipment", "GetIsJumping", "GetIsSwimming")) {
             String description = switch (method) {
                 case "GetHealth" -> "Returns this entity's current health.";
                 case "SetHealth" -> "Sets this entity's current health.";
                 case "GetMaxHealth" -> "Returns this entity's maximum health.";
                 case "GetArmor" -> "Returns this entity's armor value.";
+                case "GetIsJumping" -> "Returns whether this entity is moving upward while airborne.";
+                case "GetIsSwimming" -> "Returns whether this entity is swimming.";
                 case "Damage" -> "Applies damage, optionally using a registered damage source and attacker.";
                 case "GetAttribute" -> "Returns the value of a registered living entity attribute.";
                 case "SetAttribute" -> "Sets the base value of a registered living entity attribute.";
@@ -329,8 +331,6 @@ public class PlayersModule implements MLuaModule {
             if (session == null) session = MLuaRuntime.get().session();
             var registration = session.registration() != null ? session.registration() : MLuaRuntime.get();
             MLuaPlayersService.PLAYER_REMOVING.fireOnSession(session, Side.SERVER, MLuaPlayersService.playerTable(player, registration));
-            // Listeners receive the final stable wrapper; release the live-player
-            // identity only after dispatch completes.
             MLuaEntityWrapper.removeFromCache(player);
         });
 

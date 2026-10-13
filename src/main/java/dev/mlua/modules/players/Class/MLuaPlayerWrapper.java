@@ -169,45 +169,45 @@ public final class MLuaPlayerWrapper {
          player.getFoodData().setSaturation((float)args.checkdouble(2));
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
-      table.rawset("GetExperienceLevel", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.experienceLevel());
       }));
-      table.rawset("GetExperienceProgress", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetExperienceProgress", luaFn(() -> {
          return LuaValue.valueOf((double)player.experienceProgress());
       }));
-      table.rawset("GiveExperience", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GiveExperience", varArg((args) -> {
          player.giveExperiencePoints(args.checkint(2));
          return LuaValue.NONE;
       }));
-      table.rawset("GiveExperienceLevels", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GiveExperienceLevels", varArg((args) -> {
          player.giveExperienceLevels(args.checkint(2));
          return LuaValue.NONE;
       }));
-      table.rawset("IsOnline", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> {
          return LuaValue.valueOf(player.getConnection() != null && player.isAlive());
       }));
-      table.rawset("IsCreative", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsCreative", luaFn(() -> {
          return LuaValue.valueOf(player.isCreative());
       }));
-      table.rawset("IsSpectator", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSpectator", luaFn(() -> {
          return LuaValue.valueOf(player.isSpectator());
       }));
-      table.rawset("IsSleeping", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSleeping", luaFn(() -> {
          return LuaValue.valueOf(player.isSleeping());
       }));
-      table.rawset("IsCrouching", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsCrouching", luaFn(() -> {
          return LuaValue.valueOf(player.isCrouching());
       }));
-      table.rawset("IsSprinting", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> {
          return LuaValue.valueOf(player.isSprinting());
       }));
-      table.rawset("IsSwimming", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> {
          return LuaValue.valueOf(player.isSwimming());
       }));
-      table.rawset("GetBlockPosition", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
          return positionTable((double)player.blockPosition().getX(), (double)player.blockPosition().getY(), (double)player.blockPosition().getZ());
       }));
-      table.rawset("GetLookDirection", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return positionTable(look.x(), look.y(), look.z());
       }));
@@ -249,11 +249,11 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }));
       addCFrameMethods(table, player, registration);
-      table.rawset("GetEyeCFrame", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetEyeCFrame", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return MLuaCFrame.fromEntity(player.getX(), raw.getEyeY(), player.getZ(), look.x(), look.y(), look.z()).toLua();
       }));
-      table.rawset("GetCameraCFrame", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetCameraCFrame", varArg((args) -> {
          throw new LuaError("[MLua] player:GetCameraCFrame() is client-side only. Use Minecraft:GetService(\"Camera\") in a .client.lua script.");
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
@@ -282,16 +282,16 @@ public final class MLuaPlayerWrapper {
          player.setGameMode(type);
          return LuaValue.NONE;
       }), "Changes this player's game mode. This method is server-side only.");
-      table.rawset("HasPermission", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "HasPermission", varArg((args) -> {
          return LuaValue.valueOf(player.hasPermissions(args.checkint(2)));
       }));
-      table.rawset("IsOperator", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsOperator", luaFn(() -> {
          return LuaValue.valueOf(player.hasPermissions(4));
       }));
-      table.rawset("GetSelectedSlot", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetSelectedSlot", luaFn(() -> {
          return LuaValue.valueOf(player.getInventory().getSelected() + 1);
       }));
-      table.rawset("SetSelectedSlot", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetSelectedSlot", varArg((args) -> {
          int slot = args.checkint(2) - 1;
          if (slot < 0 || slot >= 9) {
             throw new LuaError("[MLua] Selected slot must be between 1 and 9.");
@@ -299,19 +299,19 @@ public final class MLuaPlayerWrapper {
          player.getInventory().setSelected(slot);
          return LuaValue.NONE;
       }));
-      table.rawset("GetHeldItem", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetHeldItem", varArg((args) -> {
          return heldItem(player.getMainHandItem(), registration);
       }));
-      table.rawset("GetOffhandItem", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetOffhandItem", varArg((args) -> {
          return heldItem(player.getOffhandItem(), registration);
       }));
-      table.rawset("GetViewMode", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetViewMode", varArg((args) -> {
          throw new LuaError("[MLua] Player.ViewMode is client-side only for server player tables.");
       }));
-      table.rawset("SetViewMode", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetViewMode", varArg((args) -> {
          throw new LuaError("[MLua] Player.ViewMode can only be written from a .client.lua script.");
       }));
-      table.rawset("GiveItem", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GiveItem", varArg((args) -> {
          LuaValue arg = args.arg(2);
          if (arg.istable()) {
             LuaValue idVal = arg.get("Id");
@@ -341,12 +341,12 @@ public final class MLuaPlayerWrapper {
 
          return LuaValue.NONE;
       }));
-      table.rawset("ClearInventory", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "ClearInventory", luaFn(() -> {
          player.getInventory().clearContent();
          return LuaValue.NONE;
       }));
       LuaTable inventory = attachInventoryMethods(table, player, true, true, registration);
-      table.rawset("SetSlot", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetSlot", varArg((args) -> {
          int slot = args.checkint(2) - 1;
          LuaValue itemVal = args.arg(3);
          if (slot < 0 || slot >= player.getInventory().getContainerSize()) {
@@ -359,19 +359,19 @@ public final class MLuaPlayerWrapper {
          }
          return LuaValue.NONE;
       }));
-      table.rawset("SetHotbarSlot", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetHotbarSlot", varArg((args) -> {
          return invokeInstance(inventory, "SetHotbarSlot", args.arg(2), args.arg(3));
       }));
-      table.rawset("SetArmorSlot", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetArmorSlot", varArg((args) -> {
          return invokeInstance(inventory, "SetArmorSlot", args.arg(2), args.arg(3));
       }));
-      table.rawset("SetOffhandSlot", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetOffhandSlot", varArg((args) -> {
          return invokeInstance(inventory, "SetOffhandSlot", args.arg(2));
       }));
-      table.rawset("GetAbilities", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetAbilities", luaFn(() -> {
          return MLuaPlayerAbilities.abilitiesTable((net.minecraft.world.entity.player.Player) ((MCEntityImpl) player).inner());
       }));
-      table.rawset("GetWorld", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> {
          return dev.mlua.minecraft.binding.MLuaLevelWrapper.levelTable(((MCLevelImpl) player.level()).inner(), registration);
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> {
@@ -380,7 +380,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> {
          return LuaValue.valueOf(raw.serverLevel().dimension().location().toString());
       }));
-      table.rawset("GetNearbyEntities", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {
          double radius = args.checkdouble(2);
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
@@ -392,7 +392,7 @@ public final class MLuaPlayerWrapper {
          }
          return list;
       }));
-      table.rawset("GetNearbyPlayers", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetNearbyPlayers", varArg((args) -> {
          double radius = args.checkdouble(2);
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
@@ -406,10 +406,10 @@ public final class MLuaPlayerWrapper {
          }
          return list;
       }));
-      table.rawset("GiveEffect", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GiveEffect", varArg((args) -> {
          return MLuaPotionEffectsService.giveEffect((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner(), args);
       }));
-      table.rawset("RemoveEffect", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "RemoveEffect", varArg((args) -> {
          net.minecraft.world.entity.LivingEntity rawEntity = (net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner();
          //--version 1.21.1
          return LuaValue.valueOf(rawEntity.removeEffect(MLuaPotionEffectsService.resolveHolderFromLua(args.arg(2))));
@@ -418,7 +418,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(rawEntity.removeEffect(MLuaPotionEffectsService.resolveFromLua(args.arg(2))));
          //--endversion
       }));
-      table.rawset("HasEffect", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "HasEffect", varArg((args) -> {
          net.minecraft.world.entity.LivingEntity rawEntity = (net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner();
          //--version 1.21.1
          return LuaValue.valueOf(rawEntity.hasEffect(MLuaPotionEffectsService.resolveHolderFromLua(args.arg(2))));
@@ -427,15 +427,15 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(rawEntity.hasEffect(MLuaPotionEffectsService.resolveFromLua(args.arg(2))));
          //--endversion
       }));
-      table.rawset("GetEffects", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> {
          return MLuaPotionEffectsService.effectsTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner());
       }));
-      table.rawset("ClearEffects", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "ClearEffects", luaFn(() -> {
          net.minecraft.world.entity.LivingEntity rawEntity = (net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner();
          rawEntity.removeAllEffects();
          return LuaValue.NONE;
       }));
-      table.rawset("PlaySound", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "PlaySound", varArg((args) -> {
          MCResourceLocation loc = MCResourceLocation.parse(args.checkjstring(2));
          net.minecraft.resources.ResourceLocation rawLoc = MLuaResourceLocations.parse(loc.toString());
          net.minecraft.sounds.SoundEvent rawSound = (net.minecraft.sounds.SoundEvent)BuiltInRegistries.SOUND_EVENT.get(rawLoc);
@@ -447,18 +447,18 @@ public final class MLuaPlayerWrapper {
          player.playNotifySound(MCSoundEvent.create(loc), MCSoundSource.PLAYERS, volume, pitch);
          return LuaValue.NONE;
       }));
-      table.rawset("GetPersistentData", luaFn(() -> MLuaDataManager.playerPersistentData(raw, true)));
-      table.rawset("GetSyncedData", luaFn(() -> MLuaDataManager.playerSyncedData(raw)));
-      table.rawset("SetData", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.playerPersistentData(raw, true)));
+      MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.playerSyncedData(raw)));
+      MLuaClassMethods.setInstanceMethod(table, "SetData", varArg((args) -> {
          LuaTable persistent = MLuaDataManager.playerPersistentData(raw, true);
          persistent.get("Set").call(persistent, LuaValue.valueOf(args.checkjstring(2)), args.arg(3));
          return LuaValue.NONE;
       }));
-      table.rawset("GetData", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetData", varArg((args) -> {
          LuaTable persistent = MLuaDataManager.playerPersistentData(raw, true);
          return persistent.get("Get").call(persistent, LuaValue.valueOf(args.checkjstring(2)));
       }));
-      table.rawset("RemoveData", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "RemoveData", varArg((args) -> {
          LuaTable persistent = MLuaDataManager.playerPersistentData(raw, true);
          persistent.get("Remove").call(persistent, LuaValue.valueOf(args.checkjstring(2)));
          return LuaValue.NONE;
@@ -484,7 +484,7 @@ public final class MLuaPlayerWrapper {
          }
       }
       LuaTable table = MLuaEntityWrapper.entityTable(raw, registration);
-      registration.attachClassInstance(table, "Player", "Entity");
+      registration.attachClassInstance(table, "Player", "LivingEntity");
       table.rawset("__entity", LuaValue.userdataOf(raw));
       table.rawset("__is_local_player", LuaValue.TRUE);
       MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", luaFn(() -> {
@@ -544,37 +544,37 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> {
          return LuaValue.valueOf((double)player.getFoodData().getSaturationLevel());
       }), "Returns this player's food saturation.");
-      table.rawset("GetExperienceLevel", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.experienceLevel());
       }));
-      table.rawset("GetExperienceProgress", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetExperienceProgress", luaFn(() -> {
          return LuaValue.valueOf((double)player.experienceProgress());
       }));
-      table.rawset("IsCreative", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsCreative", luaFn(() -> {
          return LuaValue.valueOf(player.isCreative());
       }));
-      table.rawset("IsSpectator", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSpectator", luaFn(() -> {
          return LuaValue.valueOf(player.isSpectator());
       }));
-      table.rawset("IsSleeping", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSleeping", luaFn(() -> {
          return LuaValue.valueOf(player.isSleeping());
       }));
-      table.rawset("IsCrouching", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsCrouching", luaFn(() -> {
          return LuaValue.valueOf(player.isCrouching());
       }));
-      table.rawset("IsSprinting", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> {
          return LuaValue.valueOf(player.isSprinting());
       }));
-      table.rawset("IsSwimming", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> {
          return LuaValue.valueOf(player.isSwimming());
       }));
-      table.rawset("IsOnline", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> {
          return LuaValue.valueOf(player.isAlive());
       }));
-      table.rawset("GetBlockPosition", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
          return positionTable((double)player.blockPosition().getX(), (double)player.blockPosition().getY(), (double)player.blockPosition().getZ());
       }));
-      table.rawset("GetLookDirection", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return positionTable(look.x(), look.y(), look.z());
       }));
@@ -609,21 +609,21 @@ public final class MLuaPlayerWrapper {
          return positionTable(v.x(), v.y(), v.z());
       }));
       addCFrameMethods(table, player, registration);
-      table.rawset("GetEyeCFrame", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetEyeCFrame", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return MLuaCFrame.fromEntity(player.getX(), raw.getEyeY(), player.getZ(), look.x(), look.y(), look.z()).toLua();
       }));
-      table.rawset("GetCameraCFrame", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetCameraCFrame", luaFn(() -> {
          return MLuaCameraController.getCFrame().toLua();
       }));
-      table.rawset("GetViewMode", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetViewMode", luaFn(() -> {
          return LuaValue.valueOf(MLuaCameraController.getViewMode());
       }));
-      table.rawset("SetViewMode", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetViewMode", varArg((args) -> {
          MLuaCameraController.setViewMode(args.checkjstring(2));
          return LuaValue.NONE;
       }));
-      table.rawset("GetWorld", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> {
          return dev.mlua.minecraft.binding.MLuaLevelWrapper.levelTable(raw.clientLevel, registration);
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> {
@@ -632,10 +632,10 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> {
          return LuaValue.valueOf(raw.clientLevel.dimension().location().toString());
       }));
-      table.rawset("GetPersistentData", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> {
          return MLuaDataManager.playerPersistentData(raw, false);
       }));
-      table.rawset("GetSyncedData", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> {
          return MLuaDataManager.playerSyncedData(raw);
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetGameMode", luaFn(() -> {
@@ -650,20 +650,20 @@ public final class MLuaPlayerWrapper {
             return LuaValue.valueOf("unknown");
          }
       }), "Returns this player's current game mode.");
-      table.rawset("GetHeldItem", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetHeldItem", luaFn(() -> {
          return heldItem(player.getMainHandItem(), registration);
       }));
-      table.rawset("GetOffhandItem", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetOffhandItem", luaFn(() -> {
          return heldItem(player.getOffhandItem(), registration);
       }));
       attachInventoryMethods(table, player, false, false, registration);
-      table.rawset("GetSelectedSlot", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetSelectedSlot", luaFn(() -> {
          return LuaValue.valueOf(player.getInventory().getSelected() + 1);
       }));
-      table.rawset("GetEffects", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> {
          return MLuaPotionEffectsService.effectsTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner());
       }));
-      table.rawset("GetNearbyEntities", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {
          double radius = args.checkdouble(2);
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
@@ -782,8 +782,8 @@ public final class MLuaPlayerWrapper {
          MCContainerImpl.fromReal(rawPlayer.getEnderChestInventory()), writable, registration, "Ender Chest");
       Map<Object, WeakReference<LuaTable>> openContainerInstances = new WeakHashMap<>();
 
-      table.rawset("GetInventory", luaFn(() -> inventory));
-      table.rawset("GetSlot", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetInventory", luaFn(() -> inventory));
+      MLuaClassMethods.setInstanceMethod(table, "GetSlot", varArg((args) -> {
          int slot = args.checkint(2);
          int rawIndex = slot - 1;
          if (rawIndex < 0 || rawIndex >= rawInventory.getContainerSize()) {
@@ -791,26 +791,26 @@ public final class MLuaPlayerWrapper {
          }
          return containerSlot(inventory, slot);
       }));
-      table.rawset("GetInventorySize", luaFn(() -> LuaValue.valueOf(rawInventory.getContainerSize())));
-      table.rawset("GetHotbar", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetInventorySize", luaFn(() -> LuaValue.valueOf(rawInventory.getContainerSize())));
+      MLuaClassMethods.setInstanceMethod(table, "GetHotbar", luaFn(() -> {
          return invokeInstance(inventory, "GetHotbar");
       }));
-      table.rawset("GetArmorContents", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetArmorContents", luaFn(() -> {
          return invokeInstance(inventory, "GetArmorContents");
       }));
-      table.rawset("GetOffhandSlot", luaFn(() -> invokeInstance(inventory, "GetOffhandSlot")));
-      table.rawset("GetEnderChest", luaFn(() -> enderChest));
-      table.rawset("GetOpenContainer", luaFn(() -> openContainerInstance(openContainerInstances,
+      MLuaClassMethods.setInstanceMethod(table, "GetOffhandSlot", luaFn(() -> invokeInstance(inventory, "GetOffhandSlot")));
+      MLuaClassMethods.setInstanceMethod(table, "GetEnderChest", luaFn(() -> enderChest));
+      MLuaClassMethods.setInstanceMethod(table, "GetOpenContainer", luaFn(() -> openContainerInstance(openContainerInstances,
          rawPlayer.containerMenu, MCAbstractContainerMenuImpl.fromReal(rawPlayer.containerMenu), writable, registration)));
-      table.rawset("GetOpenContainerTitle", luaFn(() -> LuaValue.valueOf(containerTitle(MCAbstractContainerMenuImpl.fromReal(rawPlayer.containerMenu)))));
-      table.rawset("GetOpenContainerSize", luaFn(() -> LuaValue.valueOf(rawPlayer.containerMenu.slots.size())));
-      table.rawset("GetIsLocalPlayer", luaFn(() -> LuaValue.valueOf(table.rawget("__is_local_player").toboolean())));
+      MLuaClassMethods.setInstanceMethod(table, "GetOpenContainerTitle", luaFn(() -> LuaValue.valueOf(containerTitle(MCAbstractContainerMenuImpl.fromReal(rawPlayer.containerMenu)))));
+      MLuaClassMethods.setInstanceMethod(table, "GetOpenContainerSize", luaFn(() -> LuaValue.valueOf(rawPlayer.containerMenu.slots.size())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", luaFn(() -> LuaValue.valueOf(table.rawget("__is_local_player").toboolean())));
       if (includeMutationMethods) {
-         table.rawset("ClearInventory", luaFn(() -> {
+         MLuaClassMethods.setInstanceMethod(table, "ClearInventory", luaFn(() -> {
             rawInventory.clearContent();
             return LuaValue.NONE;
          }));
-         table.rawset("SetInventory", varArg((args) -> {
+         MLuaClassMethods.setInstanceMethod(table, "SetInventory", varArg((args) -> {
             LuaValue inventoryValue = args.arg(2);
             if (!inventoryValue.istable()) {
                throw new LuaError("[MLua] SetInventory expects an array-style table of items or nil values.");
