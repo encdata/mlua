@@ -39,6 +39,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 public class MLuaScriptedProjectile extends Entity {
+   private final String luaClassName;
    private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(MLuaScriptedProjectile.class, EntityDataSerializers.FLOAT);
 
    private Vec3 direction;
@@ -67,7 +68,12 @@ public class MLuaScriptedProjectile extends Entity {
    private MLuaContext callbackContext;
 
    public MLuaScriptedProjectile(EntityType<? extends MLuaScriptedProjectile> type, Level level) {
+      this(type, level, "Projectile");
+   }
+
+   public MLuaScriptedProjectile(EntityType<? extends MLuaScriptedProjectile> type, Level level, String luaClassName) {
       super(type, level);
+      this.luaClassName = luaClassName == null || luaClassName.isBlank() ? "Projectile" : luaClassName;
       this.projectileSize = 0.25f;
       this.damage = 0;
       this.speed = 0;
@@ -378,7 +384,7 @@ public class MLuaScriptedProjectile extends Entity {
    public LuaTable toLuaHandle(boolean includeOwner) {
       var registration = this.callbackContext != null ? this.callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
       LuaTable table = MLuaEntityWrapper.entityTable(this, registration);
-      registration.attachClassInstance(table, "Projectile", "Entity");
+      registration.attachClassInstance(table, this.luaClassName, "Projectile");
       if (this.direction != null) {
          table.set("Direction", MLuaVector.vector3(this.direction.x, this.direction.y, this.direction.z));
       }
