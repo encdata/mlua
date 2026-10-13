@@ -1,0 +1,23 @@
+rootProject.ext.filterMluaVersionMarkers = { Project projectRef, File directory, String targetVersion ->
+    projectRef.fileTree(directory).matching { include '**/*.java' }.each { file ->
+        def filtered = []
+        def activeVersions = null
+        def justEndedVersion = false
+        file.readLines().each { line ->
+            def trimmed = line.trim()
+            if (trimmed.startsWith('//--version ')) {
+                def versions = trimmed.substring('//--version '.length()).tokenize(',')*.trim()
+                activeVersions = versions.contains(targetVersion) ? null : versions
+            } else if (trimmed == '//--endversion') {
+                activeVersions = null
+                justEndedVersion = true
+            } else if (justEndedVersion && trimmed.isEmpty()) {
+                justEndedVersion = false
+            } else {
+                justEndedVersion = false
+                if (activeVersions == null) filtered << line
+            }
+        }
+        file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+    }
+}

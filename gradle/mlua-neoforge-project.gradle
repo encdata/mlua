@@ -110,19 +110,7 @@ task prepareNeoForgeRootSources(type: Sync) {
     from fileTree(dir: rootProject.file('src/main/java'), excludes: neoForgeRootExcludes)
     into file("${buildDir}/generated/neoforge-root-java")
     doLast {
-        fileTree(destinationDir).matching { include '**/*.java' }.each { file ->
-            def filtered = []
-            def inVersionBlock = null
-            def justEndedVersion = false
-            file.readLines().each { line ->
-                def trimmed = line.trim()
-                if (trimmed.startsWith('//--version ')) { def blockVersion = trimmed.substring('//--version '.length()).trim(); inVersionBlock = blockVersion.tokenize(',').contains(targetVer) ? null : blockVersion }
-                else if (trimmed == '//--endversion') { inVersionBlock = null; justEndedVersion = true }
-                else if (justEndedVersion && trimmed.isEmpty()) justEndedVersion = false
-                else { justEndedVersion = false; if (inVersionBlock == null) filtered << line }
-            }
-            file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
-        }
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
     }
 }
 task prepareNeoForgeTransformerSources(type: Sync) {

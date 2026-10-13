@@ -103,30 +103,7 @@ task prepareRootSources(type: Sync) {
     from fileTree(dir: "${rootProject.projectDir}/src/main/java", excludes: rootExcludes)
     into file("${buildDir}/generated/root-java")
     doLast {
-        fileTree(destinationDir).matching { include '**/*.java' }.each { file ->
-            def lines = file.readLines()
-            def filtered = []
-            def inVersionBlock = null
-            def justEndedVersion = false
-            lines.each { line ->
-                def trimmed = line.trim()
-                if (trimmed.startsWith('//--version ')) {
-                    def blockVersion = trimmed.substring('//--version '.length()).trim()
-                    inVersionBlock = blockVersion.tokenize(',').contains(targetVer) ? null : blockVersion
-                } else if (trimmed == '//--endversion') {
-                    inVersionBlock = null
-                    justEndedVersion = true
-                } else if (justEndedVersion && trimmed.isEmpty()) {
-                    justEndedVersion = false
-                } else {
-                    justEndedVersion = false
-                    if (inVersionBlock == null) {
-                        filtered << line
-                    }
-                }
-            }
-            file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
-        }
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
     }
 }
 

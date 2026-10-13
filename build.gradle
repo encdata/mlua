@@ -3,6 +3,7 @@ plugins {
 }
 
 apply from: rootProject.file('gradle/mlua-targets.gradle')
+apply from: rootProject.file('gradle/mlua-version-marker-filter.gradle')
 
 allprojects {
     tasks.withType(JavaCompile).configureEach {

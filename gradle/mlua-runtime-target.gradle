@@ -47,32 +47,9 @@ minecraft {
 }
 
 def targetVer = target.minecraft
-def filterMluaVersionMarkers = { File directory, String versionToFilter ->
-    fileTree(directory).matching { include '**/*.java' }.each { file ->
-        def filtered = []
-        def activeVersions = null
-        def justEndedVersion = false
-        file.readLines().each { line ->
-            def trimmed = line.trim()
-            if (trimmed.startsWith('//--version ')) {
-                def versions = trimmed.substring('//--version '.length()).tokenize(',')*.trim()
-                activeVersions = versions.contains(versionToFilter) ? null : versions
-            } else if (trimmed == '//--endversion') {
-                activeVersions = null
-                justEndedVersion = true
-            } else if (justEndedVersion && trimmed.isEmpty()) {
-                justEndedVersion = false
-            } else {
-                justEndedVersion = false
-                if (activeVersions == null) filtered << line
-            }
-        }
-        file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
-    }
-}
 prepareRuntimeForgeBridgeSources.configure {
     doLast {
-        filterMluaVersionMarkers(destinationDir, targetVer)
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
     }
 }
 def runtimeRootExcludes = [
@@ -91,7 +68,7 @@ task prepareRuntimeRootSources(type: Sync) {
     from(fileTree(dir: rootProject.file('src/main/java'), excludes: runtimeRootExcludes))
     into file("${buildDir}/generated/runtime-root-java")
     doLast {
-        filterMluaVersionMarkers(destinationDir, targetVer)
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
     }
 }
 
