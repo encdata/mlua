@@ -13,7 +13,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.mlua.common.enums.CommandArgumentType;
 import dev.mlua.core.MLuaRuntime;
-import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.minecraft.network.MLuaNetworkSerializer;
@@ -155,8 +154,7 @@ public final class MLuaCommandRegistry {
    private int execute(MLuaCommandDefinition definition, CommandContext<CommandSourceStack> context) {
       try {
          MinecraftServer server = context.getSource().getServer();
-         MLuaRuntimeSession session = server != null ? MLuaRuntimeSession.forServer(server) : null;
-         MLuaRegistration registration = session != null && session.registration() != null ? session.registration() : MLuaRuntime.get();
+         MLuaRegistration registration = MLuaRuntime.registrationForServer(server);
          LuaTable args = this.argsTable(definition, context, registration);
          if (definition.callback().isfunction()) {
             definition.callback().invoke(LuaValue.varargsOf(new LuaValue[]{MLuaCommandContext.toLua((CommandSourceStack)context.getSource(), registration), args}));

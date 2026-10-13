@@ -345,9 +345,7 @@ public final class MLuaEntityComponentManager {
 
     private static LuaTable entityTable(Entity entity) {
         var level = entity.level();
-        var server = level.getServer();
-        var session = server != null ? dev.mlua.core.MLuaRuntimeSession.forServer(server) : null;
-        var registration = session != null && session.registration() != null ? session.registration() : MLuaRuntime.get();
+        var registration = MLuaRuntime.registrationForLevel(level);
         return MLuaEntityWrapper.entityTable(entity, registration);
     }
 

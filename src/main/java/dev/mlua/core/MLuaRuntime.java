@@ -131,11 +131,27 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    public static MLuaRegistration registrationForLevel(Level level) {
-      if (level != null && !level.isClientSide() && level.getServer() != null) {
-         MLuaRuntimeSession session = MLuaRuntimeSession.forServer(level.getServer());
-         if (session != null && session.registration() != null) return session.registration();
+      return registrationForSession(sessionForLevel(level));
+   }
+
+   public static MLuaRegistration registrationForServer(MinecraftServer server) {
+      return registrationForSession(sessionForServer(server));
+   }
+
+   public static MLuaRuntimeSession sessionForLevel(Level level) {
+      return level == null || level.isClientSide() ? get().session() : sessionForServer(level.getServer());
+   }
+
+   public static MLuaRuntimeSession sessionForServer(MinecraftServer server) {
+      if (server != null) {
+         MLuaRuntimeSession session = MLuaRuntimeSession.forServer(server);
+         if (session != null) return session;
       }
-      return get();
+      return get().session();
+   }
+
+   private static MLuaRegistration registrationForSession(MLuaRuntimeSession session) {
+      return session.registration() != null ? session.registration() : get();
    }
 
    public MLuaRuntimeSession session() {

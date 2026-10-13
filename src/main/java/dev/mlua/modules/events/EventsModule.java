@@ -198,7 +198,7 @@ public class EventsModule implements MLuaModule {
         MLuaBlockCallbackDispatcher.fireOnBreak(level, pos, player);
         LuaTable ctx = eventContext("Server", true);
         ctx.set("Player", playerTable(player));
-        ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, runtimeRegistration(level)));
+        ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
         fireSignal(MLuaEventsService.BLOCK_BREAK, level, Side.SERVER, ctx);
         return result(ctx);
     }
@@ -216,7 +216,7 @@ public class EventsModule implements MLuaModule {
         } else if (entity instanceof LivingEntity living) {
             ctx.set("Entity", entityTable(living));
         }
-        ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, runtimeRegistration(level)));
+        ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
         fireSignal(MLuaEventsService.BLOCK_PLACE, level, Side.SERVER, ctx);
     }
 
@@ -229,11 +229,11 @@ public class EventsModule implements MLuaModule {
         if (player instanceof ServerPlayer serverPlayer) {
             ctx.set("Player", playerTable(serverPlayer));
         } else if (player instanceof LocalPlayer localPlayer) {
-            ctx.set("Player", MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(localPlayer), runtimeRegistration(player.level())));
+            ctx.set("Player", MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(localPlayer), MLuaRuntime.registrationForLevel(player.level())));
         } else {
             return EventBridge.CancellableResult.pass();
         }
-        ctx.set("Item", MLuaItemWrapper.itemTable(itemStack, runtimeRegistration(player.level())));
+        ctx.set("Item", MLuaItemWrapper.itemTable(itemStack, MLuaRuntime.registrationForLevel(player.level())));
         ctx.set("Hand", LuaValue.valueOf(hand.name().toLowerCase()));
         fireSignal(MLuaEventsService.ITEM_USE, player.level(), Side.SERVER, ctx);
         return result(ctx);
@@ -248,7 +248,7 @@ public class EventsModule implements MLuaModule {
         if (player instanceof ServerPlayer serverPlayer) {
             ctx.set("Player", playerTable(serverPlayer));
         } else if (player instanceof LocalPlayer localPlayer) {
-            ctx.set("Player", MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(localPlayer), runtimeRegistration(player.level())));
+            ctx.set("Player", MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(localPlayer), MLuaRuntime.registrationForLevel(player.level())));
         } else {
             return EventBridge.CancellableResult.pass();
         }
@@ -290,7 +290,7 @@ public class EventsModule implements MLuaModule {
     public static void fireWorldLoad(Object levelObj) {
         if (!(levelObj instanceof Level level)) return;
         LuaTable ctx = eventContext(level.isClientSide() ? "Client" : "Server", false);
-        ctx.set("Level", MLuaLevelWrapper.levelTable(level, runtimeRegistration(level)));
+        ctx.set("Level", MLuaLevelWrapper.levelTable(level, MLuaRuntime.registrationForLevel(level)));
         ctx.set("Dimension", LuaValue.valueOf(dimensionName(level)));
         fireSignal(MLuaEventsService.WORLD_LOAD, level, level.isClientSide() ? Side.CLIENT : Side.SERVER, ctx);
     }
@@ -298,10 +298,10 @@ public class EventsModule implements MLuaModule {
     public static void fireWorldUnload(Object levelObj) {
         if (!(levelObj instanceof Level level)) return;
         if (!level.isClientSide()) {
-            forgetWorldStepPositions(level.dimension().location(), runtimeSession(level));
+            forgetWorldStepPositions(level.dimension().location(), MLuaRuntime.sessionForLevel(level));
         }
         LuaTable ctx = eventContext(level.isClientSide() ? "Client" : "Server", false);
-        ctx.set("Level", MLuaLevelWrapper.levelTable(level, runtimeRegistration(level)));
+        ctx.set("Level", MLuaLevelWrapper.levelTable(level, MLuaRuntime.registrationForLevel(level)));
         ctx.set("Dimension", LuaValue.valueOf(dimensionName(level)));
         fireSignal(MLuaEventsService.WORLD_UNLOAD, level, level.isClientSide() ? Side.CLIENT : Side.SERVER, ctx);
     }
@@ -310,7 +310,7 @@ public class EventsModule implements MLuaModule {
         if (player == null || level == null || pos == null) return EventBridge.BlockInteractionResult.pass();
         LuaTable ctx = eventContext(level.isClientSide() ? "Client" : "Server", true);
         ctx.set("Player", playerTable(player));
-        ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, runtimeRegistration(level)));
+        ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
         ctx.set("Hand", LuaValue.valueOf(String.valueOf(handObj).toLowerCase()));
         fireSignal(MLuaEventsService.BLOCK_RIGHT_CLICK, level, level.isClientSide() ? Side.CLIENT : Side.SERVER, ctx);
         return isCancelled(ctx) ? EventBridge.BlockInteractionResult.cancelled() : EventBridge.BlockInteractionResult.pass();
@@ -344,7 +344,7 @@ public class EventsModule implements MLuaModule {
     }
 
     private static LuaTable playerTable(Player player) {
-        var registration = runtimeRegistration(player.level());
+        var registration = MLuaRuntime.registrationForLevel(player.level());
         if (player instanceof ServerPlayer serverPlayer) {
             return MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration);
         }
@@ -355,12 +355,7 @@ public class EventsModule implements MLuaModule {
     }
 
     private static LuaTable entityTable(Entity entity) {
-        return MLuaEntityWrapper.entityTable(entity, runtimeRegistration(entity.level()));
-    }
-
-    private static MLuaRegistration runtimeRegistration(Level level) {
-        MLuaRuntimeSession session = runtimeSession(level);
-        return session.registration() != null ? session.registration() : MLuaRuntime.get();
+        return MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(entity.level()));
     }
 
     private static String dimensionName(Level level) {
@@ -371,7 +366,7 @@ public class EventsModule implements MLuaModule {
         LuaTable ctx = eventContext("Server", false);
         if (playerObj instanceof Player player) ctx.set("Player", playerTable(player));
         Level level = playerObj instanceof Player player ? player.level() : null;
-        if (stackObj instanceof ItemStack stack) ctx.set("Item", MLuaItemWrapper.itemTable(stack, level != null ? runtimeRegistration(level) : MLuaRuntime.get()));
+        if (stackObj instanceof ItemStack stack) ctx.set("Item", MLuaItemWrapper.itemTable(stack, level != null ? MLuaRuntime.registrationForLevel(level) : MLuaRuntime.get()));
         else if (stackObj != null) ctx.set("Item", LuaValue.userdataOf(stackObj));
         fireSignal(signal, level, Side.SERVER, ctx);
     }
@@ -395,11 +390,11 @@ public class EventsModule implements MLuaModule {
     private static void fireExplosion(Object levelObj, Object position) {
         LuaTable ctx = eventContext("Server", false);
         if (levelObj instanceof Level level) {
-            ctx.set("Level", MLuaLevelWrapper.levelTable(level, runtimeRegistration(level)));
+            ctx.set("Level", MLuaLevelWrapper.levelTable(level, MLuaRuntime.registrationForLevel(level)));
             ctx.set("Dimension", LuaValue.valueOf(dimensionName(level)));
         }
         if (position instanceof BlockPos pos && levelObj instanceof Level level) {
-            ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, runtimeRegistration(level)));
+            ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
         } else if (position instanceof Vec3 vector) {
             ctx.set("Position", MLuaPlayerWrapper.positionTable(vector.x, vector.y, vector.z));
         } else if (position != null) {
@@ -421,7 +416,7 @@ public class EventsModule implements MLuaModule {
         }
         for (ServerPlayer player : level.players()) {
             BlockPos blockPos = player.blockPosition().below();
-            Object runtimeOwner = runtimeSession(level);
+            Object runtimeOwner = MLuaRuntime.sessionForLevel(level);
             PlayerStepKey key = new PlayerStepKey(runtimeOwner, player.getUUID(), level.dimension().location());
             long currentPos = blockPos.asLong();
             Long previousPos = LAST_PLAYER_STEP_POSITIONS.put(key, currentPos);
@@ -432,15 +427,7 @@ public class EventsModule implements MLuaModule {
     }
 
     private static void fireSignal(MLuaSignal signal, Level level, Side side, LuaTable event) {
-        signal.fireOnSession(runtimeSession(level), side, event);
-    }
-
-    private static MLuaRuntimeSession runtimeSession(Level level) {
-        if (level != null && !level.isClientSide()) {
-            MLuaRuntimeSession session = MLuaRuntimeSession.forServer(level.getServer());
-            if (session != null) return session;
-        }
-        return MLuaRuntime.get().session();
+        signal.fireOnSession(MLuaRuntime.sessionForLevel(level), side, event);
     }
 
     private static void addSourceContext(LuaTable ctx, Level level, DamageSource source) {

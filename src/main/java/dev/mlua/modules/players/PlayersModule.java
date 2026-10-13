@@ -339,9 +339,8 @@ public class PlayersModule implements MLuaModule {
     public void registerEvents(EventBridge events) {
         events.onPlayerJoin(playerObj -> {
             ServerPlayer player = (ServerPlayer) playerObj;
-            var session = dev.mlua.core.MLuaRuntimeSession.forServer(player.level().getServer());
-            if (session == null) session = MLuaRuntime.get().session();
-            var registration = session.registration() != null ? session.registration() : MLuaRuntime.get();
+            var session = MLuaRuntime.sessionForLevel(player.level());
+            var registration = MLuaRuntime.registrationForLevel(player.level());
             MLuaPlayersService.PLAYER_ADDED.fireOnSession(session, Side.SERVER, MLuaPlayersService.playerTable(player, registration));
             MLuaRuntime ownerRuntime = registration instanceof MLuaRuntime runtime ? runtime : MLuaRuntime.get();
             ownerRuntime.deliverPendingServerDiagnostics(player);
@@ -350,10 +349,9 @@ public class PlayersModule implements MLuaModule {
 
         events.onPlayerLeave(playerObj -> {
             ServerPlayer player = (ServerPlayer) playerObj;
-            var session = dev.mlua.core.MLuaRuntimeSession.forServer(player.level().getServer());
-            dev.mlua.modules.events.EventsModule.forgetPlayerStepPositions(player.getUUID(), session != null ? session : MLuaRuntime.get().session());
-            if (session == null) session = MLuaRuntime.get().session();
-            var registration = session.registration() != null ? session.registration() : MLuaRuntime.get();
+            var session = MLuaRuntime.sessionForLevel(player.level());
+            dev.mlua.modules.events.EventsModule.forgetPlayerStepPositions(player.getUUID(), session);
+            var registration = MLuaRuntime.registrationForLevel(player.level());
             MLuaPlayersService.PLAYER_REMOVING.fireOnSession(session, Side.SERVER, MLuaPlayersService.playerTable(player, registration));
             MLuaEntityWrapper.removeFromCache(player);
         });

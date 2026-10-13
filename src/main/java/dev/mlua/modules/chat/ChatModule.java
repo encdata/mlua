@@ -65,9 +65,7 @@ public class ChatModule implements MLuaModule {
             ServerPlayer player = (ServerPlayer) playerObj;
             String username = player.getName().getString();
             String originalMessage = message;
-            MLuaRuntime runtime = MLuaRuntime.get();
-            MLuaRuntimeSession session = MLuaRuntimeSession.forServer(player.level().getServer());
-            if (session == null) session = runtime.session();
+            MLuaRuntimeSession session = MLuaRuntime.sessionForLevel(player.level());
             Object runtimeOwner = session;
 
             if (MLuaChatService.isPlayerMuted(runtimeOwner, username)) {
@@ -78,7 +76,7 @@ public class ChatModule implements MLuaModule {
             MLuaChatService.addMessageToHistory(runtimeOwner, username, originalMessage);
 
             LuaTable args = new LuaTable();
-            var registration = session.registration() != null ? session.registration() : runtime;
+            var registration = MLuaRuntime.registrationForLevel(player.level());
             args.set("Player", MLuaPlayersService.playerTable(player, registration));
             args.set("Message", originalMessage);
             args.set("Username", username);

@@ -38,9 +38,8 @@ public final class MLuaRemoteEvent {
       try {
          LuaValue[] payload = MLuaNetworkSerializer.toLuaArray(arguments);
          LuaValue[] values = new LuaValue[payload.length + 1];
-         MLuaRuntimeSession session = MLuaRuntimeSession.forServer(player.level().getServer());
-         if (session == null) session = MLuaRuntime.get().session();
-         var registration = session.registration() != null ? session.registration() : MLuaRuntime.get();
+         MLuaRuntimeSession session = MLuaRuntime.sessionForLevel(player.level());
+         var registration = MLuaRuntime.registrationForLevel(player.level());
          values[0] = MLuaPlayersService.playerTable(player, registration);
          System.arraycopy(payload, 0, values, 1, payload.length);
          this.serverEvent.fireOnSession(session, Side.SERVER, LuaValue.varargsOf(values));
