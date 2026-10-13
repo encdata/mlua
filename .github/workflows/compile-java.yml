@@ -75,10 +75,12 @@ jobs:
           java-version: ${{ matrix.java }}
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.loader == 'forge' && '8.10.2' || '9.2.1' }}
 
       - name: Compile or run tests
         run: >-
-          sh gradlew --no-daemon
+          gradle --no-daemon
           --max-workers=1
           -PmluaTarget=${{ matrix.target }}
           -PmluaLoader=${{ matrix.loader }}
@@ -97,10 +99,12 @@ jobs:
           java-version: ${{ inputs.target == '26.1' && '25' || '21' }}
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.2.1
 
       - name: Compile or run tests
         run: >-
-          sh gradlew --no-daemon
+          gradle --no-daemon
           --max-workers=1
           -PmluaTarget=${{ inputs.target }}
           -PmluaLoader=fabric

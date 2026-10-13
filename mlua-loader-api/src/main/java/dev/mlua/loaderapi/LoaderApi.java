@@ -40,6 +40,7 @@ public final class LoaderApi {
     public static PlatformBridge platform() { return provider().platform(); }
     public static EventBridge events() { return provider().events(); }
     public static RegistryBridge registry() { return provider().registry(); }
+    public static WorldGenerationBridge worldGeneration() { return provider().worldGeneration(); }
     public static NetworkBridge network() { return provider().network(); }
     public static ConfigBridge config() { return provider().config(); }
     public static LifecycleBridge lifecycle() { return provider().lifecycle(); }
@@ -56,6 +57,9 @@ public final class LoaderApi {
         PlatformBridge platform();
         EventBridge events();
         RegistryBridge registry();
+        default WorldGenerationBridge worldGeneration() {
+            return LoaderWorldGenerationBridges.create(platform().loaderName());
+        }
         NetworkBridge network();
         ConfigBridge config();
         LifecycleBridge lifecycle();

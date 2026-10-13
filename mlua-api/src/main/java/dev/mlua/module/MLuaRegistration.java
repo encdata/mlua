@@ -289,6 +289,11 @@ public interface MLuaRegistration {
         throw new UnsupportedOperationException("Class registry lookup is not supported by this runtime");
     }
 
+    default boolean isSubclassOf(String className, String parentName) {
+        if (className == null || className.isBlank() || parentName == null || parentName.isBlank()) return false;
+        return isClassOrParent(className, parentName, new HashSet<>());
+    }
+
     /** Returns whether a live instance belongs to a registered class or one of its parent classes. */
     default boolean isInstanceOf(LuaValue instance, String className) {
         if (instance == null || !instance.istable() || className == null || className.isBlank()) return false;

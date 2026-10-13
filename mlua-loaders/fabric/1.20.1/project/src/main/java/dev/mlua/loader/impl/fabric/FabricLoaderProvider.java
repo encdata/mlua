@@ -13,6 +13,7 @@ public final class FabricLoaderProvider implements LoaderApi.LoaderProvider {
     private final FabricPlatformBridge platform = new FabricPlatformBridge();
     private final FabricEventBridge events = new FabricEventBridge();
     private final FabricRegistryBridge registry = new FabricRegistryBridge();
+    private final FabricWorldGenerationBridge worldGeneration = new FabricWorldGenerationBridge();
     private final FabricNetworkBridge network = new FabricNetworkBridge();
     private final FabricConfigBridge config = new FabricConfigBridge();
     private final FabricLifecycleBridge lifecycle = new FabricLifecycleBridge();
@@ -35,6 +36,11 @@ public final class FabricLoaderProvider implements LoaderApi.LoaderProvider {
     @Override
     public RegistryBridge registry() {
         return registry;
+    }
+
+    @Override
+    public dev.mlua.loaderapi.WorldGenerationBridge worldGeneration() {
+        return worldGeneration;
     }
 
     @Override

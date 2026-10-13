@@ -83,6 +83,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       addEndpoint(endpoints, "Containers", "Register", "container", "Containers", null, List.of("container", "containers"), "Register:3");
       addEndpoint(endpoints, "Projectiles", "Register", "projectile", "Projectiles", null, List.of("projectile", "projectiles"), "Register:3");
       addEndpoint(endpoints, "DataPack", "Register", "datapack", "DataPack", null, List.of("data", "datapack", "data_pack"), "Register:4");
+      addEndpoint(endpoints, "WorldGeneration", "AddFeature", "worldgen", "WorldGeneration", null,
+         List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"), "AddFeature:3");
       addEndpoint(endpoints, "Tabs", "Register", "tab", "Tabs", RegistryKind.CREATIVE_TAB, List.of("tab", "tabs", "creative_tab", "creative_tabs"), "Register:3");
       addEndpoint(endpoints, "Recipes", "Register", "recipe", "Recipes", null, List.of("recipe", "recipes"), "Register:3", "RegisterShaped:3", "RegisterShapeless:3", "RegisterSmelting:3", "RegisterStonecutting:3");
       addEndpoint(endpoints, "Loot", "Register", "loot", "Loot", null, List.of("loot"), "Register:3", "RegisterEntity:3", "RegisterSimpleBlock:3", "RegisterSelfBlock:3", "RegisterSilkTouchBlock:3", "RegisterOreBlock:3");
@@ -129,6 +131,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable config = registryTable();
       LuaTable damageSource = registryTable();
       LuaTable dataPack = registryTable();
+      LuaTable worldGeneration = registryTable();
       LuaTable contentTypes = registryTable();
       table.set("__side", "Registry");
       table.set("Items", items);
@@ -146,6 +149,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("Config", config);
       table.set("DamageSource", damageSource);
       table.set("DataPack", dataPack);
+      table.set("WorldGeneration", worldGeneration);
       table.set("ContentTypes", contentTypes);
       dataPack.set("Register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
@@ -159,6 +163,32 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             try {
                MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
             } catch (IllegalArgumentException | IllegalStateException error) {
+               throw new LuaError("[MLua] " + error.getMessage());
+            }
+            return LuaValue.NONE;
+         }
+      });
+      worldGeneration.set("AddFeature", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            String name = args.checkjstring(2);
+            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
+               "worldgen", owner, args.checktable(3));
+            String feature = MLuaRegistryService.stringProperty(definition, "feature", "Feature", "placedFeature", "PlacedFeature");
+            String step = MLuaRegistryService.stringProperty(definition, "step", "Step");
+            if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.AddFeature requires a placed feature id");
+            if (step == null || step.isBlank()) throw new LuaError("[MLua] WorldGeneration.AddFeature requires a generation step");
+            LuaValue biomes = definition.get("biomes");
+            if (biomes.isnil()) biomes = definition.get("Biomes");
+            String featureId = MLuaRegistryService.qualifiedDataId(owner, feature, false);
+            List<String> biomeIds = MLuaRegistryService.stringValues(biomes, "biomes").stream()
+               .map(value -> MLuaRegistryService.qualifiedDataId(owner,
+                  value.startsWith("#") ? value.substring(1) : value, value.startsWith("#")))
+               .toList();
+            try {
+               dev.mlua.loaderapi.LoaderApi.worldGeneration().addPlacedFeature(owner, name, featureId, biomeIds, step);
+            } catch (IllegalArgumentException | IllegalStateException | UnsupportedOperationException error) {
                throw new LuaError("[MLua] " + error.getMessage());
             }
             return LuaValue.NONE;
@@ -589,7 +619,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String key = owner + ":" + name;
             String className = propsTable != null ? propsTable.get("className").optjstring("ScriptedEntity") : "ScriptedEntity";
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
-            if (registration.classTable(className) == null || !MLuaRegistryService.classInheritsFrom(registration, className, "ScriptedEntity", new java.util.HashSet<>())) {
+            if (registration.classTable(className) == null || !registration.isSubclassOf(className, "ScriptedEntity")) {
                throw new LuaError("[MLua] Entity class '" + className + "' must be registered and inherit from ScriptedEntity");
             }
              LuaValue onTick = propsTable != null ? propsTable.get("onTick") : LuaValue.NIL;
@@ -1075,22 +1105,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       }
    }
 
-   private static boolean classInheritsFrom(dev.mlua.module.MLuaRegistration registration, String className,
-                                            String targetName, java.util.Set<String> visited) {
-      if (targetName.equals(className)) return true;
-      if (!visited.add(className)) return false;
-      LuaTable classTable = registration.classTable(className);
-      if (classTable == null) return false;
-      LuaValue parents = classTable.rawget("__mlua_doc_parents");
-      if (!parents.istable()) return false;
-      LuaTable parentTable = parents.checktable();
-      for (int index = 1; index <= parentTable.length(); index++) {
-         String parentName = parentTable.get(index).optjstring("");
-         if (!parentName.isBlank() && classInheritsFrom(registration, parentName, targetName, visited)) return true;
-      }
-      return false;
-   }
-
    private static void validateEntityAI(LuaValue ai) {
       if (ai.isnil() || ai.isfunction()) return;
       if (!ai.istable()) throw new LuaError("[MLua] Entity AI must be a function or a state table.");
@@ -1570,6 +1584,30 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
          return MLuaTextureDescriptor.empty();
       }
+   }
+
+   private static List<String> stringValues(LuaValue value, String label) {
+      List<String> values = new ArrayList<>();
+      if (value.isstring()) {
+         values.add(value.checkjstring());
+      } else if (value.istable()) {
+         LuaTable entries = value.checktable();
+         for (int index = 1; index <= entries.length(); index++) values.add(entries.get(index).checkjstring());
+      } else {
+         throw new LuaError("[MLua] " + label + " must be an id or an array of ids");
+      }
+      if (values.isEmpty() || values.stream().anyMatch(String::isBlank)) {
+         throw new LuaError("[MLua] " + label + " must contain at least one non-empty id");
+      }
+      return List.copyOf(values);
+   }
+
+   private static String qualifiedDataId(String owner, String value, boolean tag) {
+      String candidate = value.trim();
+      if (!candidate.contains(":")) candidate = owner + ":" + candidate;
+      var parsed = MLuaResourceLocations.tryParseOrNull(candidate);
+      if (parsed == null) throw new LuaError("[MLua] Invalid world generation id: " + value);
+      return tag ? "#" + parsed : parsed.toString();
    }
 
    private static String stringProperty(LuaTable table, String... keys) {
