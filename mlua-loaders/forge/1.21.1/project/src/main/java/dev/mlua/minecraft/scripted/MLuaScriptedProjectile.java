@@ -232,7 +232,7 @@ public class MLuaScriptedProjectile extends Entity {
          try {
             LuaTable ctx = new LuaTable();
             ctx.set("Projectile", this.toLuaHandle(false));
-            ctx.set("Entity", MLuaEntityWrapper.entityTable(target));
+             ctx.set("Entity", MLuaEntityWrapper.entityTable(target, MLuaScriptRuntimeRegistration.forLevel(target.level())));
             ctx.set("Position", MLuaVector.vector3(hitPos.x, hitPos.y, hitPos.z));
             ctx.set("Damage", this.damage);
             this.onHitEntityCallback.invoke(ctx);
@@ -342,9 +342,9 @@ public class MLuaScriptedProjectile extends Entity {
          try {
             Entity owner = this.resolveOwner();
             if (owner instanceof net.minecraft.server.level.ServerPlayer player) {
-               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player)));
+               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), MLuaScriptRuntimeRegistration.forLevel(player.level())));
             } else if (owner instanceof LivingEntity living) {
-               table.set("Owner", MLuaEntityWrapper.entityTable(living));
+               table.set("Owner", MLuaEntityWrapper.entityTable(living, MLuaScriptRuntimeRegistration.forLevel(living.level())));
             }
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("Failed to attach projectile owner wrapper", exception);

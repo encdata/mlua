@@ -132,7 +132,7 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 
    private LuaTable effectContext(LivingEntity entity, int amplifier) {
       LuaTable ctx = new LuaTable();
-      ctx.set("Entity", MLuaEntityWrapper.entityTable(entity));
+      ctx.set("Entity", MLuaEntityWrapper.entityTable(entity, MLuaScriptRuntimeRegistration.forLevel(entity.level())));
       ctx.set("Amplifier", LuaValue.valueOf(amplifier));
       ctx.set("Effect", LuaValue.valueOf(this.behaviorKey));
       if (this.iconTexture != null) {
