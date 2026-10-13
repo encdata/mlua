@@ -34,23 +34,21 @@ public class InputModule implements MLuaModule {
 
     @Override
     public void registerClasses(MLuaRegistration registration) {
-        registration.registerClass("Keybind", registration.requireInstanceBaseClassName(),
+        registration.registerClass("KeyMapping", registration.requireInstanceBaseClassName(),
+            "A live view of a Minecraft key mapping, including its identifier and pressed state.");
+        registration.registerClass("Keybind", "KeyMapping",
             "A live, addon-owned keybind with readable state, a change signal, and key reassignment.");
-        registration.registerClass("MinecraftKeybind", registration.requireInstanceBaseClassName(),
+        registration.registerClass("MinecraftKeybind", "KeyMapping",
             "A live read-only view of a keybind registered by Minecraft or another mod.");
 
-        registration.registerClassProperty("Keybind", "Name", new OneArgFunction() {
-            @Override public LuaValue call(LuaValue self) { return self.checktable().rawget("__keybind_name"); }
-        }, LuaValue.NIL, "string", "client:Client", "The addon keybind's registered name.");
-        registration.registerClassProperty("Keybind", "Key", keybindKeyGetter(), keybindKeySetter(),
-            "string", "client:Client", "The current key assigned to this addon keybind.");
-        registration.registerClassProperty("Keybind", "IsDown", new OneArgFunction() {
-            @Override public LuaValue call(LuaValue self) {
-                LuaTable instance = self.checktable();
-                return LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.isDown(
-                    instance.rawget("__keybind_owner").tojstring(), instance.rawget("__keybind_name").tojstring()));
-            }
-        }, LuaValue.NIL, "boolean", "client:Client", "Whether this keybind is currently pressed.");
+        registration.registerClassProperty("KeyMapping", "Name", mappingProperty("name"), LuaValue.NIL,
+            "string", "client:Client", "The key mapping's registered identifier.");
+        registration.registerClassProperty("KeyMapping", "IsDown", mappingProperty("down"), LuaValue.NIL,
+            "boolean", "client:Client", "Whether this key mapping is currently pressed.");
+        registration.registerClassProperty("KeyMapping", "Key", mappingProperty("key"), keyMappingKeySetter(),
+            "string", "client:Client", "The current key; only addon-owned keybinds can be changed.");
+        registration.registerClassProperty("KeyMapping", "Category", mappingProperty("category"), LuaValue.NIL,
+            "string", "client:Client", "The Controls category containing this key mapping.");
         registration.registerClassFunction("Keybind", "SetKey", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 LuaTable self = args.arg1().checktable();
@@ -62,33 +60,19 @@ public class InputModule implements MLuaModule {
         registration.registerClassFunction("Keybind", "Listen", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) { return args.arg1().checktable().get("Signal"); }
         }, "Returns this keybind's change signal.");
-
-        registration.registerClassProperty("MinecraftKeybind", "Name", mappingProperty("name"), LuaValue.NIL,
-            "string", "client:Client", "The Minecraft keybind identifier.");
-        registration.registerClassProperty("MinecraftKeybind", "Key", mappingProperty("key"), LuaValue.NIL,
-            "string", "client:Client", "The current key assigned to this Minecraft keybind.");
-        registration.registerClassProperty("MinecraftKeybind", "Category", mappingProperty("category"), LuaValue.NIL,
-            "string", "client:Client", "The controls category containing this keybind.");
-        registration.registerClassProperty("MinecraftKeybind", "IsDown", mappingProperty("down"), LuaValue.NIL,
-            "boolean", "client:Client", "Whether this keybind is currently pressed.");
     }
 
-    private static OneArgFunction keybindKeyGetter() {
-        return new OneArgFunction() {
-            @Override public LuaValue call(LuaValue self) {
-                LuaTable instance = self.checktable();
-                return LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.keyName(
-                    instance.rawget("__keybind_owner").tojstring(), instance.rawget("__keybind_name").tojstring()));
-            }
-        };
-    }
-
-    private static TwoArgFunction keybindKeySetter() {
+    private static TwoArgFunction keyMappingKeySetter() {
         return new TwoArgFunction() {
             @Override public LuaValue call(LuaValue self, LuaValue value) {
                 LuaTable instance = self.checktable();
+                LuaValue owner = instance.rawget("__keybind_owner");
+                LuaValue name = instance.rawget("__keybind_name");
+                if (!owner.isstring() || !name.isstring()) {
+                    throw new org.luaj.vm2.LuaError("[MLua] Minecraft key mappings are read-only.");
+                }
                 dev.mlua.minecraft.client.MLuaKeybindController.setKey(
-                    instance.rawget("__keybind_owner").tojstring(), instance.rawget("__keybind_name").tojstring(), value);
+                    owner.tojstring(), name.tojstring(), value);
                 return LuaValue.NONE;
             }
         };
@@ -97,9 +81,25 @@ public class InputModule implements MLuaModule {
     private static OneArgFunction mappingProperty(String property) {
         return new OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
-                LuaValue raw = self.checktable().rawget("__key_mapping");
-                if (!raw.isuserdata(KeyMapping.class)) return LuaValue.NIL;
-                KeyMapping mapping = (KeyMapping) raw.touserdata(KeyMapping.class);
+                LuaTable instance = self.checktable();
+                LuaValue raw = instance.rawget("__key_mapping");
+                KeyMapping mapping = raw.isuserdata(KeyMapping.class)
+                    ? (KeyMapping) raw.touserdata(KeyMapping.class) : null;
+                if (mapping == null) {
+                    LuaValue owner = instance.rawget("__keybind_owner");
+                    LuaValue name = instance.rawget("__keybind_name");
+                    if (!owner.isstring() || !name.isstring()) return LuaValue.NIL;
+                    return switch (property) {
+                        case "name" -> name;
+                        case "key" -> LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.keyName(
+                            owner.tojstring(), name.tojstring()));
+                        case "category" -> LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.category(
+                            owner.tojstring(), name.tojstring()));
+                        case "down" -> LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.isDown(
+                            owner.tojstring(), name.tojstring()));
+                        default -> LuaValue.NIL;
+                    };
+                }
                 return switch (property) {
                     case "name" -> LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.name(mapping));
                     case "key" -> LuaValue.valueOf(dev.mlua.minecraft.client.MLuaKeybindController.key(mapping).toString());
@@ -129,18 +129,16 @@ public class InputModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.clazz("Keybind", "MLuaInputService", "A live, addon-owned keybind with readable state, a change signal, and key reassignment.", "classes/keybind.html", "Instance");
-        docs.clazz("MinecraftKeybind", "MLuaInputService", "A live read-only view of a keybind registered by Minecraft or another mod.", "classes/minecraft-keybind.html", "Instance");
-        docs.property("Keybind", "Keybind.Name", "string", "The addon keybind's registered name.", "client:Client");
-        docs.property("Keybind", "Keybind.Key", "string", "The current key assigned to this addon keybind.", "client:Client");
-        docs.property("Keybind", "Keybind.IsDown", "boolean", "Whether this keybind is currently pressed.", "client:Client");
+        docs.clazz("KeyMapping", "net.minecraft.client.KeyMapping", "A live view of a Minecraft key mapping, including its identifier and pressed state.", "classes/key-mapping.html", "Instance");
+        docs.clazz("Keybind", "MLuaInputService", "A live, addon-owned keybind with readable state, a change signal, and key reassignment.", "classes/keybind.html", "KeyMapping");
+        docs.clazz("MinecraftKeybind", "MLuaInputService", "A live read-only view of a keybind registered by Minecraft or another mod.", "classes/minecraft-keybind.html", "KeyMapping");
+        docs.property("KeyMapping", "KeyMapping.Name", "string", "The key mapping's registered identifier.", "client:Client");
+        docs.property("KeyMapping", "KeyMapping.IsDown", "boolean", "Whether this key mapping is currently pressed.", "client:Client");
+        docs.property("KeyMapping", "KeyMapping.Key", "string", "The assigned key; only addon-owned keybinds can be changed.", "client:Client");
+        docs.property("KeyMapping", "KeyMapping.Category", "string", "The Controls category containing this key mapping.", "client:Client");
         docs.property("Keybind", "Keybind.Signal", "Signal", "Fires when this keybind is pressed.", "client:Client");
         docs.method("Keybind", "Keybind:SetKey(key: string)", "Changes the key assigned to this addon keybind.", "key name", "void", "client:Client", null);
         docs.method("Keybind", "Keybind:Listen()", "Returns this keybind's change signal.", null, "Signal", "client:Client", null);
-        docs.property("MinecraftKeybind", "MinecraftKeybind.Name", "string", "The Minecraft keybind identifier.", "client:Client");
-        docs.property("MinecraftKeybind", "MinecraftKeybind.Key", "string", "The current assigned key.", "client:Client");
-        docs.property("MinecraftKeybind", "MinecraftKeybind.Category", "string", "The controls category containing this keybind.", "client:Client");
-        docs.property("MinecraftKeybind", "MinecraftKeybind.IsDown", "boolean", "Whether this keybind is currently pressed.", "client:Client");
         docs.signature("InputService", "InputService:RegisterKeybind(name: string, props: KeybindDefinition)", "Keybind");
         docs.signature("InputService", "InputService:RegisterKeybinds(definitions: KeybindDefinition[])", "Keybind[]");
         docs.signature("InputService", "InputService:SetKeybind(name: string, key: string)", null);

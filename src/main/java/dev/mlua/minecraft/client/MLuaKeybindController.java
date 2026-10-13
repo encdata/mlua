@@ -73,6 +73,11 @@ public final class MLuaKeybindController {
       return keyMapping != null ? key(keyMapping).toString() : "";
    }
 
+   public static synchronized String category(String ownerModId, String name) {
+      KeyMapping keyMapping = resolveKeyMapping(ownerModId, name);
+      return keyMapping != null ? category(keyMapping) : "";
+   }
+
    public static synchronized Map<String, String> allKeys(String ownerModId) {
       Map<String, String> values = new LinkedHashMap();
       ENTRIES.forEach((id, entry) -> {
