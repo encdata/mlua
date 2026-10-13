@@ -3,6 +3,7 @@ package dev.mlua.runtime.registry;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.mlua.loaderapi.EntityVisualInfo;
+import dev.mlua.loaderapi.GeneratedDataResources;
 import dev.mlua.loaderapi.GeneratedAssetKind;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.RegistryHandle;
@@ -139,6 +140,18 @@ public final class MLuaLoaderRegistry {
 
     public static Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         return LoaderApi.registry().getGeneratedAssets(kind);
+    }
+
+    public static void registerGeneratedDataResource(String owner, String resourceType, String id, JsonObject definition) {
+        GeneratedDataResources.register(owner, resourceType, id, definition);
+    }
+
+    public static Map<String, JsonObject> getGeneratedDataResources() {
+        return GeneratedDataResources.snapshot();
+    }
+
+    public static boolean clearGeneratedDataResources(String owner) {
+        return GeneratedDataResources.removeOwner(owner);
     }
 
     public static void registerTag(RegistryKind kind, String modId, String name, boolean replace, JsonArray values) {

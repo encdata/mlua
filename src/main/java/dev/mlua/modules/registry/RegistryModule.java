@@ -23,6 +23,7 @@ public class RegistryModule implements MLuaModule {
                                 dev.mlua.common.enums.Side side, String ownerModId) {
         MLuaContentTypeRegistry.clearOwner(runtime, ownerModId);
         MLuaBehaviorRegistry.clearOwner(ownerModId);
+        dev.mlua.runtime.registry.MLuaLoaderRegistry.clearGeneratedDataResources(ownerModId);
     }
 
     @Override
@@ -37,7 +38,7 @@ public class RegistryModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder registry = ServiceEntry.builder("Registry", MLuaRegistryService::new)
-            .description("Registers and queries addon content across Minecraft registries, including items, blocks, entities, effects, recipes, loot, tags, projectiles, and reusable content types.");
+            .description("Registers and queries addon content, generated data pack resources, Minecraft registries, and reusable inherited content types.");
         registry.function("Register", "Routes a named content definition through its typed registry.")
             .function("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults.")
             .function("ResolveType", "Returns a definition with its reusable type defaults merged in.")
@@ -118,12 +119,13 @@ public class RegistryModule implements MLuaModule {
         docs.signature("Item", "Item:SetDamage(damage: number)", null);
         docs.signature("Item", "Item:SetNbt(nbt: string)", null);
         docs.signature("Item", "Item:SetTag(tag: string)", null);
+        docs.signature("Registry.DataPack", "Registry.DataPack:Register(resourceType: string, id: string, definition: table)", null);
 
         contributeDefinitionSchemas(docs);
         contributeSignatures(docs);
         docs.signature("Block", "Block:GetInventory()", "Container");
         docs.service("Registry", "MLuaRegistryService",
-                "Registers and queries addon content across Minecraft registries, including items, blocks, entities, effects, recipes, loot, tags, projectiles, and reusable content types.",
+                "Registers addon content, generated data pack resources, Minecraft registry entries, and reusable inherited content types.",
                 "services/registry.html");
         docs.guideStep("Registry.Containers", "Register a reusable container type",
                 "Set the number of chest rows and the title once, then reference the type from any scripted block.",
@@ -134,6 +136,9 @@ public class RegistryModule implements MLuaModule {
         docs.guideStep("Registry.ContentTypes", "Define types for addon data",
                 "ContentTypes lets an addon reuse inherited defaults and descriptions outside Minecraft's built-in categories. Give each domain a stable name, register its types during the registry phase, then resolve definitions with RegistryType. A definition without a selector passes through unchanged; a named type that is missing from that domain raises an error.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.ContentTypes:Register(\"horror.weapon\", \"sidearm\", {\n    Base = \"default\",\n    Description = \"Shared defaults for compact horror weapons.\",\n    Defaults = { Damage = 6, Magazine = { Size = 8, ReloadTicks = 30 } },\n})\n\nRegistry.ContentTypes:Register(\"horror.weapon\", \"revolver\", {\n    Base = \"sidearm\",\n    Description = \"A slow, powerful revolver.\",\n    Defaults = { Damage = 12, Magazine = { Size = 6 } },\n})\n\nlocal weapon = Registry.ContentTypes:Resolve(\"horror.weapon\", {\n    RegistryType = \"revolver\",\n    Damage = 14,\n})\nprint(weapon.Damage, weapon.Magazine.Size, weapon.Magazine.ReloadTicks)");
+        docs.guideStep("Registry.DataPack", "Register data-driven world generation",
+                "DataPack writes vanilla data resources into the addon's namespace. Register configured and placed features for plants and trees, then reference them from biome data or loader integrations. The RegistryType field uses reusable DataPack types and recursively merged defaults.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.DataPack:RegisterType(\"tree_feature\", {\n    Base = \"default\",\n    Description = \"Shared placement settings for this addon's trees.\",\n    Defaults = { type = \"minecraft:tree\" },\n})\n\nRegistry.DataPack:Register(\"worldgen/configured_feature\", \"dead_oak\", {\n    RegistryType = \"tree_feature\",\n    config = {\n        dirt_provider = { type = \"minecraft:simple_state_provider\", state = { Name = \"minecraft:dirt\" } },\n        trunk_provider = { type = \"minecraft:simple_state_provider\", state = { Name = \"minecraft:oak_log\" } },\n        foliage_provider = { type = \"minecraft:simple_state_provider\", state = { Name = \"minecraft:oak_leaves\", Properties = { distance = \"7\", persistent = \"false\" } } },\n        trunk_placer = { type = \"minecraft:straight_trunk_placer\", base_height = 4, height_rand_a = 2, height_rand_b = 0 },\n        foliage_placer = { type = \"minecraft:blob_foliage_placer\", radius = 2, offset = 0, height = 3 },\n        minimum_size = { type = \"minecraft:two_layers_feature_size\", limit = 1, lower_size = 0, upper_size = 1 },\n        decorators = {},\n    },\n})\n\nRegistry.DataPack:Register(\"worldgen/placed_feature\", \"dead_oak\", {\n    feature = \"myaddon:dead_oak\",\n    placement = {\n        { type = \"minecraft:count\", count = 1 },\n        { type = \"minecraft:in_square\" },\n        { type = \"minecraft:heightmap\", heightmap = \"WORLD_SURFACE_WG\" },\n        { type = \"minecraft:biome\" },\n    },\n})");
         docs.guideStep("Registry", "Work with registry entries generically",
                 "Native registry tables share GetId, GetEntry, and Exists for items, blocks, entities, effects, potions, particles, and creative tabs. GetEntry returns the same live RegistryEntry class as Registry:GetEntry and RegistryEntry.new, keeping the normalized kind and namespaced ID together.",
                 "local Registry = Minecraft:GetService(\"Registry\")\nlocal bow = Registry.Items:GetEntry(\"minecraft:bow\")\nlocal stone = Registry.Blocks:GetEntry(\"minecraft:stone\")\nlocal sameShape = RegistryEntry.new(\"items\", \"minecraft:bow\")\n\nprint(Registry.Items:GetId(\"bow\")) -- resolves to the addon's namespace\nprint(bow:GetKind(), bow:GetId())\nif stone:Exists() then\n    print(stone:GetNamespace(), stone:GetPath())\nend\n\nfor _, kind in ipairs(Registry:GetKinds()) do\n    print(kind)\nend");

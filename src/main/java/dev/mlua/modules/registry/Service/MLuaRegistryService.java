@@ -82,6 +82,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       addEndpoint(endpoints, "Particles", "Register", "particle", "Particles", RegistryKind.PARTICLE, List.of("particle", "particles"), "Register:3");
       addEndpoint(endpoints, "Containers", "Register", "container", "Containers", null, List.of("container", "containers"), "Register:3");
       addEndpoint(endpoints, "Projectiles", "Register", "projectile", "Projectiles", null, List.of("projectile", "projectiles"), "Register:3");
+      addEndpoint(endpoints, "DataPack", "Register", "datapack", "DataPack", null, List.of("data", "datapack", "data_pack"), "Register:4");
       addEndpoint(endpoints, "Tabs", "Register", "tab", "Tabs", RegistryKind.CREATIVE_TAB, List.of("tab", "tabs", "creative_tab", "creative_tabs"), "Register:3");
       addEndpoint(endpoints, "Recipes", "Register", "recipe", "Recipes", null, List.of("recipe", "recipes"), "Register:3", "RegisterShaped:3", "RegisterShapeless:3", "RegisterSmelting:3", "RegisterStonecutting:3");
       addEndpoint(endpoints, "Loot", "Register", "loot", "Loot", null, List.of("loot"), "Register:3", "RegisterEntity:3", "RegisterSimpleBlock:3", "RegisterSelfBlock:3", "RegisterSilkTouchBlock:3", "RegisterOreBlock:3");
@@ -127,6 +128,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable tabs = registryTable();
       LuaTable config = registryTable();
       LuaTable damageSource = registryTable();
+      LuaTable dataPack = registryTable();
       LuaTable contentTypes = registryTable();
       table.set("__side", "Registry");
       table.set("Items", items);
@@ -143,7 +145,25 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("Tabs", tabs);
       table.set("Config", config);
       table.set("DamageSource", damageSource);
+      table.set("DataPack", dataPack);
       table.set("ContentTypes", contentTypes);
+      dataPack.set("Register", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String resourceType = args.checkjstring(2);
+            String id = args.checkjstring(3);
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
+               "datapack", owner, args.checktable(4));
+            JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "data pack resource");
+            try {
+               MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
+            } catch (IllegalArgumentException | IllegalStateException error) {
+               throw new LuaError("[MLua] " + error.getMessage());
+            }
+            return LuaValue.NONE;
+         }
+      });
       containers.set("Register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -684,7 +704,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              LuaTable target = table.get(endpoint.table()).checktable();
              LuaValue register = target.get(endpoint.registerMethod());
              if (!register.isfunction()) throw new LuaError("[MLua] Registry category '" + category + "' does not support generic registration");
-             if ("tag".equals(endpoint.typeDomain())) {
+             if ("tag".equals(endpoint.typeDomain()) || "datapack".equals(endpoint.typeDomain())) {
                 return register.invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3), args.arg(4), args.arg(5)}));
              }
              return register.invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3), args.arg(4)}));
