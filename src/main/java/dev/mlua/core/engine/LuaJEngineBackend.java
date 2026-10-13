@@ -170,7 +170,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       try {
          MLuaLuaApiCrawler.CrawlResult crawl = MLuaLuaApiCrawler.crawl(
             this.globals(context), context.materializedServices());
-         MLuaDocumentation.writeLiveLuaApi(
+         MLuaDocumentation.writeRuntimeLuaApi(
             LoaderApi.platform().gameDir(),
             context.side().name(),
             context.phase().name(),
@@ -178,7 +178,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
             crawl
          );
       } catch (RuntimeException error) {
-         MLuaLogger.LOGGER.warn("Could not generate live Lua API documentation", error);
+         MLuaLogger.LOGGER.warn("Could not generate Lua API documentation", error);
       }
    }
 

@@ -81,9 +81,10 @@ public final class MLuaDocumentation {
               builder.methods(), builder.signatures(), builder.types(), builder.fields());
            generateExtensionFiles(docs.resolve("api"), specs, dluaSourceRoot, mcClasses, builder.signatures());
           write(docs.resolve("index.html"), page("MLua Documentation", sidebar("index"), overviewContent()));
-          write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"),
-             content("Live Lua API", "A reference of the Lua tables exposed to a running script.", null,
-                callout("info", "MLua builds this inventory by reading the active LuaJ globals and materialized services. Registered class and service descriptions appear beside their members. The crawl reads tables and registration metadata without calling API functions or property accessors. Classes, Services, and Globals are grouped from the live table structure."))));
+          write(docs.resolve("api").resolve("lua.html"), page("Lua API - MLua", sidebar("api/lua"),
+             content("Lua API", "Browse the Lua classes, services, and globals registered by MLua.", null,
+                callout("info", "MLua builds this inventory by reading Lua globals and service tables. Registered class and service descriptions appear beside their members. The crawl reads tables and registration metadata without calling API functions or property accessors."))));
+          Files.deleteIfExists(docs.resolve("live-lua-api.html"));
            write(docs.resolve("classes").resolve("command-context.html"), page("CommandContext - MLua", sidebar("classes/command-context"), commandContextContent()));
            // Discover and generate all enum documentation pages
            for (EnumInfo ei : discoverEnums()) {
@@ -1665,7 +1666,7 @@ function deactivate() {}
                        sFolder("Classes", classes, current.startsWith("classes/") || current.startsWith("classes.")) +
                        sFolder("Enums", enums.toString(), current.startsWith("enums/")) +
                        sFolder("Data Types", dataTypes, current.startsWith("data-types/"));
-       apiRef += sLink(p + "live-lua-api.html", "Live Lua API", current.equals("live-lua-api"));
+       apiRef += sLink(p + "api/lua.html", "Lua API", current.equals("api/lua"));
 
       return "<nav class=\"sidebar\">\n" +
              "  <div class=\"sidebar-header\">\n" +
@@ -1680,25 +1681,25 @@ function deactivate() {}
    }
 
    /** Writes a side- and phase-specific crawl of the actual Lua globals into the generated docs site. */
-   public static void writeLiveLuaApi(Path gameDir, String side, String phase, String scriptName, String inventoryHtml) {
-      writeLiveLuaApi(gameDir, side, phase, scriptName,
+   public static void writeRuntimeLuaApi(Path gameDir, String side, String phase, String scriptName, String inventoryHtml) {
+      writeRuntimeLuaApi(gameDir, side, phase, scriptName,
          new dev.mlua.core.engine.MLuaLuaApiCrawler.CrawlResult(inventoryHtml));
    }
 
-   /** Writes the live inventory discovered from its registered Lua tables. */
-   public static void writeLiveLuaApi(Path gameDir, String side, String phase, String scriptName,
-                                      dev.mlua.core.engine.MLuaLuaApiCrawler.CrawlResult crawl) {
+   public static void writeRuntimeLuaApi(Path gameDir, String side, String phase, String scriptName,
+                                         dev.mlua.core.engine.MLuaLuaApiCrawler.CrawlResult crawl) {
       Path docs = gameDir.resolve("mlua").resolve("docs");
       String details = "<p>Captured while loading <code>" + htmlEscape(scriptName) + "</code> on the "
          + htmlEscape(side) + " side during the " + htmlEscape(phase) + " phase.</p>"
          + crawl.inventoryHtml();
       try {
          Files.createDirectories(docs);
-         write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"),
-            content("Live Lua API", "Lua classes, services, and globals available to this script.", null, details)));
+         write(docs.resolve("api").resolve("lua.html"), page("Lua API - MLua", sidebar("api/lua"),
+            content("Lua API", "Lua classes, services, and globals available to this script.", null, details)));
+         Files.deleteIfExists(docs.resolve("live-lua-api.html"));
          clearGeneratedLuaApiPages(docs.resolve("api/lua"));
       } catch (IOException error) {
-         MLuaLogger.LOGGER.warn("Failed to write live Lua API documentation in {}", docs, error);
+         MLuaLogger.LOGGER.warn("Failed to write runtime Lua API documentation in {}", docs, error);
       }
    }
 
@@ -1708,8 +1709,9 @@ function deactivate() {}
       String details = "<p>Built from Lua globals, module bindings, and registered services for both runtime sides.</p>" + inventoryHtml;
       try {
          Files.createDirectories(docs);
-         write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"),
-            content("Live Lua API", "Lua classes, services, and globals registered by MLua.", null, details)));
+         write(docs.resolve("api").resolve("lua.html"), page("Lua API - MLua", sidebar("api/lua"),
+            content("Lua API", "Lua classes, services, and globals registered by MLua.", null, details)));
+         Files.deleteIfExists(docs.resolve("live-lua-api.html"));
          clearGeneratedLuaApiPages(docs.resolve("api/lua"));
       } catch (IOException error) {
          MLuaLogger.LOGGER.warn("Failed to write generated Lua API documentation in {}", docs, error);
@@ -1890,7 +1892,7 @@ function deactivate() {}
       return "<div class=\"content\"><div class=\"hero\"><h1>MLua Documentation</h1><p>MLua brings Lua scripting to Minecraft. Register game content, define Lua classes and services, and use Java-backed APIs to work with the world.</p></div><div class=\"callout warn\"><strong>Security Notice:</strong> MLua scripts are trusted mod code. Installing an MLua script pack is equivalent to installing code that runs in your game. Do not run scripts from untrusted sources.</div>"
          + "<h2>Start here</h2><div class=\"cards\">"
          + card("guides/getting-started.html", "Getting Started", "Set up MLua and write your first script.")
-         + card("live-lua-api.html", "Lua API Inventory", "Browse the API discovered from runtime Lua tables.")
+         + card("api/lua.html", "Lua API", "Browse classes, services, and globals discovered from Lua tables.")
          + card("guides/addons.html", "Addon API", "Register services, classes, mixins, and addon documentation.")
          + "</div><h2>Guides</h2>" + guides + "<h2>Services</h2>" + services + "<h2>Classes</h2>" + classes + "<h2>Enums</h2>" + enums + "</div>";
    }
