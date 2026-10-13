@@ -14,10 +14,7 @@ def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as 
 def isUnobfuscated = is26Family
 def prepareFabricCommonVersionSources = registerMergedTree(project, 'prepareFabricCommonVersionSources',
     targetPathChain('mlua-versions/common/%s', targetVersion))
-def fabricImplExcludes = [
-    'dev/mlua/modules/players/Class/MLuaEntityWrapper.java',
-    'dev/mlua/modules/quest/Service/MLuaQuestService.java'
-]
+def fabricImplExcludes = []
 if (is26Family) {
     fabricImplExcludes += [
         'dev/mlua/modules/world/Service/MLuaWorldService.java'

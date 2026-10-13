@@ -16,12 +16,8 @@ def fabric_api_version = resolveMluaTargetValue(targetVersion, 'fabricApiVersion
 def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
 def prepareFabricCommonVersionSources = registerMergedTree(project, 'prepareFabricCommonVersionSources',
     targetPathChain('mlua-versions/common/%s', targetVersion))
-def fabricImplExcludes = [
-    'dev/mlua/modules/players/Class/MLuaEntityWrapper.java',
-    'dev/mlua/modules/quest/Service/MLuaQuestService.java'
-]
 def prepareFabricImplSources = registerMergedTree(project, 'prepareFabricImplSources',
-    targetPathChain('mlua-loaders/fabric/%s/impl', targetVersion), fabricImplExcludes)
+    targetPathChain('mlua-loaders/fabric/%s/impl', targetVersion))
 def prepareFabricProjectSources = registerMergedTree(project, 'prepareFabricProjectSources',
     targetPathChain('mlua-loaders/fabric/%s/project/src/main/java', targetVersion))
 def prepareFabricProjectResources = registerMergedTree(project, 'prepareFabricProjectResources',
