@@ -33,7 +33,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch'
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 10
       matrix:
         include:
           - target: 1.20.1
