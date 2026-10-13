@@ -494,12 +494,16 @@ public final class MLuaPlayerWrapper {
       registration.attachClassInstance(table, "Player", "LivingEntity");
       table.rawset("__entity", LuaValue.userdataOf(player));
       MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", luaFn(() -> LuaValue.FALSE));
-      MLuaClassMethods.setInstanceMethod(table, "GetUserId", luaFn(() -> LuaValue.valueOf(player.getId())));
       MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", luaFn(() -> LuaValue.valueOf(player.getDisplayName().getString())));
       MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> LuaValue.TRUE));
       MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> MLuaLevelWrapper.levelTable(player.level(), registration)));
       MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(player.level(), registration)));
       MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(player.level().dimension().location().toString())));
+      MLuaClassMethods.setInstanceMethod(table, "IsSleeping", luaFn(() -> LuaValue.valueOf(player.isSleeping())));
+      MLuaClassMethods.setInstanceMethod(table, "IsCrouching", luaFn(() -> LuaValue.valueOf(player.isCrouching())));
+      MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> LuaValue.valueOf(player.isSprinting())));
+      MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> LuaValue.valueOf(player.isSwimming())));
+      MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> MLuaPotionEffectsService.effectsTable(player)));
       MLuaClassMethods.setInstanceMethod(table, "GetHeldItem", luaFn(() -> {
          var stack = player.getMainHandItem();
          return stack.isEmpty() ? LuaValue.NIL : MLuaItemWrapper.itemTable(stack, registration);
