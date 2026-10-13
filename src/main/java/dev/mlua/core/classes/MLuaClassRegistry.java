@@ -799,6 +799,14 @@ public final class MLuaClassRegistry {
       if (currentClass != null && currentClass != classTable) {
          String currentName = currentClass.rawget("__type").optjstring("");
          if (!this.inheritsFrom(className, currentName, new HashSet<>())) {
+            if (this.inheritsFrom(currentName, className, new HashSet<>())) {
+               if (parentName != null && !parentName.isBlank()
+                  && !this.inheritsFrom(className, parentName, new HashSet<>())) {
+                  throw new IllegalArgumentException("Lua class '" + className
+                     + "' does not inherit from requested instance parent '" + parentName + "'");
+               }
+               return instance;
+            }
             throw new IllegalArgumentException("A live Lua instance attached as '" + currentName
                + "' cannot be reclassified as unrelated class '" + className + "'");
          }

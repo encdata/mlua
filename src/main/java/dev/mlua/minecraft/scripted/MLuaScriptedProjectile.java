@@ -2,11 +2,13 @@ package dev.mlua.minecraft.scripted;
 
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.combat.MLuaProjectileDefinition;
 import dev.mlua.modules.combat.Service.MLuaCombatService;
@@ -374,14 +376,12 @@ public class MLuaScriptedProjectile extends Entity {
    }
 
    public LuaTable toLuaHandle(boolean includeOwner) {
-      LuaTable table = new LuaTable();
-      table.set("__side", "Server");
-      Vec3 pos = this.position();
-      table.set("Position", MLuaVector.vector3(pos.x, pos.y, pos.z));
+      var registration = this.callbackContext != null ? this.callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
+      LuaTable table = MLuaEntityWrapper.entityTable(this, registration);
+      registration.attachClassInstance(table, "Projectile", "Entity");
       if (this.direction != null) {
          table.set("Direction", MLuaVector.vector3(this.direction.x, this.direction.y, this.direction.z));
       }
-      table.set("Velocity", MLuaVector.vector3(this.getDeltaMovement().x, this.getDeltaMovement().y, this.getDeltaMovement().z));
       table.set("Speed", this.speed);
       table.set("Damage", this.damage);
       table.set("DamageSource", this.damageSourceName);
@@ -400,39 +400,32 @@ public class MLuaScriptedProjectile extends Entity {
             MLuaLogger.LOGGER.error("Failed to attach projectile owner wrapper", exception);
          }
       }
-      table.set("Destroy", new ZeroArgFunction() {
+      MLuaClassMethods.setInstanceMethod(table, "Destroy", new ZeroArgFunction() {
          @Override
          public LuaValue call() {
             destroy();
             return LuaValue.NONE;
          }
       });
-      table.set("GetPosition", new ZeroArgFunction() {
+      MLuaClassMethods.setInstanceMethod(table, "SetDamage", new VarArgFunction() {
          @Override
-         public LuaValue call() {
-            Vec3 p = position();
-            return MLuaVector.vector3(p.x, p.y, p.z);
-         }
-      });
-      table.set("SetDamage", new OneArgFunction() {
-         @Override
-         public LuaValue call(LuaValue arg) {
-            damage = arg.checkdouble();
+         public Varargs invoke(Varargs args) {
+            damage = args.checkdouble(2);
             return LuaValue.NONE;
          }
       });
-      table.set("SetDirection", new OneArgFunction() {
+      MLuaClassMethods.setInstanceMethod(table, "SetDirection", new VarArgFunction() {
          @Override
-         public LuaValue call(LuaValue arg) {
-            LuaTable vector = arg.checktable();
+         public Varargs invoke(Varargs args) {
+            LuaTable vector = args.checktable(2);
             direction = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()).normalize();
             return LuaValue.NONE;
          }
       });
-      table.set("SetVelocity", new OneArgFunction() {
+      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", new VarArgFunction() {
          @Override
-         public LuaValue call(LuaValue arg) {
-            LuaTable vector = arg.checktable();
+         public Varargs invoke(Varargs args) {
+            LuaTable vector = args.checktable(2);
             Vec3 velocity = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble());
             setDeltaMovement(velocity);
             speed = velocity.length() / 0.05;
@@ -440,8 +433,7 @@ public class MLuaScriptedProjectile extends Entity {
             return LuaValue.NONE;
          }
       });
-      var registration = this.callbackContext != null ? this.callbackContext.registration() : MLuaScriptRuntimeRegistration.forLevel(this.level());
-      return registration.attachClassInstance(table, "Projectile", registration.requireInstanceBaseClassName());
+      return table;
    }
 
    private Entity resolveOwner() {

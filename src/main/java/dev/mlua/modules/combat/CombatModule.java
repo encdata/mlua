@@ -27,14 +27,13 @@ public class CombatModule implements MLuaModule {
     public String id() { return "combat"; }
 
     @Override
-    public List<String> dependencies() { return List.of("core-classes"); }
+    public List<String> dependencies() { return List.of("core-classes", "players"); }
 
     @Override
     public void registerClasses(MLuaRegistration registration) {
-        registration.registerClass("Projectile", registration.requireInstanceBaseClassName(),
+        registration.registerClass("Projectile", "Entity",
             "A live scripted projectile with current motion data and runtime controls.");
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "Destroy", "Removes this projectile from the world.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetPosition", "Returns this projectile's current position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "SetDamage", "Changes this projectile's damage.");
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "SetDirection", "Changes this projectile's direction.");
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "SetVelocity", "Changes this projectile's velocity and speed.");
