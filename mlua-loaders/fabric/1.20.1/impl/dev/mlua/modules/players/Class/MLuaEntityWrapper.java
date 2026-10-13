@@ -11,6 +11,7 @@ import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.binding.MLuaAnimationBindings;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
 import dev.mlua.modules.combat.Service.MLuaCombatService;
 import dev.mlua.math.MLuaCFrame;
@@ -126,6 +127,8 @@ public final class MLuaEntityWrapper {
       table.rawset("__entity", LuaValue.userdataOf(entity));
       registration.attachClassInstance(table, "Entity", "Instance");
       if (cached == null) cache.put(cacheKey, table);
+      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(entity.level(), registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(entity.level().dimension().location().toString())));
                               MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
          MCVec3 p = wrapped.position();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
@@ -225,8 +228,8 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
       MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
-      table.rawset("getNbt", table.get("GetNbt"));
-      table.rawset("SetNbt", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "getNbt", table.get("GetNbt"));
+      MLuaClassMethods.setInstanceMethod(table, "SetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
          if (raw.level().isClientSide) {
             throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
@@ -255,7 +258,7 @@ public final class MLuaEntityWrapper {
          MLuaDataManager.setEntityPersistentTag(raw, persistentData);
          return LuaValue.NONE;
       }));
-      table.rawset("setNbt", table.get("SetNbt"));
+      MLuaClassMethods.setInstanceMethod(table, "setNbt", table.get("SetNbt"));
       return MLuaServiceProperties.attach(table);
    }
 
@@ -274,6 +277,8 @@ public final class MLuaEntityWrapper {
        table.rawset("__entity", LuaValue.userdataOf(entity));
        registration.attachClassInstance(table, "LivingEntity", "Entity");
        if (cached == null) cache.put(cacheKey, table);
+      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(entity.level(), registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(entity.level().dimension().location().toString())));
       MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
          MCVec3 p = wrapped.position();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
@@ -449,8 +454,8 @@ public final class MLuaEntityWrapper {
        }));
        MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
        MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
-       table.rawset("getNbt", table.get("GetNbt"));
-      table.rawset("SetNbt", varArg((args) -> {
+       MLuaClassMethods.setInstanceMethod(table, "getNbt", table.get("GetNbt"));
+      MLuaClassMethods.setInstanceMethod(table, "SetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
          if (raw.level().isClientSide) {
             throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
@@ -479,8 +484,8 @@ public final class MLuaEntityWrapper {
           MLuaDataManager.setEntityPersistentTag(raw, persistentData);
           return LuaValue.NONE;
        }));
-      table.rawset("setNbt", table.get("SetNbt"));
-      table.rawset("LoadAnimation", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "setNbt", table.get("SetNbt"));
+      MLuaClassMethods.setInstanceMethod(table, "LoadAnimation", varArg((args) -> {
          LuaValue animVal = args.arg(2);
          if (animVal.istable() && animVal.checktable().get("__bbmodel").toboolean()) {
             int renderId = animVal.checktable().get("Id").checkint();
@@ -526,14 +531,14 @@ public final class MLuaEntityWrapper {
          }
          return MLuaAnimationBindings.wrapTrack(track);
       }));
-      table.rawset("ResetAnimation", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "ResetAnimation", luaFn(() -> {
          MLuaClientRenderManager.resetEntityModel(entity);
          MLuaAnimationController.stopAll(entity);
          return LuaValue.NONE;
       }));
-      table.rawset("LoadModel", table.get("LoadAnimation"));
-      table.rawset("ResetModel", table.get("ResetAnimation"));
-      table.rawset("PlayAnimation", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "LoadModel", table.get("LoadAnimation"));
+      MLuaClassMethods.setInstanceMethod(table, "ResetModel", table.get("ResetAnimation"));
+      MLuaClassMethods.setInstanceMethod(table, "PlayAnimation", varArg((args) -> {
          String name = args.checkjstring(2);
          LuaTable options = args.arg(3).opttable(new LuaTable());
          boolean loop = options.get("Loop").optboolean(true);
@@ -541,11 +546,11 @@ public final class MLuaEntityWrapper {
          MLuaClientRenderManager.playEntityAnimation(entity, name, loop, speed);
          return LuaValue.NONE;
       }));
-      table.rawset("StopAnimation", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "StopAnimation", luaFn(() -> {
          MLuaClientRenderManager.stopEntityAnimation(entity);
          return LuaValue.NONE;
       }));
-      table.rawset("GetPlayingAnimationTracks", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetPlayingAnimationTracks", luaFn(() -> {
          LuaTable result = new LuaTable();
          int i = 1;
          for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity)) {
@@ -553,27 +558,27 @@ public final class MLuaEntityWrapper {
          }
          return result;
       }));
-      table.rawset("StopAllAnimations", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "StopAllAnimations", luaFn(() -> {
          MLuaAnimationController.stopAll(entity);
          return LuaValue.NONE;
       }));
-      table.rawset("SetBonePose", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "SetBonePose", varArg((args) -> {
          String bone = args.checkjstring(2);
          MLuaBonePose.setPose(entity, bone, MLuaCFrame.fromLua(args.arg(3)));
          return LuaValue.NONE;
       }));
-      table.rawset("GetBonePose", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetBonePose", varArg((args) -> {
          MLuaCFrame pose = MLuaBonePose.getBonePose(entity, args.checkjstring(2));
          return pose != null ? pose.toLua() : LuaValue.NIL;
       }));
-      table.rawset("GetBonePoses", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetBonePoses", luaFn(() -> {
          LuaTable poses = new LuaTable();
          for (Map.Entry<String, MLuaCFrame> entry : MLuaBonePose.getPose(entity).entrySet()) {
             poses.set(entry.getKey(), entry.getValue().toLua());
          }
          return poses;
       }));
-      table.rawset("ClearBonePose", varArg((args) -> {
+      MLuaClassMethods.setInstanceMethod(table, "ClearBonePose", varArg((args) -> {
          if (args.narg() >= 2 && !args.arg(2).isnil()) {
             MLuaBonePose.clearBonePose(entity, args.checkjstring(2));
          } else {

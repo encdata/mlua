@@ -115,6 +115,29 @@ public class PlayersModule implements MLuaModule {
             "Returns this entity's replicated MLua data table.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetNbt",
             "Returns this entity's persistent data table or reads one key from it.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetNbt",
+            "Writes entity persistent data or replaces the persistent data table.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "getNbt",
+            "Compatibility alias for GetNbt.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "setNbt",
+            "Compatibility alias for SetNbt.");
+        String[][] entityAnimationMethods = {
+            {"LoadAnimation", "Loads and starts an animation on this entity."},
+            {"ResetAnimation", "Stops animations and resets this entity's model pose."},
+            {"LoadModel", "Loads and starts a model animation."},
+            {"ResetModel", "Stops animations and resets this entity's model pose."},
+            {"PlayAnimation", "Plays a named animation track."},
+            {"StopAnimation", "Stops a named animation track."},
+            {"GetPlayingAnimationTracks", "Returns the active animation tracks."},
+            {"StopAllAnimations", "Stops all animation tracks on this entity."},
+            {"SetBonePose", "Sets the pose of a named model bone."},
+            {"GetBonePose", "Returns the pose of a named model bone."},
+            {"GetBonePoses", "Returns the current pose for every model bone."},
+            {"ClearBonePose", "Clears one bone pose or all bone poses."}
+        };
+        for (String[] method : entityAnimationMethods) {
+            MLuaClassMethods.registerInstanceMethod(registration, "Entity", method[0], method[1]);
+        }
         registerEntityProperties(registration);
 
         registration.registerClass("LivingEntity", "Entity",
