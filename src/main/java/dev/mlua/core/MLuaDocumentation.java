@@ -35,7 +35,7 @@ public final class MLuaDocumentation {
    private static Path currentGameDir;
    private static Path sourceRoot;
    private static volatile List<MLuaDocBuilder.Contribution> activeContributions = List.of();
-   private static final String CSS = "*{margin:0;padding:0;box-sizing:border-box}\n:root{--bg-0:#121215;--bg-100:#191a1f;--bg-200:#202227;--bg-300:#272930;--text:#e5e7eb;--text-em:#ffffff;--text-muted:#d1d5db;--link:#60a5fa;--border:rgba(208,217,251,0.12);--border-em:rgba(208,217,251,0.16);--hover:rgba(208,217,251,0.08);--active:rgba(208,217,251,0.12);--blue-700:#3b82f6;--green-500:#22c55e;--red-800:#ef4444;--yellow-400:#eab308;--radius:8px}\nbody{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg-0);color:var(--text);font-size:16px;line-height:1.6;display:flex;min-height:100vh;overflow:hidden}\n::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bg-300);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}\n.app{display:flex;width:100%;height:100vh}\n.sidebar{width:300px;min-width:300px;background:var(--bg-0);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh}\n.sidebar-header{padding:20px 24px;border-bottom:1px solid var(--border)}\n.sidebar-logo{font-size:20px;font-weight:700;color:var(--text-em);text-decoration:none;margin-bottom:16px}\n.sidebar-logo span{color:var(--link)}\n.sidebar-search{position:relative;margin-bottom:8px}\n.sidebar-search input{width:100%;background:var(--bg-200);border:1px solid var(--border);border-radius:6px;padding:8px 12px 8px 32px;color:var(--text-em);font-size:13px;outline:none;transition:border-color 0.15s}\n.sidebar-search input:focus{border-color:var(--link)}\n.sidebar-search::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;opacity:0.5}\n.sidebar-content{flex:1;overflow-y:auto;padding:16px 12px}\n.sidebar-item{margin-bottom:4px}\n.sidebar-row{display:flex;align-items:center;padding:8px 12px;border-radius:6px;cursor:pointer;transition:all 0.15s;text-decoration:none;color:var(--text);font-size:14px;justify-content:space-between}\n.sidebar-row:hover{background:var(--hover);color:var(--text-em)}\n.sidebar-row.active{background:var(--active);color:var(--link);font-weight:500}\n.sidebar-arrow{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:transform 0.2s}\n.sidebar-arrow.open{transform:rotate(90deg)}\n.sidebar-arrow::before{content:'▶';font-size:8px}\n.sidebar-children{padding-left:16px;display:none}\n.sidebar-children.open{display:block}\n.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-200);position:relative}\n.search-overlay{position:absolute;top:56px;left:0;right:0;bottom:0;background:var(--bg-0);z-index:100;display:none;flex-direction:column;padding:32px 64px}\n.search-overlay.open{display:flex}\n.search-results{flex:1;overflow-y:auto}\n.search-result-item{padding:16px;border-bottom:1px solid var(--border);text-decoration:none;display:block;border-radius:8px;transition:background 0.15s}\n.search-result-item:hover{background:var(--hover)}\n.search-result-title{font-weight:600;color:var(--link);margin-bottom:4px;display:flex;align-items:center;gap:8px}\n.search-result-type{font-size:11px;text-transform:uppercase;color:var(--text-muted);background:var(--bg-200);padding:2px 6px;border-radius:4px}\n.search-result-desc{font-size:14px;color:var(--text-muted)}\n.topbar{background:var(--bg-0);border-bottom:1px solid var(--border);padding:12px 32px;display:flex;align-items:center;min-height:56px}\n.topbar-breadcrumb{font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:8px}\n.topbar-breadcrumb a{color:var(--text-muted);text-decoration:none}\n.topbar-breadcrumb a:hover{color:var(--text-em)}\n.topbar-breadcrumb .sep{color:var(--border-em)}\n.topbar-breadcrumb .current{color:var(--text-em);font-weight:500}\n.content-scroll{flex:1;overflow-y:auto}\n.content{padding:48px 64px 96px;max-width:1000px;margin:0 auto}\nh1{font-size:40px;font-weight:700;color:var(--text-em);margin-bottom:12px;letter-spacing:-0.5px}\n.desc{font-size:20px;color:var(--text-muted);margin-bottom:40px;line-height:1.5}\nh2{font-size:24px;font-weight:600;color:var(--text-em);margin-top:56px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)}\npre{background:var(--bg-200);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px;overflow-x:auto}\ncode{font-family:'JetBrains Mono','Fira Code',monospace;font-size:14px}\ntable{width:100%;border-collapse:collapse;margin-bottom:32px}\nth{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:12px 16px;background:var(--bg-0);border-bottom:2px solid var(--border)}\ntd{padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px}\n.member{background:var(--bg-0);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}\n.member-header{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}.member-name{color:var(--link);font-weight:600;font-size:18px}.member-flags{margin-left:auto;white-space:nowrap}\n.member-name a{color:inherit;text-decoration:none}\n.member-desc{color:var(--text-muted);font-size:15px}\n.badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;margin-right:6px}\n.badge.server{background:rgba(242,186,42,0.15);color:var(--yellow-400)}\n.badge.client{background:rgba(82,139,255,0.15);color:var(--link)}\n.callout{padding:16px 20px;border-radius:var(--radius);margin-bottom:32px;border-left:4px solid}\n.callout.info{background:rgba(82,139,255,0.05);border-color:var(--link)}\n.badge.read{background:rgba(82,139,255,0.15);color:var(--link)}\n.badge.shared{background:rgba(208,217,251,0.08);color:var(--text-muted)}\n.badge.write{background:rgba(242,186,42,0.15);color:var(--yellow-400)}\n.badge.call{background:rgba(57,197,130,0.15);color:var(--green-500)}\n.badge.both{background:rgba(168,85,247,0.15);color:#a855f7}\n.badge.registry{background:rgba(236,72,153,0.15);color:#ec4899}\n.badge.inherited{background:rgba(107,114,128,0.15);color:#9ca3af}\n.inherits-from{color:var(--text-muted);font-size:14px;margin-bottom:16px;padding:8px 12px;background:var(--bg-100);border-radius:6px;display:inline-block}\n";
+   private static final String CSS = "*{margin:0;padding:0;box-sizing:border-box}\n:root{--bg-0:#121215;--bg-100:#191a1f;--bg-200:#202227;--bg-300:#272930;--text:#e5e7eb;--text-em:#ffffff;--text-muted:#d1d5db;--link:#60a5fa;--border:rgba(208,217,251,0.12);--border-em:rgba(208,217,251,0.16);--hover:rgba(208,217,251,0.08);--active:rgba(208,217,251,0.12);--blue-700:#3b82f6;--green-500:#22c55e;--red-800:#ef4444;--yellow-400:#eab308;--radius:8px}\nbody{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg-0);color:var(--text);font-size:16px;line-height:1.6;display:flex;min-height:100vh;overflow:hidden}\n::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bg-300);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}\n.app{display:flex;width:100%;height:100vh}\n.sidebar{width:300px;min-width:300px;background:var(--bg-0);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh}\n.sidebar-header{padding:20px 24px;border-bottom:1px solid var(--border)}\n.sidebar-logo{font-size:20px;font-weight:700;color:var(--text-em);text-decoration:none;margin-bottom:16px}\n.sidebar-logo span{color:var(--link)}\n.sidebar-search{position:relative;margin-bottom:8px}\n.sidebar-search input{width:100%;background:var(--bg-200);border:1px solid var(--border);border-radius:6px;padding:8px 12px 8px 32px;color:var(--text-em);font-size:13px;outline:none;transition:border-color 0.15s}\n.sidebar-search input:focus{border-color:var(--link)}\n.sidebar-search::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;opacity:0.5}\n.sidebar-content{flex:1;overflow-y:auto;padding:16px 12px}\n.sidebar-item{margin-bottom:4px}\n.sidebar-row{display:flex;align-items:center;padding:8px 12px;border-radius:6px;cursor:pointer;transition:all 0.15s;text-decoration:none;color:var(--text);font-size:14px;justify-content:space-between}\n.sidebar-row:hover{background:var(--hover);color:var(--text-em)}\n.sidebar-row.active{background:var(--active);color:var(--link);font-weight:500}\n.sidebar-arrow{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:transform 0.2s}\n.sidebar-arrow.open{transform:rotate(90deg)}\n.sidebar-arrow::before{content:'▶';font-size:8px}\n.sidebar-children{padding-left:16px;display:none}\n.sidebar-children.open{display:block}\n.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-200);position:relative}\n.search-overlay{position:absolute;top:56px;left:0;right:0;bottom:0;background:var(--bg-0);z-index:100;display:none;flex-direction:column;padding:32px 64px}\n.search-overlay.open{display:flex}\n.search-results{flex:1;overflow-y:auto}\n.search-result-item{padding:16px;border-bottom:1px solid var(--border);text-decoration:none;display:block;border-radius:8px;transition:background 0.15s}\n.search-result-item:hover{background:var(--hover)}\n.search-result-title{font-weight:600;color:var(--link);margin-bottom:4px;display:flex;align-items:center;gap:8px}\n.search-result-type{font-size:11px;text-transform:uppercase;color:var(--text-muted);background:var(--bg-200);padding:2px 6px;border-radius:4px}\n.search-result-desc{font-size:14px;color:var(--text-muted)}\n.topbar{background:var(--bg-0);border-bottom:1px solid var(--border);padding:12px 32px;display:flex;align-items:center;min-height:56px}\n.topbar-breadcrumb{font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:8px}\n.topbar-breadcrumb a{color:var(--text-muted);text-decoration:none}\n.topbar-breadcrumb a:hover{color:var(--text-em)}\n.topbar-breadcrumb .sep{color:var(--border-em)}\n.topbar-breadcrumb .current{color:var(--text-em);font-weight:500}\n.content-scroll{flex:1;overflow-y:auto}\n.content{padding:48px 64px 96px;max-width:1000px;margin:0 auto}\nh1{font-size:40px;font-weight:700;color:var(--text-em);margin-bottom:12px;letter-spacing:-0.5px}\n.desc{font-size:20px;color:var(--text-muted);margin-bottom:40px;line-height:1.5}\nh2{font-size:24px;font-weight:600;color:var(--text-em);margin-top:56px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)}\npre{background:var(--bg-200);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px;overflow-x:auto}\ncode{font-family:'JetBrains Mono','Fira Code',monospace;font-size:14px}\ntable{width:100%;border-collapse:collapse;margin-bottom:32px}\nth{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:12px 16px;background:var(--bg-0);border-bottom:2px solid var(--border)}\ntd{padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px}\n.lua-api-filter{width:min(100%,32rem);padding:10px 14px;margin:12px 0 24px;background:var(--bg-0);color:var(--text);border:1px solid var(--border);border-radius:6px;font:inherit}.lua-api-filter:focus{border-color:var(--link);outline:none}\n.syntax-keyword{color:#60a5fa;font-weight:600}.syntax-string{color:#fb923c}.syntax-number{color:#c4b5fd}.syntax-comment{color:#4ade80}\n.member{background:var(--bg-0);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}\n.member-header{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}.member-name{color:var(--link);font-weight:600;font-size:18px}.member-flags{margin-left:auto;white-space:nowrap}\n.member-name a{color:inherit;text-decoration:none}\n.member-desc{color:var(--text-muted);font-size:15px}\n.badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;margin-right:6px}\n.badge.server{background:rgba(242,186,42,0.15);color:var(--yellow-400)}\n.badge.client{background:rgba(82,139,255,0.15);color:var(--link)}\n.callout{padding:16px 20px;border-radius:var(--radius);margin-bottom:32px;border-left:4px solid}\n.callout.info{background:rgba(82,139,255,0.05);border-color:var(--link)}\n.badge.read{background:rgba(82,139,255,0.15);color:var(--link)}\n.badge.shared{background:rgba(208,217,251,0.08);color:var(--text-muted)}\n.badge.write{background:rgba(242,186,42,0.15);color:var(--yellow-400)}\n.badge.call{background:rgba(57,197,130,0.15);color:var(--green-500)}\n.badge.both{background:rgba(168,85,247,0.15);color:#a855f7}\n.badge.registry{background:rgba(236,72,153,0.15);color:#ec4899}\n.badge.inherited{background:rgba(107,114,128,0.15);color:#9ca3af}\n.inherits-from{color:var(--text-muted);font-size:14px;margin-bottom:16px;padding:8px 12px;background:var(--bg-100);border-radius:6px;display:inline-block}\n";
 
    private MLuaDocumentation() {
    }
@@ -1682,102 +1682,35 @@ function deactivate() {}
    /** Writes a side- and phase-specific crawl of the actual Lua globals into the generated docs site. */
    public static void writeLiveLuaApi(Path gameDir, String side, String phase, String scriptName, String inventoryHtml) {
       writeLiveLuaApi(gameDir, side, phase, scriptName,
-         new dev.mlua.core.engine.MLuaLuaApiCrawler.CrawlResult(inventoryHtml, Map.of()));
+         new dev.mlua.core.engine.MLuaLuaApiCrawler.CrawlResult(inventoryHtml));
    }
 
-   /** Writes the live inventory and reference pages discovered from its registered Lua tables. */
+   /** Writes the live inventory discovered from its registered Lua tables. */
    public static void writeLiveLuaApi(Path gameDir, String side, String phase, String scriptName,
                                       dev.mlua.core.engine.MLuaLuaApiCrawler.CrawlResult crawl) {
       Path docs = gameDir.resolve("mlua").resolve("docs");
-      String sidePath = side.toLowerCase(Locale.ROOT);
-      Map<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage> generatedPages = crawl.pages();
       String details = "<p>Captured while loading <code>" + htmlEscape(scriptName) + "</code> on the "
          + htmlEscape(side) + " side during the " + htmlEscape(phase) + " phase.</p>"
-         + liveLuaApiReferenceLinks(sidePath, generatedPages) + crawl.inventoryHtml();
+         + crawl.inventoryHtml();
       try {
          Files.createDirectories(docs);
-         write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"), details));
-         Path sideRoot = docs.resolve("api/lua").resolve(sidePath);
-         clearGeneratedLuaApiPages(sideRoot);
-         for (Map.Entry<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage> entry : generatedPages.entrySet()) {
-            Path output = sideRoot.resolve(entry.getKey());
-            Files.createDirectories(output.getParent());
-            var generated = entry.getValue();
-            write(output, page(htmlEscape(generated.title()) + " - MLua", generatedLuaApiSidebar(), generated.html()));
-         }
+         write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"),
+            content("Live Lua API", "Lua classes, services, and globals available to this script.", null, details)));
+         clearGeneratedLuaApiPages(docs.resolve("api/lua"));
       } catch (IOException error) {
          MLuaLogger.LOGGER.warn("Failed to write live Lua API documentation in {}", docs, error);
       }
    }
 
-   private static String liveLuaApiReferenceLinks(
-      String sidePath, Map<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage> generatedPages) {
-      if (generatedPages.isEmpty()) return "";
-      Map<String, List<Map.Entry<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage>>> groups = new LinkedHashMap<>();
-      for (Map.Entry<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage> entry : generatedPages.entrySet()) {
-         String category = entry.getValue().category();
-         groups.computeIfAbsent(category, ignored -> new ArrayList<>()).add(entry);
-      }
-      StringBuilder links = new StringBuilder("<h2>Generated references</h2>");
-      groups.forEach((category, pages) -> {
-         links.append("<h3>").append(htmlEscape(category)).append("</h3><ul>");
-         pages.forEach(entry -> links.append("<li><a href=\"api/lua/")
-            .append(htmlEscape(sidePath)).append('/').append(htmlEscape(entry.getKey())).append("\">")
-            .append(htmlEscape(entry.getValue().title())).append("</a></li>"));
-         links.append("</ul>");
-      });
-      return links.toString();
-   }
-
    /** Writes the build-time LuaJ table crawl produced by the gendocs task. */
    public static void writeGeneratedLuaApi(Path gameDir, String inventoryHtml) {
-      writeGeneratedLuaApi(gameDir, inventoryHtml, Map.of());
-   }
-
-   /** Writes the crawler inventory and its per-table reference pages. */
-   public static void writeGeneratedLuaApi(Path gameDir, String inventoryHtml, Map<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage> generatedPages) {
       Path docs = gameDir.resolve("mlua").resolve("docs");
-      String details = "<h2>Generated Lua API Inventory</h2><p>Built from the LuaJ globals, module bindings, and registered service tables for both sides. Runtime scans replace this inventory with the tables available to the active script.</p>" + inventoryHtml;
+      String details = "<p>Built from Lua globals, module bindings, and registered services for both runtime sides.</p>" + inventoryHtml;
       try {
          Files.createDirectories(docs);
-         write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"), details));
-         Map<Path, StringBuilder> legacyPageLinks = new LinkedHashMap<>();
-         MLuaDocBuilder definitionBuilder = new MLuaDocBuilder();
-         MLuaModuleLoader.get().generateDocs(definitionBuilder);
-         List<MLuaDocBuilder.DocEntry> definitions = definitionBuilder.entries();
-         for (Map.Entry<String, dev.mlua.core.engine.MLuaLuaApiCrawler.GeneratedPage> entry : generatedPages.entrySet()) {
-            Path output = docs.resolve(entry.getKey());
-            Files.createDirectories(output.getParent());
-            var generated = entry.getValue();
-            write(output, page(htmlEscape(generated.title()) + " - MLua", generatedLuaApiSidebar(), generated.html()));
-            Path legacyPage = legacyApiPage(generated.tablePath(), definitions);
-            if (legacyPage != null) {
-               legacyPageLinks.computeIfAbsent(legacyPage, ignored -> new StringBuilder("<!-- generated-lua-api-links:start --><aside class=\"callout info\"><strong>Generated LuaJ reference</strong><ul>"))
-                  .append("<li><a href=\"../").append(entry.getKey()).append("\">")
-                  .append(htmlEscape(generated.title())).append("</a></li>");
-            }
-         }
-         for (Map.Entry<Path, StringBuilder> links : legacyPageLinks.entrySet()) {
-            Path legacyPage = docs.resolve(links.getKey());
-            if (!Files.isRegularFile(legacyPage)) continue;
-            String html = Files.readString(legacyPage);
-            int oldStart = html.indexOf("<!-- generated-lua-api-links:start -->");
-            int oldEnd = oldStart < 0 ? -1 : html.indexOf("<!-- generated-lua-api-links:end -->", oldStart);
-            if (oldStart >= 0 && oldEnd >= 0) {
-               int afterOldBlock = oldEnd + "<!-- generated-lua-api-links:end -->".length();
-               html = html.substring(0, oldStart) + html.substring(afterOldBlock);
-            }
-            String insertionMarker = "<div class=\"content\">";
-            int insertion = html.indexOf(insertionMarker);
-            if (insertion < 0) {
-               insertionMarker = "<div class=\"content-scroll\">";
-               insertion = html.indexOf(insertionMarker);
-            }
-            if (insertion < 0) continue;
-            String referenceLinks = links.getValue().append("</ul></aside><!-- generated-lua-api-links:end -->").toString();
-            insertion += insertionMarker.length();
-            Files.writeString(legacyPage, html.substring(0, insertion) + referenceLinks + html.substring(insertion));
-         }
+         write(docs.resolve("live-lua-api.html"), page("Live Lua API - MLua", sidebar("live-lua-api"),
+            content("Live Lua API", "Lua classes, services, and globals registered by MLua.", null, details)));
+         clearGeneratedLuaApiPages(docs.resolve("api/lua"));
       } catch (IOException error) {
          MLuaLogger.LOGGER.warn("Failed to write generated Lua API documentation in {}", docs, error);
       }
@@ -1790,36 +1723,6 @@ function deactivate() {}
          previous = paths.sorted(java.util.Comparator.reverseOrder()).toList();
       }
       for (Path path : previous) Files.deleteIfExists(path);
-   }
-
-   private static String generatedLuaApiSidebar() {
-      return "<nav class=\"sidebar\"><div class=\"sidebar-header\"><a class=\"sidebar-logo\" href=\"../../../index.html\"><span>M</span>Lua</a></div>"
-         + "<div class=\"sidebar-content\"><div class=\"sidebar-item\"><a class=\"sidebar-row\" href=\"../../../live-lua-api.html\">Lua API Inventory</a></div>"
-         + "<div class=\"sidebar-item\"><a class=\"sidebar-row\" href=\"../../../index.html\">Documentation Home</a></div></div></nav>";
-   }
-
-   private static Path legacyApiPage(String tablePath, List<MLuaDocBuilder.DocEntry> definitions) {
-      MLuaDocBuilder.DocEntryType expectedType;
-      String name;
-      if (tablePath.startsWith("Services.") && tablePath.indexOf('.', "Services.".length()) < 0) {
-         expectedType = MLuaDocBuilder.DocEntryType.SERVICE;
-         name = tablePath.substring("Services.".length());
-      } else if (!tablePath.contains(".")) {
-         expectedType = MLuaDocBuilder.DocEntryType.CLASS;
-         name = tablePath;
-      } else if (tablePath.startsWith("UIObject.") && tablePath.indexOf('.', "UIObject.".length()) < 0) {
-         expectedType = MLuaDocBuilder.DocEntryType.CLASS;
-         name = tablePath.substring("UIObject.".length());
-      } else {
-         return null;
-      }
-
-      for (MLuaDocBuilder.DocEntry definition : definitions) {
-         if (definition.type() == expectedType && definition.name().equalsIgnoreCase(name) && definition.filePath() != null) {
-            return Path.of(definition.filePath());
-         }
-      }
-      return null;
    }
 
    private static String htmlEscape(String value) {
@@ -1884,8 +1787,56 @@ function deactivate() {}
    }
 
    private static String codeBlock(String code) {
-      String var10000 = code.replace("&", "&amp;").replace("<", "&lt;");
-      return "<pre><code>" + var10000.replace(">", "&gt;") + "</code></pre>";
+      boolean lua = code.contains("Minecraft:GetService") || code.contains(":Connect")
+         || code.contains("local ") || code.contains("function(") || code.matches("(?s).*\\bend\\b.*");
+      Set<String> keywords = lua
+         ? Set.of("and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while", "goto", "continue")
+         : Set.of("abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally", "float", "for", "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "null", "package", "private", "protected", "public", "return", "short", "static", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while", "var", "yield", "record", "sealed", "permits");
+      StringBuilder highlighted = new StringBuilder();
+      int index = 0;
+      while (index < code.length()) {
+         int start = index;
+         char current = code.charAt(index);
+         if ((current == '-' && index + 1 < code.length() && code.charAt(index + 1) == '-')
+            || (current == '/' && index + 1 < code.length() && code.charAt(index + 1) == '/')) {
+            index = code.indexOf('\n', index);
+            if (index < 0) index = code.length();
+            appendCodeToken(highlighted, code.substring(start, index), "syntax-comment");
+         } else if (current == '/' && index + 1 < code.length() && code.charAt(index + 1) == '*') {
+            int end = code.indexOf("*/", index + 2);
+            index = end < 0 ? code.length() : end + 2;
+            appendCodeToken(highlighted, code.substring(start, index), "syntax-comment");
+         } else if (current == '"' || current == '\'') {
+            char quote = current;
+            index++;
+            while (index < code.length()) {
+               char next = code.charAt(index++);
+               if (next == '\\' && index < code.length()) index++;
+               else if (next == quote) break;
+            }
+            appendCodeToken(highlighted, code.substring(start, index), "syntax-string");
+         } else if (Character.isDigit(current)) {
+            index++;
+            while (index < code.length() && (Character.isDigit(code.charAt(index)) || code.charAt(index) == '.')) index++;
+            appendCodeToken(highlighted, code.substring(start, index), "syntax-number");
+         } else if (Character.isLetter(current) || current == '_' || current == '$') {
+            index++;
+            while (index < code.length() && (Character.isLetterOrDigit(code.charAt(index))
+               || code.charAt(index) == '_' || code.charAt(index) == '$')) index++;
+            String token = code.substring(start, index);
+            appendCodeToken(highlighted, token, keywords.contains(token) ? "syntax-keyword" : null);
+         } else {
+            index++;
+            appendCodeToken(highlighted, code.substring(start, index), null);
+         }
+      }
+      return "<pre><code class=\"language-" + (lua ? "lua" : "java") + "\">" + highlighted + "</code></pre>";
+   }
+
+   private static void appendCodeToken(StringBuilder output, String token, String style) {
+      String escaped = htmlEscape(token);
+      if (style == null) output.append(escaped);
+      else output.append("<span class=\"").append(style).append("\">").append(escaped).append("</span>");
    }
 
    private static String flags(String... badges) {

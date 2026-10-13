@@ -5,7 +5,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -14,8 +13,6 @@ import org.luaj.vm2.Varargs;
 public final class MLuaLuaApiCrawler {
     private static final int MAX_DEPTH = 12;
     private static final int MAX_ENTRIES = 20_000;
-    private static final int MAX_TYPED_PAGES = 250;
-    private static final int MAX_PAGE_ENTRIES = 2_000;
     private static final LuaValue TYPE = LuaValue.valueOf("__type");
     private static final LuaValue DOC_TYPE = LuaValue.valueOf("__mlua_doc_type");
     private static final LuaValue DOC_PROPERTIES = LuaValue.valueOf("__mlua_doc_properties");
@@ -30,8 +27,7 @@ public final class MLuaLuaApiCrawler {
 
     public static CrawlResult crawl(LuaValue globals, Map<String, LuaTable> services) {
         CrawlData data = collect(globals, services);
-        return new CrawlResult(renderInventory(data.entries(), data.categories()),
-            renderTypedPages(data.entries(), data.categories()));
+        return new CrawlResult(renderInventory(data.entries(), data.categories()));
     }
 
     private static CrawlData collect(LuaValue globals, Map<String, LuaTable> services) {
@@ -77,14 +73,43 @@ public final class MLuaLuaApiCrawler {
 
     private static String renderInventory(List<Entry> entries, Map<String, String> categories) {
         StringBuilder html = new StringBuilder();
-        html.append("<div class=\"lua-api-inventory\"><p>This reference follows the LuaJ tables exposed to the script. Descriptions come from class, service, method, and property registration. The crawler reads metadata without calling API functions or property accessors.</p>")
-            .append("<p>Showing ").append(entries.size()).append(" entries (maximum ").append(MAX_ENTRIES).append("). Use the filter to find a path, kind, or value.</p>")
-            .append("<label>Filter entries <input class=\"lua-api-filter\" type=\"search\" placeholder=\"Path, kind, or value\" style=\"width:min(100%,32rem);padding:8px 12px;margin:0 0 20px;background:#202227;color:#e5e7eb;border:1px solid rgba(208,217,251,.16);border-radius:6px\"></label><script>(function(){var script=document.currentScript,root=script.parentNode,input=root.querySelector('.lua-api-filter');if(!input)return;input.addEventListener('input',function(){var q=input.value.toLowerCase();root.querySelectorAll('.lua-api-row').forEach(function(row){row.hidden=row.textContent.toLowerCase().indexOf(q)===-1;});});})();</script>");
+        html.append("<div class=\"lua-api-inventory\"><p>This reference follows the Lua tables registered for this runtime. Class, service, and property descriptions come from their registrations. The scan reads tables and metadata without calling API functions or property accessors.</p>")
+            .append("<p>Showing ").append(entries.size()).append(" entries. Search by API path, kind, or value.</p>")
+            .append("<label>Search API <input class=\"lua-api-filter\" type=\"search\" placeholder=\"Search API paths, kinds, and values\"></label><script>(function(){var script=document.currentScript,root=script.parentNode,input=root.querySelector('.lua-api-filter');if(!input)return;input.addEventListener('input',function(){var q=input.value.toLowerCase();root.querySelectorAll('.lua-api-row').forEach(function(row){row.hidden=row.textContent.toLowerCase().indexOf(q)===-1;});});})();</script>");
         Map<String, List<Entry>> groups = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (Entry entry : entries) groups.computeIfAbsent(categoryForPath(entry.path, categories), ignored -> new ArrayList<>()).add(entry);
         groups.forEach((category, members) -> html.append("<section class=\"lua-api-category\"><h2>")
-            .append(escape(category)).append("</h2>").append(tableRows(members)).append("</section>"));
+            .append(escape(category)).append("</h2>").append(memberRows(members)).append("</section>"));
         return html.append("</div>").toString();
+    }
+
+    private static String memberRows(List<Entry> entries) {
+        Map<String, String> descriptions = new java.util.HashMap<>();
+        for (Entry entry : entries) {
+            if (entry.value != null && (entry.kind.equals("description")
+                || entry.kind.equals("function description")
+                || entry.kind.equals("inherited function description"))) {
+                descriptions.putIfAbsent(entry.path, entry.value);
+            }
+        }
+        StringBuilder html = new StringBuilder();
+        for (Entry entry : entries) {
+            if (entry.kind.equals("description") || entry.kind.equals("function description")
+                || entry.kind.equals("inherited function description")) continue;
+            String description = descriptions.get(entry.path);
+            if (description == null && entry.kind.startsWith("property ")) description = entry.value;
+            html.append("<article class=\"member lua-api-row\"><div class=\"member-header\"><div class=\"member-name\"><code>")
+                .append(escape(entry.path)).append("</code></div><div class=\"member-flags\"><span class=\"badge shared\">")
+                .append(escape(entry.kind)).append("</span></div></div>");
+            if (description != null && !description.isBlank()) {
+                html.append("<p class=\"member-desc\">").append(escape(description)).append("</p>");
+            }
+            if (entry.value != null && !entry.kind.startsWith("property ")) {
+                html.append("<p class=\"member-desc\">Value: <code>").append(escape(entry.value)).append("</code></p>");
+            }
+            html.append("</article>");
+        }
+        return html.toString();
     }
 
     private static String categoryForPath(String path, Map<String, String> categories) {
@@ -97,74 +122,6 @@ public final class MLuaLuaApiCrawler {
             current = current.substring(0, separator);
         }
         return "Globals";
-    }
-
-    private static Map<String, GeneratedPage> renderTypedPages(List<Entry> entries, Map<String, String> categories) {
-        Map<String, Entry> nodes = new TreeMap<>();
-        for (Entry entry : entries) {
-            String category = categoryForPath(entry.path, categories);
-            // Every registered Lua table can be an API namespace: classes and services are
-            // first-class categories, while globals and addon-defined categories are discovered
-            // from the same metadata instead of being maintained in a page allowlist.
-            if (entry.kind.startsWith("table: ") || entry.kind.equals("signal")) {
-                nodes.putIfAbsent(entry.path, entry);
-            }
-        }
-        Map<String, GeneratedPage> pages = new LinkedHashMap<>();
-        for (Map.Entry<String, Entry> node : nodes.entrySet()) {
-            if (pages.size() >= MAX_TYPED_PAGES) break;
-            String path = node.getKey();
-            List<Entry> members = entries.stream().filter(entry -> isWithin(path, entry.path)).toList();
-            if (members.size() < 2) continue;
-            boolean truncated = members.size() > MAX_PAGE_ENTRIES;
-            if (truncated) members = members.subList(0, MAX_PAGE_ENTRIES);
-            String title = node.getValue().kind.equals("signal") ? "Signal " + path : node.getValue().kind.substring("table: ".length()) + " · " + path;
-            String description = entries.stream().filter(entry -> entry.path.equals(path) && entry.kind.equals("description"))
-                .map(Entry::value).filter(java.util.Objects::nonNull).findFirst().orElse("Lua API table registered at this path.");
-            String content = "<p>" + escape(description) + "</p><p>Members on <code>" + escape(path)
-                + "</code> show the Lua API available at this table.</p>"
-                + (truncated ? "<p>This table is large; showing its first " + MAX_PAGE_ENTRIES + " entries.</p>" : "")
-                + tableRows(members) + "<p><a href=\"../../../live-lua-api.html\">Back to the complete Lua API inventory</a></p>";
-            pages.put(slug(path) + ".html", new GeneratedPage(title, path,
-                categoryForPath(path, categories), content));
-        }
-        return pages;
-    }
-
-    private static boolean isWithin(String root, String path) {
-        return path.equals(root) || path.startsWith(root + ".") || path.startsWith(root + "[");
-    }
-
-    private static String tableRows(List<Entry> entries) {
-        Map<String, String> descriptions = new java.util.HashMap<>();
-        for (Entry entry : entries) {
-            if (entry.value != null && (entry.kind.equals("description")
-                || entry.kind.equals("function description")
-                || entry.kind.equals("inherited function description"))) {
-                descriptions.putIfAbsent(entry.path, entry.value);
-            }
-        }
-        StringBuilder html = new StringBuilder("<table><thead><tr><th>Path</th><th>Kind</th><th>Description</th><th>Value</th></tr></thead><tbody>");
-        for (Entry entry : entries) {
-            if (entry.kind.equals("description") || entry.kind.equals("function description")
-                || entry.kind.equals("inherited function description")) continue;
-            String description = descriptions.get(entry.path);
-            if (description == null && entry.kind.startsWith("property ")) description = entry.value;
-            html.append("<tr class=\"lua-api-row\"><td><code>").append(escape(entry.path)).append("</code></td><td>")
-                .append(escape(entry.kind)).append("</td><td>")
-                .append(description == null ? "" : escape(description)).append("</td><td>")
-                .append(entry.value == null || entry.kind.startsWith("property ") ? "" : "<code>" + escape(entry.value) + "</code>")
-                .append("</td></tr>");
-        }
-        return html.append("</tbody></table>").toString();
-    }
-
-    private static String slug(String path) {
-        String readable = path.toLowerCase(java.util.Locale.ROOT)
-            .replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
-        String stableId = java.util.UUID.nameUUIDFromBytes(path.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-            .toString().replace("-", "");
-        return readable + "-" + stableId;
     }
 
     private static void visit(LuaValue value, String path, int depth, List<Entry> entries, IdentitySet seen) {
@@ -324,8 +281,8 @@ public final class MLuaLuaApiCrawler {
             .replace("\"", "&quot;").replace("'", "&#39;");
     }
 
-    public record CrawlResult(String inventoryHtml, Map<String, GeneratedPage> pages) { }
-    public record GeneratedPage(String title, String tablePath, String category, String html) { }
+    public record CrawlResult(String inventoryHtml) { }
+
     private record CrawlData(List<Entry> entries, Map<String, String> categories) { }
     private record Entry(String path, String kind, String value) { }
 
