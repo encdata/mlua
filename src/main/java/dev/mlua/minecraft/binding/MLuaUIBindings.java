@@ -50,7 +50,8 @@ public final class MLuaUIBindings {
         LuaTable existing = registration.classTable(name);
         if (existing != null) {
             LuaValue existingType = existing.rawget("__mlua_ui_java_type");
-            Class<?> existingJavaType = existingType.isuserdata() ? (Class<?>) existingType.touserdata() : null;
+            Object existingTypeObject = existingType.isuserdata() ? existingType.touserdata() : null;
+            Class<?> existingJavaType = existingTypeObject instanceof Class<?> javaType ? javaType : null;
             if (existingJavaType == null) {
                 throw new IllegalStateException("Lua class '" + name + "' already exists and has no native UI backing type");
             }
@@ -94,10 +95,10 @@ public final class MLuaUIBindings {
         if (parent == null) return;
         LuaValue nativeTypeValue = parent.rawget("__mlua_ui_java_type");
         if (!nativeTypeValue.isnil()) {
-            if (!nativeTypeValue.isuserdata()) {
+            Object nativeTypeObject = nativeTypeValue.isuserdata() ? nativeTypeValue.touserdata() : null;
+            if (!(nativeTypeObject instanceof Class<?> nativeType)) {
                 throw new IllegalStateException("UI parent class '" + parentName + "' has invalid native type metadata");
             }
-            Class<?> nativeType = (Class<?>) nativeTypeValue.touserdata();
             if (!nativeType.isAssignableFrom(instanceType)) {
                 throw new IllegalArgumentException("UI class '" + className + "' uses native type '"
                     + instanceType.getName() + "' which does not extend declared parent '" + parentName
