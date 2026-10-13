@@ -402,7 +402,7 @@ public final class MLuaPlayerWrapper {
          for (net.minecraft.server.level.ServerPlayer e : rawLevel.getEntitiesOfClass(net.minecraft.server.level.ServerPlayer.class, rawBox, (p) -> {
             return p != raw;
          })) {
-            list.set(i++, playerTable(MCServerPlayerImpl.fromReal(e)));
+            list.set(i++, playerTable(MCServerPlayerImpl.fromReal(e), registration));
          }
          return list;
       }));

@@ -8,6 +8,7 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
@@ -174,12 +175,12 @@ public final class MLuaPlayersService extends MLuaServiceBase {
          }
       }
       LuaTable table = MLuaEntityWrapper.entityTable(player, registration);
-      registration.attachClassInstance(table, "Player", "Entity");
+      registration.attachClassInstance(table, "Player", "LivingEntity");
       table.rawset("__entity", LuaValue.userdataOf(player));
-      table.rawset("GetIsLocalPlayer", valueFunction(() -> LuaValue.FALSE));
-      table.rawset("GetUserId", valueFunction(() -> LuaValue.valueOf(player.getId())));
-      table.rawset("GetDisplayName", valueFunction(() -> LuaValue.valueOf(player.getDisplayName().getString())));
-      table.rawset("IsOnline", valueFunction(() -> LuaValue.TRUE));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", valueFunction(() -> LuaValue.FALSE));
+      MLuaClassMethods.setInstanceMethod(table, "GetUserId", valueFunction(() -> LuaValue.valueOf(player.getId())));
+      MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", valueFunction(() -> LuaValue.valueOf(player.getDisplayName().getString())));
+      MLuaClassMethods.setInstanceMethod(table, "IsOnline", valueFunction(() -> LuaValue.TRUE));
       MLuaEntityWrapper.attachEntityProperties(table);
       MLuaEntityWrapper.cachePlayerTable(player, registration, table);
       return table;
