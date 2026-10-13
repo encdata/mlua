@@ -153,6 +153,9 @@ public final class MLuaServiceProperties {
       collectPropertyNames(setters, names);
       LuaTable documented = new LuaTable();
       for (String name : names) {
+         if (table.rawget(name).isfunction()) {
+            throw new IllegalStateException("Service member '" + name + "' cannot be both a property and a function");
+         }
          LuaTable descriptor = new LuaTable();
          descriptor.set("readable", LuaValue.valueOf(getters.rawget(name).isfunction()));
          descriptor.set("writable", LuaValue.valueOf(setters.rawget(name).isfunction()));

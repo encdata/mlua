@@ -126,6 +126,8 @@ public final class MLuaItemWrapper {
                }
                return LuaValue.valueOf(BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()).toString());
             }), "Returns the identifier of the block placed by this item.");
+         MLuaClassMethods.registerInstanceProperty(registration, "BlockItem", "BlockId", "GetBlockId", null,
+            "string", "shared:Shared", "The identifier of the block placed by this item.");
          blockItemClass.rawset("__initialized", LuaValue.TRUE);
       }
       LuaTable weaponClass = registration.registerClass("Weapon", "Item", "A scriptable weapon base for melee, ranged, thrown, and other item actions.");
