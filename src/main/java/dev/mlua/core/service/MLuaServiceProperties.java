@@ -179,6 +179,12 @@ public final class MLuaServiceProperties {
       return name.startsWith(prefix) && name.length() > prefix.length() && Character.isUpperCase(name.charAt(prefix.length()));
    }
 
+   private static String accessorProperty(String name, String prefix) {
+      if (isAccessorName(name, prefix)) return name.substring(prefix.length());
+      String javaPrefix = Character.toLowerCase(prefix.charAt(0)) + prefix.substring(1);
+      return isAccessorName(name, javaPrefix) ? name.substring(javaPrefix.length()) : null;
+   }
+
    private static void collectAccessors(LuaTable table, Map<String, LuaValue> getters, Map<String, LuaValue> setters,
                                         IdentityHashMap<LuaTable, Boolean> seen, LuaTable accessorParameterCounts) {
       if (table == null || seen.put(table, Boolean.TRUE) != null) {
@@ -202,14 +208,17 @@ public final class MLuaServiceProperties {
             continue;
          }
 
-         if (isAccessorName(name, "Get")) {
+         String getterProperty = accessorProperty(name, "Get");
+         if (getterProperty != null) {
             LuaValue parameterCount = accessorParameterCounts == null ? LuaValue.NIL : accessorParameterCounts.rawget(key);
             if (accessorParameterCounts != null && (!parameterCount.isnumber() || parameterCount.toint() != 0)) continue;
-            getters.putIfAbsent(name.substring(3), value);
-         } else if (isAccessorName(name, "Set")) {
+            getters.putIfAbsent(getterProperty, value);
+         } else {
+            String setterProperty = accessorProperty(name, "Set");
+            if (setterProperty == null) continue;
             LuaValue parameterCount = accessorParameterCounts == null ? LuaValue.NIL : accessorParameterCounts.rawget(key);
             if (accessorParameterCounts != null && (!parameterCount.isnumber() || parameterCount.toint() != 1)) continue;
-            setters.putIfAbsent(name.substring(3), value);
+            setters.putIfAbsent(setterProperty, value);
          }
       }
 
