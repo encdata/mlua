@@ -42,6 +42,7 @@ public class CombatModule implements MLuaModule {
             "A registered projectile definition that can create live projectiles.");
         MLuaClassMethods.registerInstanceMethod(registration, "ProjectileType", "Fire",
             "Fires a projectile using this definition and the supplied owner and launch settings.");
+        MLuaProjectileDefinition.registerTypeProperties(registration);
     }
 
     @Override
@@ -63,6 +64,16 @@ public class CombatModule implements MLuaModule {
             "Fires this projectile type with an owner and optional launch settings.",
             "an owner entity and optional position, direction, damage, and motion overrides",
             "Projectile", "server:Server", null);
+        docs.property("ProjectileType", "ProjectileType.Name", "string", "The registered projectile type name.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.Speed", "number", "The default launch speed in blocks per tick.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.Damage", "number", "The default hit damage.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.Gravity", "boolean", "Whether gravity affects the projectile by default.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.Piercing", "boolean", "Whether the projectile can pass through entities by default.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.MaxDistance", "number", "The maximum travel distance in blocks.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.Size", "number", "The projectile hitbox size.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.DamageSource", "string", "The registered damage source used for hits.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.FireTicks", "number", "The default fire duration applied to hit entities.", "server:Server");
+        docs.property("ProjectileType", "ProjectileType.Knockback", "number", "The default knockback applied to hit entities.", "server:Server");
         docs.signature("Combat", "Combat:DamageSourceExists(name: string)", null);
         docs.signature("Combat", "Combat:GetDamageSourceInfo(name: string)", null);
 

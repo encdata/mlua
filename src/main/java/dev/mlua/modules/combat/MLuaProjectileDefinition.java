@@ -4,6 +4,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 import dev.mlua.core.MLuaLogger;
@@ -23,6 +24,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 public class MLuaProjectileDefinition {
+   private static final String TYPE_STATE = "__mlua_projectile_type_state";
    private static final Map<Key, ProjectileDef> DEFINITIONS = new ConcurrentHashMap<>();
 
    private MLuaProjectileDefinition() {}
@@ -100,28 +102,16 @@ public class MLuaProjectileDefinition {
       }
       LuaTable table = new LuaTable();
       table.set("__side", "Server");
-      table.set("Name", name);
-      table.set("Speed", def.speed);
-      table.set("Damage", def.damage);
-      table.set("Gravity", LuaValue.valueOf(def.gravity));
-      table.set("Piercing", LuaValue.valueOf(def.piercing));
-      table.set("MaxDistance", def.maxDistance);
-      table.set("Size", def.size);
-      table.set("DamageSource", def.damageSource);
-      table.set("FireTicks", def.fireTicks);
-      table.set("Knockback", def.knockback);
       table.set("ClassName", def.className);
+      table.rawset(TYPE_STATE, LuaValue.userdataOf(new TypeState(runtimeOwner, ownerModId, name, def.speed,
+         def.damage, def.gravity, def.piercing, def.maxDistance, def.size, def.damageSource, def.fireTicks, def.knockback)));
       registration.attachClassInstance(table, "ProjectileType", null);
       MLuaClassMethods.setInstanceMethod(table, "Fire", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
-            LuaValue self = args.arg(1);
-            String typeName = self.get("Name").optjstring(null);
-            if (typeName == null) {
-               throw new LuaError("[MLua] Fire called on invalid projectile type table (missing Name)");
-            }
+            TypeState state = typeState(args.arg1());
             LuaTable fireConfig = args.arg(2).checktable();
-            return fireProjectile(runtimeOwner, ownerModId, typeName, fireConfig);
+            return fireProjectile(state.runtimeOwner, state.ownerModId, state.name, fireConfig);
          }
       });
       return table;
@@ -215,9 +205,41 @@ public class MLuaProjectileDefinition {
       DEFINITIONS.keySet().removeIf(key -> key.runtimeOwner == runtimeOwner);
    }
 
+   public static void registerTypeProperties(MLuaRegistration registration) {
+      registerTypeProperty(registration, "Name", "string", "The registered projectile type name.", state -> LuaValue.valueOf(state.name));
+      registerTypeProperty(registration, "Speed", "number", "The default launch speed in blocks per tick.", state -> LuaValue.valueOf(state.speed));
+      registerTypeProperty(registration, "Damage", "number", "The default hit damage.", state -> LuaValue.valueOf(state.damage));
+      registerTypeProperty(registration, "Gravity", "boolean", "Whether gravity affects the projectile by default.", state -> LuaValue.valueOf(state.gravity));
+      registerTypeProperty(registration, "Piercing", "boolean", "Whether the projectile can pass through entities by default.", state -> LuaValue.valueOf(state.piercing));
+      registerTypeProperty(registration, "MaxDistance", "number", "The maximum travel distance in blocks.", state -> LuaValue.valueOf(state.maxDistance));
+      registerTypeProperty(registration, "Size", "number", "The projectile hitbox size.", state -> LuaValue.valueOf(state.size));
+      registerTypeProperty(registration, "DamageSource", "string", "The registered damage source used for hits.", state -> LuaValue.valueOf(state.damageSource));
+      registerTypeProperty(registration, "FireTicks", "number", "The default fire duration applied to hit entities.", state -> LuaValue.valueOf(state.fireTicks));
+      registerTypeProperty(registration, "Knockback", "number", "The default knockback applied to hit entities.", state -> LuaValue.valueOf(state.knockback));
+   }
+
+   private static void registerTypeProperty(MLuaRegistration registration, String name, String type,
+                                           String description, java.util.function.Function<TypeState, LuaValue> getter) {
+      registration.registerClassProperty("ProjectileType", name, new OneArgFunction() {
+         @Override public LuaValue call(LuaValue self) { return getter.apply(typeState(self)); }
+      }, LuaValue.NIL, type, "server:Server", description);
+   }
+
+   private static TypeState typeState(LuaValue value) {
+      if (!value.istable()) throw new LuaError("[MLua] Expected a ProjectileType instance.");
+      LuaValue stateValue = value.checktable().rawget(TYPE_STATE);
+      Object rawState = stateValue.isuserdata() ? stateValue.touserdata() : null;
+      if (!(rawState instanceof TypeState state)) throw new LuaError("[MLua] Invalid ProjectileType instance.");
+      return state;
+   }
+
    public record Key(Object runtimeOwner, String ownerModId, String name) {
       public Key { if (ownerModId == null) ownerModId = ""; }
    }
+
+   private record TypeState(Object runtimeOwner, String ownerModId, String name, double speed, double damage,
+                            boolean gravity, boolean piercing, double maxDistance, float size,
+                            String damageSource, int fireTicks, double knockback) {}
 
    public record ProjectileDef(double speed, double damage, boolean gravity, boolean piercing, double maxDistance, int maxTicks, float size, String damageSource, int fireTicks, double knockback, LuaValue onHitEntity, LuaValue onHitBlock, LuaValue onExpired, LuaValue onTick, Object runtimeOwner, String ownerModId, MLuaContext context, String className) {}
 }
