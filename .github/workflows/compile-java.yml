@@ -81,7 +81,6 @@ jobs:
       - name: Compile or run tests
         run: >-
           gradle --no-daemon
-          --max-workers=1
           -PmluaTarget=${{ matrix.target }}
           -PmluaLoader=${{ matrix.loader }}
           :${{ matrix.loader }}:${{ matrix.target }}:compileJava
@@ -105,7 +104,6 @@ jobs:
       - name: Compile or run tests
         run: >-
           gradle --no-daemon
-          --max-workers=1
           -PmluaTarget=${{ inputs.target }}
           -PmluaLoader=fabric
           :fabric:${{ inputs.target }}:${{ inputs.check == 'test' && 'test' || 'compileJava' }}
