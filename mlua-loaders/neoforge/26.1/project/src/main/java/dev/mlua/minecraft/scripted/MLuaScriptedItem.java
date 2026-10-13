@@ -119,10 +119,17 @@ public class MLuaScriptedItem extends Item {
             var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
             LuaTable context = new LuaTable();
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-            context.set("Entity", MLuaEntityWrapper.entityTable(target, registration));
-            context.set("Attacker", MLuaEntityWrapper.entityTable(attacker, registration));
+            LuaTable targetTable = target instanceof ServerPlayer player
+                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
+                : MLuaEntityWrapper.entityTable(target, registration);
+            LuaTable attackerTable = attacker instanceof ServerPlayer player
+                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
+                : MLuaEntityWrapper.entityTable(attacker, registration);
+            context.set("Entity", targetTable);
+            context.set("Target", targetTable);
+            context.set("Attacker", attackerTable);
             if (attacker instanceof ServerPlayer player) {
-                context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration));
+                context.set("Player", attackerTable);
             }
             Varargs result = callback.invoke(context);
             if (result.arg1().isboolean() && !result.arg1().toboolean()) return false;

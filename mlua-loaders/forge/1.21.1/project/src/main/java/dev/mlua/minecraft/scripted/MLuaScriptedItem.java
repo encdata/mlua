@@ -134,9 +134,17 @@ public class MLuaScriptedItem extends Item {
          try {
             LuaTable ctx = new LuaTable();
             ctx.set("Item", MLuaItemWrapper.itemTable(stack));
-            ctx.set("Entity", MLuaEntityWrapper.entityTable(target));
+            LuaTable targetTable = target instanceof ServerPlayer player
+               ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player))
+               : MLuaEntityWrapper.entityTable(target);
+            LuaTable attackerTable = attacker instanceof ServerPlayer player
+               ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player))
+               : MLuaEntityWrapper.entityTable(attacker);
+            ctx.set("Entity", targetTable);
+            ctx.set("Target", targetTable);
+            ctx.set("Attacker", attackerTable);
             if (attacker instanceof ServerPlayer sp) {
-               ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp)));
+               ctx.set("Player", attackerTable);
             }
             ctx.set("ItemStack", this.behaviorKey);
             Varargs result = onAttack.invoke(ctx);
