@@ -244,7 +244,10 @@ public class RegistryModule implements MLuaModule {
         schema(docs, "ItemConsumeContext", "Context passed when an item is consumed.",
             "Player", "Player|nil", "Player consuming the item.", "World", "string", "World identifier.", "Item", "Item", "Live consumed item.");
         schema(docs, "ItemAttackEntityContext", "Context passed when an item attacks an entity.",
-            "Player", "Player|nil", "Player using the item.", "Entity", "Entity", "Target entity.",
+            "Player", "Player|nil", "Player attacking with the item, when available.",
+            "Attacker", "Entity|Player", "Entity performing the attack.",
+            "Target", "Entity|Player", "Entity receiving the attack.",
+            "Entity", "Entity|Player", "Alias for Target.",
             "Item", "Item", "Live item instance.", "ItemStack", "string", "Item stack description.");
         schema(docs, "BlockDefinition", "Properties and callbacks for a registered block.",
             "onRightClick?", "fun(player: Player, x: number, y: number, z: number): boolean", "Handles a right-click interaction.",
