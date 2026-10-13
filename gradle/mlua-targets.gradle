@@ -123,3 +123,27 @@ ext.registerMergedTree = { Project projectRef, String taskName, List<File> roots
         into(projectRef.layout.buildDirectory.dir("generated/${taskName}"))
     }
 }
+
+rootProject.ext.filterMluaVersionMarkers = { Project projectRef, File directory, String targetVersion ->
+    projectRef.fileTree(directory).matching { include '**/*.java' }.each { file ->
+        def filtered = []
+        def activeVersion = null
+        def justEndedVersion = false
+        file.readLines().each { line ->
+            def trimmed = line.trim()
+            if (trimmed.startsWith('//--version ')) {
+                def versions = trimmed.substring('//--version '.length()).tokenize(',')*.trim()
+                activeVersion = versions.contains(targetVersion) ? null : versions
+            } else if (trimmed == '//--endversion') {
+                activeVersion = null
+                justEndedVersion = true
+            } else if (justEndedVersion && trimmed.isEmpty()) {
+                justEndedVersion = false
+            } else {
+                justEndedVersion = false
+                if (activeVersion == null) filtered << line
+            }
+        }
+        file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+    }
+}
