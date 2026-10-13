@@ -24,6 +24,9 @@ public final class MLuaClientModels {
    private MLuaClientModels() {
    }
 
+   public static void registerEntityRenderers() {
+   }
+
    @SubscribeEvent
    @SuppressWarnings({"rawtypes", "unchecked"})
    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {

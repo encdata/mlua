@@ -23,6 +23,13 @@ def loader_version_range = resolveMluaTargetValue(targetVersion, 'loaderVersionR
 def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
 def prepareForgeVersionSources = registerMergedTree(project, 'prepareForgeVersionSources',
     targetPathChain('mlua-versions/forge/%s', targetVersion))
+prepareForgeVersionSources.configure {
+    targetPathChain('mlua-versions/common/%s', targetVersion).each { root ->
+        from(root) {
+            include 'dev/mlua/mc/impl/core/MCResourceLocationBinding.java'
+        }
+    }
+}
 def prepareForgeProjectSources = registerMergedTree(project, 'prepareForgeProjectSources',
     targetPathChain('mlua-loaders/forge/%s/project/src/main/java', targetVersion))
 def prepareForgeProjectResources = registerMergedTree(project, 'prepareForgeProjectResources',
