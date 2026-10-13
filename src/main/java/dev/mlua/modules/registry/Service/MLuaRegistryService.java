@@ -587,6 +587,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             String key = owner + ":" + name;
+            String className = propsTable != null ? propsTable.get("className").optjstring("ScriptedEntity") : "ScriptedEntity";
+            dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
+            if (registration.classTable(className) == null || !MLuaRegistryService.classInheritsFrom(registration, className, "ScriptedEntity", new java.util.HashSet<>())) {
+               throw new LuaError("[MLua] Entity class '" + className + "' must be registered and inherit from ScriptedEntity");
+            }
              LuaValue onTick = propsTable != null ? propsTable.get("onTick") : LuaValue.NIL;
              LuaValue onHurt = propsTable != null ? propsTable.get("onHurt") : LuaValue.NIL;
              LuaValue onDeath = propsTable != null ? propsTable.get("onDeath") : LuaValue.NIL;
@@ -625,7 +630,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              float shadowRadius = propsTable != null ? (float)propsTable.get("shadowRadius").optdouble(0.5) : 0.5F;
              MobCategory category = MLuaRegistryService.mobCategory(propsTable);
              EntityType.EntityFactory<MLuaScriptedEntity> factory = (type, level) -> {
-                return new MLuaScriptedEntity((EntityType<? extends MLuaScriptedEntity>)(EntityType<?>)type, level, key);
+                return new MLuaScriptedEntity((EntityType<? extends MLuaScriptedEntity>)(EntityType<?>)type, level, key, className);
              };
              EntityType.Builder<MLuaScriptedEntity> builder = Builder.of(factory, category).sized((float)width, (float)height).clientTrackingRange(trackingRange).updateInterval(updateInterval);
              Supplier<AttributeSupplier> attrSupplier = () -> {
@@ -1068,6 +1073,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (!callback.isnil() && !callback.isfunction()) {
          throw new LuaError("[MLua] Registry callback '" + name + "' must be a function");
       }
+   }
+
+   private static boolean classInheritsFrom(dev.mlua.module.MLuaRegistration registration, String className,
+                                            String targetName, java.util.Set<String> visited) {
+      if (targetName.equals(className)) return true;
+      if (!visited.add(className)) return false;
+      LuaTable classTable = registration.classTable(className);
+      if (classTable == null) return false;
+      LuaValue parents = classTable.rawget("__mlua_doc_parents");
+      if (!parents.istable()) return false;
+      LuaTable parentTable = parents.checktable();
+      for (int index = 1; index <= parentTable.length(); index++) {
+         String parentName = parentTable.get(index).optjstring("");
+         if (!parentName.isBlank() && classInheritsFrom(registration, parentName, targetName, visited)) return true;
+      }
+      return false;
    }
 
    private static void validateEntityAI(LuaValue ai) {

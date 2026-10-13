@@ -46,6 +46,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 public class MLuaScriptedEntity extends PathfinderMob {
    private final String behaviorKey;
+   private final String className;
    private LuaTable methodsMT;
    private CompoundTag persistentData = new CompoundTag();
    private int animationSyncCounter;
@@ -58,8 +59,13 @@ public class MLuaScriptedEntity extends PathfinderMob {
    private boolean aiDisabled;
 
    public MLuaScriptedEntity(EntityType<? extends MLuaScriptedEntity> type, Level level, String behaviorKey) {
+      this(type, level, behaviorKey, "ScriptedEntity");
+   }
+
+   public MLuaScriptedEntity(EntityType<? extends MLuaScriptedEntity> type, Level level, String behaviorKey, String className) {
       super(type, level);
       this.behaviorKey = behaviorKey;
+      this.className = className == null || className.isBlank() ? "ScriptedEntity" : className;
       if (this.getNavigation() instanceof GroundPathNavigation groundNavigation) {
          groundNavigation.setCanOpenDoors(true);
          groundNavigation.setCanPassDoors(true);
@@ -212,7 +218,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (registration.classTable("ScriptedEntity") == null) {
          throw new IllegalStateException("ScriptedEntity class must be registered before creating scripted entities");
       }
-      registration.attachClassInstance(table, "ScriptedEntity", "LivingEntity");
+      registration.attachClassInstance(table, this.className, "ScriptedEntity");
       LuaTable methods = this.entityMethods().get("__index").checktable();
       LuaValue key = LuaValue.NIL;
       while (true) {
