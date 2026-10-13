@@ -7,6 +7,8 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.modules.bossbar.Service.MLuaBossBarService;
 import java.util.List;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.OneArgFunction;
 
 public class BossBarModule implements MLuaModule {
     @Override public String id() { return "bossbar"; }
@@ -34,6 +36,9 @@ public class BossBarModule implements MLuaModule {
     @Override public void registerClasses(MLuaRegistration registration) {
         registration.registerClass("BossBarHandle", registration.requireInstanceBaseClassName(),
             "A live handle for reading, updating, and removing a server boss bar.");
+        registration.registerClassProperty("BossBarHandle", "Name", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return self.checktable().rawget("__name"); }
+        }, LuaValue.NIL, "string", "server:Server", "The registered name of this boss bar.");
         MLuaClassMethods.registerInstanceMethod(registration, "BossBarHandle", "SetTitle", "Changes the boss bar title.");
         MLuaClassMethods.registerInstanceMethod(registration, "BossBarHandle", "SetHealth", "Sets the displayed progress from zero to one.");
         MLuaClassMethods.registerInstanceMethod(registration, "BossBarHandle", "SetColor", "Sets the boss bar color by name.");
@@ -61,6 +66,7 @@ public class BossBarModule implements MLuaModule {
     @Override public void contributeDocs(MLuaDocBuilder docs) {
         docs.service("BossBar", "MLuaBossBarService", "Creates and manages server boss bars.", "services/boss-bar.html");
         docs.clazz("BossBarHandle", "MLuaBossBarService", "A live handle for reading, updating, and removing a server boss bar.", "classes/boss-bar-handle.html", "Instance");
+        docs.property("BossBarHandle", "BossBarHandle.Name", "string", "The registered name of this boss bar.", "server:Server");
         docs.property("BossBarHandle", "BossBarHandle.Title", "string", "Gets or changes the boss bar title.", "server:Server");
         docs.property("BossBarHandle", "BossBarHandle.Health", "number", "Gets or changes the displayed progress from zero to one.", "server:Server");
         docs.property("BossBarHandle", "BossBarHandle.Color", "string", "Gets or changes the boss bar color.", "server:Server");

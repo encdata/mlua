@@ -56,6 +56,13 @@ public class CombatModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.clazz("ProjectileType", "MLuaProjectileDefinition",
+            "A registered projectile definition that creates live Projectile instances.",
+            "classes/projectile-type.html", "Instance");
+        docs.method("ProjectileType", "ProjectileType:Fire(config: ProjectileDefinition): Projectile",
+            "Fires this projectile type with an owner and optional launch settings.",
+            "an owner entity and optional position, direction, damage, and motion overrides",
+            "Projectile", "server:Server", null);
         docs.signature("Combat", "Combat:DamageSourceExists(name: string)", null);
         docs.signature("Combat", "Combat:GetDamageSourceInfo(name: string)", null);
 

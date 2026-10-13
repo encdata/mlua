@@ -9,6 +9,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectile;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectileType;
@@ -110,7 +111,8 @@ public class MLuaProjectileDefinition {
       table.set("FireTicks", def.fireTicks);
       table.set("Knockback", def.knockback);
       table.set("ClassName", def.className);
-      table.set("Fire", new VarArgFunction() {
+      registration.attachClassInstance(table, "ProjectileType", null);
+      MLuaClassMethods.setInstanceMethod(table, "Fire", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             LuaValue self = args.arg(1);
@@ -122,7 +124,7 @@ public class MLuaProjectileDefinition {
             return fireProjectile(runtimeOwner, ownerModId, typeName, fireConfig);
          }
       });
-      return registration.attachClassInstance(table, "ProjectileType", null);
+      return table;
    }
 
    private static LuaValue fireProjectile(Object runtimeOwner, String ownerModId, String typeName, LuaTable config) {
