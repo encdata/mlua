@@ -195,8 +195,7 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
             (world, args) -> LuaValue.valueOf(world.getMaxY())));
         bindWorldMethod(result, implementations, "GetSpawnPosition", levelFunction(level,
             (world, args) -> {
-                if (!(world instanceof ServerLevel serverLevel)) return LuaValue.NIL;
-                BlockPos spawn = serverLevel.getWorldBorderAdjustedRespawnData(serverLevel.getRespawnData()).pos();
+                BlockPos spawn = world.getWorldBorderAdjustedRespawnData(world.getRespawnData()).pos();
                 return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
             }));
         bindWorldMethod(result, implementations, "IsDay", levelFunction(level,
@@ -567,7 +566,8 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
         GameRules rules = serverLevel.getGameRules();
         LuaTable table = new LuaTable();
         int index = 1;
-        List<GameRule<?>> availableRules = rules.availableRules().sorted(java.util.Comparator.comparing(GameRule::id)).toList();
+        List<GameRule<?>> availableRules = new ArrayList<>(rules.availableRules().toList());
+        availableRules.sort((left, right) -> left.id().compareTo(right.id()));
         for (GameRule<?> rule : availableRules) {
             String name = rule.getIdentifier().getPath();
             LuaValue value = gameRuleValue(rules, rule);
@@ -597,7 +597,7 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
         String serialized = value.isboolean() ? Boolean.toString(value.toboolean()) : value.tojstring();
         var parsed = rule.deserialize(serialized);
         if (parsed.error().isPresent()) {
-            throw new LuaError("[MLua] Invalid value for gamerule " + name + ": " + parsed.error().get().message());
+            throw new LuaError("[MLua] Invalid value for gamerule " + name + ": " + parsed.error().get());
         }
         rules.set(rule, parsed.result().orElseThrow(), context.mlua().server());
     }
