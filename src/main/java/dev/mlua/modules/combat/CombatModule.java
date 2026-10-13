@@ -70,6 +70,7 @@ public class CombatModule implements MLuaModule {
         docs.field("ProjectileDefinition", "DamageSource?", "string", "Registered damage source identifier.");
         docs.field("ProjectileDefinition", "FireTicks?", "number", "How long a hit entity burns, in ticks.");
         docs.field("ProjectileDefinition", "Knockback?", "number", "Knockback strength applied on an entity hit.");
+        docs.field("ProjectileDefinition", "className?", "string", "Registered Lua class inheriting from Projectile.");
         docs.field("ProjectileDefinition", "OnHitEntity?", "fun(context: ProjectileHitEntityContext)", "Runs on the server before configured projectile damage is applied.");
         docs.field("ProjectileDefinition", "OnHitBlock?", "fun(context: ProjectileHitBlockContext)", "Runs on the server when the projectile hits a block.");
         docs.field("ProjectileDefinition", "OnExpired?", "fun(context: ProjectileContext)", "Runs on the server when the projectile expires.");
