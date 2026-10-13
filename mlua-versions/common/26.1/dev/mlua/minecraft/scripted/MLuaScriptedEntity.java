@@ -33,7 +33,10 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
@@ -68,7 +71,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       this.className = className == null || className.isBlank() ? "ScriptedEntity" : className;
       if (this.getNavigation() instanceof GroundPathNavigation groundNavigation) {
          groundNavigation.setCanOpenDoors(true);
-         groundNavigation.setCanPassDoors(true);
+         groundNavigation.setCanOpenDoors(true);
       }
    }
 
@@ -115,9 +118,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
       }
    }
 
-   public boolean hurt(DamageSource source, float amount) {
-      boolean result = super.hurt(source, amount);
-      if (result && !this.level().isClientSide && this.behaviorKey != null) {
+   public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+      boolean result = super.hurtServer(level, source, amount);
+      if (result && this.behaviorKey != null) {
          LuaValue onHurt = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onHurt");
          if (!onHurt.isnil()) {
             try {
@@ -466,7 +469,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          public Varargs invoke(Varargs args) {
             if (MLuaScriptedEntity.this.getNavigation() instanceof GroundPathNavigation groundNavigation) {
                boolean enabled = args.arg(2).optboolean(true);
-               groundNavigation.setCanPassDoors(enabled);
+               groundNavigation.setCanOpenDoors(enabled);
                return LuaValue.valueOf(true);
             }
             return LuaValue.valueOf(false);
@@ -545,7 +548,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
                return LuaValue.valueOf(false);
             }
             MLuaScriptedEntity.this.swing(MLuaScriptedEntity.this.getUsedItemHand());
-            boolean hit = MLuaScriptedEntity.this.doHurtTarget(other);
+            boolean hit = MLuaScriptedEntity.this.doHurtTarget((ServerLevel)MLuaScriptedEntity.this.level(), other);
             if (hit) MLuaScriptedEntity.this.meleeCooldown = Math.max(1, Math.min(200, args.arg(3).optint(20)));
             return LuaValue.valueOf(hit);
          }
@@ -555,24 +558,20 @@ public class MLuaScriptedEntity extends PathfinderMob {
       return this.methodsMT;
    }
 
-   public void addAdditionalSaveData(CompoundTag tag) {
-      super.addAdditionalSaveData(tag);
-      tag.put("MLuaData", this.persistentData);
+   protected void addAdditionalSaveData(ValueOutput output) {
+      super.addAdditionalSaveData(output);
+      output.store("MLuaData", CompoundTag.CODEC, this.persistentData);
       if (this.aiState != null) {
-         tag.putString("MLuaAIState", this.aiState);
-         tag.putInt("MLuaAIStateTicks", this.aiStateTicks);
+         output.putString("MLuaAIState", this.aiState);
+         output.putInt("MLuaAIStateTicks", this.aiStateTicks);
       }
    }
 
-   public void readAdditionalSaveData(CompoundTag tag) {
-      super.readAdditionalSaveData(tag);
-      if (tag.contains("MLuaData")) {
-         this.persistentData = tag.getCompound("MLuaData");
-      }
-      if (tag.contains("MLuaAIState")) {
-         this.aiState = tag.getString("MLuaAIState");
-         this.aiStateTicks = Math.max(0, tag.getInt("MLuaAIStateTicks"));
-      }
+   protected void readAdditionalSaveData(ValueInput input) {
+      super.readAdditionalSaveData(input);
+      this.persistentData = input.read("MLuaData", CompoundTag.CODEC).orElseGet(CompoundTag::new);
+      this.aiState = input.getString("MLuaAIState").orElse(null);
+      this.aiStateTicks = Math.max(0, input.getIntOr("MLuaAIStateTicks", 0));
    }
 
    private void tickScriptedAI(LuaValue definition) {
@@ -646,7 +645,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          }
          return list;
       } else if (tag instanceof net.minecraft.nbt.ByteTag bt) {
-         return LuaValue.valueOf(bt.getAsByte() != 0);
+         return LuaValue.valueOf(bt.byteValue() != 0);
       }
       return LuaValue.NIL;
    }

@@ -8,6 +8,7 @@ import java.util.Map;
 
 public final class MLuaBehaviorRegistry {
    private static final ConcurrentMap<String, ConcurrentMap<String, Map<String, LuaValue>>> SCRIPTED_BEHAVIORS = new ConcurrentHashMap<>();
+   private static final ConcurrentMap<String, ConcurrentMap<String, String>> CONTENT_CLASSES = new ConcurrentHashMap<>();
    private static final ConcurrentMap<String, ContainerDefinition> BLOCK_CONTAINERS = new ConcurrentHashMap<>();
    private static final ConcurrentMap<String, ContainerDefinition> CONTAINER_TYPES = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, Integer> ENTITY_AI_INTERVAL = new ConcurrentHashMap();
@@ -85,6 +86,29 @@ public final class MLuaBehaviorRegistry {
       return getBehavior(domain, key, event);
    }
 
+   public static void registerContentClass(String domain, String key, String className) {
+      if (domain == null || domain.isBlank() || key == null || key.isBlank()) {
+         throw new IllegalArgumentException("Scripted content domain and key must be non-empty");
+      }
+      if (className == null || className.isBlank()) {
+         CONTENT_CLASSES.computeIfPresent(domain, (ignoredDomain, definitions) -> {
+            definitions.remove(key);
+            return definitions.isEmpty() ? null : definitions;
+         });
+         return;
+      }
+      CONTENT_CLASSES.compute(domain, (ignoredDomain, definitions) -> {
+         ConcurrentMap<String, String> result = definitions == null ? new ConcurrentHashMap<>() : definitions;
+         result.put(key, className);
+         return result;
+      });
+   }
+
+   public static String getContentClass(String domain, String key) {
+      ConcurrentMap<String, String> definitions = CONTENT_CLASSES.get(domain);
+      return definitions == null ? null : definitions.get(key);
+   }
+
    private static void clearBehaviors(String domain, String key) {
       SCRIPTED_BEHAVIORS.computeIfPresent(domain, (ignoredDomain, definitions) -> {
          definitions.remove(key);
@@ -134,6 +158,10 @@ public final class MLuaBehaviorRegistry {
       String prefix = owner.trim() + ":";
       SCRIPTED_BEHAVIORS.forEach((domain, ignored) -> SCRIPTED_BEHAVIORS.computeIfPresent(domain, (domainKey, definitions) -> {
          definitions.keySet().removeIf(behaviorKey -> behaviorKey.startsWith(prefix));
+         return definitions.isEmpty() ? null : definitions;
+      }));
+      CONTENT_CLASSES.forEach((domain, ignored) -> CONTENT_CLASSES.computeIfPresent(domain, (domainKey, definitions) -> {
+         definitions.keySet().removeIf(key -> key.startsWith(prefix));
          return definitions.isEmpty() ? null : definitions;
       }));
       BLOCK_CONTAINERS.keySet().removeIf(key -> key.startsWith(prefix));

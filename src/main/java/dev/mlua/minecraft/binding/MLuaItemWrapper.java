@@ -3,6 +3,7 @@ package dev.mlua.minecraft.binding;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
+import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.mc.impl.core.MCComponentImpl;
@@ -38,7 +39,9 @@ public final class MLuaItemWrapper {
       LuaTable fields = new LuaTable();
       fields.rawset("__side", LuaValue.valueOf("Shared"));
       fields.rawset("__item_stack", LuaValue.userdataOf(stack));
-      LuaTable table = registration.createClassInstance("Item", fields);
+      String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+      String className = MLuaBehaviorRegistry.getContentClass("item", itemId);
+      LuaTable table = registration.createClassInstance(className == null ? "Item" : className, fields);
       return MLuaServiceProperties.attach(table);
    }
 

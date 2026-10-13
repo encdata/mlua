@@ -216,6 +216,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             Map<String, Object> props = MLuaLuaBindings.mapFromLua(propsTable);
             MLuaRegistryService.this.itemFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
+            dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
+            String className = MLuaRegistryService.requireContentClass(registration, propsTable, "Item");
             boolean hasCallbacks = registerItemCallbacks(propsTable, key);
             boolean copyModel = MLuaRegistryService.booleanProperty(propsTable, "copyModel", "CopyModel");
             MLuaTextureDescriptor itemTexture = MLuaRegistryService.textureDescriptor(propsTable, "itemTexture", "texture", "textures", "ItemTexture", "Texture", "Textures").resolve(owner, "item");
@@ -234,6 +236,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             }
 
             MLuaLoaderRegistry.setItemVisuals(owner, name, itemTexture, itemModel);
+            MLuaBehaviorRegistry.registerContentClass("item", key, "Item".equals(className) ? null : className);
             return LuaValue.NONE;
          }
       });
@@ -247,6 +250,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             Map<String, Object> props = new HashMap(MLuaLuaBindings.mapFromLua(propsTable));
             MLuaBlockFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
+            dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
+            String className = MLuaRegistryService.requireContentClass(registration, propsTable, "Block");
             MLuaBehaviorRegistry.clearBlockCallbacks(key);
             MLuaBehaviorRegistry.ContainerDefinition containerDefinition = null;
             if (propsTable != null) {
@@ -293,6 +298,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                      return MLuaRegistryService.this.blockFactory.createScripted(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
                   });
                   MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
+                  MLuaBehaviorRegistry.registerContentClass("block", key, "Block".equals(className) ? null : className);
                   return LuaValue.NONE;
                }
             }
@@ -301,6 +307,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                return MLuaRegistryService.this.blockFactory.create(props, name, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
             });
             MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
+            MLuaBehaviorRegistry.registerContentClass("block", key, "Block".equals(className) ? null : className);
             return LuaValue.NONE;
          }
       });
@@ -617,11 +624,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             String key = owner + ":" + name;
-            String className = propsTable != null ? propsTable.get("className").optjstring("ScriptedEntity") : "ScriptedEntity";
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
-            if (registration.classTable(className) == null || !registration.isSubclassOf(className, "ScriptedEntity")) {
-               throw new LuaError("[MLua] Entity class '" + className + "' must be registered and inherit from ScriptedEntity");
-            }
+            String className = MLuaRegistryService.requireContentClass(registration, propsTable, "ScriptedEntity");
              LuaValue onTick = propsTable != null ? propsTable.get("onTick") : LuaValue.NIL;
              LuaValue onHurt = propsTable != null ? propsTable.get("onHurt") : LuaValue.NIL;
              LuaValue onDeath = propsTable != null ? propsTable.get("onDeath") : LuaValue.NIL;
@@ -1103,6 +1107,17 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (!callback.isnil() && !callback.isfunction()) {
          throw new LuaError("[MLua] Registry callback '" + name + "' must be a function");
       }
+   }
+
+   private static String requireContentClass(dev.mlua.module.MLuaRegistration registration, LuaTable definition,
+                                             String parentClass) {
+      String className = stringProperty(definition, "className", "ClassName");
+      if (className == null) return parentClass;
+      if (className.isBlank() || registration.classTable(className) == null
+          || !registration.isSubclassOf(className, parentClass)) {
+         throw new LuaError("[MLua] Content class '" + className + "' must be registered and inherit from " + parentClass);
+      }
+      return className;
    }
 
    private static void validateEntityAI(LuaValue ai) {
