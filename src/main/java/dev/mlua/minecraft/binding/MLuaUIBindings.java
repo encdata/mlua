@@ -1,6 +1,7 @@
 package dev.mlua.minecraft.binding;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -78,9 +79,41 @@ public final class MLuaUIBindings {
                 throw new IllegalArgumentException("UI class '" + name + "' parent '" + parentName
                     + "' must inherit from GuiBase");
             }
+            if (!uiRootParent) {
+                validateNativeParentType(name, parentName, instanceType, registration, new HashSet<>());
+            }
             parentTables[index] = parent;
         }
         return registerClass(registration, name, instanceType, factory, description, parentTables);
+    }
+
+    private static void validateNativeParentType(String className, String parentName, Class<?> instanceType,
+                                                 MLuaRegistration registration, java.util.Set<String> visited) {
+        if (!visited.add(parentName)) return;
+        LuaTable parent = registration.classTable(parentName);
+        if (parent == null) return;
+        LuaValue nativeTypeValue = parent.rawget("__mlua_ui_java_type");
+        if (!nativeTypeValue.isnil()) {
+            if (!nativeTypeValue.isuserdata()) {
+                throw new IllegalStateException("UI parent class '" + parentName + "' has invalid native type metadata");
+            }
+            Class<?> nativeType = (Class<?>) nativeTypeValue.touserdata();
+            if (!nativeType.isAssignableFrom(instanceType)) {
+                throw new IllegalArgumentException("UI class '" + className + "' uses native type '"
+                    + instanceType.getName() + "' which does not extend declared parent '" + parentName
+                    + "' backed by '" + nativeType.getName() + "'");
+            }
+            return;
+        }
+        LuaValue parentsValue = parent.rawget("__mlua_doc_parents");
+        if (!parentsValue.istable()) return;
+        LuaTable parents = parentsValue.checktable();
+        for (int index = 1; index <= parents.length(); index++) {
+            LuaValue inheritedParent = parents.rawget(index);
+            if (inheritedParent.isstring()) {
+                validateNativeParentType(className, inheritedParent.tojstring(), instanceType, registration, visited);
+            }
+        }
     }
 
     public static LuaTable uiObjectTable(MLuaRegistration registration, MLuaTaskSchedulerView scheduler) {
