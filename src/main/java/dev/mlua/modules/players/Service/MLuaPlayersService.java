@@ -154,7 +154,7 @@ public final class MLuaPlayersService extends MLuaServiceBase {
    }
 
    public static LuaTable playerTable(ServerPlayer player) {
-      return playerTable(player, dev.mlua.core.MLuaRuntime.get());
+      return playerTable(player, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(player.level()));
    }
 
    public static LuaTable playerTable(ServerPlayer player, dev.mlua.module.MLuaRegistration registration) {

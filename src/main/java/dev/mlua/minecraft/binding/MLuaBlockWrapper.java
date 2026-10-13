@@ -39,7 +39,7 @@ public final class MLuaBlockWrapper {
    }
 
    public static LuaTable blockTable(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
-      return blockTable(level, pos, MLuaRuntime.get());
+      return blockTable(level, pos, dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration.forLevel(level));
    }
 
    public static LuaTable blockTable(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, MLuaRegistration registration) {
