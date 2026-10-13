@@ -1787,11 +1787,16 @@ function deactivate() {}
    }
 
    private static String codeBlock(String code) {
-      boolean lua = code.contains("Minecraft:GetService") || code.contains(":Connect")
-         || code.contains("local ") || code.contains("function(") || code.matches("(?s).*\\bend\\b.*");
+      boolean plainText = code.contains("<game directory>") || code.contains("src/main/resources/")
+         || code.endsWith(".lua") || code.endsWith("/");
+      boolean java = !plainText && (code.contains("import ") || code.contains("public ")
+         || code.contains("private ") || code.contains("MLuaApi") || code.contains("@Override")
+         || code.contains("new "));
+      boolean lua = !plainText && !java;
       Set<String> keywords = lua
          ? Set.of("and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while", "goto", "continue")
-         : Set.of("abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally", "float", "for", "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "null", "package", "private", "protected", "public", "return", "short", "static", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while", "var", "yield", "record", "sealed", "permits");
+         : java ? Set.of("abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally", "float", "for", "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "null", "package", "private", "protected", "public", "return", "short", "static", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while", "var", "yield", "record", "sealed", "permits")
+         : Set.of();
       StringBuilder highlighted = new StringBuilder();
       int index = 0;
       while (index < code.length()) {
@@ -1830,7 +1835,8 @@ function deactivate() {}
             appendCodeToken(highlighted, code.substring(start, index), null);
          }
       }
-      return "<pre><code class=\"language-" + (lua ? "lua" : "java") + "\">" + highlighted + "</code></pre>";
+      String language = plainText ? "text" : java ? "java" : "lua";
+      return "<pre><code class=\"language-" + language + "\">" + highlighted + "</code></pre>";
    }
 
    private static void appendCodeToken(StringBuilder output, String token, String style) {
