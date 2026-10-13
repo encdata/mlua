@@ -51,7 +51,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-      LuaValue onRightClick = MLuaBehaviorRegistry.getBlockOnRightClick(this.behaviorKey);
+      LuaValue onRightClick = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRightClick");
       if (!onRightClick.isnil()) {
          if (level.isClientSide) {
             return InteractionResult.sidedSuccess(true);
@@ -87,7 +87,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    public void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
-      LuaValue onEntityInside = MLuaBehaviorRegistry.getBlockOnEntityInside(this.behaviorKey);
+      LuaValue onEntityInside = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onEntityInside");
       if (!onEntityInside.isnil() && !level.isClientSide) {
          try {
             LuaTable ctx = this.entityContext(level, pos, entity);
@@ -107,7 +107,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, BlockPos fromPos, boolean movedByPiston) {
-      LuaValue onNeighborChanged = MLuaBehaviorRegistry.getBlockOnNeighborChanged(this.behaviorKey);
+      LuaValue onNeighborChanged = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onNeighborChanged");
       if (!onNeighborChanged.isnil() && !level.isClientSide) {
          try {
             LuaTable ctx = new LuaTable();
@@ -125,7 +125,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-      LuaValue onRemove = MLuaBehaviorRegistry.getBlockOnRemove(this.behaviorKey);
+      LuaValue onRemove = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRemove");
       if (!onRemove.isnil() && !level.isClientSide) {
          try {
             LuaTable ctx = new LuaTable();
@@ -142,7 +142,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-      LuaValue onRandomTick = MLuaBehaviorRegistry.getBlockOnRandomTick(this.behaviorKey);
+      LuaValue onRandomTick = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRandomTick");
       if (!onRandomTick.isnil()) {
          try {
             LuaTable ctx = this.createContext(level, pos, null, null);
@@ -156,7 +156,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    public void fallOn(Level level, BlockState state, BlockPos pos, Entity entity, float fallDistance) {
-      LuaValue onFallOn = MLuaBehaviorRegistry.getBlockOnFallOn(this.behaviorKey);
+      LuaValue onFallOn = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onFallOn");
       if (!onFallOn.isnil() && !level.isClientSide) {
          try {
             LuaTable ctx = this.entityContext(level, pos, entity);
@@ -170,7 +170,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    public void onProjectileHit(Level level, BlockState state, BlockHitResult hitResult, Projectile projectile) {
-      LuaValue onProjectileHit = MLuaBehaviorRegistry.getBlockOnProjectileHit(this.behaviorKey);
+      LuaValue onProjectileHit = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onProjectileHit");
       if (!onProjectileHit.isnil() && !level.isClientSide) {
          try {
             LuaTable ctx = new LuaTable();

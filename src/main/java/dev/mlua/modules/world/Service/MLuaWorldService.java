@@ -687,7 +687,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       });
    }
 
-   private static LuaValue varArg(Function<Varargs, LuaValue> fn) {
+   private static LuaValue varArg(Function<Varargs, Varargs> fn) {
       return new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             try {

@@ -24,6 +24,10 @@ public final class MLuaClientModels {
    private MLuaClientModels() {
    }
 
+   /** NeoForge registers entity renderers through RegisterRenderersEvent. */
+   public static void registerEntityRenderers() {
+   }
+
    @SubscribeEvent
    @SuppressWarnings({"rawtypes", "unchecked"})
    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {

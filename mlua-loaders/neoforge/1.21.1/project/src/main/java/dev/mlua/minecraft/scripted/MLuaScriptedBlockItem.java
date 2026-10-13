@@ -65,7 +65,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        LuaValue onUse = MLuaBehaviorRegistry.getItemOnUse(this.behaviorKey);
+        LuaValue onUse = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUse");
         if (!onUse.isnil()) {
             try {
                 LuaTable ctx = this.createContext(player, hand);
@@ -81,7 +81,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public InteractionResult useOn(UseOnContext context) {
-        LuaValue onUseOnBlock = MLuaBehaviorRegistry.getItemOnUseOnBlock(this.behaviorKey);
+        LuaValue onUseOnBlock = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUseOnBlock");
         if (!onUseOnBlock.isnil()) {
             try {
                 LuaTable ctx = this.createUseOnBlockContext(context);
@@ -97,7 +97,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
-        LuaValue onConsume = MLuaBehaviorRegistry.getItemOnConsume(this.behaviorKey);
+        LuaValue onConsume = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onConsume");
         if (!onConsume.isnil()) {
             try {
                 LuaTable ctx = new LuaTable();
@@ -115,7 +115,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-        LuaValue onInventoryTick = MLuaBehaviorRegistry.getItemOnInventoryTick(this.behaviorKey);
+        LuaValue onInventoryTick = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onInventoryTick");
         if (!onInventoryTick.isnil()) {
             try {
                 LuaTable ctx = this.createInventoryContext(stack, level, entity, slot, selected);
@@ -128,7 +128,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public void onCraftedBy(ItemStack stack, Level level, Player player) {
-        LuaValue onCrafted = MLuaBehaviorRegistry.getItemOnCrafted(this.behaviorKey);
+        LuaValue onCrafted = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onCrafted");
         if (!onCrafted.isnil()) {
             try {
                 LuaTable ctx = this.createContext(player, player.getUsedItemHand());

@@ -48,7 +48,7 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 
    public boolean applyEffectTick(LivingEntity entity, int amplifier) {
       if (!entity.level().isClientSide) {
-         this.invoke("onTick", MLuaBehaviorRegistry.getEffectOnTick(this.behaviorKey), effectContext(entity, amplifier));
+         this.invoke("onTick", MLuaBehaviorRegistry.getBehavior("effect", this.behaviorKey, "onTick"), effectContext(entity, amplifier));
       }
       return true;
    }
@@ -57,25 +57,25 @@ public final class MLuaScriptedMobEffect extends MobEffect {
       if (!entity.level().isClientSide) {
          LuaTable ctx = effectContext(entity, amplifier);
          ctx.set("Instant", LuaValue.TRUE);
-         this.invoke("onApplied", MLuaBehaviorRegistry.getEffectOnApplied(this.behaviorKey), ctx);
-         this.invoke("onEnding", MLuaBehaviorRegistry.getEffectOnEnding(this.behaviorKey), ctx);
+         this.invoke("onApplied", MLuaBehaviorRegistry.getBehavior("effect", this.behaviorKey, "onApplied"), ctx);
+         this.invoke("onEnding", MLuaBehaviorRegistry.getBehavior("effect", this.behaviorKey, "onEnding"), ctx);
       }
    }
 
    public boolean shouldApplyEffectTickThisTick(int duration, int amplifier) {
-      return !MLuaBehaviorRegistry.getEffectOnTick(this.behaviorKey).isnil() && duration > 0 && duration % this.tickInterval == 0;
+      return !MLuaBehaviorRegistry.getBehavior("effect", this.behaviorKey, "onTick").isnil() && duration > 0 && duration % this.tickInterval == 0;
    }
 
    public void onEffectAdded(LivingEntity entity, int amplifier) {
       super.onEffectAdded(entity, amplifier);
       if (!entity.level().isClientSide) {
-         this.invoke("onApplied", MLuaBehaviorRegistry.getEffectOnApplied(this.behaviorKey), effectContext(entity, amplifier));
+         this.invoke("onApplied", MLuaBehaviorRegistry.getBehavior("effect", this.behaviorKey, "onApplied"), effectContext(entity, amplifier));
       }
    }
 
    public void onMobRemoved(LivingEntity entity, int amplifier, Entity.RemovalReason reason) {
       if (!entity.level().isClientSide) {
-         this.invoke("onEnding", MLuaBehaviorRegistry.getEffectOnEnding(this.behaviorKey), effectContext(entity, amplifier));
+         this.invoke("onEnding", MLuaBehaviorRegistry.getBehavior("effect", this.behaviorKey, "onEnding"), effectContext(entity, amplifier));
       }
       super.onMobRemoved(entity, amplifier, reason);
    }
