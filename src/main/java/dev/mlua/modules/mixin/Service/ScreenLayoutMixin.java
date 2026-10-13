@@ -17,10 +17,20 @@ public abstract class ScreenLayoutMixin {
         MLuaGuiService.applyNativeLayouts(this);
     }
 
+    //--version 1.20.1
     @Inject(method = "renderBackground(Lnet/minecraft/client/gui/GuiGraphics;)V", at = @At("TAIL"), require = 0)
-    private void mlua$renderAddonUiBefore(GuiGraphics graphics, CallbackInfo callback) {
+    private void mlua$renderAddonUiBeforeLegacy(GuiGraphics graphics, CallbackInfo callback) {
         MLuaGuiRenderer.renderScreenLayer((Screen) (Object) this, graphics, true);
     }
+    //--endversion
+
+    //--version 1.21.1,26.1
+    @Inject(method = "renderBackground(Lnet/minecraft/client/gui/GuiGraphics;IIF)V", at = @At("TAIL"), require = 0)
+    private void mlua$renderAddonUiBefore(GuiGraphics graphics, int mouseX, int mouseY,
+                                          float partialTick, CallbackInfo callback) {
+        MLuaGuiRenderer.renderScreenLayer((Screen) (Object) this, graphics, true);
+    }
+    //--endversion
 
     @Inject(method = "render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V", at = @At("TAIL"), require = 0)
     private void mlua$renderAddonUiAfter(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo callback) {
