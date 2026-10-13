@@ -68,7 +68,7 @@ public final class MLuaDocumentation {
              Path outPath = docs.resolve(fp);
              Files.createDirectories(outPath.getParent());
              String title = entry.name() + (entry.type() == MLuaDocBuilder.DocEntryType.SERVICE ? " Service" : "");
-             String content = moduleReferenceContent(entry, builder.guideSteps(), builder.methods(), builder.members());
+             String content = moduleReferenceContent(entry, builder.guideSteps(), builder.methods(), builder.signatures(), builder.members());
              write(outPath, page(title + " - MLua", sidebar(sidebarKey), content));
           }
 
@@ -1983,6 +1983,7 @@ function deactivate() {}
       private static String moduleReferenceContent(MLuaDocBuilder.DocEntry entry,
                                                List<MLuaDocBuilder.GuideStep> guideSteps,
                                                List<MLuaDocBuilder.MethodDoc> methodDocs,
+                                               List<MLuaDocBuilder.SignatureDoc> signatureDocs,
                                                List<MLuaDocBuilder.MemberDoc> memberDocs) {
       String ctx = switch (entry.type()) {
          case SERVICE -> ctx("Minecraft:GetService(\"" + entry.name() + "\")", entry.name());
@@ -1994,7 +1995,11 @@ function deactivate() {}
       }
       extra += registeredGuideSteps(entry, guideSteps);
       extra += registeredMethodDocs(entry, methodDocs);
+      extra += registeredSignatureDocs(entry, signatureDocs);
       extra += registeredMemberDocs(entry, memberDocs);
+      if (entry.type() == MLuaDocBuilder.DocEntryType.SERVICE) {
+         extra += serviceContractDocs(entry);
+      }
 
       Optional<Path> root = currentGameDir == null ? Optional.empty() : MLuaApiDocScanner.findSourceRoot(currentGameDir);
       Optional<String> sourcePath = root.isEmpty() ? Optional.empty() : resolveSourcePath(root.get(), entry.className());
@@ -2018,6 +2023,34 @@ function deactivate() {}
       }
 
       return content(entry.name(), entry.desc(), ctx, extra);
+   }
+
+   private static String registeredSignatureDocs(MLuaDocBuilder.DocEntry entry,
+                                                  List<MLuaDocBuilder.SignatureDoc> signatureDocs) {
+      List<MLuaDocBuilder.SignatureDoc> matching = signatureDocs.stream()
+         .filter(signature -> signature.receiver().equals(entry.name()))
+         .toList();
+      if (matching.isEmpty()) return "";
+      StringBuilder methods = new StringBuilder();
+      for (MLuaDocBuilder.SignatureDoc signature : matching) {
+         String returns = signature.returns() == null || signature.returns().isBlank()
+            ? "any" : htmlEscape(signature.returns());
+         methods.append(memberFull("<code>" + htmlEscape(signature.signature()) + "</code>", returns,
+            "Declared method signature.", "<div class=\"member-flags\"><span class=\"badge shared\">API</span></div>"));
+      }
+      return section("Methods", "Typed signatures declared by the owning module.", methods.toString());
+   }
+
+   private static String serviceContractDocs(MLuaDocBuilder.DocEntry entry) {
+      MLuaRuntime runtime = MLuaRuntime.get();
+      var metadata = runtime.services().metadata(entry.name());
+      if (metadata == null || metadata.functionDescriptions().isEmpty()) return "";
+      StringBuilder methods = new StringBuilder();
+      for (Map.Entry<String, String> function : metadata.functionDescriptions().entrySet()) {
+         methods.append(memberFull("<code>" + htmlEscape(entry.name() + ":" + function.getKey() + "(...)") + "</code>",
+            "any", htmlEscape(function.getValue()), "<div class=\"member-flags\"><span class=\"badge shared\">Registered service method</span></div>"));
+      }
+      return section("Service methods", "Methods declared by this service's registration contract.", methods.toString());
    }
 
    private static String registeredMethodDocs(MLuaDocBuilder.DocEntry entry,
@@ -2120,10 +2153,11 @@ function deactivate() {}
          if (entry.className() != null && !entry.className().isBlank()) {
             details.append("<p>Backed by <code>").append(htmlEscape(entry.className())).append("</code>.</p>");
          } else {
-            details.append("<p>This Lua class has no Java backing class.</p>");
+         details.append("<p>Lua-registered class.</p>");
          }
-         details.append("<p>No runtime class metadata is available for this reference.</p>");
       }
+      if (entry.type() == MLuaDocBuilder.DocEntryType.CLASS
+          && classTable == null && (entry.className() == null || entry.className().isBlank())) return "";
       return section("Reference", "", details.toString());
    }
 

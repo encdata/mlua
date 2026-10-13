@@ -86,34 +86,25 @@ public final class CoreClassesModule implements MLuaModule {
         docs.property("Instance", "ClassName", "string",
             "The registered MLua class name for this live instance.", "read:Read");
         List<MLuaDocBuilder.GuideStep> gettingStarted = new java.util.ArrayList<>();
-        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Choose a script entry point",
-            "The filename suffix selects when and where a script runs. Registry scripts register content, command scripts register commands, server and client scripts run on their matching side, and plain Lua files can be required as reusable modules.",
-            "example.registry.lua\nexample.commands.lua\nexample.server.lua\nexample.client.lua\nhelpers.lua"));
-        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Choose a script folder",
-            "Install MLua and launch Minecraft once. Copy a script from the examples folder into scripts; examples are never executed automatically.",
-            "<game directory>/mlua/scripts/"));
+        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Create a server script",
+            "Install MLua, launch Minecraft once, then create this file in the MLua scripts folder. The server suffix makes it run when a world starts.",
+            "<game directory>/mlua/scripts/hello.server.lua"));
         List<MLuaExampleScripts.ExampleScript> examples = MLuaExampleScripts.scripts();
         MLuaExampleScripts.ExampleScript firstServerScript = examples.stream()
             .filter(example -> example.name().endsWith(".server.lua"))
             .findFirst().orElse(null);
         if (firstServerScript != null) {
             String explanation = firstServerScript.description().isBlank()
-                ? "Copy this file from mlua/example-scripts into mlua/scripts, then join a world to run it."
-                : firstServerScript.description() + " Copy it from mlua/example-scripts into mlua/scripts, then join a world to run it.";
-            gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Run your first server script", explanation,
-                "-- Copy as " + firstServerScript.name() + "\n" + firstServerScript.source()));
+                ? "Put this code in hello.server.lua, then join a world. The PlayerAdded signal runs the callback when someone joins."
+                : firstServerScript.description() + " Put it in hello.server.lua, then join a world to run it.";
+            gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Greet players when they join", explanation,
+                firstServerScript.source()));
         }
-        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Follow the first script",
-            "The script looks up the Players service, connects to PlayerAdded, then sends a message to the new player's live instance. Change the message and reload scripts to see your edit.",
-            "local Players = Minecraft:GetService(\"Players\")\n\nPlayers.PlayerAdded:Connect(function(player)\n    player:SendMessage(\"Welcome to my world!\")\nend)"));
-        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Choose what to build next",
-            "Use the API reference for the service or class you need. The Scripts guide keeps all bundled examples and reusable templates together.",
-            "local World = Minecraft:GetService(\"World\")\nlocal Players = Minecraft:GetService(\"Players\")\n\nprint(\"Players online:\", #Players:GetPlayers())"));
-        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Package scripts with a mod",
-            "Place scripts in your mod resources when you are ready to distribute them. MLua uses the owning mod id as the registration namespace.",
-            "src/main/resources/assets/<modid>/mlua/scripts/"));
+        gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Change and verify it",
+            "Edit the message, save the file, and reload scripts or restart the world. For mod distribution, place the same script under your mod resources at assets/<modid>/mlua/scripts/.",
+            "player:SendMessage(\"Welcome to my world!\")"));
         docs.contribution(new MLuaDocBuilder.Contribution("mlua:getting-started", "getting-started",
-            "Build your first MLua scripts", "Choose a script lifecycle, run its starter example, and expand it with the API reference.",
+            "Build your first MLua script", "Create a server script, greet joining players, and change the message.",
             "mlua", 0, gettingStarted, List.of()));
 
         List<MLuaDocBuilder.GuideStep> scriptGuide = new java.util.ArrayList<>();
