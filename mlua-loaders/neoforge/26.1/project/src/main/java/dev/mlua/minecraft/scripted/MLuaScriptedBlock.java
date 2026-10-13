@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerPlayer;
 public class MLuaScriptedBlock extends Block {
     private final String behaviorKey;
     public MLuaScriptedBlock(BlockBehaviour.Properties properties, String behaviorKey, Supplier<BlockEntityType<?>> blockEntityType) { super(properties); this.behaviorKey = behaviorKey; }
+    public String behaviorKey() { return behaviorKey; }
     @Override protected InteractionResult useWithoutItem(net.minecraft.world.level.block.state.BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRightClick");
         if (!callback.isnil()) try {
