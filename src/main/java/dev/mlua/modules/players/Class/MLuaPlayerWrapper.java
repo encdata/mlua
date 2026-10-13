@@ -61,6 +61,7 @@ import java.util.Map;
 import java.lang.ref.WeakReference;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.level.Level;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -375,15 +376,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetAbilities", luaFn(() -> {
          return MLuaPlayerAbilities.abilitiesTable((net.minecraft.world.entity.player.Player) ((MCEntityImpl) player).inner());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> {
-         return dev.mlua.minecraft.binding.MLuaLevelWrapper.levelTable(((MCLevelImpl) player.level()).inner(), registration);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> {
-         return dev.mlua.minecraft.binding.MLuaLevelWrapper.levelTable(((MCLevelImpl) player.level()).inner(), registration);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> {
-         return LuaValue.valueOf(raw.serverLevel().dimension().location().toString());
-      }));
+      bindLevelMethods(table, ((MCLevelImpl) player.level()).inner(), registration);
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {
          double radius = args.checkdouble(2);
          MCAABB box = player.getBoundingBox().inflate(radius);
@@ -496,9 +489,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", luaFn(() -> LuaValue.FALSE));
       MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", luaFn(() -> LuaValue.valueOf(player.getDisplayName().getString())));
       MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> LuaValue.TRUE));
-      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> MLuaLevelWrapper.levelTable(player.level(), registration)));
-      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(player.level(), registration)));
-      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(player.level().dimension().location().toString())));
+      bindLevelMethods(table, player.level(), registration);
       MLuaClassMethods.setInstanceMethod(table, "IsSleeping", luaFn(() -> LuaValue.valueOf(player.isSleeping())));
       MLuaClassMethods.setInstanceMethod(table, "IsCrouching", luaFn(() -> LuaValue.valueOf(player.isCrouching())));
       MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> LuaValue.valueOf(player.isSprinting())));
@@ -679,15 +670,7 @@ public final class MLuaPlayerWrapper {
          MLuaCameraController.setViewMode(args.checkjstring(2));
          return LuaValue.NONE;
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> {
-         return dev.mlua.minecraft.binding.MLuaLevelWrapper.levelTable(raw.clientLevel, registration);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> {
-         return dev.mlua.minecraft.binding.MLuaLevelWrapper.levelTable(raw.clientLevel, registration);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> {
-         return LuaValue.valueOf(raw.clientLevel.dimension().location().toString());
-      }));
+      bindLevelMethods(table, raw.clientLevel, registration);
       MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> {
          return MLuaDataManager.playerPersistentData(raw, false);
       }));
@@ -824,6 +807,12 @@ public final class MLuaPlayerWrapper {
 
    private static LuaValue heldItem(MCItemStack stack, MLuaRegistration registration) {
       return (LuaValue)(stack.isEmpty() ? LuaValue.NIL : MLuaItemWrapper.itemTable(((MCItemStackImpl)stack).inner(), registration));
+   }
+
+   private static void bindLevelMethods(LuaTable table, Level level, MLuaRegistration registration) {
+      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> MLuaLevelWrapper.levelTable(level, registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(level, registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(level.dimension().location().toString())));
    }
 
    private static LuaTable attachInventoryMethods(LuaTable table, MCPlayer player, boolean writable,
