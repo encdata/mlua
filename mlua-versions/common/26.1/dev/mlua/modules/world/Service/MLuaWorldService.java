@@ -4,6 +4,10 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.LuaBackedService;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
+import java.lang.ref.WeakReference;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import net.minecraft.client.Minecraft;
@@ -18,6 +22,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaWorldService implements MLuaService, LuaBackedService {
     private final MLuaService.Context context;
+    private final Map<Level, WeakReference<LuaTable>> worldInstances = new WeakHashMap<>();
 
     public MLuaWorldService(MLuaService.Context context) {
         this.context = context;
@@ -89,65 +94,62 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
         return level != null && level.dimension().identifier().toString().equals(id);
     }
 
-    private LuaTable world(Level level) {
-        registerWorldClassMethods();
+    private synchronized LuaTable world(Level level) {
+        WeakReference<LuaTable> reference = worldInstances.get(level);
+        LuaTable cached = reference == null ? null : reference.get();
+        if (cached != null) return cached;
+
         LuaTable fields = new LuaTable();
         fields.set("__world", LuaValue.userdataOf(level));
+        fields.set("__level", LuaValue.userdataOf(level));
         fields.set("__side", LuaValue.valueOf(level.isClientSide() ? "CLIENT" : "SERVER"));
         LuaTable result = context.mlua().registration().createClassInstance("World", fields);
-        result.set("GetId", levelFunction(level,
+        java.util.Map<String, LuaValue> implementations = new java.util.HashMap<>();
+        bindWorldMethod(result, implementations, "GetId", levelFunction(level,
             (world, args) -> LuaValue.valueOf(world.dimension().identifier().toString())));
-        result.set("GetDimension", result.get("GetId"));
-        result.set("GetSide", levelFunction(level,
+        bindWorldAlias(result, implementations, "GetDimension", "GetId");
+        bindWorldMethod(result, implementations, "GetSide", levelFunction(level,
             (world, args) -> LuaValue.valueOf(world.isClientSide() ? "CLIENT" : "SERVER")));
-        result.set("IsClient", levelFunction(level,
+        bindWorldMethod(result, implementations, "IsClient", levelFunction(level,
             (world, args) -> LuaValue.valueOf(world.isClientSide())));
-        result.set("IsServer", levelFunction(level,
+        bindWorldMethod(result, implementations, "IsServer", levelFunction(level,
             (world, args) -> LuaValue.valueOf(!world.isClientSide())));
-        result.set("IsChunkLoaded", levelFunction(level, (world, args) -> {
+        bindWorldMethod(result, implementations, "IsChunkLoaded", levelFunction(level, (world, args) -> {
             BlockPos position = BlockPos.containing(args.checkdouble(2), args.checkdouble(3), args.checkdouble(4));
             return LuaValue.valueOf(world.hasChunkAt(position));
         }));
-        result.set("IsBlockLoaded", result.get("IsChunkLoaded"));
-        result.set("GetTime", levelFunction(level,
+        bindWorldAlias(result, implementations, "IsBlockLoaded", "IsChunkLoaded");
+        bindWorldMethod(result, implementations, "GetTime", levelFunction(level,
             (world, args) -> LuaValue.valueOf((double) world.getOverworldClockTime())));
-        result.set("GetDayTime", levelFunction(level,
+        bindWorldMethod(result, implementations, "GetDayTime", levelFunction(level,
             (world, args) -> LuaValue.valueOf((double) (world.getOverworldClockTime() % 24000L))));
-        result.set("GetGameTime", levelFunction(level,
+        bindWorldMethod(result, implementations, "GetGameTime", levelFunction(level,
             (world, args) -> LuaValue.valueOf((double) world.getGameTime())));
-        result.set("GetMinBuildHeight", levelFunction(level,
+        bindWorldMethod(result, implementations, "GetMinBuildHeight", levelFunction(level,
             (world, args) -> LuaValue.valueOf(world.getMinY())));
-        result.set("GetMaxBuildHeight", levelFunction(level,
+        bindWorldMethod(result, implementations, "GetMaxBuildHeight", levelFunction(level,
             (world, args) -> LuaValue.valueOf(world.getMaxY())));
+        bindWorldMethod(result, implementations, "GetSpawnPosition", levelFunction(level,
+            (world, args) -> {
+                BlockPos spawn = world.getSharedSpawnPos();
+                return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
+            }));
+        worldInstances.put(level, new WeakReference<>(result));
         return result;
-}
+    }
 
-    private void registerWorldClassMethods() {
-        var registration = context.mlua().registration();
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetId",
-            "Returns the world's dimension identifier.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetDimension",
-            "Returns the world's dimension identifier.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetSide",
-            "Returns whether the world is on the client or server.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "IsClient",
-            "Returns whether this world runs on the client.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "IsServer",
-            "Returns whether this world runs on the server.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "IsChunkLoaded",
-            "Returns whether the chunk at the given coordinates is loaded.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "IsBlockLoaded",
-            "Returns whether the block position is in a loaded chunk.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetTime",
-            "Returns the world's current clock time.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetDayTime",
-            "Returns the current time within the day.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetGameTime",
-            "Returns the world's total game time.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetMinBuildHeight",
-            "Returns the minimum build height.");
-        MLuaClassMethods.registerInstanceMethod(registration, "World", "GetMaxBuildHeight",
-            "Returns the maximum build height.");
+    private void bindWorldMethod(LuaTable instance, java.util.Map<String, LuaValue> implementations,
+                                 String name, LuaValue implementation) {
+        implementations.put(name, implementation);
+        MLuaClassMethods.bindInstanceMethod(context.mlua().registration(), "World", instance,
+            name, implementation);
+    }
+
+    private void bindWorldAlias(LuaTable instance, java.util.Map<String, LuaValue> implementations,
+                                String alias, String source) {
+        LuaValue implementation = implementations.get(source);
+        if (implementation == null) throw new IllegalStateException("World method is not bound: " + source);
+        bindWorldMethod(instance, implementations, alias, implementation);
     }
 
     private static VarArgFunction levelFunction(Level level, BiFunction<Level, Varargs, LuaValue> action) {

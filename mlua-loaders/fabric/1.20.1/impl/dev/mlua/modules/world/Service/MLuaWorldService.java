@@ -1,6 +1,7 @@
 package dev.mlua.modules.world.Service;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.loaderapi.RegistryHandle;
@@ -16,10 +17,12 @@ import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.runtime.data.MLuaDataManager;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
@@ -61,6 +64,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaWorldService extends MLuaServiceBase {
    private static final Map<String, GameRules.Key<?>> GAME_RULE_KEYS = new HashMap<>();
+   private final Map<Level, WeakReference<LuaTable>> worldInstances = new WeakHashMap<>();
    static {
       GameRules.visitGameRuleTypes(new GameRules.GameRuleTypeVisitor() {
          public <T extends GameRules.Value<T>> void visit(GameRules.Key<T> key, GameRules.Type<T> type) {
@@ -91,46 +95,60 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return level == null ? LuaValue.NIL : this.worldTable(() -> level);
    }
 
-   private LuaTable worldTable(Supplier<Level> supplier) {
-      LuaTable table = new LuaTable();
+   private synchronized LuaTable worldTable(Supplier<Level> supplier) {
       Level initial = supplier.get();
-      table.set("__side", LuaValue.valueOf(initial != null && initial.isClientSide ? "CLIENT" : "SERVER"));
       if (initial != null) {
-         table.set("__world", LuaValue.userdataOf(initial));
+         WeakReference<LuaTable> reference = this.worldInstances.get(initial);
+         LuaTable cached = reference == null ? null : reference.get();
+         if (cached != null) return cached;
       }
+      LuaTable fields = new LuaTable();
+      fields.set("__side", LuaValue.valueOf(initial != null && initial.isClientSide ? "CLIENT" : "SERVER"));
+      if (initial != null) {
+         fields.set("__world", LuaValue.userdataOf(initial));
+         fields.set("__level", LuaValue.userdataOf(initial));
+      }
+      LuaTable table = this.context.mlua().registration().createClassInstance("World", fields);
+      Map<String, LuaValue> implementations = new HashMap<>();
 
-      table.set("GetId", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.dimension().location().toString())));
-      table.set("GetDimension", table.get("GetId"));
-      table.set("GetSide", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isClientSide ? "CLIENT" : "SERVER")));
-      table.set("IsClient", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isClientSide)));
-      table.set("IsServer", levelFn(supplier, (level, args) -> LuaValue.valueOf(!level.isClientSide)));
-      table.set("IsChunkLoaded", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetId", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.dimension().location().toString())));
+      bindWorldAlias(table, implementations, "GetDimension", "GetId");
+      bindWorldMethod(table, implementations, "GetSide", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isClientSide ? "CLIENT" : "SERVER")));
+      bindWorldMethod(table, implementations, "IsClient", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isClientSide)));
+      bindWorldMethod(table, implementations, "IsServer", levelFn(supplier, (level, args) -> LuaValue.valueOf(!level.isClientSide)));
+      bindWorldMethod(table, implementations, "IsChunkLoaded", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          return LuaValue.valueOf(level.hasChunkAt(BlockPos.containing(pos[0], pos[1], pos[2])));
       }));
-      table.set("IsBlockLoaded", table.get("IsChunkLoaded"));
+      bindWorldAlias(table, implementations, "IsBlockLoaded", "IsChunkLoaded");
 
-      table.set("GetTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getDayTime())));
-      table.set("GetDayTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)(level.getDayTime() % 24000L))));
-      table.set("GetGameTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getGameTime())));
-      table.set("IsDay", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isDay())));
-      table.set("IsNight", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isNight())));
-      table.set("SetTime", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getDayTime())));
+      bindWorldMethod(table, implementations, "GetDayTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)(level.getDayTime() % 24000L))));
+      bindWorldMethod(table, implementations, "GetGameTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getGameTime())));
+      bindWorldMethod(table, implementations, "GetMinBuildHeight", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.getMinBuildHeight())));
+      bindWorldMethod(table, implementations, "GetMaxBuildHeight", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.getMaxBuildHeight())));
+      bindWorldMethod(table, implementations, "GetSpawnPosition", levelFn(supplier, (level, args) -> {
+         BlockPos spawn = level.getSharedSpawnPos();
+         return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
+      }));
+      bindWorldMethod(table, implementations, "IsDay", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isDay())));
+      bindWorldMethod(table, implementations, "IsNight", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isNight())));
+      bindWorldMethod(table, implementations, "SetTime", serverLevelFn(supplier, (level, args) -> {
          level.setDayTime(args.checklong(2));
          return LuaValue.NONE;
       }));
-      table.set("AddTime", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "AddTime", serverLevelFn(supplier, (level, args) -> {
          level.setDayTime(level.getDayTime() + args.checklong(2));
          return LuaValue.NONE;
       }));
 
-      table.set("GetWeather", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetWeather", levelFn(supplier, (level, args) -> {
          if (level.isThundering()) {
             return LuaValue.valueOf("thunder");
          }
          return level.isRaining() ? LuaValue.valueOf("rain") : LuaValue.valueOf("clear");
       }));
-      table.set("SetWeather", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "SetWeather", serverLevelFn(supplier, (level, args) -> {
          String weather = MLuaMinecraftEnums.weatherToJava(args.arg(2));
          int duration = args.optint(3, 6000);
          switch(weather.toLowerCase()) {
@@ -149,8 +167,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
          return LuaValue.NONE;
       }));
-      table.set("GetDifficulty", levelFn(supplier, (level, args) -> MLuaMinecraftEnums.difficultyOf(level.getDifficulty())));
-      table.set("SetDifficulty", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetDifficulty", levelFn(supplier, (level, args) -> MLuaMinecraftEnums.difficultyOf(level.getDifficulty())));
+      bindWorldMethod(table, implementations, "SetDifficulty", serverLevelFn(supplier, (level, args) -> {
          MinecraftServer server = this.context.mlua().server();
          if (server == null) {
             throw new LuaError("[MLua] SetDifficulty requires an active server.");
@@ -160,12 +178,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NONE;
       }));
 
-      table.set("GetBlock", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetBlock", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          return MLuaBlockWrapper.blockTable(level, BlockPos.containing(pos[0], pos[1], pos[2]));
       }));
-      table.set("GetBlockState", table.get("GetBlock"));
-      table.set("GetFluid", levelFn(supplier, (level, args) -> {
+      bindWorldAlias(table, implementations, "GetBlockState", "GetBlock");
+      bindWorldMethod(table, implementations, "GetFluid", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          FluidState state = level.getFluidState(BlockPos.containing(pos[0], pos[1], pos[2]));
          if (state == null || state.isEmpty()) {
@@ -175,25 +193,25 @@ public final class MLuaWorldService extends MLuaServiceBase {
          ResourceLocation id = BuiltInRegistries.FLUID.getKey(state.getType());
          return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
       }));
-      table.set("GetBiome", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetBiome", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          Biome biome = level.getBiome(BlockPos.containing(pos[0], pos[1], pos[2])).value();
          ResourceLocation id = level.registryAccess().registryOrThrow(Registries.BIOME).getKey(biome);
          return LuaValue.valueOf(id == null ? "unknown" : id.toString());
       }));
-      table.set("GetLightLevel", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetLightLevel", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          return LuaValue.valueOf(level.getMaxLocalRawBrightness(BlockPos.containing(pos[0], pos[1], pos[2])));
       }));
-      table.set("GetSkyLight", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetSkyLight", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          return LuaValue.valueOf(level.getBrightness(LightLayer.SKY, BlockPos.containing(pos[0], pos[1], pos[2])));
       }));
-      table.set("GetBlockLight", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetBlockLight", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          return LuaValue.valueOf(level.getBrightness(LightLayer.BLOCK, BlockPos.containing(pos[0], pos[1], pos[2])));
       }));
-      table.set("Raycast", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "Raycast", levelFn(supplier, (level, args) -> {
          double[] origin = positionArgs(args, 2);
          double[] direction = positionArgs(args, 5);
          double distance = args.optdouble(8, 100.0);
@@ -213,30 +231,30 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return result;
       }));
 
-      table.set("GetPlayers", levelFn(supplier, (level, args) -> this.playersTable(level)));
-      table.set("GetEntities", levelFn(supplier, (level, args) -> this.entitiesTable(level, null, LuaValue.NIL)));
-      table.set("FindEntitiesInRadius", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetPlayers", levelFn(supplier, (level, args) -> this.playersTable(level)));
+      bindWorldMethod(table, implementations, "GetEntities", levelFn(supplier, (level, args) -> this.entitiesTable(level, null, LuaValue.NIL)));
+      bindWorldMethod(table, implementations, "FindEntitiesInRadius", levelFn(supplier, (level, args) -> {
          double[] center = positionArgs(args, 2);
          double radius = args.checkdouble(5);
          AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
          return this.entitiesTable(level, box, args.arg(6));
       }));
-      table.set("GetEntitiesInRadius", table.get("FindEntitiesInRadius"));
-      table.set("GetEntitiesNearby", table.get("FindEntitiesInRadius"));
-      table.set("FindEntitiesInBox", levelFn(supplier, (level, args) -> {
+      bindWorldAlias(table, implementations, "GetEntitiesInRadius", "FindEntitiesInRadius");
+      bindWorldAlias(table, implementations, "GetEntitiesNearby", "FindEntitiesInRadius");
+      bindWorldMethod(table, implementations, "FindEntitiesInBox", levelFn(supplier, (level, args) -> {
          double[] min = positionArgs(args, 2);
          double[] max = positionArgs(args, 5);
          AABB box = new AABB(min[0], min[1], min[2], max[0], max[1], max[2]);
          return this.entitiesTable(level, box, args.arg(8));
       }));
-      table.set("FindPlayersInRadius", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "FindPlayersInRadius", levelFn(supplier, (level, args) -> {
          double[] center = positionArgs(args, 2);
          double radius = args.checkdouble(5);
          AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
          return this.playersTable(level, box);
       }));
-      table.set("GetPlayersNearby", table.get("FindPlayersInRadius"));
-      table.set("FindNearestPlayer", levelFn(supplier, (level, args) -> {
+      bindWorldAlias(table, implementations, "GetPlayersNearby", "FindPlayersInRadius");
+      bindWorldMethod(table, implementations, "FindNearestPlayer", levelFn(supplier, (level, args) -> {
          if (!(level instanceof ServerLevel serverLevel)) {
             return LuaValue.NIL;
          }
@@ -255,8 +273,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
          return nearest == null ? LuaValue.NIL : MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(nearest));
       }));
-      table.set("GetNearestPlayer", table.get("FindNearestPlayer"));
-      table.set("FindNearestEntity", levelFn(supplier, (level, args) -> {
+      bindWorldAlias(table, implementations, "GetNearestPlayer", "FindNearestPlayer");
+      bindWorldMethod(table, implementations, "FindNearestEntity", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          double maxDistance = args.optdouble(5, Double.MAX_VALUE);
          LuaValue filter = args.arg(6);
@@ -277,7 +295,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return wrapEntity(nearest);
       }));
 
-      table.set("SetBlock", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "SetBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          String blockId = args.checkjstring(5);
          Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(blockId)).orElse(null);
@@ -287,14 +305,14 @@ public final class MLuaWorldService extends MLuaServiceBase {
          level.setBlock(BlockPos.containing(pos[0], pos[1], pos[2]), block.defaultBlockState(), 3);
          return LuaValue.TRUE;
       }));
-      table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "BreakBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          boolean dropItems = args.optboolean(5, true);
          level.destroyBlock(BlockPos.containing(pos[0], pos[1], pos[2]), dropItems);
          return LuaValue.TRUE;
       }));
-      table.set("DestroyBlock", table.get("BreakBlock"));
-      table.set("PlaySound", serverLevelFn(supplier, (level, args) -> {
+      bindWorldAlias(table, implementations, "DestroyBlock", "BreakBlock");
+      bindWorldMethod(table, implementations, "PlaySound", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          String soundName = args.checkjstring(5);
          SoundEvent sound = BuiltInRegistries.SOUND_EVENT.getOptional(MLuaResourceLocations.parse(soundName)).orElse(null);
@@ -306,7 +324,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          level.playSound((Player)null, pos[0], pos[1], pos[2], sound, SoundSource.PLAYERS, volume, pitch);
          return LuaValue.NONE;
       }));
-      table.set("SpawnParticle", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "SpawnParticle", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          String particleName = args.checkjstring(5);
          int count = args.optint(6, 1);
@@ -324,7 +342,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          level.sendParticles(options, pos[0], pos[1], pos[2], count, 0.5, 0.5, 0.5, 0.0);
          return LuaValue.NONE;
       }));
-      table.set("SpawnEntity", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "SpawnEntity", serverLevelFn(supplier, (level, args) -> {
          String entityId = args.checkjstring(2);
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 3);
          double yaw = args.optdouble(6, 0.0);
@@ -353,7 +371,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          level.addFreshEntity(entity);
          return wrapEntity(entity);
       }));
-      table.set("DropItem", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "DropItem", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          String itemId = args.checkjstring(5);
          int count = args.optint(6, 1);
@@ -365,14 +383,14 @@ public final class MLuaWorldService extends MLuaServiceBase {
          level.addFreshEntity(entity);
          return wrapEntity(entity);
       }));
-      table.set("Explode", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "Explode", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          float power = (float)args.optdouble(5, 4.0);
          boolean fire = args.optboolean(6, false);
          level.explode((Entity)null, pos[0], pos[1], pos[2], power, fire, Level.ExplosionInteraction.BLOCK);
          return LuaValue.NONE;
       }));
-      table.set("SpawnLightning", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "SpawnLightning", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          Entity lightning = EntityType.LIGHTNING_BOLT.create(level);
          if (lightning == null) {
@@ -383,7 +401,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return wrapEntity(lightning);
       }));
 
-      table.set("GetBlockInventory", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetBlockInventory", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          BlockEntity blockEntity = level.getBlockEntity(BlockPos.containing(pos[0], pos[1], pos[2]));
          if (blockEntity instanceof Container container) {
@@ -392,31 +410,46 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NIL;
       }));
 
-      table.set("GetPersistentData", levelFn(supplier, (level, args) -> MLuaDataManager.worldPersistentData(level)));
-      table.set("GetSyncedData", levelFn(supplier, (level, args) -> MLuaDataManager.worldSyncedData(level)));
-      table.set("GetData", levelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "GetPersistentData", levelFn(supplier, (level, args) -> MLuaDataManager.worldPersistentData(level)));
+      bindWorldMethod(table, implementations, "GetSyncedData", levelFn(supplier, (level, args) -> MLuaDataManager.worldSyncedData(level)));
+      bindWorldMethod(table, implementations, "GetData", levelFn(supplier, (level, args) -> {
          LuaTable persistent = MLuaDataManager.worldPersistentData(level);
          return persistent.get("Get").call(persistent, LuaValue.valueOf(args.checkjstring(2)));
       }));
-      table.set("SetData", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "SetData", serverLevelFn(supplier, (level, args) -> {
          LuaTable persistent = MLuaDataManager.worldPersistentData(level);
          persistent.get("Set").call(persistent, LuaValue.valueOf(args.checkjstring(2)), args.arg(3));
          return LuaValue.NONE;
       }));
-      table.set("RemoveData", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "RemoveData", serverLevelFn(supplier, (level, args) -> {
          LuaTable persistent = MLuaDataManager.worldPersistentData(level);
          persistent.get("Remove").call(persistent, LuaValue.valueOf(args.checkjstring(2)));
          return LuaValue.NONE;
       }));
 
-      table.set("ListGameRules", levelFn(supplier, (level, args) -> this.listGameRules(level)));
-      table.set("GetGameRule", levelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
-      table.set("SetGameRule", serverLevelFn(supplier, (level, args) -> {
+      bindWorldMethod(table, implementations, "ListGameRules", levelFn(supplier, (level, args) -> this.listGameRules(level)));
+      bindWorldMethod(table, implementations, "GetGameRule", levelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
+      bindWorldMethod(table, implementations, "SetGameRule", serverLevelFn(supplier, (level, args) -> {
          this.setGameRule(level, args.checkjstring(2), args.arg(3));
          return LuaValue.NONE;
       }));
 
+      if (initial != null) this.worldInstances.put(initial, new WeakReference<>(table));
       return table;
+   }
+
+   private void bindWorldMethod(LuaTable instance, Map<String, LuaValue> implementations,
+                                String name, LuaValue implementation) {
+      implementations.put(name, implementation);
+      MLuaClassMethods.bindInstanceMethod(this.context.mlua().registration(), "World", instance,
+         name, implementation);
+   }
+
+   private void bindWorldAlias(LuaTable instance, Map<String, LuaValue> implementations,
+                               String alias, String source) {
+      LuaValue implementation = implementations.get(source);
+      if (implementation == null) throw new IllegalStateException("World method is not bound: " + source);
+      this.bindWorldMethod(instance, implementations, alias, implementation);
    }
 
    private LuaTable allWorlds() {
