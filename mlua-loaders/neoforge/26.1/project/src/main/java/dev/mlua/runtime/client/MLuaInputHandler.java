@@ -72,7 +72,7 @@ public final class MLuaInputHandler {
 
         boolean modal = MLuaModalService.isGlobalModal();
         if (modal && mc.screen == null) {
-            long window = mc.getWindow().getWindow();
+            long window = mc.getWindow().handle();
             boolean cursorDisabled = GLFW.glfwGetInputMode(window, GLFW.GLFW_CURSOR) == GLFW.GLFW_CURSOR_DISABLED;
 
             if (!wasModal || cursorDisabled) {

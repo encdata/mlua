@@ -51,6 +51,12 @@ configuredTargets.each { target ->
         throw new GradleException("Minecraft ${version} does not define the ${requestedBuildLoader} loader")
     }
     def targetLoaders = documentationOnly ? [] : (requestedBuildLoader == null ? target.loaders : [requestedBuildLoader])
+    if (documentationOnly) {
+        include "mlua-runtime-${version}"
+        project(":mlua-runtime-${version}").projectDir = file("mlua-runtime/${version}")
+        include "mlua-mc:${version}"
+        project(":mlua-mc:${version}").projectDir = file("mlua-mc/${version}")
+    }
     // Forge's legacy runtime and implementation projects are only included for
     // targets that actually publish a Forge loader. Fabric/NeoForge targets use
     // their own runtime path and must not be forced through ForgeGradle.

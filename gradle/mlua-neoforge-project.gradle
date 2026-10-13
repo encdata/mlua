@@ -61,7 +61,6 @@ def neoForgeRootExcludes = [
     'dev/mlua/runtime/config/MLuaConfigRegistry.java', 'dev/mlua/runtime/forge/ForgeLoaderProvider.java',
     'dev/mlua/runtime/forge/MLuaRuntimeForgeMod.java', 'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
     'dev/mlua/runtime/registry/MLuaItemHooks.java', 'dev/mlua/loader/impl/forge/ForgeClientBridge.java',
-    'dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java',
     'dev/mlua/loader/impl/forge/ForgeConfigBridge.java', 'dev/mlua/loader/impl/forge/ForgeEventBridge.java',
     'dev/mlua/loader/impl/forge/ForgeLifecycleBridge.java', 'dev/mlua/loader/impl/forge/ForgeNetworkBridge.java',
     'dev/mlua/loader/impl/forge/ForgeNetworkContext.java', 'dev/mlua/loader/impl/forge/ForgePlatformBridge.java',
@@ -70,6 +69,7 @@ def neoForgeRootExcludes = [
     'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
 ]
 if (is26Family) {
+    neoForgeRootExcludes += 'dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java'
     neoForgeRootExcludes += 'dev/mlua/loader/impl/forge/**'
     neoForgeRootExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
     neoForgeRootExcludes += 'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java'

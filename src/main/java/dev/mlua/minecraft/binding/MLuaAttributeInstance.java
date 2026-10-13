@@ -72,7 +72,7 @@ public final class MLuaAttributeInstance {
 
     private static AttributeInstance attribute(LuaTable instance) {
         LuaValue value = instance.rawget(BACKING);
-        if (value.isuserdata(AttributeInstance.class)) return value.checkuserdata(AttributeInstance.class);
+        if (value.isuserdata(AttributeInstance.class)) return (AttributeInstance) value.checkuserdata(AttributeInstance.class);
         throw new LuaError("[MLua] AttributeInstance has no live Minecraft attribute.");
     }
 
