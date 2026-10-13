@@ -95,7 +95,7 @@ public class WorldModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
         worldMethods().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry ->
-            docs.method("World", "World:" + entry.getKey() + "(...)", entry.getValue(), "", "any", "shared:Shared", ""));
+            docs.method("World", "World:" + entry.getKey() + "(...)", entry.getValue(), "", null, "shared:Shared", ""));
         docs.signature("WorldService", "World:GetBlockInventory(x: number, y: number, z: number)", "Container");
         docs.signature("WorldService", "World:SetBlock(x: number, y: number, z: number, blockId: string)", null);
         docs.signature("WorldService", "World:BreakBlock(x: number, y: number, z: number, dropItems: boolean)", null);

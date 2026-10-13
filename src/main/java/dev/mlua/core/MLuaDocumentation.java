@@ -2032,9 +2032,11 @@ function deactivate() {}
       if (matching.isEmpty()) return "";
       StringBuilder methods = new StringBuilder();
       for (MLuaDocBuilder.SignatureDoc signature : matching) {
-         String returns = signature.returns() == null || signature.returns().isBlank()
-            ? "any" : htmlEscape(signature.returns());
-         methods.append(memberFull("<code>" + htmlEscape(signature.signature()) + "</code>", returns,
+         String signatureText = signature.signature();
+         if (signature.returns() != null && !signature.returns().isBlank()) {
+            signatureText += ": " + signature.returns();
+         }
+         methods.append(memberFull("<code>" + htmlEscape(signatureText) + "</code>", null,
             "Declared method signature.", "<div class=\"member-flags\"><span class=\"badge shared\">API</span></div>"));
       }
       return section("Methods", "Typed signatures declared by the owning module.", methods.toString());
@@ -2050,7 +2052,7 @@ function deactivate() {}
       StringBuilder methods = new StringBuilder();
       for (MLuaDocBuilder.ServiceFunctionDoc function : matching) {
          methods.append(memberFull("<code>" + htmlEscape(entry.name() + ":" + function.name()) + "</code>",
-            "function", htmlEscape(function.description()), "<div class=\"member-flags\"><span class=\"badge shared\">Service method</span></div>"));
+            null, htmlEscape(function.description()), "<div class=\"member-flags\"><span class=\"badge shared\">Service method</span></div>"));
       }
       return section("Methods", "Functions declared by this service's registration contract.", methods.toString());
    }
@@ -2070,11 +2072,13 @@ function deactivate() {}
          if (method.example() != null && !method.example().isBlank()) {
             description.append(codeBlock(method.example()));
          }
-         String returns = method.returns() == null || method.returns().isBlank()
-            ? "any" : htmlEscape(method.returns());
+         String signature = method.signature();
+         if (method.returns() != null && !method.returns().isBlank()) {
+            signature += ": " + method.returns();
+         }
          String side = method.side() == null || method.side().isBlank()
             ? "shared:Shared" : method.side();
-         members.append(memberFull("<code>" + htmlEscape(method.signature()) + "</code>", returns,
+         members.append(memberFull("<code>" + htmlEscape(signature) + "</code>", null,
             description.toString(), registeredMethodFlags(side)));
       }
       return section("Registered API", "Signatures and usage registered by the owning module.", members.toString());
