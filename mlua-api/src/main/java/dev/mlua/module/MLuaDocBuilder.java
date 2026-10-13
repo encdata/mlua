@@ -67,11 +67,11 @@ public final class MLuaDocBuilder {
     public List<SignatureDoc> signatures() { return List.copyOf(this.signatures); }
 
     /** Adds a method from a declared service contract to its generated reference page. */
-    public void serviceFunction(String service, String name, String description) {
+    public void serviceFunction(String service, String className, String name, String description) {
         if (service == null || service.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Service function name must be non-empty");
         if (description == null || description.isBlank()) throw new IllegalArgumentException("Service function description must be non-empty");
-        ServiceFunctionDoc doc = new ServiceFunctionDoc(service, name, description);
+        ServiceFunctionDoc doc = new ServiceFunctionDoc(service, className, name, description);
         if (this.serviceFunctions.contains(doc)) throw new IllegalArgumentException("Service function is already documented: " + service + "." + name);
         this.serviceFunctions.add(doc);
     }
@@ -194,7 +194,7 @@ public final class MLuaDocBuilder {
 
     public record SignatureDoc(String receiver, String signature, String returns) { }
 
-    public record ServiceFunctionDoc(String service, String name, String description) { }
+    public record ServiceFunctionDoc(String service, String className, String name, String description) { }
 
     public record GuideStep(String receiver, String title, String explanation, String example) {
         public GuideStep {

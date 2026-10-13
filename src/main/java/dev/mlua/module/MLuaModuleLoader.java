@@ -420,7 +420,7 @@ public final class MLuaModuleLoader {
             this.invoke(module, "docs", () -> module.contributeDocs(docs));
             this.invoke(module, "service docs", () -> module.services().forEach(service ->
                 service.functionDescriptions().forEach((name, description) ->
-                    docs.serviceFunction(service.name(), name, description))));
+                    docs.serviceFunction(service.name(), service.className(), name, description))));
         }
     }
 

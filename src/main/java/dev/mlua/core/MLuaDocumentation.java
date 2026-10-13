@@ -1997,7 +1997,7 @@ function deactivate() {}
       extra += registeredGuideSteps(entry, guideSteps);
       extra += registeredMethodDocs(entry, methodDocs);
       extra += registeredSignatureDocs(entry, signatureDocs);
-      extra += registeredServiceFunctions(entry, serviceFunctions);
+      extra += registeredServiceFunctions(entry, signatureDocs, serviceFunctions);
       extra += registeredMemberDocs(entry, memberDocs);
 
       Optional<Path> root = currentGameDir == null ? Optional.empty() : MLuaApiDocScanner.findSourceRoot(currentGameDir);
@@ -2027,7 +2027,8 @@ function deactivate() {}
    private static String registeredSignatureDocs(MLuaDocBuilder.DocEntry entry,
                                                   List<MLuaDocBuilder.SignatureDoc> signatureDocs) {
       List<MLuaDocBuilder.SignatureDoc> matching = signatureDocs.stream()
-         .filter(signature -> signature.receiver().equals(entry.name()))
+         .filter(signature -> entry.type() == MLuaDocBuilder.DocEntryType.CLASS
+            && signature.receiver().equals(entry.name()))
          .toList();
       if (matching.isEmpty()) return "";
       StringBuilder methods = new StringBuilder();
@@ -2036,13 +2037,16 @@ function deactivate() {}
          if (signature.returns() != null && !signature.returns().isBlank()) {
             signatureText += ": " + signature.returns();
          }
+         String methodName = signatureMethodName(signature.signature(), entry.name());
+         String description = registeredMethodDescription(entry.name(), methodName);
          methods.append(memberFull("<code>" + htmlEscape(signatureText) + "</code>", null,
-            "Declared method signature.", "<div class=\"member-flags\"><span class=\"badge shared\">API</span></div>"));
+            description.isBlank() ? "" : htmlEscape(description), "<div class=\"member-flags\"><span class=\"badge shared\">API</span></div>"));
       }
       return section("Methods", "Typed signatures declared by the owning module.", methods.toString());
    }
 
    private static String registeredServiceFunctions(MLuaDocBuilder.DocEntry entry,
+                                                    List<MLuaDocBuilder.SignatureDoc> signatures,
                                                     List<MLuaDocBuilder.ServiceFunctionDoc> serviceFunctions) {
       if (entry.type() != MLuaDocBuilder.DocEntryType.SERVICE) return "";
       List<MLuaDocBuilder.ServiceFunctionDoc> matching = serviceFunctions.stream()
@@ -2051,10 +2055,28 @@ function deactivate() {}
       if (matching.isEmpty()) return "";
       StringBuilder methods = new StringBuilder();
       for (MLuaDocBuilder.ServiceFunctionDoc function : matching) {
-         methods.append(memberFull("<code>" + htmlEscape(entry.name() + ":" + function.name()) + "</code>",
+         MLuaDocBuilder.SignatureDoc signature = signatures.stream()
+            .filter(candidate -> (candidate.receiver().equals(entry.name())
+               || candidate.receiver().equals(function.className()))
+               && function.name().equals(signatureMethodName(candidate.signature(), candidate.receiver())))
+            .findFirst().orElse(null);
+         String methodName = signature == null ? entry.name() + ":" + function.name() : signature.signature();
+         if (signature != null && signature.returns() != null && !signature.returns().isBlank()
+            && signature.signature().substring(Math.max(0, signature.signature().lastIndexOf(')') + 1)).isBlank()) {
+            methodName += ": " + signature.returns();
+         }
+         methods.append(memberFull("<code>" + htmlEscape(methodName) + "</code>",
             null, htmlEscape(function.description()), "<div class=\"member-flags\"><span class=\"badge shared\">Service method</span></div>"));
       }
       return section("Methods", "Functions declared by this service's registration contract.", methods.toString());
+   }
+
+   private static String registeredMethodDescription(String className, String methodName) {
+      if (methodName == null || methodName.isBlank()) return "";
+      LuaTable classTable = MLuaRuntime.get().classTable(className);
+      if (classTable == null) return "";
+      LuaTable descriptions = registeredClassMethodDescriptions(classTable);
+      return descriptions == null ? "" : descriptions.get(methodName).optjstring("");
    }
 
    private static String registeredMethodDocs(MLuaDocBuilder.DocEntry entry,
@@ -2190,9 +2212,9 @@ function deactivate() {}
       for (String name : names) {
          if (excludedNames.contains(name) || !name.matches("[A-Za-z_][A-Za-z0-9_]*")) continue;
          String signature = htmlEscape(className) + (name.equals("new")
-            ? ".new(...)" : ":" + name + "(...)");
+            ? ".new" : ":" + name);
          String description = docs.get(name).optjstring("");
-         members.append(memberFull(signature, "any", htmlEscape(description), flags("shared:Shared")));
+         members.append(memberFull(signature, null, htmlEscape(description), flags("shared:Shared")));
       }
       return members.toString();
    }

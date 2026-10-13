@@ -11,6 +11,7 @@ public final class MLuaDocGenerator {
 
    public static void main(String[] args) {
       MLuaModuleLoader.get().loadForDocumentation();
+      MLuaModuleLoader.get().registerClasses(MLuaRuntime.get());
       Path gameDir = Paths.get("run");
       MLuaDocumentation.generate(gameDir);
       MLuaLuaApiDocSnapshot.DocumentationSnapshot snapshot = MLuaLuaApiDocSnapshot.generate();
