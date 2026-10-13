@@ -5,6 +5,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
+import dev.mlua.runtime.registry.MLuaItemFactory;
 import dev.mlua.runtime.registry.MLuaItemHooks;
 import dev.mlua.runtime.registry.MLuaRegistryNameHelper;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
@@ -162,33 +163,7 @@ public class MLuaScriptedItem extends Item {
    }
 
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
-       LuaValue onAttack = MLuaBehaviorRegistry.getCallback("item", this.behaviorKey, "onAttackEntity");
-       if (!onAttack.isnil()) {
-          try {
-             LuaTable ctx = new LuaTable();
-             var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
-             LuaTable targetTable = target instanceof ServerPlayer targetPlayer
-                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(targetPlayer), registration)
-                : MLuaEntityWrapper.entityTable(target, registration);
-             LuaTable attackerTable = attacker instanceof ServerPlayer attackerPlayer
-                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(attackerPlayer), registration)
-                : MLuaEntityWrapper.entityTable(attacker, registration);
-             ctx.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-             ctx.set("Entity", targetTable);
-             ctx.set("Target", targetTable);
-             ctx.set("Attacker", attackerTable);
-              if (attacker instanceof ServerPlayer sp) {
-                 ctx.set("Player", attackerTable);
-              }
-              ctx.set("ItemStack", this.behaviorKey);
-              Varargs result = onAttack.invoke(ctx);
-             if (result.arg1().isboolean() && !result.arg1().toboolean()) {
-                return false;
-             }
-          } catch (Exception var6) {
-             MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", this.behaviorKey, var6.getMessage());
-          }
-       }
+       if (!MLuaItemFactory.invokeOnAttackEntity(this.behaviorKey, stack, target, attacker)) return false;
        return super.hurtEnemy(stack, target, attacker);
     }
 

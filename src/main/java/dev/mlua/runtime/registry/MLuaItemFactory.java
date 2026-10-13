@@ -289,6 +289,11 @@ public final class MLuaItemFactory {
                super.inventoryTick(stack, level, entity, slot, selected);
             }
 
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
+            }
+
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
                invokeOnCrafted(behaviorKey, stack, level, player);
                super.onCraftedBy(stack, level, player);
@@ -326,6 +331,11 @@ public final class MLuaItemFactory {
             public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
                invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
                super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
             }
 
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
@@ -367,6 +377,11 @@ public final class MLuaItemFactory {
                super.inventoryTick(stack, level, entity, slot, selected);
             }
 
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
+            }
+
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
                invokeOnCrafted(behaviorKey, stack, level, player);
                super.onCraftedBy(stack, level, player);
@@ -406,6 +421,11 @@ public final class MLuaItemFactory {
                super.inventoryTick(stack, level, entity, slot, selected);
             }
 
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
+            }
+
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
                invokeOnCrafted(behaviorKey, stack, level, player);
                super.onCraftedBy(stack, level, player);
@@ -443,6 +463,11 @@ public final class MLuaItemFactory {
             public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
                invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
                super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
             }
 
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
@@ -486,6 +511,11 @@ public final class MLuaItemFactory {
                super.inventoryTick(stack, level, entity, slot, selected);
             }
 
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
+            }
+
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
                invokeOnCrafted(behaviorKey, stack, level, player);
                super.onCraftedBy(stack, level, player);
@@ -523,6 +553,11 @@ public final class MLuaItemFactory {
             public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
                invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
                super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
             }
 
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
@@ -564,6 +599,11 @@ public final class MLuaItemFactory {
                super.inventoryTick(stack, level, entity, slot, selected);
             }
 
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
+            }
+
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
                invokeOnCrafted(behaviorKey, stack, level, player);
                super.onCraftedBy(stack, level, player);
@@ -601,6 +641,11 @@ public final class MLuaItemFactory {
             public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
                invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
                super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
             }
 
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
@@ -642,6 +687,11 @@ public final class MLuaItemFactory {
                super.inventoryTick(stack, level, entity, slot, selected);
             }
 
+            public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+               return MLuaItemFactory.invokeOnAttackEntity(behaviorKey, stack, target, attacker)
+                  && super.hurtEnemy(stack, target, attacker);
+            }
+
             public void onCraftedBy(ItemStack stack, Level level, Player player) {
                invokeOnCrafted(behaviorKey, stack, level, player);
                super.onCraftedBy(stack, level, player);
@@ -650,6 +700,32 @@ public final class MLuaItemFactory {
           //--endversion
        };
     }
+
+   public static boolean invokeOnAttackEntity(String behaviorKey, ItemStack stack, LivingEntity target, LivingEntity attacker) {
+      LuaValue callback = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onAttackEntity");
+      if (callback.isnil()) return true;
+      try {
+         var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
+         LuaTable targetTable = target instanceof ServerPlayer player
+            ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
+            : MLuaEntityWrapper.entityTable(target, registration);
+         LuaTable attackerTable = attacker instanceof ServerPlayer player
+            ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
+            : MLuaEntityWrapper.entityTable(attacker, registration);
+         LuaTable context = new LuaTable();
+         context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+         context.set("Entity", targetTable);
+         context.set("Target", targetTable);
+         context.set("Attacker", attackerTable);
+         if (attacker instanceof ServerPlayer) context.set("Player", attackerTable);
+         context.set("ItemStack", behaviorKey);
+         Varargs result = callback.invoke(context);
+         return !result.arg1().isboolean() || result.arg1().toboolean();
+      } catch (Exception exception) {
+         MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", behaviorKey, exception.getMessage());
+         return true;
+      }
+   }
 
    public Item.Properties makeProperties(Map<String, Object> properties) {
       Item.Properties item;

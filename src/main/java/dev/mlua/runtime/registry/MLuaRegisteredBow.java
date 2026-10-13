@@ -58,6 +58,13 @@ final class MLuaRegisteredBow extends BowItem {
       return handled != null ? handled : super.useOn(context);
    }
 
+   @Override
+   public boolean hurtEnemy(ItemStack stack, net.minecraft.world.entity.LivingEntity target,
+                            net.minecraft.world.entity.LivingEntity attacker) {
+      return MLuaItemFactory.invokeOnAttackEntity(this.registryKey, stack, target, attacker)
+         && super.hurtEnemy(stack, target, attacker);
+   }
+
    //--version 1.20.1,1.21.1
    @Override
    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {

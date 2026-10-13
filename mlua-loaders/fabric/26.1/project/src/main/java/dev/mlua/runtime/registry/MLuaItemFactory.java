@@ -131,6 +131,33 @@ public final class MLuaItemFactory {
         }
     }
 
+    static boolean invokeOnAttackEntity(String key, ItemStack stack, net.minecraft.world.entity.LivingEntity target,
+                                        net.minecraft.world.entity.LivingEntity attacker) {
+        LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onAttackEntity");
+        if (callback.isnil()) return true;
+        try {
+            var registration = MLuaScriptRuntimeRegistration.forLevel(target.level());
+            LuaTable targetTable = target instanceof net.minecraft.server.level.ServerPlayer player
+                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
+                : MLuaEntityWrapper.entityTable(target, registration);
+            LuaTable attackerTable = attacker instanceof net.minecraft.server.level.ServerPlayer player
+                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
+                : MLuaEntityWrapper.entityTable(attacker, registration);
+            LuaTable context = new LuaTable();
+            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+            context.set("Entity", targetTable);
+            context.set("Target", targetTable);
+            context.set("Attacker", attackerTable);
+            if (attacker instanceof net.minecraft.server.level.ServerPlayer) context.set("Player", attackerTable);
+            context.set("ItemStack", key);
+            Varargs result = callback.invoke(context);
+            return !result.arg1().isboolean() || result.arg1().toboolean();
+        } catch (Exception exception) {
+            dev.mlua.core.MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", key, exception.getMessage());
+            return true;
+        }
+    }
+
     static void invokeOnInventoryTick(String key, ItemStack stack, ServerLevel level, Entity entity, EquipmentSlot slot) {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onInventoryTick");
         if (callback.isnil()) return;
