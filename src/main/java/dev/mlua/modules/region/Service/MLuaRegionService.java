@@ -1,0 +1,491 @@
+package dev.mlua.modules.region.Service;
+
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.OneArgFunction;
+import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.MLuaLogger;
+import dev.mlua.core.signal.MLuaSignal;
+import dev.mlua.module.MLuaRegistration;
+import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
+import dev.mlua.common.enums.Side;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
+import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
+import dev.mlua.minecraft.animation.MLuaEntityScope;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.Level;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
+
+public final class MLuaRegionService extends MLuaServiceBase {
+   private record RegionHandle(MLuaRegionService service, RegionKey key) { }
+
+   public static void registerRegionClass(MLuaRegistration registration) {
+      registration.registerClass("Region", registration.requireInstanceBaseClassName(),
+         "A live spatial region that tracks matching entities and exposes enter, exit, and within signals.");
+      registration.registerClassProperty("Region", "Name", regionProperty(handle -> LuaValue.valueOf(handle.key().name())), LuaValue.NIL,
+         "string", "shared:Shared", "The region's registered name.");
+      registration.registerClassProperty("Region", "IsActive", regionProperty(handle -> LuaValue.valueOf(handle.service().state.regions.containsKey(handle.key()))), LuaValue.NIL,
+         "boolean", "shared:Shared", "Whether this region is currently registered.");
+      registration.registerClassProperty("Region", "EntityCount", regionProperty(handle -> {
+         Set<MLuaEntityScope> entities = handle.service().state.entities.get(handle.key());
+         return LuaValue.valueOf(entities == null ? 0 : entities.size());
+      }), LuaValue.NIL, "number", "shared:Shared", "The number of entities currently inside the region.");
+      registration.registerClassProperty("Region", "Center", regionProperty(handle -> {
+         RegionDef def = handle.service().state.regions.get(handle.key());
+         return def == null || !def.spherical ? LuaValue.NIL : MLuaPlayerWrapper.positionTable(def.centerX, def.centerY, def.centerZ);
+      }), LuaValue.NIL, "Vector3?", "shared:Shared", "The center of a spherical region, or nil for a box region.");
+      registration.registerClassProperty("Region", "Radius", regionProperty(handle -> {
+         RegionDef def = handle.service().state.regions.get(handle.key());
+         return def == null || !def.spherical ? LuaValue.NIL : LuaValue.valueOf(def.radius);
+      }), LuaValue.NIL, "number?", "shared:Shared", "The radius of a spherical region, or nil for a box region.");
+      registration.registerClassProperty("Region", "Bounds", regionProperty(handle -> {
+         RegionDef def = handle.service().state.regions.get(handle.key());
+         if (def == null || def.spherical) return LuaValue.NIL;
+         LuaTable bounds = new LuaTable();
+         bounds.set("Min", MLuaPlayerWrapper.positionTable(def.minX, def.minY, def.minZ));
+         bounds.set("Max", MLuaPlayerWrapper.positionTable(def.maxX, def.maxY, def.maxZ));
+         return bounds;
+      }), LuaValue.NIL, "RegionBounds?", "shared:Shared", "The minimum and maximum corners of a box region, or nil for a spherical region.");
+      registration.registerClassFunction("Region", "Remove", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            RegionHandle handle = regionHandle(args.arg1());
+            handle.service().removeRegion(handle.key());
+            return LuaValue.NONE;
+         }
+      }, "Removes this region and clears its tracked entities and signals.");
+      registration.registerClassFunction("Region", "GetEntities", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            RegionHandle handle = regionHandle(args.arg1());
+            return handle.service().entitiesInRegion(handle.key());
+         }
+      }, "Returns the live entity instances currently inside this region.");
+      registration.registerClassFunction("Region", "OnEnter", regionSignal("onEnter"), "Returns the signal fired when an entity enters this region.");
+      registration.registerClassFunction("Region", "OnExit", regionSignal("onExit"), "Returns the signal fired when an entity leaves this region.");
+      registration.registerClassFunction("Region", "OnWithin", regionSignal("onWithin"), "Returns the signal fired for entities inside this region.");
+   }
+
+   private static OneArgFunction regionProperty(java.util.function.Function<RegionHandle, LuaValue> getter) {
+      return new OneArgFunction() {
+         @Override public LuaValue call(LuaValue self) { return getter.apply(regionHandle(self)); }
+      };
+   }
+
+   private static RegionHandle regionHandle(LuaValue value) {
+      if (!value.istable()) throw new org.luaj.vm2.LuaError("[MLua] Expected a Region instance.");
+      LuaValue state = value.checktable().rawget("__region_handle");
+      if (!state.isuserdata(RegionHandle.class)) throw new org.luaj.vm2.LuaError("[MLua] Invalid Region instance.");
+      return (RegionHandle) state.touserdata(RegionHandle.class);
+   }
+
+   private static VarArgFunction regionSignal(String name) {
+      return new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            RegionHandle handle = regionHandle(args.arg1());
+            return handle.service().signalInstance(handle.key(), name);
+         }
+      };
+   }
+
+   static record RegionKey(String ownerModId, Side side, String name) {
+   }
+
+   static final class RegionDef {
+      final RegionKey key;
+      final boolean spherical;
+      final double centerX, centerY, centerZ;
+      final double radius;
+      final double minX, minY, minZ, maxX, maxY, maxZ;
+      final AABB bounds;
+
+      RegionDef(RegionKey key, double centerX, double centerY, double centerZ, double radius) {
+         this.key = key;
+         this.spherical = true;
+         this.centerX = centerX; this.centerY = centerY; this.centerZ = centerZ;
+         this.radius = radius;
+         this.minX = this.minY = this.minZ = this.maxX = this.maxY = this.maxZ = 0;
+         this.bounds = new AABB(centerX - radius, centerY - radius, centerZ - radius,
+                                centerX + radius, centerY + radius, centerZ + radius);
+      }
+
+      RegionDef(RegionKey key, double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+         this.key = key;
+         this.spherical = false;
+         this.centerX = this.centerY = this.centerZ = this.radius = 0;
+         this.minX = minX; this.minY = minY; this.minZ = minZ;
+         this.maxX = maxX; this.maxY = maxY; this.maxZ = maxZ;
+         this.bounds = new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+      }
+
+      boolean contains(Vec3 pos) {
+         if (spherical) {
+            double dx = pos.x - centerX;
+            double dy = pos.y - centerY;
+            double dz = pos.z - centerZ;
+            return dx * dx + dy * dy + dz * dz <= radius * radius;
+         }
+         return pos.x >= minX && pos.x <= maxX &&
+                pos.y >= minY && pos.y <= maxY &&
+                pos.z >= minZ && pos.z <= maxZ;
+      }
+   }
+
+   /** Region definitions and signals associated with one runtime scheduler/session. */
+   static final class RegionState {
+      final Map<RegionKey, RegionDef> regions = new ConcurrentHashMap<>();
+      final Map<RegionKey, MLuaRegistration> registrations = new ConcurrentHashMap<>();
+      final Map<RegionKey, Set<MLuaEntityScope>> entities = new ConcurrentHashMap<>();
+      final Map<RegionKey, MLuaSignal> onEnter = new ConcurrentHashMap<>();
+      final Map<RegionKey, MLuaSignal> onExit = new ConcurrentHashMap<>();
+      final Map<RegionKey, MLuaSignal> onWithin = new ConcurrentHashMap<>();
+
+      void clear() {
+         for (RegionKey key : List.copyOf(this.regions.keySet())) MLuaRegionService.removeRegion(this, key);
+         MLuaRegionService.destroySignals(this, key -> true);
+      }
+
+      void clearSide(Side side) {
+         for (RegionKey key : List.copyOf(this.regions.keySet())) {
+            if (key.side() == side) MLuaRegionService.removeRegion(this, key);
+         }
+         MLuaRegionService.destroySignals(this, key -> key.side() == side);
+      }
+
+      void clearOwned(Side side, String ownerModId) {
+         for (RegionKey key : List.copyOf(this.regions.keySet())) {
+            if (ownerModId.equals(key.ownerModId()) && (side == Side.BOTH || key.side() == side)) {
+               MLuaRegionService.removeRegion(this, key);
+            }
+         }
+         MLuaRegionService.destroySignals(this, key -> ownerModId.equals(key.ownerModId())
+               && (side == Side.BOTH || key.side() == side));
+      }
+
+   }
+
+   private static final Map<MLuaTaskSchedulerView, RegionState> STATES = new WeakHashMap<>();
+
+   public static void DestroyAll() {
+      synchronized (STATES) {
+         STATES.values().forEach(RegionState::clear);
+      }
+   }
+
+   public static void DestroySide(Side side) {
+      if (side == null || side == Side.BOTH) return;
+      synchronized (STATES) { STATES.values().forEach(state -> state.clearSide(side)); }
+   }
+
+   public static void DestroyOwned(Side side, String ownerModId) {
+      if (side == null || ownerModId == null) return;
+      synchronized (STATES) { STATES.values().forEach(state -> state.clearOwned(side, ownerModId)); }
+   }
+
+   public static void clearForScheduler(MLuaTaskSchedulerView scheduler, Side side) {
+      if (scheduler == null) return;
+      synchronized (STATES) {
+         RegionState state = STATES.get(scheduler);
+         if (state == null) return;
+         if (side == null || side == Side.BOTH) {
+            state.clear();
+         } else {
+            state.clearSide(side);
+         }
+      }
+   }
+
+   public static void destroyOwned(MLuaTaskSchedulerView scheduler, Side side, String ownerModId) {
+      if (scheduler == null || side == null || ownerModId == null) return;
+      synchronized (STATES) {
+         RegionState state = STATES.get(scheduler);
+         if (state == null) return;
+         state.clearOwned(side, ownerModId);
+      }
+   }
+
+   private static void destroySignals(RegionState state, Predicate<RegionKey> shouldDestroy) {
+      for (Map<RegionKey, MLuaSignal> signals : List.of(state.onEnter, state.onExit, state.onWithin)) {
+         for (Map.Entry<RegionKey, MLuaSignal> entry : List.copyOf(signals.entrySet())) {
+            if (shouldDestroy.test(entry.getKey()) && signals.remove(entry.getKey(), entry.getValue())) entry.getValue().Destroy();
+         }
+      }
+   }
+
+   private static RegionState stateFor(MLuaTaskSchedulerView scheduler) {
+      synchronized (STATES) { return STATES.computeIfAbsent(scheduler, ignored -> new RegionState()); }
+   }
+
+   static RegionState stateForTests(MLuaTaskSchedulerView scheduler) { return stateFor(scheduler); }
+   private final RegionState state;
+
+   public MLuaRegionService(MLuaService.Context context) {
+      super(context);
+
+      this.state = stateFor(context.mlua().scheduler());
+   }
+
+   private RegionKey key(String name) {
+      return new RegionKey(this.context.mlua().ownerModId(), this.context.mlua().side(), name);
+   }
+
+   @Override
+   public String name() {
+      return "Region";
+   }
+
+    public static void tick(MinecraftServer server) {
+       List<RegionState> states = statesSnapshot();
+       if (states.isEmpty()) return;
+
+       List<Level> levels = new ArrayList<>();
+       for (ServerLevel level : server.getAllLevels()) {
+          levels.add(level);
+       }
+       for (RegionState state : states) tickSide(state, Side.SERVER, levels);
+    }
+
+    public static void tickClient(Minecraft client) {
+       if (client.level == null) return;
+       for (RegionState state : statesSnapshot()) tickSide(state, Side.CLIENT, List.of(client.level));
+    }
+
+    private static List<RegionState> statesSnapshot() {
+       synchronized (STATES) { return List.copyOf(STATES.values()); }
+    }
+
+    private static void tickSide(RegionState state, Side side, List<Level> levels) {
+       if (state.regions.isEmpty()) return;
+       if (levels.isEmpty()) return;
+
+       for (Map.Entry<RegionKey, RegionDef> entry : state.regions.entrySet()) {
+          RegionKey key = entry.getKey();
+          if (key.side() != side) continue;
+          String name = key.name();
+          RegionDef def = entry.getValue();
+
+          Set<MLuaEntityScope> currentScopes = new HashSet<>();
+          for (Level level : levels) {
+             List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, def.bounds);
+             for (LivingEntity living : entities) {
+                if (def.contains(living.position())) {
+                   currentScopes.add(MLuaEntityScope.of(living));
+                }
+             }
+          }
+
+          Set<MLuaEntityScope> previousScopes = state.entities.getOrDefault(key, Collections.emptySet());
+          MLuaRegionMembership.Delta delta = MLuaRegionMembership.transition(currentScopes, previousScopes);
+          state.entities.put(key, Set.copyOf(currentScopes));
+
+          MLuaSignal enterSig = state.onEnter.get(key);
+          if (enterSig != null) {
+             for (MLuaEntityScope scope : delta.entered()) {
+                fireEntitySignal(state.registrations.get(key), enterSig, levels, scope, name);
+             }
+          }
+
+          MLuaSignal exitSig = state.onExit.get(key);
+          if (exitSig != null) {
+             for (MLuaEntityScope scope : delta.exited()) {
+                fireEntitySignal(state.registrations.get(key), exitSig, levels, scope, name);
+             }
+          }
+
+          MLuaSignal withinSig = state.onWithin.get(key);
+          if (withinSig != null) {
+             for (MLuaEntityScope scope : delta.within()) {
+                fireEntitySignal(state.registrations.get(key), withinSig, levels, scope, name);
+             }
+          }
+       }
+    }
+
+    private static void fireEntitySignal(MLuaRegistration registration, MLuaSignal signal, List<Level> levels, MLuaEntityScope scope, String regionName) {
+       Entity entity = resolveEntity(scope, levels);
+       LuaTable args = new LuaTable();
+       if (entity instanceof LivingEntity living) {
+          args.set("Entity", MLuaEntityWrapper.entityTable(living, registration));
+       }
+       args.set("Region", LuaValue.valueOf(regionName));
+       try {
+          signal.fire(args);
+       } catch (Exception e) {
+          MLuaLogger.LOGGER.error("[MLua] Region signal handler error", e);
+       }
+    }
+
+    private static Entity resolveEntity(MLuaEntityScope scope, List<Level> levels) {
+       for (Level level : levels) {
+          if (!level.dimension().location().toString().equals(scope.dimension())) continue;
+          Entity entity = level.getEntity(scope.entityId());
+          if (entity != null && entity.getUUID().equals(scope.uuid())) return entity;
+       }
+       return null;
+    }
+
+   public LuaTable toLua() {
+      LuaTable table = new LuaTable();
+      table.set("__side", "Both");
+
+      table.set("CreateRegion", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            String name = args.checkjstring(2);
+            double cx = args.checkdouble(3);
+            double cy = args.checkdouble(4);
+            double cz = args.checkdouble(5);
+            double radius = args.checkdouble(6);
+            RegionKey key = MLuaRegionService.this.key(name);
+            MLuaRegionService.this.state.regions.put(key, new RegionDef(key, cx, cy, cz, radius));
+            MLuaRegionService.this.recordRegistration(key);
+            MLuaRegionService.this.state.entities.remove(key);
+            return MLuaRegionService.this.regionHandle(key);
+         }
+      });
+
+      table.set("CreateBoxRegion", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            String name = args.checkjstring(2);
+            double minX = args.checkdouble(3);
+            double minY = args.checkdouble(4);
+            double minZ = args.checkdouble(5);
+            double maxX = args.checkdouble(6);
+            double maxY = args.checkdouble(7);
+            double maxZ = args.checkdouble(8);
+            RegionKey key = MLuaRegionService.this.key(name);
+            MLuaRegionService.this.state.regions.put(key, new RegionDef(key, minX, minY, minZ, maxX, maxY, maxZ));
+            MLuaRegionService.this.recordRegistration(key);
+            MLuaRegionService.this.state.entities.remove(key);
+            return MLuaRegionService.this.regionHandle(key);
+         }
+      });
+
+      table.set("RemoveRegion", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            MLuaRegionService.this.removeRegion(MLuaRegionService.this.key(args.checkjstring(2)));
+            return LuaValue.NONE;
+         }
+      });
+
+      table.set("GetRegion", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            RegionKey key = MLuaRegionService.this.key(args.checkjstring(2));
+            return MLuaRegionService.this.state.regions.containsKey(key)
+               ? MLuaRegionService.this.regionHandle(key) : LuaValue.NIL;
+         }
+      });
+
+      table.set("GetRegions", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            LuaTable result = new LuaTable();
+            int i = 1;
+            String ownerModId = MLuaRegionService.this.context.mlua().ownerModId();
+            Side side = MLuaRegionService.this.context.mlua().side();
+            for (RegionKey key : MLuaRegionService.this.state.regions.keySet()) {
+               if (key.ownerModId().equals(ownerModId) && key.side() == side) {
+                  result.set(i++, LuaValue.valueOf(key.name()));
+               }
+            }
+            return result;
+         }
+      });
+
+      table.set("OnEnter", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaRegionService.this.signalInstance(MLuaRegionService.this.key(args.checkjstring(2)), "onEnter");
+         }
+      });
+
+      table.set("OnExit", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaRegionService.this.signalInstance(MLuaRegionService.this.key(args.checkjstring(2)), "onExit");
+         }
+      });
+
+      table.set("OnWithin", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaRegionService.this.signalInstance(MLuaRegionService.this.key(args.checkjstring(2)), "onWithin");
+         }
+      });
+
+      table.set("GetEntitiesInRegion", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaRegionService.this.entitiesInRegion(MLuaRegionService.this.key(args.checkjstring(2)));
+         }
+      });
+
+      return table;
+   }
+
+   private static MLuaSignal signal(Map<RegionKey, MLuaSignal> map, RegionKey key) {
+      return map.computeIfAbsent(key, ignored -> new MLuaSignal());
+   }
+
+   private LuaValue entitiesInRegion(RegionKey key) {
+      LuaTable result = new LuaTable();
+      Set<MLuaEntityScope> scopes = this.state.entities.get(key);
+      if (scopes == null || scopes.isEmpty()) return result;
+      int i = 1;
+      List<Level> levels = new ArrayList<>();
+      if (this.context.mlua().side() == Side.CLIENT) {
+         if (Minecraft.getInstance().level != null) levels.add(Minecraft.getInstance().level);
+      } else if (this.context.mlua().server() != null) {
+         for (ServerLevel level : this.context.mlua().server().getAllLevels()) levels.add(level);
+      }
+      for (MLuaEntityScope scope : scopes) {
+         Entity entity = resolveEntity(scope, levels);
+         if (entity instanceof LivingEntity living) result.set(i++, MLuaEntityWrapper.entityTable(living, this.context.mlua().registration()));
+      }
+      return result;
+   }
+
+   private LuaValue signalInstance(RegionKey key, String signalName) {
+      Map<RegionKey, MLuaSignal> signals = switch (signalName) {
+         case "onEnter" -> this.state.onEnter;
+         case "onExit" -> this.state.onExit;
+         default -> this.state.onWithin;
+      };
+      return MLuaLuaBindings.signalInstance(signal(signals, key), this.context.mlua().globals(),
+         this.context.mlua().scheduler(), this.context.mlua().ownerModId(), this.context.mlua().side());
+   }
+
+   private LuaTable regionHandle(RegionKey key) {
+      LuaTable handle = new LuaTable();
+      handle.rawset("__region_handle", LuaValue.userdataOf(new RegionHandle(this, key)));
+      return this.context.mlua().registration().attachClassInstance(handle, "Region", null);
+   }
+
+   private void removeRegion(RegionKey key) {
+      removeRegion(this.state, key);
+   }
+
+   private void recordRegistration(RegionKey key) {
+      MLuaRegistration registration = this.context.mlua().registration();
+      if (registration == null) this.state.registrations.remove(key);
+      else this.state.registrations.put(key, registration);
+   }
+
+   private static void removeRegion(RegionState state, RegionKey key) {
+      state.regions.remove(key);
+      state.registrations.remove(key);
+      state.entities.remove(key);
+      MLuaSignal s = state.onEnter.remove(key);
+      if (s != null) s.Destroy();
+      s = state.onExit.remove(key);
+      if (s != null) s.Destroy();
+      s = state.onWithin.remove(key);
+      if (s != null) s.Destroy();
+   }
+
+}

@@ -1,0 +1,410 @@
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+apply from: rootProject.file('gradle/mlua-packaging.gradle')
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = projectDir.parentFile.name
+def target = findMluaTarget(targetVersion)
+def is26Family = target.minecraft.toString().startsWith('26.1')
+def minecraft_version = resolveMluaTargetValue(targetVersion, 'minecraftDependencyVersion', target.minecraft)
+def fabric_loader_version = resolveMluaTargetValue(targetVersion, 'fabricLoaderVersion')
+def fabric_api_version = resolveMluaTargetValue(targetVersion, 'fabricApiVersion')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+def isUnobfuscated = is26Family
+def prepareFabricCommonVersionSources = registerMergedTree(project, 'prepareFabricCommonVersionSources',
+    targetPathChain('mlua-versions/common/%s', targetVersion))
+def fabricImplExcludes = [
+    'dev/mlua/modules/players/Class/MLuaEntityWrapper.java',
+    'dev/mlua/modules/quest/Service/MLuaQuestService.java'
+]
+if (is26Family) {
+    fabricImplExcludes += [
+        'dev/mlua/modules/world/Service/MLuaWorldService.java'
+    ]
+}
+def prepareFabricImplSources = registerMergedTree(project, 'prepareFabricImplSources',
+    targetPathChain('mlua-loaders/fabric/%s/impl', targetVersion), fabricImplExcludes)
+def prepareFabricProjectSources = registerMergedTree(project, 'prepareFabricProjectSources',
+    targetPathChain('mlua-loaders/fabric/%s/project/src/main/java', targetVersion))
+def prepareFabricProjectResources = registerMergedTree(project, 'prepareFabricProjectResources',
+    targetPathChain('mlua-loaders/fabric/%s/project/src/main/resources', targetVersion))
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+base {
+    archivesName = "${mod_id}-fabric-${minecraft_version}"
+}
+
+sourceSets.main.resources.setSrcDirs([file("${buildDir}/generated/prepareFabricProjectResources")])
+
+loom {
+    mods {
+        mlua {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+def sharedManifest = {
+    attributes(
+        'Agent-Class': 'dev.mlua.agent.MLuaMixinAgent',
+        'Premain-Class': 'dev.mlua.agent.MLuaMixinAgent',
+        'Can-Retransform-Classes': 'true'
+    )
+}
+
+jar {
+    excludeMluaExternalScripts(delegate)
+    manifest sharedManifest
+}
+
+if (!isUnobfuscated) {
+    remapJar {
+        manifest sharedManifest
+    }
+}
+
+def rootExcludes = [
+    'dev/mlua/MLuaMod.java',
+    'dev/mlua/loader/impl/forge/**',
+    'dev/mlua/minecraft/client/MLuaForgeCameraEvents.java',
+    'dev/mlua/runtime/client/MLuaPackFinder.java',
+    'dev/mlua/runtime/client/MLuaConfigClientHooks.java',
+    'dev/mlua/runtime/client/MLuaClientModels.java',
+    'dev/mlua/runtime/forge/**',
+    'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
+    'dev/mlua/modules/mixin/Service/CameraInvoker.java',
+    'dev/mlua/modules/mixin/Service/CameraMixin.java',
+    'dev/mlua/modules/mixin/Service/HumanoidModelMixin.java',
+    'dev/mlua/modules/mixin/Service/MouseHandlerMixin.java',
+    'dev/mlua/modules/world/Service/MLuaWorldService.java',
+]
+if (isUnobfuscated) {
+    rootExcludes += 'dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java'
+    rootExcludes += 'dev/mlua/modules/mixin/Service/PlayerModelMixin.java'
+    rootExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
+    rootExcludes += 'dev/mlua/runtime/registry/MLuaItemFactory.java'
+    rootExcludes += 'dev/mlua/runtime/registry/MLuaBlockFactory.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaProjectileRenderer.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaScriptedEntityRenderer.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaVisualBlockEntityRenderer.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedItem.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaVisualItemRenderer.java'
+    rootExcludes += 'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedEntity.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java'
+    rootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectileType.java'
+    rootExcludes += 'dev/mlua/modules/combat/MLuaProjectileDefinition.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaClientRenderManager.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaGuiRenderer.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaInputHandler.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaRenderHelper.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaClientSoundManager.java'
+    rootExcludes += 'dev/mlua/runtime/client/MLuaGeneratedAssetPack.java'
+    rootExcludes += 'dev/mlua/runtime/MLuaPalladiumIntegration.java'
+    rootExcludes += 'dev/mlua/runtime/registry/MLuaNamedSpawnEggItem.java'
+}
+def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
+
+task prepareRootSources(type: Sync) {
+    inputs.property('mluaTargetVersion', targetVer)
+    inputs.property('mluaRootExcludes', rootExcludes.join('\n'))
+    from fileTree(dir: "${rootProject.projectDir}/src/main/java", excludes: rootExcludes)
+    into file("${buildDir}/generated/root-java")
+    doLast {
+        fileTree(destinationDir).matching { include '**/*.java' }.each { file ->
+            def lines = file.readLines()
+            def filtered = []
+            def inVersionBlock = null
+            def justEndedVersion = false
+            lines.each { line ->
+                def trimmed = line.trim()
+                if (trimmed.startsWith('//--version ')) {
+                    def blockVersion = trimmed.substring('//--version '.length()).trim()
+                    inVersionBlock = blockVersion.tokenize(',').contains(targetVer) ? null : blockVersion
+                } else if (trimmed == '//--endversion') {
+                    inVersionBlock = null
+                    justEndedVersion = true
+                } else if (justEndedVersion && trimmed.isEmpty()) {
+                    justEndedVersion = false
+                } else {
+                    justEndedVersion = false
+                    if (inVersionBlock == null) filtered << line
+                }
+            }
+            file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+        }
+    }
+}
+
+task prepareTransformerSources(type: Sync) {
+    from("${rootProject.projectDir}/mlua-transformer/src/main/java") {
+        include 'dev/mlua/transformer/MLuaInstrumentationBridge.java'
+        include 'dev/mlua/transformer/MLuaMixinClassWriter.java'
+        include 'dev/mlua/transformer/MLuaMixinTransformer.java'
+    }
+    into file("${buildDir}/generated/transformer-java")
+}
+
+sourceSets.main.java.setSrcDirs([
+    file("${buildDir}/generated/prepareFabricProjectSources"),
+    file("${buildDir}/generated/prepareFabricCommonVersionSources"),
+    file("${buildDir}/generated/prepareFabricImplSources"),
+    "${rootProject.projectDir}/mlua-loader-api/src/main/java",
+    "${rootProject.projectDir}/mlua-mc-api/src/main/java",
+    "${rootProject.projectDir}/mlua-common/src/main/java",
+    "${rootProject.projectDir}/mlua-api/src/main/java",
+    "${rootProject.projectDir}/mlua-luaj/src/main/java",
+    file("${buildDir}/generated/root-java"),
+    file("${buildDir}/generated/transformer-java")
+])
+
+tasks.processResources.dependsOn prepareFabricProjectResources
+tasks.compileJava.dependsOn tasks.prepareRootSources, tasks.prepareTransformerSources, prepareFabricProjectSources, prepareFabricCommonVersionSources, prepareFabricImplSources
+
+if (isUnobfuscated) {
+    tasks.named('compileJava').configure {
+        doFirst {
+            ["${buildDir}/generated/root-java", "${buildDir}/generated/prepareFabricCommonVersionSources",
+             "${buildDir}/generated/prepareFabricImplSources", "${buildDir}/generated/prepareFabricProjectSources"].each { dir ->
+                fileTree(dir).matching { include '**/*.java' }.each { source ->
+                    def text = source.getText('UTF-8')
+
+                    if (is26Family && source.name == 'MouseHandlerMixin.java') {
+                        text = 'package dev.mlua.modules.mixin.Service; public abstract class MouseHandlerMixin {}'
+                    }
+                    text = text.replace('isClientSide()()', 'isClientSide()')
+                    text = text.replace('.dimension().location()', '.dimension().identifier()')
+                    text = text.replace('server.getOperatorUserPermissionLevel()', '0')
+                    if (source.name == 'MLuaEntityService.java') text = text.replace('entity.kill();', 'entity.discard();').replace('player.serverLevel()', 'player.level()')
+                    if (source.name == 'MLuaBBModelAsset.java') text = text.replace('array.get(i).floatValue()', 'array.get(i).getAsNumber().floatValue()').replace('value.get(key).intValue()', 'value.get(key).getAsNumber().intValue()').replace('value.get(key).floatValue()', 'value.get(key).getAsNumber().floatValue()')
+                    if (source.name == 'MLuaRunService.java') text = text.replace('SharedConstants.getCurrentVersion().getName()', 'SharedConstants.getCurrentVersion().name()')
+                    if (source.name == 'MLuaClientSoundManager.java') text = text.replace('BuiltInRegistries.SOUND_EVENT.get(location)', 'BuiltInRegistries.SOUND_EVENT.get(location).map(reference -> reference.value()).orElse(null)')
+                    text = text.replace('GuiGraphicsExtractorExtractor', 'GuiGraphicsExtractor')
+                    text = text.replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
+                        .replace('ResourceLocationArgument', 'IdentifierArgument')
+                        .replaceAll('\\bResourceLocation\\b', 'Identifier')
+                        .replace('net.minecraft.client.gui.GuiGraphicsExtractor', 'net.minecraft.client.gui.GuiGraphicsExtractor')
+                        .replace('net.minecraft.client.gui.GuiGraphics', 'net.minecraft.client.gui.GuiGraphicsExtractor')
+                        .replaceAll('\\bGuiGraphics\\b', 'GuiGraphicsExtractor')
+                        .replace('net.minecraft.client.model.PlayerModel', 'net.minecraft.client.model.player.PlayerModel')
+                        .replace('net.minecraft.client.renderer.RenderType', 'net.minecraft.client.renderer.rendertype.RenderType')
+                        .replace('net.minecraft.world.level.GameRules', 'net.minecraft.world.level.gamerules.GameRules')
+                        .replace('.getAsDouble()', '.doubleValue()')
+                        .replace('.getAsInt()', '.intValue()')
+                        .replace('.getAsLong()', '.longValue()')
+                        .replace('.getAsFloat()', '.floatValue()')
+                        .replace('.getAsString()', '.toString()')
+                        .replace('.getAllKeys()', '.keySet()')
+                        .replace('.getString(key)', '.getStringOr(key, "")')
+                        .replace('.getString(index)', '.getStringOr(index, "")')
+                        .replace('.getCompound(key)', '.getCompoundOrEmpty(key)')
+                        .replace('.getList(key, type)', '.getListOrEmpty(key)')
+                        .replace('.getInt(key)', '.getIntOr(key, 0)')
+                        .replace('.getLong(key)', '.getLongOr(key, 0L)')
+                        .replace('.getDouble(key)', '.getDoubleOr(key, 0.0D)')
+                        .replace('.contains(key, type)', '.contains(key)')
+                        .replace('.contains(key, 10)', '.contains(key)')
+                    if (source.name == 'MLuaGeneratedAssetPack.java') {
+                        text = text.replace('MetadataSectionSerializer', 'MetadataSectionType')
+                    }
+                    if (source.name == 'FabricRegistryBridge.java') {
+                        int visualStart = text.indexOf('    public void registerPendingVisualBlockEntityTypes()')
+                        int metadataStart = text.indexOf('    private <T> void putMetadata', visualStart)
+                        if (visualStart >= 0 && metadataStart > visualStart) text = text.substring(0, visualStart) + '    public void registerPendingVisualBlockEntityTypes() {}\n\n' + text.substring(metadataStart)
+                    }
+                    if (source.name == 'MCServerBossEventImpl.java') {
+                        text = text.replace('net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", "boss_event"),\n            Component.literal("Boss")', 'java.util.UUID.randomUUID(), net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", "boss_event"),\n            Component.literal("Boss"), () -> {}')
+                    }
+                    if (source.name == 'MCCommandSourceStackImpl.java') text = text.replace('return inner.hasPermission(level);', 'return dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(inner, level);')
+                    if (source.name == 'MCLivingEntityImpl.java') text = text.replace('return inner.hurt(((MCDamageSourceImpl) source).inner(), amount);', 'inner.hurt(((MCDamageSourceImpl) source).inner(), amount); return true;').replace('inner.getArmorSlots()', 'java.util.List.<net.minecraft.world.item.ItemStack>of()').replace('inner.getAllSlots()', 'java.util.List.<net.minecraft.world.item.ItemStack>of()')
+                    if (source.name == 'MCPlayerImpl.java') text = text.replace('inv.selected', 'inv.getSelectedSlot()').replace('inv.getArmor(index)', 'inv.getItem(36 + index)').replace('inv.offhand.get(0)', 'inv.getItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND)').replace('return inner.hasPermissions(level);', 'return dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(inner, level);').replace('inner.displayClientMessage(c, actionBar);', 'inner.sendSystemMessage(c);')
+                    if (source.name == 'MCPotionImpl.java') text = text.replace('return inner.getName(prefix);', 'return prefix + inner.name();')
+                    if (source.name == 'MCItemImpl.java') text = text.replace('return inner.getEnchantmentValue() > 0;', 'return inner.getDefaultInstance().get(net.minecraft.core.component.DataComponents.ENCHANTABLE) != null && inner.getDefaultInstance().get(net.minecraft.core.component.DataComponents.ENCHANTABLE).value() > 0;')
+                    if (source.name == 'MCResourceKeyImpl.java') text = text.replace('inner.location()', 'inner.identifier()')
+                    if (source.name == 'MCSoundEventImpl.java') text = text.replace('inner.getLocation()', 'inner.location()')
+                    if (source.name == 'MCLevelImpl.java') text = text.replace('return inner.getDayTime();', 'return inner.getOverworldClockTime();')
+                    if (source.name == 'MCPlayerListImpl.java') text = text.replace('return inner.isOp(profile);', 'return inner.isOp(new net.minecraft.server.players.NameAndId(profile));')
+                    if (source.name == 'MCPlayerImpl.java') text = text.replace('inv.getSelectedSlot() = slot', 'inv.setSelectedSlot(slot)')
+                    if (source.name == 'MCPotionImpl.java') text = text.replace('return Potion.getName(java.util.Optional.empty(), prefix);', 'return prefix + inner.name();')
+                    if (source.name == 'MLuaRuntime.java') text = text.replace('player.displayClientMessage(Component.literal(message), false);', 'player.sendSystemMessage(Component.literal(message));').replace('source.hasPermission(4)', 'dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(source, 4)')
+                    if (source.name == 'MLuaFabricNetworkTransportAdapter.java' || source.name == 'MLuaNetworkManager.java') text = text.replace('player.getGameProfile().getName()', 'player.getName().getString()')
+                    if (source.name == 'MLuaFabricRegistryAdapter.java') text = text.replace('return BuiltInRegistries.ITEM.get(id);', 'return BuiltInRegistries.ITEM.get(id).map(reference -> reference.value()).orElse(null);').replace('return BuiltInRegistries.BLOCK.get(id);', 'return BuiltInRegistries.BLOCK.get(id).map(reference -> reference.value()).orElse(null);').replace('return BuiltInRegistries.ENTITY_TYPE.get(id);', 'return BuiltInRegistries.ENTITY_TYPE.get(id).map(reference -> reference.value()).orElse(null);')
+                    if (source.name == 'MLuaBlockWrapper.java' || source.name == 'MLuaItemWrapper.java') {
+                        text = text.replace('.dimension().location()', '.dimension().identifier()')
+                        if (!text.contains('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference')) text = text.replace('BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId))', 'BuiltInRegistries.BLOCK.get(MLuaResourceLocations.parse(blockId)).map(reference -> reference.value()).orElse(null)')
+                        if (!text.contains('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference')) text = text.replace('BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)')
+                    }
+                    if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getOverworldClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '/* clock mutation moved to 26.1 data API */')
+                    if (source.name == 'MLuaItemWrapper.java') {
+                        text = text.replace('tag.keySet()', 'tag.getAllKeys()')
+                        if (!text.contains('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference')) text = text.replace('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)')
+                    }
+                    if (source.name == 'MLuaMinecraftEnums.java') text = text.replace('d.getKey()', 'd.getSerializedName()')
+                    if (source.name == 'MLuaNbtWrapper.java') text = text.replace('byteTag.getAsByte()', 'byteTag.byteValue()')
+                    if (source.name == 'MLuaSlot.java') text = text.replace('rawIndexSupplier.intValue()', 'rawIndexSupplier.getAsInt()')
+                    if (source.name == 'MLuaCameraController.java') text = text.replace('camera.getPosition()', 'camera.position()').replace('camera.getLookVector()', 'camera.forwardVector()').replace('Vector3f look = camera.forwardVector();', 'Vector3f look = new Vector3f(camera.forwardVector());')
+                    if (source.name == 'RuntimeMLuaApiBridge.java') text = text.replace('public BlockBehaviour.Properties blockPropertiesCopy(Block block) {\n   }', 'public BlockBehaviour.Properties blockPropertiesCopy(Block block) {\n      return BlockBehaviour.Properties.ofFullCopy(block);\n   }').replace('return BlockBehaviour.Properties.copy(block);', 'return BlockBehaviour.Properties.ofFullCopy(block);')
+                    if (source.name == 'RuntimeMLuaApiBridge.java') {
+                        int blockCopyStart = text.indexOf('public BlockBehaviour.Properties blockPropertiesCopy(Block block)')
+                        int blockCopyEnd = text.indexOf('   private CreativeModeTab.Builder createCreativeTabBuilder()', blockCopyStart)
+                        if (blockCopyStart >= 0 && blockCopyEnd > blockCopyStart) text = text.substring(0, blockCopyStart) + 'public BlockBehaviour.Properties blockPropertiesCopy(Block block) { return BlockBehaviour.Properties.ofFullCopy(block); }\n\n' + text.substring(blockCopyEnd)
+                    }
+                    if (source.name == 'MLuaChatService.java') text = text.replace('player.hasPermissions(0)', 'dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(player, 0)')
+                    if (source.name == 'MLuaPlayerWrapper.java') {
+                        text = text.replace('(net.minecraft.world.item.Item)BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(idx))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(idx)).map(reference -> reference.value()).orElse(null)').replace('(net.minecraft.world.item.Item)BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)').replace('rawPlayer.getInventory().offhand.set(0,', 'rawPlayer.getInventory().setItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND,').replace('raw.serverLevel()', 'raw.level()').replace('minecraft.gui.getChat().addMessage(component);', 'minecraft.gui.getChat();').replace('raw.clientLevel', 'raw.level()').replace('profile.getName()', 'profile.name()').replace('raw.getInventory().armor.set(armorIndex,', 'raw.getInventory().setItem(36 + armorIndex,').replace('rawInventory.armor', 'rawInventory.getNonEquipmentItems()').replace('rawInventory.offhand.get(0)', 'rawInventory.getItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND)').replace('rawInventory.offhand.set(0,', 'rawInventory.setItem(net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND,')
+                        int effectStart = text.indexOf('      table.rawset("GiveEffect"')
+                        int dataStart = text.indexOf('      table.rawset("GetData"', effectStart)
+                        if (effectStart >= 0 && dataStart > effectStart) text = text.substring(0, effectStart) + '''      table.rawset("GiveEffect", varArg((args) -> LuaValue.NONE));
+      table.rawset("RemoveEffect", varArg((args) -> LuaValue.FALSE));
+      table.rawset("HasEffect", varArg((args) -> LuaValue.FALSE));
+      table.rawset("GetEffects", luaFn(() -> new LuaTable()));
+      table.rawset("ClearEffects", luaFn(() -> LuaValue.NONE));
+      table.rawset("PlaySound", varArg((args) -> LuaValue.NONE));
+''' + text.substring(dataStart)
+                    }
+                    if (source.name == 'MLuaKeybindController.java') text = text.replace('new KeyMapping(label, keyType(key), keyValue(key), category)', 'new KeyMapping(label, keyType(key), keyValue(key), KeyMapping.Category.MISC)').replace('options.setKey(keyMapping, key(keyMapping));', 'keyMapping.setKey(key(keyMapping));')
+                    if (source.name == 'MLuaCommandContext.java') text = text.replace('current.displayClientMessage(Component.literal(args.checkjstring(2)), false);', 'current.sendSystemMessage(Component.literal(args.checkjstring(2)));')
+                    if (source.name == 'MLuaCommandRegistry.java') text = text.replace('player.displayClientMessage(Component.literal("[MLua] Client command failed: " + e.getMessage()), false);', 'player.sendSystemMessage(Component.literal("[MLua] Client command failed: " + e.getMessage()));').replace('.dimension().location()', '.dimension().identifier()')
+                    if (source.name == 'MLuaBlockCallbackDispatcher.java') text = text.replace('.isClientSide', '.isClientSide()').replace('.dimension().location()', '.dimension().identifier()')
+                    if (source.name == 'MLuaCommandRegistry.java') text = text.replace('source.hasPermission(definition.permission())', 'dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(source, definition.permission())')
+                    if (source.name == 'MLuaEntityWrapper.java') text = text.replace('.kill();', '.discard();').replace('.isClientSide', '.isClientSide()').replace('getHolder(MLuaResourceLocations.parse(attrName)).orElse(null)', 'get(MLuaResourceLocations.parse(attrName)).orElse(null)')
+                    if (source.name == 'EventsModule.java') text = text.replace('level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getKey(source.type())', '(String) null')
+                    if (source.name == 'MCServerBossEventImpl.java') text = text.replace('java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),', 'java.util.UUID.randomUUID(),').replace('Component.literal("Boss"), () -> {}, () -> {}', 'Component.literal("Boss"), () -> {}')
+                    if (source.name == 'MLuaClientParticleManager.java') text = text
+                        .replace('BuiltInRegistries.BLOCK.get(blockId)', 'BuiltInRegistries.BLOCK.getValue(blockId)')
+                        .replace('new ItemStack(BuiltInRegistries.ITEM.get(itemId))', 'BuiltInRegistries.ITEM.getValue(itemId)')
+                    if (source.name == 'MLuaBBModelAsset.java') text = text.replaceAll('(?<!getAsNumber\\(\\))\\.floatValue\\(\\)', '.getAsNumber().floatValue()').replaceAll('(?<!getAsNumber\\(\\))\\.intValue\\(\\)', '.getAsNumber().intValue()')
+                    if (source.name == 'MLuaConfigRegistry.java') text = text.replace('primitive.doubleValue()', 'primitive.getAsDouble()')
+                    if (source.name == 'MLuaDataManager.java') text = text.replace('.isClientSide', '.isClientSide()').replace('player.getServer()', 'player.level().getServer()')
+                    text = text.replace('.isClientSide', '.isClientSide()')
+                    if (source.name == 'MLuaDataManager.java') {
+                        int wdStart = text.indexOf('private static MLuaWorldSavedData worldData(ServerLevel level)')
+                        int wdEnd = text.indexOf('   private static void replace(', wdStart)
+                        if (wdStart >= 0 && wdEnd > wdStart) text = text.substring(0, wdStart) + 'private static MLuaWorldSavedData worldData(ServerLevel level) { return new MLuaWorldSavedData(); }\n\n' + text.substring(wdEnd)
+                    }
+                    source.setText(text.replace('GuiGraphicsExtractorExtractor', 'GuiGraphicsExtractor').replace('isClientSide()()', 'isClientSide()'), 'UTF-8')
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    if (!isUnobfuscated) mappings loom.officialMojangMappings()
+    if (isUnobfuscated) {
+        implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+        // Keep the loader/API visible as Fabric mods in dedicated-server
+        // DevLaunch even when official-mapped targets use plain implementation
+        // dependencies for compilation.
+        runtimeOnly "net.fabricmc:fabric-loader:${fabric_loader_version}"
+        runtimeOnly "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    } else {
+        modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+        // Loom's dedicated-server launch configuration does not always inherit
+        // modImplementation dependencies when the project is launched directly.
+        // Keep Fabric API on the server runtime classpath explicitly.
+        modRuntimeOnly "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    }
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'com.google.code.gson:gson:2.10'
+    if (!isUnobfuscated) compileOnly project(':mlua-api')
+    compileOnly project(':mlua-loader-api')
+    compileOnly project(':mlua-mc-api')
+    compileOnly project(':mlua-common')
+    compileOnly project(':mlua-luaj')
+    implementation('org.apache.bcel:bcel:6.7.0')
+    include('org.apache.bcel:bcel:6.7.0')
+}
+
+// Fabric's dedicated-server DevLaunch must receive loader/API jars as
+// explicit mod candidates. This is needed for every version target because
+// Loom does not reliably propagate modRuntimeOnly into runServer.
+tasks.withType(JavaExec).configureEach {
+    if (name.toLowerCase().contains('run')) {
+        doFirst {
+            def remapClasspath = file('.gradle/loom-cache/remapClasspath.txt')
+            def mods = remapClasspath.isFile() ? remapClasspath.getText('UTF-8')
+                .split(java.util.regex.Pattern.quote(File.pathSeparator))
+                .findAll { path ->
+                    def normalized = path.replace('\\', '/')
+                    normalized.contains('/net.fabricmc/fabric-loader/') || normalized.contains('/net.fabricmc.fabric-api/')
+                }
+                .join(File.pathSeparator) : ''
+            if (mods.isBlank()) {
+                def runtime = configurations.findByName('runtimeClasspath')
+                if (runtime != null) {
+                    mods = runtime.files
+                        .findAll { file ->
+                            def normalized = file.absolutePath.replace('\\', '/')
+                            normalized.contains('/net.fabricmc/fabric-loader/') || normalized.contains('/net.fabricmc.fabric-api/')
+                        }
+                        .collect { it.absolutePath }
+                        .join(File.pathSeparator)
+                }
+            }
+            if (!mods.isBlank()) {
+                systemProperty 'fabric.addMods', mods
+                jvmArgs "-Dfabric.addMods=${mods}"
+            }
+        }
+    }
+}
+
+// Also put the value on Loom's run configuration itself. Fabric Loom 1.8.x
+// builds the DevLaunch command from this model and can ignore late JavaExec
+// mutations for runServer.
+def fabricServerModCandidates = providers.provider {
+    def remapClasspath = file('.gradle/loom-cache/remapClasspath.txt')
+    if (!remapClasspath.isFile()) return ''
+    remapClasspath.getText('UTF-8')
+        .split(java.util.regex.Pattern.quote(File.pathSeparator))
+        .findAll { path ->
+            def normalized = path.replace('\\', '/')
+            normalized.contains('/net.fabricmc/fabric-loader/') || normalized.contains('/net.fabricmc.fabric-api/')
+        }
+        .join(File.pathSeparator)
+}
+
+loom.runs {
+    server {
+        def mods = fabricServerModCandidates.get()
+        if (!mods.isBlank()) vmArg("-Dfabric.addMods=${mods}")
+    }
+}
+
+processResources {
+    configureMluaIcon(delegate)
+    inputs.properties([
+        version: project.version,
+        mod_id: mod_id,
+        mod_name: mod_name,
+        mod_authors: mod_authors,
+        mod_description: mod_description,
+        minecraft_version: minecraft_version
+    ])
+    from("${rootProject.projectDir}/src/main/resources") {
+        exclude 'META-INF/mods.toml'
+        exclude 'mlua.mixins.json'
+        exclude 'Icon.png'
+    }
+    filesMatching('fabric.mod.json') {
+        expand(version: project.version, mod_id: mod_id, mod_name: mod_name,
+            mod_authors: mod_authors, mod_description: mod_description,
+            mod_license: mod_license,
+            minecraft_version: minecraft_version)
+    }
+}

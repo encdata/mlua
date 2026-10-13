@@ -1,0 +1,320 @@
+package dev.mlua.core.classes;
+
+import dev.mlua.module.MLuaRegistration;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.OneArgFunction;
+
+/** Helpers for registering stable class methods that dispatch through live instance tables. */
+public final class MLuaClassMethods {
+   private MLuaClassMethods() {
+   }
+
+   public static void registerInstanceMethod(MLuaRegistration registration, String className,
+                                             String methodName, String description) {
+      LuaTable classTable = registration.classTable(className);
+      if (classTable == null) throw new IllegalStateException("Lua class is not registered: " + className);
+      LuaValue existing = classTable.rawget(methodName);
+      if (existing.isfunction()) {
+         registration.registerClassFunction(className, methodName, existing, description);
+         return;
+      }
+      if (!existing.isnil()) {
+         throw new IllegalStateException("Lua class '" + className + "' already defines non-function member '" + methodName + "'");
+      }
+      registration.registerClassFunction(className, methodName, new VarArgFunction() {
+         @Override
+         public Varargs invoke(Varargs args) {
+            LuaValue receiver = args.arg1();
+            LuaValue method = instanceMethod(receiver, methodName);
+            if (!method.isfunction() || method == this) {
+               throw new LuaError("[MLua] " + className + " method '" + methodName + "' requires a live instance.");
+            }
+            return method.invoke(args);
+         }
+      }, description);
+   }
+
+   /** Registers a class property that delegates reads and optional writes to live instance methods. */
+   public static void registerInstanceProperty(MLuaRegistration registration, String className,
+                                               String propertyName, String getterMethod,
+                                               String setterMethod, String description) {
+      registerInstanceProperty(registration, className, propertyName, getterMethod, setterMethod,
+         "any", "shared:Shared", description);
+   }
+
+   /** Registers a live property with type and side metadata used by the API crawler. */
+   public static void registerInstanceProperty(MLuaRegistration registration, String className,
+                                               String propertyName, String getterMethod,
+                                               String setterMethod, String valueType,
+                                               String side, String description) {
+      if (getterMethod == null || getterMethod.isBlank()) {
+         throw new IllegalArgumentException("Property getter method must be non-empty");
+      }
+      LuaValue getter = new OneArgFunction() {
+         @Override
+         public LuaValue call(LuaValue receiver) {
+            LuaValue implementation = instanceMethod(receiver, getterMethod);
+            if (!implementation.isfunction()) {
+               throw new LuaError("[MLua] " + className + "." + propertyName
+                  + " requires the live " + getterMethod + " method.");
+            }
+            return implementation.invoke(LuaValue.varargsOf(new LuaValue[]{receiver})).arg1();
+         }
+      };
+      LuaValue setter = LuaValue.NIL;
+      if (setterMethod != null && !setterMethod.isBlank()) {
+         setter = new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+               LuaValue receiver = args.arg1();
+               LuaValue implementation = instanceMethod(receiver, setterMethod);
+               if (!implementation.isfunction()) {
+                  throw new LuaError("[MLua] " + className + "." + propertyName
+                     + " cannot be changed because the live " + setterMethod + " method is unavailable.");
+               }
+               return implementation.invoke(LuaValue.varargsOf(new LuaValue[]{receiver, args.arg(2)}));
+            }
+         };
+      }
+      registration.registerClassProperty(className, propertyName, getter, setter, valueType, side, description);
+   }
+
+   /** Registers a stable class dispatcher and binds this instance's implementation. */
+   public static void bindInstanceMethod(MLuaRegistration registration, String className, LuaTable instance,
+                                         String methodName, LuaValue implementation, String description) {
+      if (instance == null) throw new NullPointerException("instance");
+      if (implementation == null || !implementation.isfunction()) {
+         throw new IllegalArgumentException("Instance method must be a Lua function");
+      }
+      registerInstanceMethod(registration, className, methodName, description);
+      LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
+      LuaTable instanceDocs = documentedMethods.istable() ? documentedMethods.checktable() : new LuaTable();
+      instanceDocs.rawset(methodName, LuaValue.valueOf(description));
+      instance.rawset("__mlua_doc_methods", instanceDocs);
+      setInstanceMethod(instance, methodName, implementation);
+   }
+
+   /** Stores a live implementation behind its already registered class dispatcher. */
+   public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation) {
+      if (instance == null) throw new NullPointerException("instance");
+      if (methodName == null || methodName.isBlank()) throw new IllegalArgumentException("Method name must be non-empty");
+      if (implementation == null || !implementation.isfunction()) {
+         throw new IllegalArgumentException("Instance method must be a Lua function");
+      }
+      if (!instance.get(methodName).isfunction()) {
+         throw new IllegalStateException("Lua instance has no registered class function named '" + methodName + "'");
+      }
+      LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
+      if (!documentedMethods.istable() || !documentedMethods.checktable().rawget(methodName).isstring()) {
+         throw new IllegalStateException("Lua instance has no description for registered function '" + methodName + "'");
+      }
+      LuaValue metaValue = instance.getmetatable();
+      if (!metaValue.istable()) throw new IllegalStateException("Live class instance has no lookup metatable");
+      LuaTable meta = metaValue.checktable();
+      LuaValue methodsValue = meta.rawget("__mlua_instance_methods");
+      LuaTable methods;
+      if (methodsValue.isnil()) {
+         methods = new LuaTable();
+         meta.rawset("__mlua_instance_methods", methods);
+      } else if (methodsValue.istable()) {
+         methods = methodsValue.checktable();
+      } else {
+         throw new IllegalStateException("Live class instance method storage must be a table");
+      }
+      methods.rawset(methodName, implementation);
+   }
+
+   /** Stores a live implementation and refreshes its per-instance description. */
+   public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation,
+                                        String description) {
+      if (description == null || description.isBlank()) {
+         throw new IllegalArgumentException("Method description must be non-empty");
+      }
+      LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
+      LuaTable instanceDocs = documentedMethods.istable() ? documentedMethods.checktable() : new LuaTable();
+      instanceDocs.rawset(methodName, LuaValue.valueOf(description));
+      instance.rawset("__mlua_doc_methods", instanceDocs);
+      setInstanceMethod(instance, methodName, implementation);
+   }
+
+   /** Binds an implementation using the description already registered on this class or a parent class. */
+   public static void bindInstanceMethod(MLuaRegistration registration, String className, LuaTable instance,
+                                         String methodName, LuaValue implementation) {
+      String description = registration.classMethodDescription(className, methodName);
+      if (description == null || description.isBlank()) {
+         throw new IllegalStateException("Lua class '" + className + "' has no description for function '" + methodName + "'");
+      }
+      bindInstanceMethod(registration, className, instance, methodName, implementation, description);
+   }
+
+   /** Registers a concrete method implementation and its description together on an object class. */
+   public static void registerClassMethod(MLuaRegistration registration, String className, LuaTable classTable,
+                                          String methodName, LuaValue function, String description) {
+      if (registration.classTable(className) != classTable) {
+         throw new IllegalArgumentException("Lua class table does not belong to registered class '" + className + "'");
+      }
+      registration.registerClassFunction(className, methodName, function, description);
+   }
+
+   /** Registers the documented functions exposed by one live service on its shared service class. */
+   public static void registerServiceMethods(MLuaRegistration registration, String className,
+                                             LuaTable serviceInstance) {
+      LuaTable classTable = registration.classTable(className);
+      if (classTable == null) throw new IllegalStateException("Lua class is not registered: " + className);
+      LuaValue serviceNameValue = classTable.rawget("__mlua_service_name");
+      if (!serviceNameValue.isstring() || serviceNameValue.tojstring().isBlank()) {
+         throw new IllegalStateException("Lua class '" + className + "' is not assigned to a named service");
+      }
+      LuaValue classDescriptionValue = classTable.rawget("__mlua_doc_description");
+      if (!classDescriptionValue.isnil() && !classDescriptionValue.isstring()) {
+         throw new IllegalStateException("Service class '" + className + "' has invalid description metadata");
+      }
+      LuaValue docsValue = serviceInstance.rawget("__mlua_doc_methods");
+      if (!docsValue.isnil() && !docsValue.istable()) {
+         throw new IllegalStateException("Service '" + className + "' method descriptions must be a table");
+      }
+
+      LuaTable docs = docsValue.istable() ? docsValue.checktable() : new LuaTable();
+      LuaValue classDocsValue = classTable.rawget("__mlua_doc_methods");
+      if (!classDocsValue.isnil() && !classDocsValue.istable()) {
+         throw new IllegalStateException("Service class '" + className + "' method descriptions must be a table");
+      }
+      LuaTable classDocs = classDocsValue.istable() ? classDocsValue.checktable() : new LuaTable();
+      LuaValue declaredKey = LuaValue.NIL;
+      while (true) {
+         Varargs declaredEntry = classDocs.next(declaredKey);
+         declaredKey = declaredEntry.arg1();
+         if (declaredKey.isnil()) break;
+         if (!declaredKey.isstring()) {
+            throw new IllegalStateException("Service class '" + className + "' method names must be strings");
+         }
+         String methodName = declaredKey.tojstring();
+         LuaValue declaredDescription = declaredEntry.arg(2);
+         if (!declaredDescription.isstring() || declaredDescription.tojstring().isBlank()) {
+            throw new IllegalStateException("Service class '" + className + "' method '" + methodName
+               + "' must have a non-empty description");
+         }
+         LuaValue instanceDescription = docs.rawget(declaredKey);
+         if (!instanceDescription.isnil()
+            && (!instanceDescription.isstring()
+               || !declaredDescription.tojstring().equals(instanceDescription.tojstring()))) {
+            throw new IllegalStateException("Service '" + className + "' function '" + methodName
+               + "' conflicts with its registered class description");
+         }
+         LuaValue classMethod = classTable.rawget(methodName);
+         if (!classMethod.isfunction()) {
+            throw new IllegalStateException("Service class '" + className + "' has no dispatcher for declared function '"
+               + methodName + "'");
+         }
+         LuaValue dispatchers = classTable.rawget("__mlua_service_dispatchers");
+         boolean usesInstanceDispatcher = dispatchers.istable()
+            && dispatchers.checktable().rawget(methodName).toboolean();
+         if (!usesInstanceDispatcher && serviceInstance.rawget(methodName).isfunction()) {
+            throw new IllegalStateException("Service '" + className + "' already implements function '"
+               + methodName + "' on its live instance; a service class function with the same name would be shadowed");
+         }
+         if (usesInstanceDispatcher && !instanceMethod(serviceInstance, methodName).isfunction()) {
+            throw new IllegalStateException("Service '" + className + "' does not implement declared function '"
+               + methodName + "'");
+         }
+      }
+
+      LuaValue serviceKey = LuaValue.NIL;
+      while (true) {
+         Varargs serviceEntry = serviceInstance.next(serviceKey);
+         serviceKey = serviceEntry.arg1();
+         if (serviceKey.isnil()) break;
+         if (!serviceKey.isstring() || serviceKey.tojstring().startsWith("__")
+            || !serviceEntry.arg(2).isfunction()) continue;
+         LuaValue description = docs.rawget(serviceKey);
+         String registeredDescription = registration.classMethodDescription(className, serviceKey.tojstring());
+         if ((!description.isstring() || description.tojstring().isBlank())
+            && (registeredDescription == null || registeredDescription.isBlank())) {
+            throw new IllegalStateException("Service '" + className + "' function '" + serviceKey.tojstring()
+               + "' must have a non-empty description");
+         }
+      }
+
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = docs.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         if (!key.isstring()) {
+            throw new IllegalStateException("Service '" + className + "' method names must be strings");
+         }
+         String methodName = key.tojstring();
+         if (MLuaRegistration.isReservedFunctionName(methodName)) {
+            throw new IllegalStateException("Service '" + className
+               + "' method name is reserved for MLua metadata: " + methodName);
+         }
+         if (registration.hasClassProperty(className, methodName)) {
+            throw new IllegalStateException("Service class '" + className + "' cannot register function '"
+               + methodName + "' because it is an inherited property");
+         }
+         LuaValue description = entry.arg(2);
+         LuaValue instanceMethod = instanceMethod(serviceInstance, methodName);
+         if (!description.isstring() || description.tojstring().isBlank()) {
+            throw new IllegalStateException("Service '" + className + "' method '" + methodName
+               + "' must have a non-empty description");
+         }
+         if (!instanceMethod.isfunction()) {
+            throw new IllegalStateException("Service '" + className + "' documents missing function '"
+               + methodName + "'");
+         }
+
+         LuaValue classMethod = classTable.rawget(key);
+         if (!classMethod.isnil() && !classMethod.isfunction()) {
+            throw new IllegalStateException("Service class '" + className + "' already defines non-function member '"
+               + methodName + "'");
+         }
+         String registeredDescription = registration.classMethodDescription(className, methodName);
+         if (registeredDescription != null && !registeredDescription.equals(description.tojstring())) {
+            throw new IllegalStateException("Service '" + className + "' method '" + methodName
+               + "' conflicts with its registered class description");
+         }
+      }
+
+      java.util.Map<String, String> serviceMethods = new java.util.LinkedHashMap<>();
+      key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = docs.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         serviceMethods.put(key.tojstring(), entry.arg(2).tojstring());
+      }
+      registration.registerServiceClass(serviceNameValue.tojstring(), className,
+         classDescriptionValue.isstring() ? classDescriptionValue.tojstring() : null, serviceMethods);
+   }
+
+   private static LuaValue instanceMethod(LuaValue receiver, String methodName) {
+      if (!receiver.istable()) return LuaValue.NIL;
+      LuaValue key = LuaValue.valueOf(methodName);
+      LuaValue method = receiver.rawget(key);
+      if (method.isfunction()) return method;
+
+      LuaValue metaValue = receiver.getmetatable();
+      if (metaValue.istable()) {
+         LuaTable meta = metaValue.checktable();
+         LuaValue methods = meta.rawget("__mlua_instance_methods");
+         if (methods.istable()) {
+            method = methods.get(key);
+            if (method.isfunction()) return method;
+         }
+         LuaValue service = meta.rawget("__mlua_service_instance");
+         if (service.istable()) {
+            method = service.checktable().rawget(key);
+            if (method.isfunction()) return method;
+         }
+         LuaValue fallback = meta.rawget("__mlua_instance_fallback");
+         if (fallback.istable()) method = fallback.get(key);
+         else if (fallback.isfunction()) method = fallback.invoke(receiver, key).arg1();
+         if (method.isfunction()) return method;
+      }
+      return receiver.get(key);
+   }
+}

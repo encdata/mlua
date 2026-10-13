@@ -1,0 +1,115 @@
+plugins {
+    id 'base'
+}
+
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+}
+
+def targetConfig = loadMluaTargetConfig()
+validateMluaTargetConfig(targetConfig)
+def documentationOnly = providers.gradleProperty('mluaDocsOnly').isPresent()
+def requestedLoader = providers.gradleProperty('mluaLoader').orNull
+def activeTargets = selectMluaBuildTargets(targetConfig, providers.gradleProperty('mluaTarget').orNull, documentationOnly)
+def allLoaderProjects = activeTargets.collectMany { target ->
+    def loaders = requestedLoader == null ? target.loaders : target.loaders.findAll { it == requestedLoader }
+    loaders.collect { loader -> [loader: loader, target: target.minecraft, path: ":${loader}:${target.minecraft}"] }
+}.findAll { findProject(it.path) != null }
+
+def collectLoaderJars = tasks.register('collectLoaderJars', Copy) {
+    allLoaderProjects.each { loaderProject ->
+        // Some modern Loom/NeoForge projects expose only `jar`, while older
+        // Fabric projects expose `remapJar`. Resolve whichever task actually
+        // exists instead of assuming every target has remapJar.
+        def producer = project(loaderProject.path).tasks.findByName('remapJar')
+        if (producer == null) producer = project(loaderProject.path).tasks.named('jar').get()
+        dependsOn producer
+        from(producer) {
+            into ''
+        }
+    }
+    into(layout.buildDirectory.dir('loader-jars'))
+}
+
+tasks.named('assemble').configure {
+    allLoaderProjects.each { loaderProject ->
+        dependsOn project(loaderProject.path).tasks.named('assemble')
+    }
+}
+
+tasks.named('build').configure {
+    allLoaderProjects.each { loaderProject ->
+        dependsOn project(loaderProject.path).tasks.named('build')
+    }
+    finalizedBy collectLoaderJars
+}
+
+def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
+    dependsOn collectLoaderJars
+    doLast {
+        def json = new groovy.json.JsonSlurper()
+        def outputDir = layout.buildDirectory.dir('loader-jars').get().asFile
+        def manifest = []
+        allLoaderProjects.each { loaderProject ->
+            def artifact = new File(outputDir, "mlua-${loaderProject.loader}-${loaderProject.target}-${mod_version}.jar")
+            if (!artifact.isFile() || artifact.length() < 100_000) {
+                throw new GradleException("Missing or suspiciously small loader artifact: ${artifact}")
+            }
+            def entries = classEntries(artifact)
+            if (!entries.contains('icon.png')) throw new GradleException("${artifact.name} is missing icon.png")
+            def mixinFiles = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                zip.entries().findAll { it.name.endsWith('.mixins.json') }.collect { it.name }
+            }
+            mixinFiles.each { mixinPath ->
+                def mixins = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                    json.parseText(zip.getInputStream(zip.getEntry(mixinPath)).getText('UTF-8'))
+                }
+                def pkg = mixins.package ? mixins.package + '.' : ''
+                (mixinLists(mixins) ?: []).each { mixinName ->
+                    def classEntry = (pkg + mixinName).replace('.', '/') + '.class'
+                    if (!entries.contains(classEntry)) throw new GradleException("${artifact.name} declares missing mixin ${classEntry}")
+                }
+            }
+            manifest << [loader: loaderProject.loader, minecraft: loaderProject.target, file: artifact.name,
+                         bytes: artifact.length(), sha256: sha256(artifact)]
+        }
+        def manifestFile = layout.buildDirectory.file('loader-jars/manifest.json').get().asFile
+        manifestFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(manifest)) + System.lineSeparator()
+    }
+}
+
+ext.mixinLists = { Map mixins ->
+    ['mixins', 'client', 'server'].collectMany { key -> (mixins[key] instanceof List ? mixins[key] : []) }
+}
+ext.sha256 = { File file ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    file.withInputStream { input ->
+        byte[] buffer = new byte[8192]
+        int read
+        while ((read = input.read(buffer)) > 0) digest.update(buffer, 0, read)
+    }
+    digest.digest().collect { String.format('%02x', it) }.join()
+}
+ext.classEntries = { File artifact ->
+    def entries = [] as Set
+    new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+        zip.entries().each { entry ->
+            entries.add(entry.name)
+            if (!entry.isDirectory() && entry.name.endsWith('.jar')) {
+                new java.util.jar.JarInputStream(zip.getInputStream(entry)).withCloseable { nested ->
+                    java.util.jar.JarEntry nestedEntry
+                    while ((nestedEntry = nested.nextJarEntry) != null) {
+                        if (!nestedEntry.isDirectory()) entries.add(nestedEntry.name)
+                    }
+                }
+            }
+        }
+    }
+    entries
+}
+
+tasks.named('build').configure { finalizedBy validateLoaderArtifacts }

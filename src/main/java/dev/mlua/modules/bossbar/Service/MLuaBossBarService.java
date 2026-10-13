@@ -1,0 +1,247 @@
+package dev.mlua.modules.bossbar.Service;
+
+import dev.mlua.common.enums.Side;
+import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.MLuaRuntime;
+import dev.mlua.module.MLuaRegistration;
+import dev.mlua.modules.bossbar.MLuaBossBarRegistry;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.BossEvent;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+
+import java.util.UUID;
+import java.util.function.Function;
+
+public final class MLuaBossBarService extends MLuaServiceBase {
+    private static final MLuaBossBarRegistry<ServerBossEvent> bossBars = new MLuaBossBarRegistry<>();
+
+    public static void clearOwned(Object runtimeOwner, String ownerModId) {
+        for (ServerBossEvent event : bossBars.clearOwned(runtimeOwner, ownerModId)) {
+            event.removeAllPlayers();
+        }
+    }
+
+    public static void clearRuntime(Object runtimeOwner) {
+        for (ServerBossEvent event : bossBars.clearRuntime(runtimeOwner)) {
+            event.removeAllPlayers();
+        }
+    }
+    private final MLuaRegistration registration;
+
+    public MLuaBossBarService(MLuaService.Context context) {
+        super(context);
+
+        this.registration = context.mlua().registration();
+    }
+
+    @Override
+    public String name() {
+        return "BossBar";
+    }
+
+    @Override
+    public LuaTable toLua() {
+        if (this.registration == null || this.registration.classTable("BossBarHandle") == null) {
+            throw new IllegalStateException("BossBarHandle class must be registered before materializing the BossBar service");
+        }
+        LuaTable table = new LuaTable();
+        table.set("__side", "Server");
+
+        table.set("Create", fn((args) -> {
+            requireServer();
+            String name = args.checkjstring(2);
+            String title = args.checkjstring(3);
+            ServerBossEvent event = new ServerBossEvent(
+                //--version 26.1
+                UUID.randomUUID(),
+                //--endversion
+                Component.literal(title),
+                BossEvent.BossBarColor.WHITE,
+                BossEvent.BossBarOverlay.PROGRESS
+            );
+            MLuaBossBarRegistry.Key key = key(name);
+            ServerBossEvent replaced = bossBars.put(key, event);
+            if (replaced != null) replaced.removeAllPlayers();
+            return createHandle(key, event);
+        }));
+
+        table.set("Get", fn((args) -> {
+            requireServer();
+            String name = args.checkjstring(2);
+            MLuaBossBarRegistry.Key key = key(name);
+            ServerBossEvent event = bossBars.get(key);
+            if (event == null) {
+                return LuaValue.NIL;
+            }
+            return createHandle(key, event);
+        }));
+
+        table.set("Remove", fn((args) -> {
+            requireServer();
+            String name = args.checkjstring(2);
+            ServerBossEvent event = bossBars.remove(key(name));
+            if (event != null) {
+                event.removeAllPlayers();
+            }
+            return LuaValue.NONE;
+        }));
+
+        table.set("GetAll", fn((args) -> {
+            requireServer();
+            LuaTable result = new LuaTable();
+            int index = 1;
+            for (var entry : bossBars.snapshot(runtimeOwner(), ownerModId()).entrySet()) {
+                LuaTable handle = createHandle(entry.getKey(), entry.getValue());
+                handle.set("__name", entry.getKey().name());
+                result.set(index++, handle);
+            }
+            return result;
+        }));
+
+        return table;
+    }
+
+    private LuaTable createHandle(MLuaBossBarRegistry.Key key, ServerBossEvent event) {
+        String name = key.name();
+        LuaTable handle = new LuaTable();
+        handle.set("__name", name);
+
+        handle.set("SetTitle", fn((args) -> {
+            requireServer();
+            event.setName(Component.literal(args.checkjstring(2)));
+            return LuaValue.NONE;
+        }));
+
+        handle.set("SetHealth", fn((args) -> {
+            requireServer();
+            event.setProgress((float) args.checkdouble(2));
+            return LuaValue.NONE;
+        }));
+
+        handle.set("SetColor", fn((args) -> {
+            requireServer();
+            String colorName = args.checkjstring(2);
+            try {
+                event.setColor(BossEvent.BossBarColor.valueOf(colorName.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new LuaError("[MLua] Unknown boss bar color: " + colorName);
+            }
+            return LuaValue.NONE;
+        }));
+
+        handle.set("SetStyle", fn((args) -> {
+            requireServer();
+            String styleName = args.checkjstring(2);
+            try {
+                event.setOverlay(BossEvent.BossBarOverlay.valueOf(styleName.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new LuaError("[MLua] Unknown boss bar style: " + styleName);
+            }
+            return LuaValue.NONE;
+        }));
+
+        handle.set("SetVisible", fn((args) -> {
+            requireServer();
+            event.setVisible(args.checkboolean(2));
+            return LuaValue.NONE;
+        }));
+
+        handle.set("GetTitle", fn((args) -> {
+            requireServer();
+            return LuaValue.valueOf(event.getName().getString());
+        }));
+
+        handle.set("GetHealth", fn((args) -> {
+            requireServer();
+            return LuaValue.valueOf(event.getProgress());
+        }));
+
+        handle.set("GetColor", fn((args) -> {
+            requireServer();
+            return LuaValue.valueOf(event.getColor().name());
+        }));
+
+        handle.set("GetStyle", fn((args) -> {
+            requireServer();
+            return LuaValue.valueOf(event.getOverlay().name());
+        }));
+
+        handle.set("IsVisible", fn((args) -> {
+            requireServer();
+            return LuaValue.valueOf(event.isVisible());
+        }));
+
+        handle.set("AddPlayer", fn((args) -> {
+            requireServer();
+            ServerPlayer player = extractPlayer(args.arg(2));
+            event.addPlayer(player);
+            return LuaValue.NONE;
+        }));
+
+        handle.set("RemovePlayer", fn((args) -> {
+            requireServer();
+            ServerPlayer player = extractPlayer(args.arg(2));
+            event.removePlayer(player);
+            return LuaValue.NONE;
+        }));
+
+        handle.set("Remove", fn((args) -> {
+            requireServer();
+            event.removeAllPlayers();
+            bossBars.remove(key, event);
+            return LuaValue.NONE;
+        }));
+
+        this.registration.attachClassInstance(handle, "BossBarHandle", null);
+        return handle;
+    }
+
+    private void requireServer() {
+        if (this.context.mlua().side() != Side.SERVER) {
+            throw new LuaError("[MLua] BossBar service methods are server-side only");
+        }
+    }
+
+    private Object runtimeOwner() {
+        return this.context.mlua().registration() instanceof MLuaRuntime runtime ? runtime.session() : null;
+    }
+
+    private String ownerModId() {
+        String owner = this.context.mlua().ownerModId();
+        return owner == null ? "" : owner;
+    }
+
+    private MLuaBossBarRegistry.Key key(String name) {
+        return new MLuaBossBarRegistry.Key(runtimeOwner(), ownerModId(), name);
+    }
+
+    private static ServerPlayer extractPlayer(LuaValue playerVal) {
+        LuaTable t = playerVal.checktable();
+        LuaValue e = t.get("__entity");
+        if (e.isuserdata(ServerPlayer.class)) {
+            return (ServerPlayer) e.checkuserdata(ServerPlayer.class);
+        }
+        throw new LuaError("[MLua] Expected a Player table");
+    }
+
+    private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                try {
+                    return body.apply(args);
+                } catch (LuaError e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new LuaError("[MLua] " + e.getMessage());
+                }
+            }
+        };
+    }
+}

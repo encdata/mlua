@@ -1,0 +1,241 @@
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = project.ext.get('mluaRuntimeTargetVersion')
+def target = findMluaTarget(targetVersion)
+def minecraft_version = resolveMluaTargetValue(targetVersion, 'minecraftDependencyVersion', target.minecraft)
+def minecraft_version_range = resolveMluaTargetValue(targetVersion, 'minecraftVersionRange')
+def forge_version = resolveMluaTargetValue(targetVersion, 'forgeVersion')
+def forge_version_range = resolveMluaTargetValue(targetVersion, 'forgeVersionRange')
+def loader_version_range = resolveMluaTargetValue(targetVersion, 'loaderVersionRange')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+def prepareRuntimeForgeBridgeSources = registerMergedTree(project, 'prepareRuntimeForgeBridgeSources',
+    [rootProject.file('src/main/java/dev/mlua/loader/impl/forge')] +
+        targetPathChain('mlua-loaders/forge/%s/project/src/main/java/dev/mlua/loader/impl/forge', targetVersion))
+def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',
+    targetPathChain('mlua-versions/common/%s', targetVersion))
+def prepareRuntimeForgeAdapterSources = registerMergedTree(project, 'prepareRuntimeForgeAdapterSources',
+    targetPathChain('mlua-loaders/forge/%s/impl/dev/mlua/mc/impl/forge', targetVersion))
+
+base {
+    archivesName = project.path == ':mlua-runtime' ? "${mod_id}-runtime" : "${mod_id}-runtime-${minecraft_version}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    runs {
+        configureEach {
+            workingDirectory rootProject.file('mlua-runtime/run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'info'
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+    }
+}
+
+def targetVer = target.minecraft
+def runtimeRootExcludes = [
+    'dev/mlua/agent/**',
+    'dev/mlua/common/enums/**',
+    'dev/mlua/common/mixin/**',
+    'dev/mlua/transformer/**',
+    'dev/mlua/MLuaMod.java',
+    'dev/mlua/loader/forge/**',
+    'dev/mlua/loader/impl/forge/**',
+    'org/luaj/**',
+    'org/apache/bcel/**',
+]
+
+task prepareRuntimeRootSources(type: Sync) {
+    from(fileTree(dir: rootProject.file('src/main/java'), excludes: runtimeRootExcludes))
+    into file("${buildDir}/generated/runtime-root-java")
+    doLast {
+        fileTree(destinationDir).matching { include '**/*.java' }.each { file ->
+            def lines = file.readLines()
+            def filtered = []
+            def inVersionBlock = null
+            def justEndedVersion = false
+            lines.each { line ->
+                def trimmed = line.trim()
+                if (trimmed.startsWith('//--version ')) {
+                    def blockVersion = trimmed.substring('//--version '.length()).trim()
+                    inVersionBlock = blockVersion.tokenize(',').contains(targetVer) ? null : blockVersion
+                } else if (trimmed == '//--endversion') {
+                    inVersionBlock = null
+                    justEndedVersion = true
+                } else if (justEndedVersion && trimmed.isEmpty()) {
+                    justEndedVersion = false
+                } else {
+                    justEndedVersion = false
+                    if (inVersionBlock == null) {
+                        filtered << line
+                    }
+                }
+            }
+            file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+        }
+    }
+}
+
+sourceSets.main.java.setSrcDirs([
+    file("${buildDir}/generated/runtime-root-java"),
+    rootProject.file('mlua-api/src/main/java'),
+    rootProject.file('mlua-common/src/main/java'),
+    rootProject.file('mlua-loader-api/src/main/java'),
+    rootProject.file('mlua-luaj/src/main/java'),
+    rootProject.file('mlua-mc-api/src/main/java'),
+    file("${buildDir}/generated/prepareRuntimeMcImplSources"),
+    file("${buildDir}/generated/prepareRuntimeForgeBridgeSources"),
+    file("${buildDir}/generated/prepareRuntimeForgeAdapterSources")
+])
+sourceSets.main.resources.setSrcDirs([
+    rootProject.file('src/main/resources'),
+    rootProject.file('src/generated/resources')
+])
+
+tasks.named('compileJava').configure {
+    dependsOn tasks.prepareRuntimeRootSources, prepareRuntimeMcImplSources, prepareRuntimeForgeBridgeSources, prepareRuntimeForgeAdapterSources
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation project(':mlua-common')
+    implementation project(':mlua-core')
+    implementation project(':mlua-luaj')
+    implementation project(":mlua-mc:${targetVersion}")
+    implementation project(':mlua-mc-api')
+    implementation project(':mlua-loader-api')
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    implementation('org.apache.bcel:bcel:6.7.0') {
+        transitive = false
+    }
+
+    testImplementation project(':mlua-common')
+    testImplementation project(':mlua-luaj')
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+mixin {
+    add sourceSets.main, 'mlua.refmap.json'
+    config 'mlua.forge.mixins.json'
+}
+
+jarJar.enable()
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version: minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version,
+            forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes([
+                'Automatic-Module-Name': 'mlua',
+                'Specification-Title': mod_id,
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor': mod_authors
+        ])
+    }
+    exclude 'dev/mlua/common/enums/**'
+    exclude 'dev/mlua/common/mixin/**'
+    exclude 'dev/mlua/transformer/**'
+    exclude 'org/luaj/**'
+    exclude 'org/apache/bcel/**'
+}
+
+tasks.register('gendocs', JavaExec) {
+    group = 'mlua'
+    description = 'Generate MLua documentation without launching the game'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.mlua.core.MLuaDocGenerator'
+    doFirst {
+        def minecraftJars = sourceSets.main.runtimeClasspath.findAll {
+            def name = it.isFile() ? it.name.toLowerCase() : ''
+            name.contains('client') || name.contains('forge') || name.contains('minecraft')
+        }
+        systemProperty 'mlua.minecraft.classpath', minecraftJars.join(File.pathSeparator)
+    }
+}
+
+tasks.register('syncVscodeExtensionApi', Copy) {
+    group = 'mlua'
+    description = 'Copy generated MLua API files into the VS Code extension'
+    dependsOn tasks.named('gendocs')
+    into(rootProject.layout.projectDirectory.dir('vscode-extension'))
+
+    from(rootProject.layout.projectDirectory.file('mlua-runtime/run/mlua/docs/api/mlua.d.lua')) {
+        into 'resources'
+    }
+    from(rootProject.layout.projectDirectory.file('mlua-runtime/run/mlua/docs/api/settings.json')) {
+        into 'resources'
+    }
+    from(rootProject.layout.projectDirectory.file('mlua-runtime/run/mlua/docs/api/extension.js'))
+}
+
+tasks.register('buildExtension', Exec) {
+    group = 'mlua'
+    description = 'Build the VS Code extension .vsix'
+    dependsOn tasks.named('syncVscodeExtensionApi')
+    workingDir = rootProject.layout.projectDirectory.dir('vscode-extension').asFile
+    commandLine 'npx.cmd', '@vscode/vsce', 'package', '--allow-missing-repository', '--out', 'mlua.vsix'
+    doFirst {
+        def pkg = rootProject.file('vscode-extension/package.json')
+        def text = pkg.text
+        text = text.replaceFirst(/"version":\s*"[^"]+"/, '"version": "' + project.mod_version + '"')
+        text = text.replaceFirst(/"publisher":\s*"[^"]+"/, '"publisher": "' + project.mod_authors + '"')
+        pkg.text = text
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

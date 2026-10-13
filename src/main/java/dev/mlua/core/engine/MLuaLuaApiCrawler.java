@@ -1,0 +1,337 @@
+package dev.mlua.core.engine;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+
+/** Builds HTML references from raw LuaJ tables without invoking Lua code. */
+public final class MLuaLuaApiCrawler {
+    private static final int MAX_DEPTH = 12;
+    private static final int MAX_ENTRIES = 20_000;
+    private static final int MAX_TYPED_PAGES = 250;
+    private static final int MAX_PAGE_ENTRIES = 2_000;
+    private static final LuaValue TYPE = LuaValue.valueOf("__type");
+    private static final LuaValue DOC_TYPE = LuaValue.valueOf("__mlua_doc_type");
+    private static final LuaValue DOC_PROPERTIES = LuaValue.valueOf("__mlua_doc_properties");
+    private static final LuaValue PROPERTIES = LuaValue.valueOf("__mlua_properties");
+
+    private MLuaLuaApiCrawler() { }
+
+    public static String crawlHtml(LuaValue globals, Map<String, LuaTable> services) {
+        CrawlData data = collect(globals, services);
+        return renderInventory(data.entries(), data.categories());
+    }
+
+    public static CrawlResult crawl(LuaValue globals, Map<String, LuaTable> services) {
+        CrawlData data = collect(globals, services);
+        return new CrawlResult(renderInventory(data.entries(), data.categories()),
+            renderTypedPages(data.entries(), data.categories()));
+    }
+
+    private static CrawlData collect(LuaValue globals, Map<String, LuaTable> services) {
+        List<Entry> entries = new ArrayList<>();
+        Map<String, String> categories = new LinkedHashMap<>();
+        if (globals.istable()) {
+            IdentitySet seen = new IdentitySet();
+            seen.add(globals);
+            IdentitySet categoryTables = new IdentitySet();
+            int[] remainingCategories = new int[]{MAX_ENTRIES};
+            collectCategories(globals, "", categories, categoryTables, remainingCategories, 0);
+            LuaTable serviceRoot = new LuaTable();
+            services.forEach((name, service) -> serviceRoot.set(name, service));
+            if (!services.isEmpty()) {
+                categories.put("Services", "Services");
+                collectCategories(serviceRoot, "Services", categories, new IdentitySet(), new int[]{MAX_ENTRIES}, 0);
+            }
+            addChildren((LuaTable) globals, "", 0, entries, seen);
+            if (!services.isEmpty()) visit(serviceRoot, "Services", 0, entries, seen);
+        }
+        entries.sort(Comparator.comparing(Entry::path).thenComparing(Entry::kind));
+        return new CrawlData(entries, categories);
+    }
+
+    private static void collectCategories(LuaValue value, String path, Map<String, String> categories,
+                                          IdentitySet seen, int[] remaining, int depth) {
+        if (!value.istable() || depth >= MAX_DEPTH || remaining[0] <= 0 || !seen.add(value)) return;
+        remaining[0]--;
+        LuaTable table = value.checktable();
+        LuaValue category = table.rawget("__mlua_doc_category");
+        if (category.isstring() && !category.tojstring().isBlank()) categories.put(path, category.tojstring());
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs next;
+            try { next = table.next(key); } catch (RuntimeException ignored) { return; }
+            key = next.arg1();
+            if (key.isnil() || remaining[0] <= 0) return;
+            if (key.isstring() && key.tojstring().startsWith("__")) continue;
+            String child = childPath(path, key);
+            if (child != null) collectCategories(next.arg(2), child, categories, seen, remaining, depth + 1);
+        }
+    }
+
+    private static String renderInventory(List<Entry> entries, Map<String, String> categories) {
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"lua-api-inventory\"><p>This reference follows the LuaJ tables exposed to the script. Descriptions come from class, service, method, and property registration. The crawler reads metadata without calling API functions or property accessors.</p>")
+            .append("<p>Showing ").append(entries.size()).append(" entries (maximum ").append(MAX_ENTRIES).append("). Use the filter to find a path, kind, or value.</p>")
+            .append("<label>Filter entries <input class=\"lua-api-filter\" type=\"search\" placeholder=\"Path, kind, or value\" style=\"width:min(100%,32rem);padding:8px 12px;margin:0 0 20px;background:#202227;color:#e5e7eb;border:1px solid rgba(208,217,251,.16);border-radius:6px\"></label><script>(function(){var script=document.currentScript,root=script.parentNode,input=root.querySelector('.lua-api-filter');if(!input)return;input.addEventListener('input',function(){var q=input.value.toLowerCase();root.querySelectorAll('.lua-api-row').forEach(function(row){row.hidden=row.textContent.toLowerCase().indexOf(q)===-1;});});})();</script>");
+        Map<String, List<Entry>> groups = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (Entry entry : entries) groups.computeIfAbsent(categoryForPath(entry.path, categories), ignored -> new ArrayList<>()).add(entry);
+        groups.forEach((category, members) -> html.append("<section class=\"lua-api-category\"><h2>")
+            .append(escape(category)).append("</h2>").append(tableRows(members)).append("</section>"));
+        return html.append("</div>").toString();
+    }
+
+    private static String categoryForPath(String path, Map<String, String> categories) {
+        String current = path;
+        while (true) {
+            String category = categories.get(current);
+            if (category != null) return category;
+            int separator = Math.max(current.lastIndexOf('.'), current.lastIndexOf('['));
+            if (separator < 0) break;
+            current = current.substring(0, separator);
+        }
+        return "Globals";
+    }
+
+    private static Map<String, GeneratedPage> renderTypedPages(List<Entry> entries, Map<String, String> categories) {
+        Map<String, Entry> nodes = new TreeMap<>();
+        for (Entry entry : entries) {
+            String category = categoryForPath(entry.path, categories);
+            // Every registered Lua table can be an API namespace: classes and services are
+            // first-class categories, while globals and addon-defined categories are discovered
+            // from the same metadata instead of being maintained in a page allowlist.
+            if (entry.kind.startsWith("table: ") || entry.kind.equals("signal")) {
+                nodes.putIfAbsent(entry.path, entry);
+            }
+        }
+        Map<String, GeneratedPage> pages = new LinkedHashMap<>();
+        for (Map.Entry<String, Entry> node : nodes.entrySet()) {
+            if (pages.size() >= MAX_TYPED_PAGES) break;
+            String path = node.getKey();
+            List<Entry> members = entries.stream().filter(entry -> isWithin(path, entry.path)).toList();
+            if (members.size() < 2) continue;
+            boolean truncated = members.size() > MAX_PAGE_ENTRIES;
+            if (truncated) members = members.subList(0, MAX_PAGE_ENTRIES);
+            String title = node.getValue().kind.equals("signal") ? "Signal " + path : node.getValue().kind.substring("table: ".length()) + " · " + path;
+            String description = entries.stream().filter(entry -> entry.path.equals(path) && entry.kind.equals("description"))
+                .map(Entry::value).filter(java.util.Objects::nonNull).findFirst().orElse("Lua API table registered at this path.");
+            String content = "<p>" + escape(description) + "</p><p>Members on <code>" + escape(path)
+                + "</code> show the Lua API available at this table.</p>"
+                + (truncated ? "<p>This table is large; showing its first " + MAX_PAGE_ENTRIES + " entries.</p>" : "")
+                + tableRows(members) + "<p><a href=\"../../../live-lua-api.html\">Back to the complete Lua API inventory</a></p>";
+            pages.put(slug(path) + ".html", new GeneratedPage(title, path,
+                categoryForPath(path, categories), content));
+        }
+        return pages;
+    }
+
+    private static boolean isWithin(String root, String path) {
+        return path.equals(root) || path.startsWith(root + ".") || path.startsWith(root + "[");
+    }
+
+    private static String tableRows(List<Entry> entries) {
+        Map<String, String> descriptions = new java.util.HashMap<>();
+        for (Entry entry : entries) {
+            if (entry.value != null && (entry.kind.equals("description")
+                || entry.kind.equals("function description")
+                || entry.kind.equals("inherited function description"))) {
+                descriptions.putIfAbsent(entry.path, entry.value);
+            }
+        }
+        StringBuilder html = new StringBuilder("<table><thead><tr><th>Path</th><th>Kind</th><th>Description</th><th>Value</th></tr></thead><tbody>");
+        for (Entry entry : entries) {
+            if (entry.kind.equals("description") || entry.kind.equals("function description")
+                || entry.kind.equals("inherited function description")) continue;
+            String description = descriptions.get(entry.path);
+            if (description == null && entry.kind.startsWith("property ")) description = entry.value;
+            html.append("<tr class=\"lua-api-row\"><td><code>").append(escape(entry.path)).append("</code></td><td>")
+                .append(escape(entry.kind)).append("</td><td>")
+                .append(description == null ? "" : escape(description)).append("</td><td>")
+                .append(entry.value == null || entry.kind.startsWith("property ") ? "" : "<code>" + escape(entry.value) + "</code>")
+                .append("</td></tr>");
+        }
+        return html.append("</tbody></table>").toString();
+    }
+
+    private static String slug(String path) {
+        String readable = path.toLowerCase(java.util.Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        String stableId = java.util.UUID.nameUUIDFromBytes(path.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+            .toString().replace("-", "");
+        return readable + "-" + stableId;
+    }
+
+    private static void visit(LuaValue value, String path, int depth, List<Entry> entries, IdentitySet seen) {
+        if (entries.size() >= MAX_ENTRIES || value == null) return;
+        String kind = kind(value);
+        if (value.istable()) {
+            LuaValue type = value.rawget(TYPE);
+            if (!type.isstring()) type = value.rawget(DOC_TYPE);
+            if (type.isstring()) kind = "table: " + type.tojstring();
+            if (hasRaw(value, "Connect") && hasRaw(value, "Fire")) kind = "signal";
+            else if (hasRaw(value, "Disconnect")) kind = "connection";
+        }
+        entries.add(new Entry(path, kind, scalar(value)));
+        if (!value.istable() || depth >= MAX_DEPTH || !seen.add(value)) return;
+        LuaTable table = (LuaTable) value;
+        addDocumentation(table, path, entries);
+        addChildren(table, path, depth + 1, entries, seen);
+        LuaValue properties = table.rawget(PROPERTIES);
+        LuaValue propertyDocs = table.rawget(DOC_PROPERTIES);
+        addProperties(properties.istable() ? properties : propertyDocs, propertyDocs, path, entries);
+        LuaValue metatable = table.getmetatable();
+        if (metatable != null && metatable.istable()) {
+            LuaTable meta = (LuaTable) metatable;
+            LuaValue metaProperties = meta.rawget(PROPERTIES);
+            LuaValue metaPropertyDocs = meta.rawget(DOC_PROPERTIES);
+            addProperties(metaProperties.istable() ? metaProperties : metaPropertyDocs,
+                metaPropertyDocs, path, entries);
+            LuaValue index = meta.rawget(LuaValue.valueOf("__index"));
+            if (index.istable()) addIndexedMembers((LuaTable) index, path, depth + 1, entries, seen);
+        }
+    }
+
+    private static void addDocumentation(LuaTable table, String path, List<Entry> entries) {
+        LuaValue description = table.rawget("__mlua_doc_description");
+        if (description.isstring() && !description.tojstring().isBlank()) {
+            entries.add(new Entry(path, "description", description.tojstring()));
+        }
+        LuaValue parents = table.rawget("__mlua_doc_parents");
+        if (parents.istable()) {
+            List<String> names = new ArrayList<>();
+            LuaValue key = LuaValue.NIL;
+            while (true) {
+                Varargs next = parents.checktable().next(key);
+                key = next.arg1();
+                if (key.isnil()) break;
+                if (next.arg(2).isstring()) names.add(next.arg(2).tojstring());
+            }
+            if (!names.isEmpty()) entries.add(new Entry(path, "inherits", String.join(", ", names)));
+        }
+        addMethodDescriptions(table.rawget("__mlua_doc_methods"), path, "function description", entries);
+        if (table.rawget("__class").toboolean()) {
+            addMethodDescriptions(table.rawget("__mlua_doc_inherited_methods"), path,
+                "inherited function description", entries);
+        }
+    }
+
+    private static void addMethodDescriptions(LuaValue methodsValue, String path,
+                                              String kind, List<Entry> entries) {
+        if (!methodsValue.istable()) return;
+        LuaValue key = LuaValue.NIL;
+        while (entries.size() < MAX_ENTRIES) {
+            Varargs next = methodsValue.checktable().next(key);
+            key = next.arg1();
+            if (key.isnil()) return;
+            if (!key.isstring() || !next.arg(2).isstring() || next.arg(2).tojstring().isBlank()) continue;
+            String methodPath = childPath(path, key);
+            if (methodPath != null) entries.add(new Entry(methodPath, kind, next.arg(2).tojstring()));
+        }
+    }
+
+    private static void addIndexedMembers(LuaTable table, String path, int depth, List<Entry> entries, IdentitySet seen) {
+        if (depth >= MAX_DEPTH || !seen.add(table)) return;
+        addChildren(table, path, depth, entries, seen);
+        addProperties(table.rawget(PROPERTIES), table.rawget(DOC_PROPERTIES), path, entries);
+        LuaValue metatable = table.getmetatable();
+        if (metatable != null && metatable.istable()) {
+            LuaTable meta = (LuaTable) metatable;
+            addProperties(meta.rawget(PROPERTIES), meta.rawget(DOC_PROPERTIES), path, entries);
+            LuaValue parent = meta.rawget(LuaValue.valueOf("__index"));
+            if (parent.istable()) addIndexedMembers((LuaTable) parent, path, depth + 1, entries, seen);
+        }
+    }
+
+    private static void addChildren(LuaTable table, String path, int depth, List<Entry> entries, IdentitySet seen) {
+        LuaValue key = LuaValue.NIL;
+        while (entries.size() < MAX_ENTRIES) {
+            Varargs next;
+            try { next = table.next(key); } catch (RuntimeException ignored) { return; }
+            key = next.arg1();
+            if (key.isnil()) return;
+            if (key.isstring() && key.tojstring().startsWith("__")) continue;
+            String child = childPath(path, key);
+            if (child != null) visit(next.arg(2), child, depth, entries, seen);
+        }
+    }
+
+    private static void addProperties(LuaValue propertyMetadata, LuaValue descriptions,
+                                      String path, List<Entry> entries) {
+        if (!propertyMetadata.istable()) return;
+        LuaValue key = LuaValue.NIL;
+        while (entries.size() < MAX_ENTRIES) {
+            Varargs next = propertyMetadata.checktable().next(key);
+            key = next.arg1();
+            if (key.isnil()) return;
+            if (!key.isstring() || !next.arg(2).istable()) continue;
+            LuaTable descriptor = (LuaTable) next.arg(2);
+            boolean readable = descriptor.rawget(LuaValue.valueOf("get")).isfunction()
+                || descriptor.rawget(LuaValue.valueOf("readable")).toboolean();
+            boolean writable = descriptor.rawget(LuaValue.valueOf("set")).isfunction()
+                || descriptor.rawget(LuaValue.valueOf("writable")).toboolean();
+            boolean signal = descriptor.rawget(LuaValue.valueOf("signal")).toboolean();
+            if (!readable && !writable && !signal) continue;
+            String access = readable && writable ? "read/write" : readable ? "read" : "write";
+            LuaValue type = descriptor.rawget(LuaValue.valueOf("type"));
+            LuaValue side = descriptor.rawget(LuaValue.valueOf("side"));
+            String metadata = type.isstring() ? " · " + type.tojstring() : "";
+            if (side.isstring()) metadata += " · " + side.tojstring();
+            String propertyPath = childPath(path, key);
+            if (propertyPath != null) {
+                LuaValue description = descriptions.istable() ? descriptions.checktable().rawget(key) : LuaValue.NIL;
+                if (!description.isstring()) description = descriptor.rawget(LuaValue.valueOf("description"));
+                entries.add(new Entry(propertyPath, signal ? "signal" : "property " + access + metadata,
+                    description.isstring() ? description.tojstring() : null));
+            }
+        }
+    }
+
+    private static boolean hasRaw(LuaValue table, String key) {
+        return !table.rawget(LuaValue.valueOf(key)).isnil();
+    }
+
+    private static String childPath(String parent, LuaValue key) {
+        String name = key.isstring() || key.isnumber() ? key.tojstring() : null;
+        if (name == null || name.isBlank()) return null;
+        boolean identifier = name.matches("[A-Za-z_][A-Za-z0-9_]*");
+        if (parent.isEmpty()) return identifier ? name : "[" + name + "]";
+        return identifier ? parent + "." + name : parent + "[" + name + "]";
+    }
+
+    private static String kind(LuaValue value) {
+        if (value.istable()) return "table";
+        if (value.isfunction()) return "function";
+        if (value.isnil()) return "nil";
+        if (value.isboolean()) return "boolean";
+        if (value.isnumber()) return "number";
+        if (value.isstring()) return "string";
+        if (value.isuserdata()) return "userdata";
+        return value.typename();
+    }
+
+    private static String scalar(LuaValue value) {
+        return value.isnil() || value.isboolean() || value.isnumber() || value.isstring() ? value.tojstring() : null;
+    }
+
+    private static String escape(String value) {
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    public record CrawlResult(String inventoryHtml, Map<String, GeneratedPage> pages) { }
+    public record GeneratedPage(String title, String tablePath, String category, String html) { }
+    private record CrawlData(List<Entry> entries, Map<String, String> categories) { }
+    private record Entry(String path, String kind, String value) { }
+
+    /** Identity-based set without importing a general-purpose mutable collection type into the crawler. */
+    private static final class IdentitySet {
+        private final java.util.IdentityHashMap<LuaValue, Boolean> values = new java.util.IdentityHashMap<>();
+        boolean add(LuaValue value) { return this.values.put(value, Boolean.TRUE) == null; }
+    }
+}

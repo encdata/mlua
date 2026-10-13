@@ -1,0 +1,61 @@
+plugins {
+    id 'java-library'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+}
+
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = projectDir.name
+def target = findMluaTarget(targetVersion)
+def minecraft_version = target.minecraft
+def forge_version = resolveMluaTargetValue(targetVersion, 'forgeVersion')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+def prepareCommonVersionSources = registerMergedTree(project, 'prepareCommonVersionSources',
+    targetPathChain('mlua-versions/common/%s', targetVersion))
+def prepareForgeImplSources = registerMergedTree(project, 'prepareForgeImplSources',
+    targetPathChain('mlua-loaders/forge/%s/impl', targetVersion), ['**/MLua*TransportAdapter.java'])
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+}
+
+sourceSets.main.java.setSrcDirs([
+    'src/main/java',
+    file("${buildDir}/generated/prepareCommonVersionSources"),
+    file("${buildDir}/generated/prepareForgeImplSources")
+])
+
+tasks.named('compileJava').configure {
+    dependsOn prepareCommonVersionSources, prepareForgeImplSources
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.minecraftforge.net/' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation project(':mlua-mc-api')
+    implementation project(':mlua-common')
+    implementation project(':mlua-luaj')
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Automatic-Module-Name': 'mlua.mc.impl',
+                'Specification-Title': "${mod_id}-mc-impl",
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor': mod_authors
+        ])
+    }
+}

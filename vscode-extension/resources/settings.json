@@ -1,0 +1,11 @@
+{
+  "Lua.workspace.checkThirdParty": false,
+  "Lua.workspace.library": [
+    "${workspaceFolder}/.vscode/mlua"
+  ],
+  "Lua.diagnostics.globals": [
+    "Minecraft", "Enum", "Require", "Signal", "task", "wait",
+    "typeof", "Vector2", "Vector3", "CFrame", "Color3",
+    "UDim", "UDim2", "Random", "DateTime"
+  ]
+}

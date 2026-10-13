@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "icon": "icon.png",
+  "authors": [
+    "${mod_authors}"
+  ],
+  "license": "${mod_license}",
+  "environment": "*",
+  "entrypoints": {
+    "preLaunch": [
+      "dev.mlua.loader.impl.fabric.MLuaFabricPreLaunch"
+    ],
+    "main": [
+      "dev.mlua.loader.impl.fabric.MLuaFabricMod"
+    ],
+    "client": [
+      "dev.mlua.loader.impl.fabric.MLuaFabricClientMod"
+    ],
+    "server": [
+      "dev.mlua.loader.impl.fabric.MLuaFabricMod"
+    ]
+  },
+  "mixins": [
+    "mlua.fabric.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "java": ">=17"
+  }
+}

@@ -1,0 +1,128 @@
+package dev.mlua.modules.inventory.Service;
+
+import dev.mlua.common.enums.Side;
+import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.service.MLuaService;
+import dev.mlua.minecraft.binding.MLuaContainer;
+import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.mc.impl.container.MCContainerImpl;
+import java.util.UUID;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+
+/** Player inventory operations backed by live Container and Slot class instances. */
+public final class MLuaInventoryService extends MLuaReflectiveService {
+    public MLuaInventoryService(MLuaService.Context context) {
+        super(context);
+    }
+
+    @Override
+    public String name() {
+        return "InventoryService";
+    }
+
+    public LuaTable GetPlayerInventory(LuaValue playerValue) {
+        return playerInventory(player(playerValue));
+    }
+
+    public LuaTable GetEnderChest(LuaValue playerValue) {
+        return enderChest(player(playerValue));
+    }
+
+    public LuaValue GetSlot(LuaValue playerValue, int slotIndex) {
+        LuaTable inventory = playerInventory(player(playerValue));
+        return invokeInstanceMethod(inventory, "GetSlot", LuaValue.valueOf(slotIndex));
+    }
+
+    public boolean SetSlot(LuaValue playerValue, int slotIndex, LuaValue itemValue) {
+        ensureServer();
+        LuaTable inventory = playerInventory(player(playerValue));
+        LuaValue slotInstance = invokeInstanceMethod(inventory, "GetSlot", LuaValue.valueOf(slotIndex));
+        if (!slotInstance.istable()) return false;
+        invokeInstanceMethod(slotInstance.checktable(), "SetItem", itemValue);
+        return true;
+    }
+
+    public boolean AddItem(LuaValue playerValue, LuaValue itemValue) {
+        ensureServer();
+        return player(playerValue).getInventory().add(MLuaItemWrapper.toItemStack(itemValue));
+    }
+
+    public void Clear(LuaValue playerValue) {
+        ensureServer();
+        invokeInstanceMethod(playerInventory(player(playerValue)), "Clear");
+    }
+
+    private Player player(LuaValue value) {
+        if (value.istable()) {
+            LuaValue raw = value.checktable().rawget("__entity");
+            if (raw.isuserdata(Player.class)) {
+                return (Player) raw.touserdata(Player.class);
+            }
+            if (raw.isuserdata(net.minecraft.world.entity.Entity.class)) {
+                Object entity = raw.touserdata(net.minecraft.world.entity.Entity.class);
+                if (entity instanceof Player player) return player;
+            }
+        }
+        if (value.isstring() && this.context.server() != null) {
+            String text = value.tojstring();
+            ServerPlayer byName = this.context.server().getPlayerList().getPlayerByName(text);
+            if (byName != null) return byName;
+            try {
+                ServerPlayer byUuid = this.context.server().getPlayerList().getPlayer(UUID.fromString(text));
+                if (byUuid != null) return byUuid;
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        if (value.isnil() && this.context.side() == Side.CLIENT) {
+            Player local = localPlayer();
+            if (local != null) return local;
+        }
+        throw new LuaError("[MLua] Expected player table, player name, or player UUID.");
+    }
+
+    /** Resolve the client player without linking this shared service to client classes on a server. */
+    private static Player localPlayer() {
+        try {
+            Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
+            Object instance = minecraft.getMethod("getInstance").invoke(null);
+            Object player = minecraft.getField("player").get(instance);
+            return player instanceof Player local ? local : null;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private LuaTable playerInventory(Player player) {
+        var inventory = player.getInventory();
+        return MLuaContainer.inventoryTable(MCContainerImpl.fromReal(inventory),
+            this.context.side() == Side.SERVER, this.context.registration(),
+            new MLuaContainer.InventoryLayout(Math.min(9, Math.max(0, inventory.getContainerSize() - 5)),
+                inventory.getContainerSize() - 4, 4, inventory.getContainerSize()));
+    }
+
+    private LuaTable enderChest(Player player) {
+        return MLuaContainer.containerTable(MCContainerImpl.fromReal(player.getEnderChestInventory()),
+            this.context.side() == Side.SERVER, this.context.registration());
+    }
+
+    private static LuaValue invokeInstanceMethod(LuaTable instance, String name, LuaValue... methodArguments) {
+        LuaValue method = instance.get(name);
+        if (!method.isfunction()) {
+            throw new LuaError("[MLua] Registered class instance is missing method '" + name + "'.");
+        }
+        LuaValue[] arguments = new LuaValue[methodArguments.length + 1];
+        arguments[0] = instance;
+        System.arraycopy(methodArguments, 0, arguments, 1, methodArguments.length);
+        return method.invoke(LuaValue.varargsOf(arguments)).arg1();
+    }
+
+    private void ensureServer() {
+        if (this.context.side() != Side.SERVER) {
+            throw new LuaError("[MLua] Inventory mutation is server-only.");
+        }
+    }
+}

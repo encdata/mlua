@@ -1,0 +1,344 @@
+package dev.mlua.api;
+
+import dev.mlua.common.enums.ScriptType;
+import dev.mlua.common.enums.Side;
+import dev.mlua.core.MLuaContextView;
+import dev.mlua.api.MLuaLuaCoercions.Adapter;
+import dev.mlua.api.MLuaLuaCoercions.AdapterRegistration;
+import dev.mlua.core.service.MLuaService;
+import dev.mlua.loaderapi.RegistryHandle;
+import dev.mlua.loaderapi.LoaderApi;
+import dev.mlua.module.MLuaModule;
+import dev.mlua.module.MLuaRegistration;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
+
+@MLuaApiStatus(since = "1.0.0")
+public final class MLuaApi {
+   private static volatile MLuaApiBridge bridge;
+
+   private MLuaApi() {
+   }
+
+   public static void install(MLuaApiBridge bridge) {
+      MLuaApi.bridge = Objects.requireNonNull(bridge, "bridge");
+   }
+
+   /** Starts a fluent Java addon service declaration. Call {@link ServiceBuilder#register()} to publish it. */
+   public static ServiceBuilder service(String name, Function<MLuaService.Context, MLuaService> factory) {
+      return new ServiceBuilder(name, null, factory);
+   }
+
+   /** Starts a fluent declaration with an explicit Lua-facing service class name. */
+   public static ServiceBuilder service(String name, String className,
+                                        Function<MLuaService.Context, MLuaService> factory) {
+      return new ServiceBuilder(name, className, factory);
+   }
+
+   /** Collects a service contract and registers its live factory when {@link #register()} is called. */
+   public static final class ServiceBuilder {
+      private final String name;
+      private final Function<MLuaService.Context, MLuaService> factory;
+      private String className;
+      private Side side = Side.BOTH;
+      private String description;
+      private final Map<String, String> functions = new LinkedHashMap<>();
+      private boolean registered;
+
+      private ServiceBuilder(String name, String className,
+                             Function<MLuaService.Context, MLuaService> factory) {
+         this.name = Objects.requireNonNull(name, "name");
+         this.className = className;
+         this.factory = Objects.requireNonNull(factory, "factory");
+      }
+
+      public ServiceBuilder className(String className) {
+         ensureOpen();
+         this.className = Objects.requireNonNull(className, "className");
+         return this;
+      }
+
+      public ServiceBuilder side(Side side) {
+         ensureOpen();
+         this.side = Objects.requireNonNull(side, "side");
+         return this;
+      }
+
+      public ServiceBuilder description(String description) {
+         ensureOpen();
+         this.description = Objects.requireNonNull(description, "description");
+         return this;
+      }
+
+      public ServiceBuilder function(String name, String description) {
+         ensureOpen();
+         if (name == null || name.isBlank()) throw new IllegalArgumentException("Service function name must be non-empty");
+         if (description == null || description.isBlank()) throw new IllegalArgumentException("Service function description must be non-empty");
+         if (MLuaRegistration.isReservedFunctionName(name)) {
+            throw new IllegalArgumentException("Service function name is reserved for MLua metadata: " + name);
+         }
+         if (this.functions.putIfAbsent(name, description) != null) {
+            throw new IllegalArgumentException("Service function '" + name + "' is already declared");
+         }
+         return this;
+      }
+
+      public void register() {
+         ensureOpen();
+         if (this.description == null || this.description.isBlank()) {
+            throw new IllegalStateException("Service '" + this.name + "' must have a description before registration");
+         }
+         if (this.className == null) {
+            MLuaApi.registerService(this.name, this.side, this.factory, this.description, this.functions);
+         } else {
+            MLuaApi.registerService(this.name, this.className, this.side, this.factory, this.description, this.functions);
+         }
+         this.registered = true;
+      }
+
+      private void ensureOpen() {
+         if (this.registered) throw new IllegalStateException("Service declaration has already been registered");
+      }
+   }
+
+   public static boolean isAvailable() {
+      return bridge != null;
+   }
+
+   public static String getApiVersion() {
+      return MLuaApiPolicy.VERSION;
+   }
+
+   /** Registers an addon-owned Java value type for reflective Java service arguments and results. */
+   public static <T> AdapterRegistration registerLuaAdapter(Adapter<T> adapter) {
+      return MLuaLuaCoercions.registerAdapter(adapter);
+   }
+
+   public static boolean supportsCapability(String capability) {
+      if (bridge == null) return false;
+      try {
+         return MLuaApiPolicy.supports(capability, LoaderApi.platform().loaderName());
+      } catch (IllegalStateException unavailable) {
+         return false;
+      }
+   }
+
+   public static void requireCapability(String capability) {
+      if (!supportsCapability(capability)) {
+         throw new UnsupportedOperationException("MLua capability is unavailable: " + capability);
+      }
+   }
+
+   private static MLuaApiBridge requireBridge() {
+      MLuaApiBridge current = bridge;
+      if (current == null) {
+         throw new IllegalStateException("MLua runtime bridge is not installed. Ensure the 'mlua' mod is loaded before calling MLuaApi.");
+      }
+
+      return current;
+   }
+
+   public static void registerScriptRoot(String modId, Path path) {
+      requireBridge().registerScriptRoot(modId, path);
+   }
+
+   public static void registerModule(MLuaModule module) {
+      requireBridge().registerModule(module);
+   }
+
+   public static void registerGlobal(String modId, String name, LuaValue value) {
+      registerGlobal(modId, name, value, Side.BOTH, null);
+   }
+
+   public static void registerGlobal(String modId, String name, LuaValue value, Side side) {
+      registerGlobal(modId, name, value, side, null);
+   }
+
+   public static void registerGlobal(String modId, String name, LuaValue value, Side side, ScriptType type) {
+       Objects.requireNonNull(modId, "modId");
+       Objects.requireNonNull(name, "name");
+       Objects.requireNonNull(value, "value");
+       Objects.requireNonNull(side, "side");
+       if (modId.isBlank() || name.isBlank()) {
+          throw new IllegalArgumentException("Global mod id and name must be non-empty");
+       }
+       registerModule(new MLuaModule() {
+          @Override
+          public String id() {
+             return modId + "_global_" + name;
+          }
+
+         @Override
+         public void contributeGlobals(Globals globals, MLuaContextView context) {
+            if (side != Side.BOTH && context.side() != side) {
+               return;
+            }
+            if (type != null && !context.isScriptType(type)) {
+               return;
+            }
+            globals.set(name, value);
+         }
+      });
+   }
+
+   /** @deprecated Declare a service through {@link #service(String, Function)} and describe every function. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory) {
+      registerService(name, Side.BOTH, factory, null, Map.of());
+   }
+
+   /** @deprecated Use {@link #service(String, Function)} and declare its side and described functions. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory) {
+      registerService(name, side, factory, null, Map.of());
+   }
+
+   /** @deprecated A service description alone is insufficient; use {@link #service(String, Function)}. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory, String description) {
+      registerService(name, factory, description, Map.of());
+   }
+
+   /** @deprecated A service description alone is insufficient; use {@link #service(String, Function)}. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
+                                      String description) {
+      registerService(name, side, factory, description, Map.of());
+   }
+
+   /**
+    * Registers a Lua-facing service with descriptions for the service and its exposed functions.
+    * Every live service instance must expose each function declared in {@code functionDescriptions}.
+    * Each exported function on a reflective service, or in a described raw service table, must have a description.
+    */
+   public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory,
+                                      String description, Map<String, String> functionDescriptions) {
+      registerService(name, Side.BOTH, factory, description, functionDescriptions);
+   }
+
+   /**
+    * Registers a side-specific Lua service with descriptions for its service and exposed functions.
+    * Every live service instance must expose each function declared in {@code functionDescriptions}.
+    * Each exported function on a reflective service, or in a described raw service table, must have a description.
+    */
+   public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
+                                      String description, Map<String, String> functionDescriptions) {
+      Map<String, String> descriptions = validateServiceRegistration(name, side, factory, description, functionDescriptions);
+      requireBridge().registerService(name, side, factory, description, descriptions);
+   }
+
+   /** @deprecated Use {@link #service(String, String, Function)} and describe every function. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, String className,
+                                      Function<MLuaService.Context, MLuaService> factory) {
+      registerService(name, className, Side.BOTH, factory, null, Map.of());
+   }
+
+   /** @deprecated Use {@link #service(String, String, Function)} and declare its side and methods. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, String className, Side side,
+                                      Function<MLuaService.Context, MLuaService> factory) {
+      registerService(name, className, side, factory, null, Map.of());
+   }
+
+   /** @deprecated A service description alone is insufficient; use {@link #service(String, String, Function)}. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, String className,
+                                      Function<MLuaService.Context, MLuaService> factory, String description) {
+      registerService(name, className, Side.BOTH, factory, description, Map.of());
+   }
+
+   /** @deprecated A service description alone is insufficient; use {@link #service(String, String, Function)}. */
+   @Deprecated(forRemoval = false)
+   public static void registerService(String name, String className, Side side,
+                                      Function<MLuaService.Context, MLuaService> factory, String description) {
+      registerService(name, className, side, factory, description, Map.of());
+   }
+
+   /**
+    * Registers a service with an explicit Lua-facing class name and method descriptions.
+    * Every live service instance must expose each function declared in {@code functionDescriptions}.
+    * Each exported function on a reflective service, or in a described raw service table, must have a description.
+    */
+   public static void registerService(String name, String className,
+                                      Function<MLuaService.Context, MLuaService> factory,
+                                      String description, Map<String, String> functionDescriptions) {
+      registerService(name, className, Side.BOTH, factory, description, functionDescriptions);
+   }
+
+   /** Registers a side-specific service with an explicit Lua-facing class name. */
+   public static void registerService(String name, String className, Side side,
+                                      Function<MLuaService.Context, MLuaService> factory,
+                                      String description, Map<String, String> functionDescriptions) {
+      Objects.requireNonNull(className, "className");
+      if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
+      Map<String, String> descriptions = validateServiceRegistration(name, side, factory, description, functionDescriptions);
+      requireBridge().registerService(name, className, side, factory, description, descriptions);
+   }
+
+   private static Map<String, String> validateServiceRegistration(
+      String name, Side side, Function<MLuaService.Context, MLuaService> factory,
+      String description, Map<String, String> functionDescriptions) {
+      Objects.requireNonNull(name, "name");
+      Objects.requireNonNull(side, "side");
+      Objects.requireNonNull(factory, "factory");
+      Objects.requireNonNull(functionDescriptions, "functionDescriptions");
+      if (name.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
+      if (description == null || description.isBlank()) {
+         throw new IllegalArgumentException("Service '" + name + "' must have a description");
+      }
+      Map<String, String> descriptions = java.util.Collections.unmodifiableMap(
+         new LinkedHashMap<>(functionDescriptions));
+      if (descriptions.isEmpty()) {
+         throw new IllegalArgumentException("Service '" + name + "' must declare at least one function with a description");
+      }
+      descriptions.forEach((functionName, functionDescription) -> {
+         if (functionName == null || functionName.isBlank()
+            || functionDescription == null || functionDescription.isBlank()) {
+            throw new IllegalArgumentException("Function description names and values must be non-empty");
+         }
+         if (MLuaRegistration.isReservedFunctionName(functionName)) {
+            throw new IllegalArgumentException("Service function name is reserved for MLua metadata: " + functionName);
+         }
+      });
+      return descriptions;
+   }
+
+   public static RegistryHandle<Item> registerItem(String modId, String name, Supplier<Item> supplier) {
+      return requireBridge().registerItem(modId, name, supplier);
+   }
+
+   public static RegistryHandle<Block> registerBlock(String modId, String name, Supplier<Block> supplier) {
+      return requireBridge().registerBlock(modId, name, supplier);
+   }
+
+   public static RegistryHandle<Item> registerBlockItem(String modId, String blockName) {
+      return requireBridge().registerBlockItem(modId, blockName);
+   }
+
+   public static RegistryHandle<CreativeModeTab> registerCreativeTab(String modId, String name, Function<CreativeModeTab.Builder, CreativeModeTab.Builder> config) {
+      return requireBridge().registerCreativeTab(modId, name, config);
+   }
+
+   public static Item getItem(String modId, String name) {
+      return requireBridge().getItem(modId, name);
+   }
+
+   public static Block getBlock(String modId, String name) {
+      return requireBridge().getBlock(modId, name);
+   }
+
+   public static BlockBehaviour.Properties blockPropertiesCopy(Block block) {
+      return requireBridge().blockPropertiesCopy(block);
+   }
+}

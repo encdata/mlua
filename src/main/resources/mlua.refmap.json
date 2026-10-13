@@ -1,0 +1,42 @@
+{
+  "mappings": {
+    "dev/mlua/modules/mixin/Service/PlayerModelMixin": {
+      "setupAnim": "Lnet/minecraft/client/model/PlayerModel;m_6973_(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V"
+    },
+    "dev/mlua/modules/mixin/Service/CameraMixin": {
+      "setup": "Lnet/minecraft/client/Camera;m_90575_(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/world/entity/Entity;ZZF)V",
+      "Lnet/minecraft/client/Camera;setPosition(DDD)V": "Lnet/minecraft/client/Camera;m_90584_(DDD)V"
+    },
+    "dev/mlua/modules/mixin/Service/MouseHandlerMixin": {
+      "isMouseGrabbed": "Lnet/minecraft/client/MouseHandler;m_91600_()Z",
+      "grabMouse": "Lnet/minecraft/client/MouseHandler;m_91601_()V"
+    },
+    "dev/mlua/modules/mixin/Service/CameraInvoker": {
+      "setPosition": "m_90584_(DDD)V"
+    },
+    "dev/mlua/modules/mixin/Service/HumanoidModelMixin": {
+      "setupAnim": "Lnet/minecraft/client/model/HumanoidModel;m_6973_(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V"
+    }
+  },
+  "data": {
+    "searge": {
+      "dev/mlua/modules/mixin/Service/PlayerModelMixin": {
+        "setupAnim": "Lnet/minecraft/client/model/PlayerModel;m_6973_(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V"
+      },
+      "dev/mlua/modules/mixin/Service/CameraMixin": {
+        "setup": "Lnet/minecraft/client/Camera;m_90575_(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/world/entity/Entity;ZZF)V",
+        "Lnet/minecraft/client/Camera;setPosition(DDD)V": "Lnet/minecraft/client/Camera;m_90584_(DDD)V"
+      },
+      "dev/mlua/modules/mixin/Service/MouseHandlerMixin": {
+        "isMouseGrabbed": "Lnet/minecraft/client/MouseHandler;m_91600_()Z",
+        "grabMouse": "Lnet/minecraft/client/MouseHandler;m_91601_()V"
+      },
+      "dev/mlua/modules/mixin/Service/CameraInvoker": {
+        "setPosition": "m_90584_(DDD)V"
+      },
+      "dev/mlua/modules/mixin/Service/HumanoidModelMixin": {
+        "setupAnim": "Lnet/minecraft/client/model/HumanoidModel;m_6973_(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V"
+      }
+    }
+  }
+}

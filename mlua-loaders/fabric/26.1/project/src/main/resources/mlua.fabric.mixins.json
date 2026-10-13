@@ -1,0 +1,22 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.mlua.modules.mixin.Service",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "BlockItemMixin",
+    "PackRepositoryAccessor",
+    "PackRepositoryMixin"
+  ],
+  "client": [
+    "CameraInvoker",
+    "CameraMixin",
+    "HumanoidModelMixin",
+    "PlayerModelMixin",
+    "ScreenLayoutMixin",
+    "ChatLineMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

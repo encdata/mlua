@@ -1,0 +1,365 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+    id 'org.spongepowered.mixin' version '0.7.+'
+}
+
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+apply from: rootProject.file('gradle/mlua-packaging.gradle')
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = projectDir.parentFile.name
+def target = findMluaTarget(targetVersion)
+def runtimeProject = project(":mlua-runtime-${targetVersion}")
+def minecraft_version = target.minecraft
+def minecraft_version_range = resolveMluaTargetValue(targetVersion, 'minecraftVersionRange')
+def forge_version = resolveMluaTargetValue(targetVersion, 'forgeVersion')
+def forge_version_range = resolveMluaTargetValue(targetVersion, 'forgeVersionRange')
+def loader_version_range = resolveMluaTargetValue(targetVersion, 'loaderVersionRange')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+def forgeImplExcludes = [
+    'dev/mlua/mc/impl/advancement/**',
+    'dev/mlua/mc/impl/biome/**',
+    'dev/mlua/mc/impl/block/**',
+    'dev/mlua/mc/impl/boss/**',
+    'dev/mlua/mc/impl/chunk/**',
+    'dev/mlua/mc/impl/client/**',
+    'dev/mlua/mc/impl/command/**',
+    'dev/mlua/mc/impl/container/**',
+    'dev/mlua/mc/impl/core/**',
+    'dev/mlua/mc/impl/damage/**',
+    'dev/mlua/mc/impl/effect/**',
+    'dev/mlua/mc/impl/entity/**',
+    'dev/mlua/mc/impl/item/**',
+    'dev/mlua/mc/impl/nbt/**',
+    'dev/mlua/mc/impl/network/**',
+    'dev/mlua/mc/impl/particle/**',
+    'dev/mlua/mc/impl/resources/**',
+    'dev/mlua/mc/impl/scoreboard/**',
+    'dev/mlua/mc/impl/server/**',
+    'dev/mlua/mc/impl/sound/**',
+    'dev/mlua/mc/impl/util/**',
+    'dev/mlua/mc/impl/world/**',
+]
+def prepareCommonVersionSources = registerMergedTree(project, 'prepareCommonVersionSources',
+    targetPathChain('mlua-versions/common/%s', targetVersion))
+def prepareForgeVersionSources = registerMergedTree(project, 'prepareForgeVersionSources',
+    targetPathChain('mlua-versions/forge/%s', targetVersion), forgeImplExcludes)
+def prepareForgeProjectSources = registerMergedTree(project, 'prepareForgeProjectSources',
+    targetPathChain('mlua-loaders/forge/%s/project/src/main/java', targetVersion))
+def prepareForgeProjectResources = registerMergedTree(project, 'prepareForgeProjectResources',
+    targetPathChain('mlua-loaders/forge/%s/project/src/main/resources', targetVersion))
+
+base {
+    archivesName = "${mod_id}-forge-${minecraft_version}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    runs {
+        configureEach {
+            workingDirectory providers.gradleProperty('mluaSmokeRunDir').map { file(it) }.orElse(rootProject.file('run')).get()
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'info'
+            property 'mlua.dev.runtimeClasspath', 'true'
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+    }
+}
+
+tasks.register('installDevMod', Copy) {
+    dependsOn tasks.named('jar')
+    from(tasks.named('jar').flatMap { it.archiveFile })
+    into(rootProject.layout.projectDirectory.dir('run/mods'))
+}
+
+def targetVer = target.minecraft
+def forgeRootExcludes = [
+    'dev/mlua/modules/mixin/Service/CameraInvoker.java',
+    'dev/mlua/modules/mixin/Service/CameraMixin.java',
+    'dev/mlua/modules/mixin/Service/HumanoidModelMixin.java',
+    'dev/mlua/modules/mixin/Service/MouseHandlerMixin.java',
+    'dev/mlua/modules/mixin/Service/PlayerModelMixin.java',
+    'dev/mlua/loader/impl/forge/ForgeClientBridge.java',
+    'dev/mlua/loader/impl/forge/ForgeNetworkContext.java',
+    'dev/mlua/api/RuntimeMLuaApiBridge.java',
+    'dev/mlua/minecraft/MLuaResourceLocations.java',
+    'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedItem.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java',
+    'dev/mlua/modules/advancements/Service/MLuaAdvancementService.java',
+    'dev/mlua/modules/attribute/Service/MLuaAttributeService.java',
+    'dev/mlua/modules/commands/Service/MLuaCommandsService.java',
+    'dev/mlua/modules/effects/Service/MLuaPotionEffectsService.java',
+    'dev/mlua/modules/enchantment/Service/MLuaEnchantmentService.java',
+    'dev/mlua/modules/itemstack/Service/MLuaItemStackService.java',
+]
+
+task prepareForgeRootSources(type: Sync) {
+    from fileTree(dir: "${rootProject.projectDir}/src/main/java", excludes: forgeRootExcludes)
+    into file("${buildDir}/generated/forge-root-java")
+    doLast {
+        fileTree(destinationDir).matching { include '**/*.java' }.each { file ->
+            def lines = file.readLines()
+            def filtered = []
+            def inVersionBlock = null
+            def justEndedVersion = false
+            lines.each { line ->
+                def trimmed = line.trim()
+                if (trimmed.startsWith('//--version ')) {
+                    def blockVersion = trimmed.substring('//--version '.length()).trim()
+                    inVersionBlock = blockVersion == targetVer ? null : blockVersion
+                } else if (trimmed == '//--endversion') {
+                    inVersionBlock = null
+                    justEndedVersion = true
+                } else if (justEndedVersion && trimmed.isEmpty()) {
+                    justEndedVersion = false
+                } else {
+                    justEndedVersion = false
+                    if (inVersionBlock == null) {
+                        filtered << line
+                    }
+                }
+            }
+            file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+        }
+    }
+}
+
+task prepareForgeTransformerSources(type: Sync) {
+    from("${rootProject.projectDir}/mlua-transformer/src/main/java") {
+        exclude 'dev/mlua/transformer/MLuaSelfModLocator.java'
+    }
+    into file("${buildDir}/generated/forge-transformer-java")
+}
+
+sourceSets.main.java.setSrcDirs([
+    file("${buildDir}/generated/prepareForgeProjectSources"),
+    file("${buildDir}/generated/forge-root-java"),
+    rootProject.file('mlua-api/src/main/java'),
+    rootProject.file('mlua-loader-api/src/main/java'),
+    rootProject.file('mlua-mc-api/src/main/java'),
+    file("${buildDir}/generated/forge-transformer-java"),
+    rootProject.file('mlua-common/src/main/java'),
+    rootProject.file('mlua-luaj/src/main/java'),
+    file("${buildDir}/generated/prepareCommonVersionSources"),
+    file("${buildDir}/generated/prepareForgeVersionSources")
+])
+tasks.compileJava.dependsOn tasks.prepareForgeTransformerSources
+tasks.compileJava.dependsOn tasks.prepareForgeRootSources
+tasks.compileJava.dependsOn prepareForgeProjectSources
+tasks.compileJava.dependsOn prepareCommonVersionSources
+tasks.compileJava.dependsOn prepareForgeVersionSources
+sourceSets.main.resources.setSrcDirs([
+    rootProject.file('mlua-transformer/src/main/resources'),
+    rootProject.file('src/main/resources'),
+    file("${buildDir}/generated/prepareForgeProjectResources")
+])
+sourceSets.main.resources.exclude('META-INF/mods.toml')
+sourceSets.test.java.setSrcDirs([])
+sourceSets.test.resources.setSrcDirs([])
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    // These sources are merged into the Forge main source set below. Keeping
+    // the project dependencies compile-only avoids duplicate JPMS modules in
+    // Forge 1.21's bootstrap classloader.
+    compileOnly project(':mlua-common')
+    compileOnly project(':mlua-luaj')
+    compileOnly project(':mlua-loader-api')
+    compileOnly project(':mlua-api')
+    compileOnly project(':mlua-mc-api')
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'com.google.code.gson:gson:2.10'
+    implementation('org.apache.bcel:bcel:6.7.0') {
+        transitive = false
+    }
+    compileOnly "org.spongepowered:mixin:0.8.5"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+mixin {
+    add sourceSets.main, 'mlua.refmap.json'
+    config 'mlua.forge.mixins.json'
+}
+
+jarJar.enable()
+
+tasks.named('compileTestJava').configure {
+    enabled = false
+}
+
+tasks.named('test').configure {
+    enabled = false
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    configureMluaIcon(delegate)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn 'generateMethodMapping', runtimeProject.tasks.named('jar'), prepareForgeProjectResources
+    from(file("${buildDir}/generated/prepareForgeProjectResources/META-INF/mods.toml")) {
+        into 'META-INF'
+        expand(
+            minecraft_version: minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version,
+            forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+        )
+    }
+    from({
+        def bcelJar = configurations.runtimeClasspath.find { it.name.contains('bcel') }
+        if (bcelJar != null) {
+            zipTree(bcelJar)
+        }
+    }) {
+        exclude 'META-INF/**'
+        exclude 'module-info.class'
+    }
+    inputs.property "minecraft_version", minecraft_version
+    inputs.property "minecraft_version_range", minecraft_version_range
+    inputs.property "forge_version", forge_version
+    inputs.property "forge_version_range", forge_version_range
+    inputs.property "loader_version_range", loader_version_range
+    inputs.property "mod_id", mod_id
+    inputs.property "mod_name", mod_name
+    inputs.property "mod_license", mod_license
+    inputs.property "mod_version", mod_version
+    inputs.property "mod_authors", mod_authors
+    inputs.property "mod_description", mod_description
+    from(runtimeProject.tasks.named('jar')) {
+        rename { 'mlua-runtime.jar' }
+        into 'embedded/mlua'
+    }
+    from(runtimeProject.layout.buildDirectory.file("tmp/compileJava/mlua.refmap.json")) {
+        into ''
+    }
+    exclude 'META-INF/services/dev.mlua.module.MLuaModule'
+    exclude 'mlua.mixins.json'
+}
+
+tasks.named('jar', Jar).configure {
+    excludeMluaExternalScripts(delegate)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(project(':mlua-loader-api').sourceSets.main.output)
+    from({
+        def bcelJar = configurations.runtimeClasspath.find { it.name.contains('bcel') }
+        if (bcelJar != null) {
+            zipTree(bcelJar)
+        }
+    }) {
+        exclude 'META-INF/**'
+        exclude 'module-info.class'
+    }
+    exclude 'META-INF/services/dev.mlua.module.MLuaModule'
+    manifest {
+        attributes([
+                'Automatic-Module-Name': 'mlua_loader',
+                'MixinConfigs': 'mlua.forge.mixins.json',
+                'Specification-Title': mod_id,
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor': mod_authors
+        ])
+    }
+    exclude 'dev/mlua/api/**'
+    exclude 'dev/mlua/core/**'
+    exclude 'dev/mlua/loaderapi/**'
+    exclude 'dev/mlua/math/**'
+    exclude 'dev/mlua/mc/**'
+    exclude 'dev/mlua/mcapi/**'
+    exclude 'dev/mlua/minecraft/**'
+    exclude 'dev/mlua/module/**'
+    exclude 'dev/mlua/modules/**'
+    exclude 'dev/mlua/runtime/**'
+    exclude 'dev/mlua/loader/impl/forge/**'
+    exclude 'dev/mlua/MLuaMod.java'
+}
+
+tasks.register('generateMethodMapping') {
+    dependsOn 'createSrgToMcp'
+    def srgFile = file("${buildDir}/createSrgToMcp/output.srg")
+    def jsonFile = file("${buildDir}/generated/bootstrap/official_to_srg.json")
+
+    inputs.file srgFile
+    outputs.file jsonFile
+
+    doLast {
+        jsonFile.parentFile.mkdirs()
+        def mapping = [:]
+        srgFile.eachLine { line ->
+            def trimmed = line.trim()
+            if (!trimmed.startsWith('MD:')) return
+            def tokens = trimmed.substring(3).trim().split(' ')
+            if (tokens.length < 4) return
+
+            def srgPath = tokens[0]
+            def desc = tokens[1]
+            def officialPath = tokens[2]
+
+            def srgSlash = srgPath.lastIndexOf('/')
+            def officialSlash = officialPath.lastIndexOf('/')
+            if (srgSlash < 0 || officialSlash < 0) return
+
+            def srgMethodName = srgPath.substring(srgSlash + 1)
+            def officialClassName = officialPath.substring(0, officialSlash)
+            def officialMethodName = officialPath.substring(officialSlash + 1)
+
+            def classMap = mapping.computeIfAbsent(officialClassName, { [:] })
+            def key = "${officialMethodName}#${desc}"
+            if (!classMap.containsKey(key)) {
+                classMap[key] = srgMethodName
+            }
+        }
+        jsonFile.text = groovy.json.JsonOutput.toJson(mapping)
+    }
+}
+
+tasks.named('processResources').configure {
+    from(tasks.named('generateMethodMapping')) {
+        into ''
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

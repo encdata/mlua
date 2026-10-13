@@ -1,0 +1,1039 @@
+package dev.mlua.runtime.registry;
+
+import dev.mlua.core.MLuaLogger;
+import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.mcapi.MCApiRuntime;
+import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.minecraft.scripted.MLuaScriptRuntimeRegistration;
+import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
+import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
+import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+//--version 1.21.1
+import net.minecraft.core.component.DataComponents;
+//--endversion
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.AxeItem;
+import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.HoeItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.PickaxeItem;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.ShovelItem;
+import net.minecraft.world.item.SwordItem;
+import net.minecraft.world.item.Tier;
+import net.minecraft.world.item.Tiers;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.Level;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+
+public final class MLuaItemFactory {
+   private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
+
+   /** Registers a Java item type that Lua definitions can select with {@code kind = "typeName"}. */
+   public static void registerType(String name, String description, TypeProvider provider) {
+      String key = normalizeTypeName(name);
+      if (java.util.Set.of("item", "generic", "bow", "sword", "weapon", "pickaxe", "pick", "axe", "shovel", "spade", "hoe").contains(key)) {
+         throw new IllegalArgumentException("[MLua] Item type '" + key + "' is reserved by MLua");
+      }
+      if (description == null || description.isBlank()) {
+         throw new IllegalArgumentException("[MLua] Item type description must be non-empty");
+      }
+      if (provider == null) {
+         throw new IllegalArgumentException("[MLua] Item type provider is required");
+      }
+      RegisteredType previous = REGISTERED_TYPES.putIfAbsent(key, new RegisteredType(description.trim(), provider));
+      if (previous != null) {
+         throw new IllegalStateException("[MLua] Item type '" + key + "' is already registered");
+      }
+   }
+
+   public static Map<String, String> registeredTypes() {
+      Map<String, String> descriptions = new java.util.TreeMap<>();
+      descriptions.put("item", "A standard registered item.");
+      descriptions.put("generic", "Alias for item.");
+      descriptions.put("bow", "A native animated bow with Minecraft draw and ammunition behavior.");
+      descriptions.put("sword", "A tiered melee weapon.");
+      descriptions.put("weapon", "Alias for sword.");
+      descriptions.put("pickaxe", "A tiered mining tool.");
+      descriptions.put("pick", "Alias for pickaxe.");
+      descriptions.put("axe", "A tiered axe tool and weapon.");
+      descriptions.put("shovel", "A tiered shovel tool.");
+      descriptions.put("spade", "Alias for shovel.");
+      descriptions.put("hoe", "A tiered hoe tool.");
+      REGISTERED_TYPES.forEach((name, type) -> descriptions.put(name, type.description()));
+      return Map.copyOf(descriptions);
+   }
+
+   /** Validate a Lua definition while its Register call can still report a useful error. */
+   public void validateTypeDefinition(Map<String, Object> properties) {
+      RegisteredType extension = registeredType(properties);
+      if (extension != null) return;
+      Object kind = properties.get("kind");
+      if (kind != null && !(kind instanceof String)) {
+         throw new IllegalArgumentException("[MLua] Item kind must be a string");
+      }
+      this.definition(properties);
+   }
+
+   public Item createNamed(Map<String, Object> properties, String registryName) {
+      RegisteredType extension = registeredType(properties);
+      if (extension != null) return extension.provider().createNamed(Map.copyOf(properties), registryName);
+      ItemDefinition definition = this.definition(properties);
+      return switch (definition.kind()) {
+         case ITEM -> new MLuaNamedItem(this.makeProperties(properties), registryName);
+          case BOW -> new MLuaRegisteredBow(this.makeBowProperties(properties), registryName);
+          //--version 1.21.1
+          case SWORD -> new SwordItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case PICKAXE -> new PickaxeItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case AXE -> new AxeItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case SHOVEL -> new ShovelItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case HOE -> new HoeItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          //--endversion
+          //--version 1.20.1
+          case SWORD -> new SwordItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case PICKAXE -> new PickaxeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case AXE -> new AxeItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case SHOVEL -> new ShovelItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          case HOE -> new HoeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(registryName);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+          };
+          //--endversion
+      };
+   }
+
+   public Item createScripted(Map<String, Object> properties, String behaviorKey) {
+      RegisteredType extension = registeredType(properties);
+      if (extension != null) return extension.provider().createScripted(Map.copyOf(properties), behaviorKey);
+      ItemDefinition definition = this.definition(properties);
+      return switch (definition.kind()) {
+         case ITEM -> new dev.mlua.minecraft.scripted.MLuaScriptedItem(this.makeProperties(properties), behaviorKey);
+         case BOW -> new MLuaRegisteredBow(this.makeBowProperties(properties), behaviorKey);
+         //--version 1.21.1
+         case SWORD -> new SwordItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case PICKAXE -> new PickaxeItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case AXE -> new AxeItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case SHOVEL -> new ShovelItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case HOE -> new HoeItem(definition.tier(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, Item.TooltipContext context, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, context, tooltip, flag);
+               super.appendHoverText(stack, context, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          //--endversion
+          //--version 1.20.1
+          case SWORD -> new SwordItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case PICKAXE -> new PickaxeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case AXE -> new AxeItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case SHOVEL -> new ShovelItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          case HOE -> new HoeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+            public net.minecraft.network.chat.Component getName(ItemStack stack) {
+               return MLuaItemHooks.itemName(behaviorKey);
+            }
+
+            public void appendHoverText(ItemStack stack, @javax.annotation.Nullable Level level, java.util.List<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
+               MLuaItemHooks.appendDescriptionTooltip(this, stack, level, tooltip, flag);
+               super.appendHoverText(stack, level, tooltip, flag);
+            }
+
+            public void initializeClient(java.util.function.Consumer consumer) {
+               MLuaItemHooks.initializeClient(consumer);
+            }
+
+            public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
+               invokeOnConsume(behaviorKey, stack, level, livingEntity);
+               return super.finishUsingItem(stack, level, livingEntity);
+            }
+
+            public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+               InteractionResultHolder<ItemStack> handled = invokeOnUse(behaviorKey, level, player, hand);
+               return handled != null ? handled : super.use(level, player, hand);
+            }
+
+            public InteractionResult useOn(UseOnContext context) {
+               InteractionResult handled = invokeOnUseOnBlock(behaviorKey, context);
+               return handled != null ? handled : super.useOn(context);
+            }
+
+            public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+               invokeOnInventoryTick(behaviorKey, stack, level, entity, slot, selected);
+               super.inventoryTick(stack, level, entity, slot, selected);
+            }
+
+            public void onCraftedBy(ItemStack stack, Level level, Player player) {
+               invokeOnCrafted(behaviorKey, stack, level, player);
+               super.onCraftedBy(stack, level, player);
+            }
+          };
+          //--endversion
+       };
+    }
+
+   public Item.Properties makeProperties(Map<String, Object> properties) {
+      Item.Properties item;
+      label40: {
+         item = this.copyProperties(properties);
+         Object durability = properties.get("durability");
+         Object maxStack = properties.get("maxStackSize");
+         if (durability instanceof Number number) {
+            if (number.intValue() > 0) {
+               if (maxStack instanceof Number stack && stack.intValue() > 1) {
+                  throw new IllegalArgumentException("[MLua] Item property 'durability' cannot be combined with maxStackSize > 1");
+               }
+
+               item.durability(number.intValue());
+               break label40;
+            }
+         }
+
+         if (maxStack instanceof Number number) {
+            item.stacksTo(Math.max(1, Math.min(64, number.intValue())));
+         }
+      }
+
+      if (Boolean.TRUE.equals(properties.get("fireResistant"))) {
+         item.fireResistant();
+      }
+
+      Object rarity = properties.get("rarity");
+      if (rarity instanceof String name) {
+         item.rarity(this.rarity(name));
+      }
+
+      Object craftRemainder = properties.get("craftRemainder");
+      if (craftRemainder instanceof String id) {
+         Item remainder = (Item) MCApiRuntime.lookupRegistry("item", id);
+         if (remainder == null) {
+            throw new IllegalArgumentException("[MLua] Unknown craftRemainder item: " + id);
+         }
+
+         item.craftRemainder(remainder);
+      }
+
+      Object food = properties.get("food");
+      if (food instanceof Map<?, ?> foodProps) {
+         item.food(this.food(foodProps));
+      }
+
+      return item;
+   }
+
+   private Item.Properties makeBowProperties(Map<String, Object> properties) {
+      if (properties.containsKey("durability") || properties.containsKey("copy")) {
+         return this.makeProperties(properties);
+      }
+      Map<String, Object> bowProperties = new java.util.HashMap<>(properties);
+      bowProperties.put("durability", 384);
+      return this.makeProperties(bowProperties);
+   }
+
+   private Item.Properties copyProperties(Map<String, Object> properties) {
+      Object copy = properties.get("copy");
+      if (copy instanceof String id && !id.isBlank()) {
+         Item source = (Item) MCApiRuntime.lookupRegistry("item", id);
+         if (source != null) {
+            //--version 1.21.1
+            Item.Properties item = new Item.Properties();
+            int maxDamage = source.components().getOrDefault(DataComponents.MAX_DAMAGE, 0);
+            if (maxDamage > 0) {
+               item.durability(maxDamage);
+            } else {
+               item.stacksTo(source.getDefaultMaxStackSize());
+            }
+
+            item.rarity(source.getDefaultInstance().getRarity());
+            FoodProperties food = source.components().get(DataComponents.FOOD);
+            if (food != null) {
+               item.food(food);
+            }
+
+            if (source.hasCraftingRemainingItem()) {
+               item.craftRemainder(source.getCraftingRemainingItem());
+            }
+
+            return item;
+            //--endversion
+            //--version 1.20.1
+            Item.Properties item = new Item.Properties();
+            int maxDamage = source.getMaxDamage();
+            if (maxDamage > 0) {
+               item.durability(maxDamage);
+            } else {
+               item.stacksTo(source.getMaxStackSize());
+            }
+
+            if (source.isFireResistant()) {
+               item.fireResistant();
+            }
+
+            item.rarity(source.getRarity(ItemStack.EMPTY));
+            FoodProperties food = source.getFoodProperties();
+            if (food != null) {
+               item.food(food);
+            }
+
+            if (source.hasCraftingRemainingItem()) {
+               item.craftRemainder(source.getCraftingRemainingItem());
+            }
+
+            return item;
+            //--endversion
+         }
+      }
+
+      return new Item.Properties();
+   }
+
+   private ItemDefinition definition(Map<String, Object> properties) {
+      String kindName = properties.get("kind") instanceof String kind ? kind : "item";
+      ItemKind kind = ItemKind.from(kindName);
+      Tier tier = kind == ItemKind.ITEM ? Tiers.WOOD : this.tier(properties);
+      float attackDamage = properties.get("attackDamage") instanceof Number number ? number.floatValue() : defaultAttackDamage(kind);
+      float attackSpeed = properties.get("attackSpeed") instanceof Number number ? number.floatValue() : defaultAttackSpeed(kind);
+      return new ItemDefinition(kind, tier, attackDamage, attackSpeed);
+   }
+
+   private static RegisteredType registeredType(Map<String, Object> properties) {
+      Object kind = properties.get("kind");
+      if (!(kind instanceof String name)) return null;
+      return REGISTERED_TYPES.get(normalizeTypeName(name));
+   }
+
+   private static String normalizeTypeName(String name) {
+      if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Item type name must be non-empty");
+      String normalized = name.trim().toLowerCase(Locale.ROOT);
+      if (!normalized.matches("[a-z][a-z0-9_]*")) {
+         throw new IllegalArgumentException("[MLua] Invalid item type name: " + name);
+      }
+      return normalized;
+   }
+
+   private record RegisteredType(String description, TypeProvider provider) { }
+
+   public interface TypeProvider {
+      Item createNamed(Map<String, Object> properties, String registryName);
+      Item createScripted(Map<String, Object> properties, String behaviorKey);
+   }
+
+   private Tier tier(Map<String, Object> properties) {
+      Object rawTier = properties.get("tier");
+      if (!(rawTier instanceof String tierName)) {
+         return Tiers.WOOD;
+      }
+
+      return switch (tierName.toLowerCase(Locale.ROOT)) {
+         case "wood", "wooden" -> Tiers.WOOD;
+         case "stone" -> Tiers.STONE;
+         case "iron" -> Tiers.IRON;
+         case "gold", "golden" -> Tiers.GOLD;
+         case "diamond" -> Tiers.DIAMOND;
+         case "netherite" -> Tiers.NETHERITE;
+         default -> throw new IllegalArgumentException("[MLua] Unknown item tier: " + tierName);
+      };
+   }
+
+   private Rarity rarity(String name) {
+      return switch (name.toLowerCase(Locale.ROOT)) {
+         case "common" -> Rarity.COMMON;
+         case "uncommon" -> Rarity.UNCOMMON;
+         case "rare" -> Rarity.RARE;
+         case "epic" -> Rarity.EPIC;
+         default -> throw new IllegalArgumentException("[MLua] Unknown item rarity: " + name);
+      };
+   }
+
+   private FoodProperties food(Map<?, ?> properties) {
+      FoodProperties.Builder builder = new FoodProperties.Builder();
+      Object nutrition = properties.get("nutrition");
+      if (!(nutrition instanceof Number n)) {
+         throw new IllegalArgumentException("[MLua] food.nutrition is required");
+      }
+
+      builder.nutrition(Math.max(0, n.intValue()));
+      Object saturation = properties.get("saturation");
+      boolean alwaysEat = Boolean.TRUE.equals(properties.get("alwaysEat"))
+         || Boolean.TRUE.equals(properties.get("alwaysEdible"));
+      //--version 1.20.1
+      builder.saturationMod(saturation instanceof Number s ? Math.max(0.0F, s.floatValue()) : 0.0F);
+      if (Boolean.TRUE.equals(properties.get("meat"))) {
+         builder.meat();
+      }
+      //--endversion
+      //--version 1.21.1
+      builder.saturationModifier(saturation instanceof Number s ? Math.max(0.0F, s.floatValue()) : 0.0F);
+      //--endversion
+
+      //--version 1.21.1
+      if (alwaysEat) {
+         builder.alwaysEdible();
+      }
+      //--endversion
+      //--version 1.20.1
+      if (alwaysEat) {
+         builder.alwaysEat();
+      }
+      //--endversion
+
+      if (Boolean.TRUE.equals(properties.get("fast"))) {
+         builder.fast();
+      }
+
+      return builder.build();
+   }
+
+   private static float defaultAttackDamage(ItemKind kind) {
+      return switch (kind) {
+         case ITEM -> 0.0F;
+         case BOW -> 0.0F;
+         case SWORD -> 3.0F;
+         case PICKAXE -> 1.0F;
+         case AXE -> 6.0F;
+         case SHOVEL -> 1.5F;
+         case HOE -> -2.0F;
+      };
+   }
+
+   private static float defaultAttackSpeed(ItemKind kind) {
+      return switch (kind) {
+         case ITEM -> 0.0F;
+         case BOW -> 0.0F;
+         case SWORD -> -2.4F;
+         case PICKAXE -> -2.8F;
+         case AXE -> -3.1F;
+         case SHOVEL -> -3.0F;
+         case HOE -> -1.0F;
+      };
+   }
+
+   private static void invokeOnConsume(String behaviorKey, ItemStack stack, Level level, LivingEntity livingEntity) {
+      if (level.isClientSide) return;
+      LuaValue onConsume = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onConsume");
+      if (!onConsume.isnil()) {
+         try {
+            LuaTable ctx = new LuaTable();
+            if (livingEntity instanceof ServerPlayer sp) {
+                ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(level)));
+            }
+
+            ctx.set("World", level.dimension().location().toString());
+            ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(level)));
+            onConsume.invoke(ctx);
+         } catch (Exception var6) {
+            MLuaLogger.LOGGER.error("MLua item onConsume callback failed for '{}': {}", behaviorKey, var6.getMessage());
+         }
+      }
+   }
+
+   static InteractionResultHolder<ItemStack> invokeOnUse(String behaviorKey, Level level, Player player, InteractionHand hand) {
+      LuaValue onUse = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onUse");
+      if (onUse.isnil()) {
+         return null;
+      }
+
+      try {
+         LuaTable ctx = new LuaTable();
+         if (player instanceof ServerPlayer sp) {
+            ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(level)));
+            }
+
+            ctx.set("World", player.level().dimension().location().toString());
+            ctx.set("Position", MLuaPlayerWrapper.positionTable(player.position().x, player.position().y, player.position().z));
+            ctx.set("Hand", hand.name().toLowerCase());
+            ctx.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), MLuaScriptRuntimeRegistration.forLevel(level)));
+            ctx.set("ItemStack", behaviorKey);
+            Varargs result = onUse.invoke(ctx);
+         if (result.arg1().isboolean() && result.arg1().toboolean()) {
+            return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
+         }
+      } catch (Exception var7) {
+         MLuaLogger.LOGGER.error("MLua item onUse callback failed for '{}'", behaviorKey, var7);
+      }
+
+      return null;
+   }
+
+   static InteractionResult invokeOnUseOnBlock(String behaviorKey, UseOnContext context) {
+      LuaValue onUseOnBlock = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onUseOnBlock");
+      if (onUseOnBlock.isnil()) {
+         return null;
+      }
+
+      try {
+         LuaTable ctx = new LuaTable();
+         Player player = context.getPlayer();
+          if (player instanceof ServerPlayer sp) {
+             ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(context.getLevel())));
+          }
+
+          var pos = context.getClickedPos();
+         ctx.set("World", context.getLevel().dimension().location().toString());
+         ctx.set("Position", MLuaPlayerWrapper.positionTable((double)pos.getX() + 0.5, (double)pos.getY() + 0.5, (double)pos.getZ() + 0.5));
+         ctx.set("Block", MLuaBlockWrapper.blockTable(context.getLevel(), pos, MLuaScriptRuntimeRegistration.forLevel(context.getLevel())));
+         ctx.set("Face", context.getClickedFace().getName());
+         ctx.set("Hand", context.getHand().name().toLowerCase());
+         ctx.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), MLuaScriptRuntimeRegistration.forLevel(context.getLevel())));
+         ctx.set("ItemStack", behaviorKey);
+         Varargs result = onUseOnBlock.invoke(ctx);
+         if (result.arg1().isboolean() && result.arg1().toboolean()) {
+            return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+         }
+      } catch (Exception var6) {
+         MLuaLogger.LOGGER.error("MLua item onUseOnBlock callback failed for '{}': {}", behaviorKey, var6.getMessage());
+      }
+
+      return null;
+   }
+
+   static void invokeOnInventoryTick(String behaviorKey, ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
+      LuaValue onInventoryTick = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onInventoryTick");
+      if (!onInventoryTick.isnil()) {
+         try {
+            LuaTable ctx = new LuaTable();
+             if (entity instanceof ServerPlayer sp) {
+                ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(level)));
+             }
+
+             ctx.set("World", level.dimension().location().toString());
+             if (entity instanceof LivingEntity living) {
+               ctx.set("Entity", MLuaEntityWrapper.entityTable(living, MLuaScriptRuntimeRegistration.forLevel(level)));
+            }
+            ctx.set("Slot", slot);
+            ctx.set("Selected", LuaValue.valueOf(selected));
+            ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(level)));
+            ctx.set("ItemStack", behaviorKey);
+            onInventoryTick.invoke(ctx);
+         } catch (Exception var8) {
+            MLuaLogger.LOGGER.error("MLua item onInventoryTick callback failed for '{}': {}", behaviorKey, var8.getMessage());
+         }
+      }
+   }
+
+   static void invokeOnCrafted(String behaviorKey, ItemStack stack, Level level, Player player) {
+      LuaValue onCrafted = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onCrafted");
+      if (!onCrafted.isnil()) {
+         try {
+            LuaTable ctx = new LuaTable();
+             if (player instanceof ServerPlayer sp) {
+                ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaScriptRuntimeRegistration.forLevel(level)));
+             }
+
+             ctx.set("World", player.level().dimension().location().toString());
+             ctx.set("Position", MLuaPlayerWrapper.positionTable(player.position().x, player.position().y, player.position().z));
+             ctx.set("Hand", player.getUsedItemHand() == null ? "main_hand" : player.getUsedItemHand().name().toLowerCase());
+             ctx.set("ItemStack", behaviorKey);
+            ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaScriptRuntimeRegistration.forLevel(level)));
+            onCrafted.invoke(ctx);
+         } catch (Exception var6) {
+            MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}", behaviorKey, var6.getMessage());
+         }
+      }
+   }
+
+   private static record ItemDefinition(ItemKind kind, Tier tier, float attackDamage, float attackSpeed) {
+   }
+
+   private static enum ItemKind {
+      ITEM,
+      BOW,
+      SWORD,
+      PICKAXE,
+      AXE,
+      SHOVEL,
+      HOE;
+
+      public static ItemKind from(String value) {
+         return switch (value.toLowerCase(Locale.ROOT)) {
+            case "item", "generic" -> ITEM;
+            case "bow" -> BOW;
+            case "sword", "weapon" -> SWORD;
+            case "pickaxe", "pick" -> PICKAXE;
+            case "axe" -> AXE;
+            case "shovel", "spade" -> SHOVEL;
+            case "hoe" -> HOE;
+            default -> throw new IllegalArgumentException("[MLua] Unknown item kind: " + value);
+         };
+      }
+   }
+}

@@ -1,0 +1,449 @@
+package dev.mlua.modules.players;
+
+import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.MLuaContextView;
+import dev.mlua.core.classes.MLuaClassMethods;
+import dev.mlua.common.enums.Side;
+import dev.mlua.loaderapi.EventBridge;
+import dev.mlua.loaderapi.LoaderApi;
+import dev.mlua.modules.players.Service.MLuaPlayersService;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
+import dev.mlua.runtime.data.MLuaDataManager;
+import dev.mlua.module.MLuaDocBuilder;
+import dev.mlua.module.MLuaModule;
+import dev.mlua.module.MLuaRegistration;
+import dev.mlua.mcapi.MCApiRuntime;
+import java.util.List;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+
+public class PlayersModule implements MLuaModule {
+    @Override
+    public void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
+        MLuaEntityWrapper.clearCache(runtime);
+    }
+
+    @Override
+    public void onRuntimeTick(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, double deltaTime) {
+        MLuaEntityWrapper.cleanCache();
+    }
+
+    @Override public void onReload() { clearState(); }
+    @Override public void onReload(dev.mlua.common.enums.Side side) {
+        if (side == dev.mlua.common.enums.Side.CLIENT || side == dev.mlua.common.enums.Side.BOTH) {
+            MLuaDataManager.clearClientCache();
+        }
+    }
+    @Override public void onUnload() { clearState(); }
+
+    private static void clearState() {
+        MLuaDataManager.clearClientCache();
+    }
+    @Override
+    public String id() { return "players"; }
+
+    @Override
+    public List<String> dependencies() { return List.of("core-classes"); }
+
+    @Override
+    public int priority() { return 10; }
+
+    @Override
+    public List<ServiceEntry> services() {
+        ServiceEntry.Builder players = ServiceEntry.builder("Players", MLuaPlayersService::new)
+            .description("Manages player connections and provides player instances.");
+        players.function("GetLocalPlayer", "Returns the local player on the client, or nil on the server.")
+            .function("GetPlayers", "Returns the live player instances currently connected.")
+            .function("GetPlayerByName", "Finds a connected player by exact name, or returns nil.")
+            .function("GetPlayerByUUID", "Finds a connected player by UUID, or returns nil.")
+            .function("GetPlayerById", "Finds a connected player by numeric entity id, or returns nil.")
+            .function("GetPlayerCount", "Returns the number of connected players.")
+            .function("GetMaxPlayers", "Returns the server's maximum player count; returns zero on the client.")
+            .function("Broadcast", "Sends a system chat message to every player; server-side only.");
+        return List.of(players.build());
+    }
+
+    @Override
+    public void registerClasses(MLuaRegistration registration) {
+        LuaTable entityClass = registration.registerClass("Entity", registration.requireInstanceBaseClassName(),
+            "A live entity instance with position, movement, health, and interaction APIs.");
+        registration.registerClassFunction("Entity", "GetId",
+            entityMethod(entity -> LuaValue.valueOf(entity.getId())), "Returns this entity's runtime ID.");
+        LuaValue entityType = entityMethod(entity -> LuaValue.valueOf(MCApiRuntime.registryKey("entity_type", entity.getType())));
+        registration.registerClassFunction("Entity", "GetType", entityType, "Returns this entity's registered type.");
+        registration.registerClassFunction("Entity", "GetEntityType", entityType, "Returns this entity's registered type.");
+        registration.registerClassFunction("Entity", "GetName",
+            entityMethod(entity -> LuaValue.valueOf(entity.getName().getString())), "Returns this entity's current name.");
+        registration.registerClassFunction("Entity", "GetUUID",
+            entityMethod(entity -> LuaValue.valueOf(entity.getUUID().toString())), "Returns this entity's UUID.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLevel", "Returns the live world containing this entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetDimension", "Returns the dimension identifier containing this entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPosition", "Returns this entity's current position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionX", "Returns this entity's X position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionY", "Returns this entity's Y position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionZ", "Returns this entity's Z position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetPosition", "Moves this entity to a position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Teleport", "Teleports this entity to a position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetVelocity", "Returns this entity's current velocity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetVelocity", "Sets this entity's velocity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetRotation", "Returns this entity's pitch and yaw in degrees.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetRotationRadians", "Returns this entity's pitch and yaw in radians.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetRotation", "Sets this entity's pitch and yaw in degrees.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetRotationRadians", "Sets this entity's pitch and yaw in radians.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetCFrame", "Returns this entity's position and rotation as a CFrame.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetCFrame", "Sets this entity's position and rotation from a CFrame.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLookVector", "Returns the direction this entity is facing.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "LookAt", "Turns this entity toward a position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsAlive", "Returns whether this entity is alive.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnGround", "Returns whether this entity is on the ground.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsInWater", "Returns whether this entity is in water.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnFire", "Returns whether this entity is on fire.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsMoving", "Returns whether this entity is moving.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsFalling", "Returns whether this entity is falling.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Kill", "Kills this entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Remove", "Removes this entity from its world.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPersistentData",
+            "Returns this entity's persistent MLua data table.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetSyncedData",
+            "Returns this entity's replicated MLua data table.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetNbt",
+            "Returns this entity's persistent data table or reads one key from it.");
+        registerEntityProperties(registration);
+
+        registration.registerClass("LivingEntity", "Entity",
+            "A living entity with health, damage, equipment, and attributes.");
+        for (String method : List.of("GetHealth", "SetHealth", "GetMaxHealth", "GetArmor", "Damage",
+                "GetAttribute", "SetAttribute", "GetEquipment", "SetEquipment")) {
+            String description = switch (method) {
+                case "GetHealth" -> "Returns this entity's current health.";
+                case "SetHealth" -> "Sets this entity's current health.";
+                case "GetMaxHealth" -> "Returns this entity's maximum health.";
+                case "GetArmor" -> "Returns this entity's armor value.";
+                case "Damage" -> "Applies damage, optionally using a registered damage source and attacker.";
+                case "GetAttribute" -> "Returns the value of a registered living entity attribute.";
+                case "SetAttribute" -> "Sets the base value of a registered living entity attribute.";
+                case "GetEquipment" -> "Returns the item equipped in the given equipment slot.";
+                default -> "Sets the item equipped in the given equipment slot.";
+            };
+            MLuaClassMethods.registerInstanceMethod(registration, "LivingEntity", method, description);
+        }
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "Health", "GetHealth", "SetHealth",
+            "number", "shared:Shared", "This entity's current health.");
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "MaxHealth", "GetMaxHealth", null,
+            "number", "shared:Shared", "This entity's maximum health.");
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "Armor", "GetArmor", null,
+            "number", "shared:Shared", "This entity's armor value.");
+
+        LuaTable playerClass = registration.registerClass("Player", "LivingEntity",
+            "A live player instance with player identity, inventory, messaging, and player controls.");
+        registration.registerClassFunction("Player", "GetUserId", entityClass.rawget("GetId"),
+            "Returns this player's runtime ID.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SendMessage",
+            "Sends a chat message to this player. On the client, displays the message locally.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetDisplayName",
+            "Returns this player's display name.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SendActionBar",
+            "Sends an action bar message to this player.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SendTitle",
+            "Displays a title to this player.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetGameMode",
+            "Returns this player's current game mode.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetGameMode",
+            "Changes this player's game mode. This method is server-side only.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetInventory",
+            "Returns this player's live Inventory instance.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetEnderChest",
+            "Returns this player's live ender chest as a Container instance.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetOpenContainer",
+            "Returns the live Container instance for the menu this player currently has open.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetWorld",
+            "Returns the live Level instance containing this player.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "Inventory", "GetInventory", null,
+            "Inventory", "shared:Shared", "Returns this player's live Inventory instance.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "EnderChest", "GetEnderChest", null,
+            "Container", "shared:Shared", "Returns this player's live ender chest as a Container instance.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "OpenContainer", "GetOpenContainer", null,
+            "Container", "shared:Shared", "Returns the live Container instance for the menu this player currently has open.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "World", "GetWorld", null,
+            "Level", "shared:Shared", "Returns the live Level instance containing this player.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "IsLocalPlayer", "GetIsLocalPlayer", null,
+            "boolean", "client:Client", "Whether this Player instance represents the local client player.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetFood",
+            "Returns this player's food level.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetFood",
+            "Sets this player's food level.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetFoodLevel",
+            "Returns this player's food level.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetFoodLevel",
+            "Sets this player's food level.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetSaturation",
+            "Returns this player's food saturation.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetSaturation",
+            "Sets this player's food saturation.");
+        for (String method : List.of("GetDisplayName", "SendMessage", "SendTitle", "SendActionBar",
+                "GetEyeCFrame", "GetCameraCFrame", "GiveItem", "ClearInventory", "GiveEffect",
+                "RemoveEffect", "HasEffect", "ClearEffects", "PlaySound", "GetNearbyEntities",
+                "GetNearbyPlayers", "GetAbilities", "GetPersistentData", "GetSyncedData",
+                "SetData", "GetData", "RemoveData", "HasPermission", "IsOperator")) {
+            String description = switch (method) {
+                case "GetDisplayName" -> "Returns this player's display name.";
+                case "SendMessage" -> "Sends a chat message to this player.";
+                case "SendTitle" -> "Sends a title to this player's screen.";
+                case "SendActionBar" -> "Sends an action bar message to this player.";
+                case "GetEyeCFrame" -> "Returns the player's eye position and view rotation.";
+                case "GetCameraCFrame" -> "Returns the local player's camera transform; client-side only.";
+                case "GiveItem" -> "Gives an item to this player.";
+                case "ClearInventory" -> "Clears this player's inventory.";
+                case "GiveEffect" -> "Applies a potion effect to this player.";
+                case "RemoveEffect" -> "Removes a potion effect from this player.";
+                case "HasEffect" -> "Checks whether this player has a potion effect.";
+                case "ClearEffects" -> "Removes all potion effects from this player.";
+                case "PlaySound" -> "Plays a sound for this player.";
+                case "GetNearbyEntities" -> "Returns nearby entities.";
+                case "GetNearbyPlayers" -> "Returns nearby players.";
+                case "GetAbilities" -> "Returns this player's abilities.";
+                case "GetPersistentData" -> "Returns this player's persistent data.";
+                case "GetSyncedData" -> "Returns this player's synchronized data.";
+                case "SetData" -> "Sets a value in this player's persistent data.";
+                case "GetData" -> "Reads a value from this player's persistent data.";
+                case "RemoveData" -> "Removes a value from this player's persistent data.";
+                case "HasPermission" -> "Checks whether this player has a permission node.";
+                default -> "Checks whether this player is a server operator.";
+            };
+            MLuaClassMethods.registerInstanceMethod(registration, "Player", method, description);
+        }
+        String[][] inventoryAndStateMethods = {
+            {"GetExperienceLevel", "Returns this player's current experience level."},
+            {"GetExperienceProgress", "Returns this player's progress toward the next experience level."},
+            {"GiveExperience", "Adds experience points to this player; server-side only."},
+            {"GiveExperienceLevels", "Adds experience levels to this player; server-side only."},
+            {"IsOnline", "Whether this player is connected and alive."},
+            {"IsCreative", "Whether this player is in Creative mode."},
+            {"IsSpectator", "Whether this player is in Spectator mode."},
+            {"IsSleeping", "Whether this player is sleeping."},
+            {"IsCrouching", "Whether this player is crouching."},
+            {"IsSprinting", "Whether this player is sprinting."},
+            {"IsSwimming", "Whether this player is swimming."},
+            {"GetBlockPosition", "Returns this player's block-aligned position."},
+            {"GetLookDirection", "Returns the direction this player is looking."},
+            {"GetSelectedSlot", "Returns the selected hotbar slot using a one-based index."},
+            {"SetSelectedSlot", "Selects a hotbar slot using a one-based index from 1 to 9."},
+            {"GetHeldItem", "Returns the item in this player's main hand, or nil."},
+            {"GetOffhandItem", "Returns the item in this player's offhand, or nil."},
+            {"GetViewMode", "Returns the local player's view mode; client-side only."},
+            {"SetViewMode", "Sets the local player's view mode; client-side only."},
+            {"GetSlot", "Returns a live inventory slot using a one-based index."},
+            {"SetSlot", "Sets or clears an inventory slot using a one-based index."},
+            {"SetHotbarSlot", "Sets or clears a hotbar slot using a one-based index from 1 to 9."},
+            {"SetArmorSlot", "Sets or clears an armor slot using a one-based index from 1 to 4."},
+            {"SetOffhandSlot", "Sets or clears this player's offhand item."},
+            {"GetInventorySize", "Returns this player's inventory slot count."},
+            {"GetHotbar", "Returns live Slot instances for the nine hotbar positions."},
+            {"GetArmorContents", "Returns the same live Slot instances exposed by Inventory for the four armor positions."},
+            {"GetOffhandSlot", "Returns the same live Slot instance exposed by Inventory for the offhand."},
+            {"GetOpenContainerTitle", "Returns the title of this player's current menu."},
+            {"GetOpenContainerSize", "Returns the slot count of this player's current menu."},
+            {"SetInventory", "Replaces this player's inventory contents from a one-based item table; server-side only."},
+            {"GetIsLocalPlayer", "Whether this Player instance represents the local client player."},
+            {"GetEffects", "Returns this player's active effects."}
+        };
+        for (String[] method : inventoryAndStateMethods) {
+            MLuaClassMethods.registerInstanceMethod(registration, "Player", method[0], method[1]);
+        }
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "UserId", "GetUserId", null,
+            "number", "shared:Shared", "This player's runtime ID.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "FoodLevel", "GetFoodLevel", "SetFoodLevel",
+            "number", "shared:Shared", "This player's food level.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "Saturation", "GetSaturation", "SetSaturation",
+            "number", "shared:Shared", "This player's food saturation.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "ViewMode", "GetViewMode", "SetViewMode",
+            "ViewMode", "client:Client", "The local player's view mode; client-side only.");
+    }
+
+    private static void registerEntityProperties(MLuaRegistration registration) {
+        String[][] properties = {
+            {"Id", "GetId", null, "number", "shared:Shared", "This entity's runtime ID."},
+            {"Type", "GetType", null, "string", "shared:Shared", "This entity's registered type."},
+            {"EntityType", "GetEntityType", null, "string", "shared:Shared", "This entity's registered type."},
+            {"Name", "GetName", null, "string", "shared:Shared", "This entity's current name."},
+            {"UUID", "GetUUID", null, "string", "shared:Shared", "This entity's UUID."},
+            {"Position", "GetPosition", "SetPosition", "Vector3", "shared:Shared", "This entity's current position."},
+            {"Velocity", "GetVelocity", "SetVelocity", "Vector3", "shared:Shared", "This entity's current velocity."},
+            {"Rotation", "GetRotation", "SetRotation", "Vector2", "shared:Shared", "This entity's pitch and yaw in degrees."},
+            {"IsAlive", "GetIsAlive", null, "boolean", "shared:Shared", "Whether this entity is alive."},
+            {"IsOnGround", "GetIsOnGround", null, "boolean", "shared:Shared", "Whether this entity is on the ground."},
+            {"IsInWater", "GetIsInWater", null, "boolean", "shared:Shared", "Whether this entity is in water."},
+            {"IsOnFire", "GetIsOnFire", null, "boolean", "shared:Shared", "Whether this entity is on fire."}
+        };
+        for (String[] property : properties) {
+            MLuaClassMethods.registerInstanceProperty(registration, "Entity", property[0], property[1], property[2],
+                property[3], property[4], property[5]);
+        }
+    }
+
+    private static VarArgFunction entityMethod(java.util.function.Function<Entity, LuaValue> getter) {
+        return new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                LuaValue self = args.arg1();
+                LuaValue raw = self.istable() ? self.checktable().rawget("__entity") : LuaValue.NIL;
+                if (!raw.isuserdata(Entity.class)) {
+                    throw new LuaError("[MLua] Entity method called without a live entity instance.");
+                }
+                return getter.apply((Entity) raw.touserdata(Entity.class));
+            }
+        };
+    }
+
+    @Override
+    public void contributeGlobals(Globals globals, MLuaContextView context) {
+        globals.set("Entity", context.registration().classTable("Entity"));
+        globals.set("LivingEntity", context.registration().classTable("LivingEntity"));
+        globals.set("Player", context.registration().classTable("Player"));
+    }
+
+    @Override
+    public void registerEvents(EventBridge events) {
+        events.onPlayerJoin(playerObj -> {
+            ServerPlayer player = (ServerPlayer) playerObj;
+            var session = dev.mlua.core.MLuaRuntimeSession.forServer(player.level().getServer());
+            if (session == null) session = MLuaRuntime.get().session();
+            var registration = session.registration() != null ? session.registration() : MLuaRuntime.get();
+            MLuaPlayersService.PLAYER_ADDED.fireOnSession(session, Side.SERVER, MLuaPlayersService.playerTable(player, registration));
+            MLuaRuntime ownerRuntime = registration instanceof MLuaRuntime runtime ? runtime : MLuaRuntime.get();
+            ownerRuntime.deliverPendingServerDiagnostics(player);
+            MLuaDataManager.syncInitialState(player);
+        });
+
+        events.onPlayerLeave(playerObj -> {
+            ServerPlayer player = (ServerPlayer) playerObj;
+            var session = dev.mlua.core.MLuaRuntimeSession.forServer(player.level().getServer());
+            dev.mlua.modules.events.EventsModule.forgetPlayerStepPositions(player.getUUID(), session != null ? session : MLuaRuntime.get().session());
+            if (session == null) session = MLuaRuntime.get().session();
+            var registration = session.registration() != null ? session.registration() : MLuaRuntime.get();
+            MLuaPlayersService.PLAYER_REMOVING.fireOnSession(session, Side.SERVER, MLuaPlayersService.playerTable(player, registration));
+            // Listeners receive the final stable wrapper; release the live-player
+            // identity only after dispatch completes.
+            MLuaEntityWrapper.removeFromCache(player);
+        });
+
+        if (LoaderApi.platform().isClient()) {
+            events.onClientDisconnect(() -> {
+                MLuaDataManager.clearClientCache();
+                MLuaEntityWrapper.clearSideCache(Side.CLIENT);
+            });
+        }
+    }
+
+    @Override
+    public void contributeDocs(MLuaDocBuilder docs) {
+        docs.signature("Player", "Player:GetInventory()", "Container");
+        docs.signature("Player", "Player:GetOpenContainer()", "Container");
+        docs.signature("Player", "Player:GetEnderChest()", "Container");
+        docs.signature("Players", "Players:GetPlayerByName(name: string)", null);
+        docs.signature("Players", "Players:GetPlayerByUUID(uuid: string)", null);
+        docs.signature("Players", "Players:Broadcast(message: string)", null);
+        docs.signature("Player", "Player:SendMessage(message: string)", null);
+        docs.signature("Player", "Player:SendActionBar(message: string)", null);
+        docs.signature("Player", "Player:SendTitle(title: string, subtitle: string, fadeIn: number, stay: number, fadeOut: number)", null);
+        docs.signature("Player", "Player:GiveItem(item: Item)", null);
+        docs.signature("Player", "Player:GiveEffect(effect: string, duration: number, amplifier: number, showParticles: boolean)", null);
+        docs.signature("Player", "Player:GiveExperience(amount: number)", null);
+        docs.signature("Player", "Player:GiveExperienceLevels(levels: number)", null);
+        docs.signature("Player", "Player:SetGameMode(mode: string)", null);
+        docs.signature("Player", "Player:SetPosition(x: number, y: number, z: number)", null);
+        docs.signature("Player", "Player:Teleport(x: number, y: number, z: number)", null);
+        docs.signature("Player", "Player:LookAt(x: number, y: number, z: number)", null);
+        docs.signature("Player", "Player:PlaySound(sound: string, volume: number, pitch: number)", null);
+        docs.signature("Player", "Player:SetData(key: string, value: any)", null);
+        docs.signature("Player", "Player:GetData(key: string)", null);
+        docs.signature("Player", "Player:RemoveData(key: string)", null);
+        docs.signature("Player", "Player:SetSlot(slot: number, item: Item)", null);
+        docs.signature("Player", "Player:SetHotbarSlot(slot: number, item: Item)", null);
+        docs.signature("Player", "Player:SetArmorSlot(slot: number, item: Item)", null);
+        docs.signature("Player", "Player:SetOffhandSlot(item: Item)", null);
+        docs.signature("Player", "Player:SetInventory(items: Item[])", null);
+        docs.signature("Player", "Player:SetViewMode(mode: string)", null);
+        docs.signature("Player", "Player:HasPermission(level: number)", null);
+        docs.signature("Player", "Player:DistanceTo(entityOrPosition: any)", null);
+        docs.signature("Player", "Player:HasEffect(effect: string)", null);
+        docs.signature("Player", "Player:RemoveEffect(effect: string)", null);
+        docs.signature("Player", "Player:SetFood(food: number)", null);
+        docs.signature("Player", "Player:SetFoodLevel(level: number)", null);
+        docs.signature("Player", "Player:SetSaturation(saturation: number)", null);
+        docs.signature("Player", "Player:SetHealth(health: number)", null);
+        docs.signature("Player", "Player:SetSelectedSlot(slot: number)", null);
+        docs.service("Players", "MLuaPlayersService",
+                "Manages player connections and provides player instances.",
+                "services/players.html");
+        docs.property("Players", "Players.LocalPlayer", "Player",
+            "The local player on the client; nil on the server.", "client:Client");
+        docs.event("Players", "Players.PlayerAdded", "player: Player",
+            "Fires when a player joins the game.", "server:Server,client:Client");
+        docs.event("Players", "Players.PlayerRemoving", "player: Player",
+            "Fires when a player leaves the game.", "server:Server");
+        docs.guideStep("Players", "Find a player", "Look up a connected player by exact name, then use the live Player instance.",
+            "local Players = Minecraft:GetService(\"Players\")\n" +
+            "local player = Players:GetPlayerByName(\"Alex\")\n" +
+            "if player then\n" +
+            "    player:SendMessage(\"Welcome!\")\n" +
+            "end");
+        docs.clazz("Object", "LuaTable",
+                "Root class in MLua's Lua class hierarchy.",
+                "classes/object.html", null);
+        docs.clazz("Instance", "LuaTable",
+                "Base class for live wrappers around Minecraft objects.",
+                "classes/instance.html", "Object");
+        docs.clazz("Entity", "MLuaEntityWrapper",
+                "A live entity instance with position, movement, health, and interaction APIs.",
+                "classes/entity.html", "Instance");
+        docs.clazz("LivingEntity", "MLuaEntityWrapper",
+                "A living entity with health, damage, equipment, and attributes.",
+                "classes/living-entity.html", "Entity");
+        docs.property("Entity", "entity.Name", "string", "The entity's current name.", "shared:Shared");
+        docs.property("Entity", "entity.UUID", "string", "The entity's UUID.", "shared:Shared");
+        docs.property("Entity", "entity.Position", "Vector3", "The entity's current position. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.Velocity", "Vector3", "The entity's current velocity. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.Rotation", "Vector2", "The entity's pitch and yaw. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.IsAlive", "boolean", "Whether the entity is alive.", "shared:Shared");
+        docs.property("Entity", "entity.IsOnGround", "boolean", "Whether the entity is on the ground.", "shared:Shared");
+        docs.property("Entity", "entity.IsInWater", "boolean", "Whether the entity is in water.", "shared:Shared");
+        docs.property("Entity", "entity.IsOnFire", "boolean", "Whether the entity is on fire.", "shared:Shared");
+        docs.property("LivingEntity", "entity.Health", "number", "The entity's current health. Readable and writable.", "shared:Shared");
+        docs.property("LivingEntity", "entity.MaxHealth", "number", "The entity's maximum health.", "shared:Shared");
+        docs.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared");
+        docs.clazz("Player", "MLuaPlayerWrapper",
+                "A live player instance with player identity, inventory, messaging, and player controls.",
+                "classes/player.html", "LivingEntity");
+        docs.property("Player", "player.Name", "string", "The player's username.", "shared:Shared");
+        docs.property("Player", "player.UUID", "string", "The player's UUID.", "shared:Shared");
+        docs.property("Player", "player.Position", "Vector3", "The player's current position. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.Health", "number", "The player's current health. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.MaxHealth", "number", "The player's maximum health.", "shared:Shared");
+        docs.property("Player", "player.Food", "number", "The player's current food level. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.Saturation", "number", "The player's current food saturation. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.Velocity", "Vector3", "The player's current velocity. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.Rotation", "Vector2", "The player's pitch and yaw. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.ViewMode", "ViewMode", "The local player's camera perspective. Readable and writable.", "client:Client");
+        docs.property("Player", "player.GameMode", "GameMode", "The player's game mode. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.Armor", "number", "The player's current armor value.", "shared:Shared");
+        docs.property("Player", "player.IsAlive", "boolean", "Whether the player is alive.", "shared:Shared");
+        docs.property("Player", "player.IsOnGround", "boolean", "Whether the player is on the ground.", "shared:Shared");
+        docs.property("Player", "player.IsInWater", "boolean", "Whether the player is in water.", "shared:Shared");
+        docs.property("Player", "player.IsOnFire", "boolean", "Whether the player is on fire.", "shared:Shared");
+        docs.guideStep("Player", "Use a live player instance", "Player values returned by the Players service stay connected to the live entity.",
+            "local Players = Minecraft:GetService(\"Players\")\n" +
+            "local player = Players:GetLocalPlayer()\n" +
+            "if player then\n" +
+            "    print(player.Name, player.Position)\n" +
+            "    player:SendMessage(\"Hello!\")\n" +
+            "end");
+    }
+}

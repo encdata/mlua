@@ -1,0 +1,230 @@
+plugins {
+    id 'fabric-loom' version '1.11.8'
+}
+
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+apply from: rootProject.file('gradle/mlua-packaging.gradle')
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = projectDir.parentFile.name
+def target = findMluaTarget(targetVersion)
+def minecraft_version = target.minecraft
+def fabric_loader_version = resolveMluaTargetValue(targetVersion, 'fabricLoaderVersion')
+def fabric_api_version = resolveMluaTargetValue(targetVersion, 'fabricApiVersion')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+def prepareFabricCommonVersionSources = registerMergedTree(project, 'prepareFabricCommonVersionSources',
+    targetPathChain('mlua-versions/common/%s', targetVersion))
+def fabricImplExcludes = [
+    'dev/mlua/modules/players/Class/MLuaEntityWrapper.java',
+    'dev/mlua/modules/quest/Service/MLuaQuestService.java'
+]
+def prepareFabricImplSources = registerMergedTree(project, 'prepareFabricImplSources',
+    targetPathChain('mlua-loaders/fabric/%s/impl', targetVersion), fabricImplExcludes)
+def prepareFabricProjectSources = registerMergedTree(project, 'prepareFabricProjectSources',
+    targetPathChain('mlua-loaders/fabric/%s/project/src/main/java', targetVersion))
+def prepareFabricProjectResources = registerMergedTree(project, 'prepareFabricProjectResources',
+    targetPathChain('mlua-loaders/fabric/%s/project/src/main/resources', targetVersion))
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+base {
+    archivesName = "${mod_id}-fabric-${minecraft_version}"
+}
+
+def fabricDevMods = providers.provider {
+    def remapClasspath = layout.projectDirectory.file('.gradle/loom-cache/remapClasspath.txt').asFile
+    if (!remapClasspath.isFile()) {
+        return ''
+    }
+
+    def separator = File.pathSeparator
+    return remapClasspath.getText('UTF-8')
+        .split(java.util.regex.Pattern.quote(separator))
+        .findAll { path ->
+            def normalized = path.replace('\\', '/')
+            normalized.contains('/net.fabricmc/fabric-loader/') ||
+                normalized.contains('/net.fabricmc.fabric-api/')
+        }
+        .join(separator)
+}
+
+sourceSets.main.resources.setSrcDirs([
+    file("${buildDir}/generated/prepareFabricProjectResources")
+])
+
+loom {
+    mods {
+        mlua {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+def sharedManifest = {
+    attributes(
+        'Agent-Class': 'dev.mlua.agent.MLuaMixinAgent',
+        'Premain-Class': 'dev.mlua.agent.MLuaMixinAgent',
+        'Can-Retransform-Classes': 'true'
+    )
+}
+
+jar {
+    excludeMluaExternalScripts(delegate)
+    manifest sharedManifest
+}
+
+remapJar {
+    manifest sharedManifest
+}
+
+def rootExcludes = [
+    'dev/mlua/MLuaMod.java',
+    'dev/mlua/loader/impl/forge/**',
+    'dev/mlua/minecraft/client/MLuaForgeCameraEvents.java',
+    'dev/mlua/runtime/client/MLuaPackFinder.java',
+    'dev/mlua/runtime/client/MLuaConfigClientHooks.java',
+    'dev/mlua/runtime/client/MLuaClientModels.java',
+    'dev/mlua/runtime/forge/**',
+    'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
+    'dev/mlua/modules/mixin/Service/CameraInvoker.java',
+    'dev/mlua/modules/mixin/Service/CameraMixin.java',
+    'dev/mlua/modules/mixin/Service/HumanoidModelMixin.java',
+    'dev/mlua/modules/mixin/Service/MouseHandlerMixin.java',
+    'dev/mlua/modules/world/Service/MLuaWorldService.java',
+]
+
+def targetVer = target.minecraft
+
+task prepareRootSources(type: Sync) {
+    inputs.property('mluaTargetVersion', targetVer)
+    inputs.property('mluaRootExcludes', rootExcludes.join('\n'))
+    from fileTree(dir: "${rootProject.projectDir}/src/main/java", excludes: rootExcludes)
+    into file("${buildDir}/generated/root-java")
+    doLast {
+        fileTree(destinationDir).matching { include '**/*.java' }.each { file ->
+            def lines = file.readLines()
+            def filtered = []
+            def inVersionBlock = null
+            def justEndedVersion = false
+            lines.each { line ->
+                def trimmed = line.trim()
+                if (trimmed.startsWith('//--version ')) {
+                    def blockVersion = trimmed.substring('//--version '.length()).trim()
+                    inVersionBlock = blockVersion.tokenize(',').contains(targetVer) ? null : blockVersion
+                } else if (trimmed == '//--endversion') {
+                    inVersionBlock = null
+                    justEndedVersion = true
+                } else if (justEndedVersion && trimmed.isEmpty()) {
+                    justEndedVersion = false
+                } else {
+                    justEndedVersion = false
+                    if (inVersionBlock == null) {
+                        filtered << line
+                    }
+                }
+            }
+            file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+        }
+    }
+}
+
+task prepareTransformerSources(type: Sync) {
+    from("${rootProject.projectDir}/mlua-transformer/src/main/java") {
+        include 'dev/mlua/transformer/MLuaInstrumentationBridge.java'
+        include 'dev/mlua/transformer/MLuaMixinClassWriter.java'
+        include 'dev/mlua/transformer/MLuaMixinTransformer.java'
+    }
+    into file("${buildDir}/generated/transformer-java")
+}
+
+sourceSets.main.java.setSrcDirs([
+    file("${buildDir}/generated/prepareFabricProjectSources"),
+    file("${buildDir}/generated/prepareFabricCommonVersionSources"),
+    file("${buildDir}/generated/prepareFabricImplSources"),
+    "${rootProject.projectDir}/mlua-loader-api/src/main/java",
+    "${rootProject.projectDir}/mlua-mc-api/src/main/java",
+    "${rootProject.projectDir}/mlua-common/src/main/java",
+    "${rootProject.projectDir}/mlua-api/src/main/java",
+    "${rootProject.projectDir}/mlua-luaj/src/main/java",
+    file("${buildDir}/generated/root-java"),
+    file("${buildDir}/generated/transformer-java")
+])
+
+tasks.processResources.dependsOn prepareFabricProjectResources
+tasks.compileJava.dependsOn tasks.prepareRootSources, tasks.prepareTransformerSources, prepareFabricProjectSources, prepareFabricCommonVersionSources, prepareFabricImplSources
+
+tasks.withType(JavaExec).configureEach {
+    if (name.toLowerCase().contains('run')) {
+        doFirst {
+            def mods = fabricDevMods.get()
+            if (!mods.isBlank()) {
+                systemProperty 'fabric.addMods', mods
+                jvmArgs "-Dfabric.addMods=${mods}"
+            }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'com.google.code.gson:gson:2.10'
+    compileOnly project(':mlua-api')
+    compileOnly project(':mlua-loader-api')
+    compileOnly project(':mlua-mc-api')
+    compileOnly project(':mlua-common')
+    compileOnly project(':mlua-luaj')
+    implementation('org.apache.bcel:bcel:6.7.0')
+    include('org.apache.bcel:bcel:6.7.0')
+}
+
+processResources {
+    configureMluaIcon(delegate)
+    inputs.property "version", project.version
+    inputs.property "mod_id", mod_id
+    inputs.property "mod_name", mod_name
+    inputs.property "mod_authors", mod_authors
+    inputs.property "mod_description", mod_description
+    inputs.property "minecraft_version", minecraft_version
+
+    from("${rootProject.projectDir}/src/main/resources") {
+        exclude 'META-INF/mods.toml'
+        exclude 'mlua.mixins.json'
+        exclude 'Icon.png'
+    }
+    def yarnMappingsTiny = fileTree("${gradle.gradleUserHomeDir}/caches/fabric-loom/${minecraft_version}") {
+        include '**/net.fabricmc.yarn.*-v2/mappings.tiny'
+    }.files.find { it.isFile() }
+
+    if (yarnMappingsTiny != null) {
+        from(yarnMappingsTiny) {
+            into 'mlua'
+            rename { 'yarn-mappings.tiny' }
+        }
+    }
+
+    filesMatching("fabric.mod.json") {
+        expand(
+            "version": project.version,
+            "mod_id": mod_id,
+            "mod_name": mod_name,
+            "mod_authors": mod_authors,
+            "mod_description": mod_description,
+            "mod_license": mod_license,
+            "minecraft_version": minecraft_version
+        )
+    }
+}

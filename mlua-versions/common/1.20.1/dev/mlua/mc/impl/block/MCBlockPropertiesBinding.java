@@ -1,0 +1,12 @@
+package dev.mlua.mc.impl.block;
+
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+
+/** 1.20.x direct Minecraft binding. */
+public final class MCBlockPropertiesBinding {
+    private MCBlockPropertiesBinding() { }
+    public static Object copy(Object block) {
+        return BlockBehaviour.Properties.copy((Block) block);
+    }
+}
