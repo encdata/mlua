@@ -13,6 +13,8 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.List;
 
 @MLuaDescription("Creates mutable registry tag builders for items, blocks, and entity types.")
 public final class MLuaTagService extends MLuaReflectiveService {
@@ -28,21 +30,21 @@ public final class MLuaTagService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Creates a builder for an item tag.")
-    public LuaTable Items() { return createBuilder(); }
+    public LuaTable Items() { return createBuilder("ItemTagBuilder"); }
 
     @MLuaDescription("Creates a builder for a block tag.")
-    public LuaTable Blocks() { return createBuilder(); }
+    public LuaTable Blocks() { return createBuilder("BlockTagBuilder"); }
 
     @MLuaDescription("Creates a builder for an entity type tag.")
-    public LuaTable EntityTypes() { return createBuilder(); }
+    public LuaTable EntityTypes() { return createBuilder("EntityTypeTagBuilder"); }
 
-    private LuaTable createBuilder() {
+    private LuaTable createBuilder(String className) {
         MLuaRegistration registration = this.context.registration();
-        if (registration.classTable("TagBuilder") == null) {
-            throw new IllegalStateException("TagBuilder class must be registered before creating tag builders");
+        if (registration.classTable(className) == null) {
+            throw new IllegalStateException("Lua class '" + className + "' must be registered before creating tag builders");
         }
 
-        LuaTable builder = registration.createClassInstance("TagBuilder");
+        LuaTable builder = registration.createClassInstance(className);
         builder.rawset(BUILDER_STATE, LuaValue.userdataOf(new BuilderState()));
         MLuaClassMethods.setInstanceMethod(builder, "Add", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -50,6 +52,25 @@ public final class MLuaTagService extends MLuaReflectiveService {
                 String value = args.checkjstring(2);
                 MLuaResourceLocations.parse(value.startsWith("#") ? value.substring(1) : value);
                 state(self).values.add(value);
+                return self;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(builder, "AddAll", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.arg1().checktable();
+                LuaValue input = args.arg(2);
+                if (!input.istable()) throw new LuaError("[MLua] TagBuilder:AddAll expects a dense array of identifiers");
+                LuaTable values = input.checktable();
+                int length = values.length();
+                LuaValue[] keys = values.keys();
+                if (keys.length != length) throw new LuaError("[MLua] TagBuilder:AddAll expects a dense array without extra keys");
+                List<String> additions = new ArrayList<>(length);
+                for (int index = 1; index <= length; index++) {
+                    String value = values.get(index).checkjstring();
+                    MLuaResourceLocations.parse(value.startsWith("#") ? value.substring(1) : value);
+                    additions.add(value);
+                }
+                state(self).values.addAll(additions);
                 return self;
             }
         });
