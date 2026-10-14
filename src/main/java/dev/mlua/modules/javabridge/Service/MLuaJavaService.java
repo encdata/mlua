@@ -75,9 +75,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
         descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
         descriptions.put("TypeOf", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.");
-        descriptions.put("GetMethods", "Lists Java method names, signatures, return types, and static status.");
-        descriptions.put("GetFields", "Lists Java fields, types, and whether they are static or final.");
-        descriptions.put("GetField", "Reads a Java instance or static field by its exact Java name.");
+        descriptions.put("GetMethods", "Lists Java method names, signatures, return types, declaring classes, varargs, and static status.");
+        descriptions.put("GetFields", "Lists Java fields, types, declaring classes, and whether they are static or final.");
+        descriptions.put("GetField", "Reads a Java instance or static field by its exact Java name, including inherited superclass and interface fields.");
         descriptions.put("SetField", "Writes a non-final Java instance or static field and returns its new value.");
         descriptions.put("Inspect", "Returns structured metadata for a Java class.");
         descriptions.put("ViewClass", "Returns a Lua-oriented textual view of a Java class.");
@@ -205,7 +205,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 for (Method method : collectMethods(clazz)) {
                     LuaTable entry = new LuaTable();
                     entry.set("Name", method.getName());
+                    entry.set("DeclaringClass", method.getDeclaringClass().getName());
                     entry.set("Static", LuaValue.valueOf(Modifier.isStatic(method.getModifiers())));
+                    entry.set("VarArgs", LuaValue.valueOf(method.isVarArgs()));
                     entry.set("ParameterCount", method.getParameterCount());
                     entry.set("ReturnType", method.getReturnType().getName());
                     entry.set("Descriptor", methodSignature(method));
@@ -223,6 +225,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 for (Field field : collectFields(clazz)) {
                     LuaTable entry = new LuaTable();
                     entry.set("Name", field.getName());
+                    entry.set("DeclaringClass", field.getDeclaringClass().getName());
                     entry.set("Static", LuaValue.valueOf(Modifier.isStatic(field.getModifiers())));
                     entry.set("Final", LuaValue.valueOf(Modifier.isFinal(field.getModifiers())));
                     entry.set("Type", field.getType().getName());
@@ -1195,6 +1198,14 @@ public final class MLuaJavaService extends MLuaServiceBase {
             }
         }
 
+        if (requireStatic) {
+            List<Field> inheritedInterfaceFields = collectInterfaceFields(clazz, fieldName, false);
+            if (inheritedInterfaceFields.size() == 1) return inheritedInterfaceFields.get(0);
+            if (inheritedInterfaceFields.size() > 1) {
+                throw ambiguousInterfaceField(fieldName, clazz, inheritedInterfaceFields);
+            }
+        }
+
         for (Class<?> current = clazz; current != null; current = current.getSuperclass()) {
             Field fallback = null;
             for (Field field : current.getDeclaredFields()) {
@@ -1211,7 +1222,47 @@ public final class MLuaJavaService extends MLuaServiceBase {
             if (fallback != null) return fallback;
         }
 
+        if (requireStatic) {
+            List<Field> inheritedInterfaceFields = collectInterfaceFields(clazz, fieldName, true);
+            if (inheritedInterfaceFields.size() == 1) return inheritedInterfaceFields.get(0);
+            if (inheritedInterfaceFields.size() > 1) {
+                throw ambiguousInterfaceField(fieldName, clazz, inheritedInterfaceFields);
+            }
+        }
+
         return null;
+    }
+
+    private List<Field> collectInterfaceFields(Class<?> clazz, String fieldName, boolean normalized) {
+        String expected = normalized ? normalizeMemberName(fieldName) : fieldName;
+        java.util.Set<Class<?>> visited = new java.util.LinkedHashSet<>();
+        List<Class<?>> pending = new ArrayList<>();
+        for (Class<?> current = clazz; current != null; current = current.getSuperclass()) {
+            java.util.Collections.addAll(pending, current.getInterfaces());
+        }
+
+        Map<String, Field> matches = new LinkedHashMap<>();
+        for (int index = 0; index < pending.size(); index++) {
+            Class<?> iface = pending.get(index);
+            if (!visited.add(iface)) continue;
+            for (Field field : iface.getDeclaredFields()) {
+                String candidate = normalized ? normalizeMemberName(field.getName()) : field.getName();
+                if (Modifier.isStatic(field.getModifiers()) && candidate.equals(expected) && prepareAccessible(field)) {
+                    matches.putIfAbsent(field.getDeclaringClass().getName() + "#" + field.getName(), field);
+                }
+            }
+            java.util.Collections.addAll(pending, iface.getInterfaces());
+        }
+        return List.copyOf(matches.values());
+    }
+
+    private LuaError ambiguousInterfaceField(String fieldName, Class<?> clazz, List<Field> fields) {
+        List<String> declarations = fields.stream()
+            .map(field -> field.getDeclaringClass().getName() + "." + field.getName())
+            .sorted()
+            .toList();
+        return new LuaError("[MLua] Java interface field '" + fieldName + "' is ambiguous on "
+            + clazz.getName() + "; use Java:GetField with an interface class. Candidates: " + declarations);
     }
 
     private Method resolvePropertyGetter(Class<?> clazz, String fieldName) {
