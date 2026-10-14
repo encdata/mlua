@@ -80,6 +80,11 @@ public interface MLuaRegistration {
         if (!inheritsInstance) {
             parents.removeIf(parent -> parent != null && !parent.isBlank()
                 && isClassOrParent(instanceBase, parent, new HashSet<>()));
+            if (!parents.isEmpty()) {
+                throw new IllegalArgumentException("Instantiable Lua class '" + name + "' must inherit from '"
+                    + instanceBase + "'; superclass '" + parents.get(0)
+                    + "' does not. Extend the instance class and use behavior mixins for shared behavior.");
+            }
             parents.add(instanceBase);
         }
         LuaTable existing = classTable(name);
