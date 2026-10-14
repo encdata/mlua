@@ -9,11 +9,14 @@ import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -85,6 +88,28 @@ public final class MLuaChunkWrapper {
             BlockPos pos = requirePosition(args, 2, args.arg1());
             if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
             return MLuaBlockWrapper.blockTable(world, pos, registration).get("BlockEntity");
+        });
+        bind(chunk, "GetBiomeAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            ResourceLocation id = world.registryAccess().registryOrThrow(Registries.BIOME).getKey(world.getBiome(pos).value());
+            return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
+        });
+        bind(chunk, "GetFluidAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            FluidState state = world.getFluidState(pos);
+            if (state == null || state.isEmpty()) return LuaValue.NIL;
+            ResourceLocation id = BuiltInRegistries.FLUID.getKey(state.getType());
+            return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
+        });
+        bind(chunk, "GetLightAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            return LuaValue.valueOf(world.getMaxLocalRawBrightness(pos));
         });
         bind(chunk, "SetBlockAt", args -> {
             Level world = level(args.arg1());

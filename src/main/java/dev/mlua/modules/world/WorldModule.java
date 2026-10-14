@@ -32,6 +32,9 @@ public class WorldModule implements MLuaModule {
         Map.entry("ForceLoad", "Adds a persistent server force-load ticket for this chunk."),
         Map.entry("GetBlockAt", "Loads this chunk if needed and returns a block at a world position inside it."),
         Map.entry("GetBlockEntityAt", "Loads this chunk if needed and returns its block entity at a world position."),
+        Map.entry("GetBiomeAt", "Loads this chunk if needed and returns the biome identifier at a world position inside it."),
+        Map.entry("GetFluidAt", "Loads this chunk if needed and returns the fluid identifier at a world position inside it, or nil."),
+        Map.entry("GetLightAt", "Loads this chunk if needed and returns the raw local light level at a world position inside it."),
         Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block at a world position inside it. Server-side only."),
         Map.entry("GetEntities", "Loads this chunk if needed and returns its live entities.")
     );
@@ -243,6 +246,9 @@ public class WorldModule implements MLuaModule {
         docs.signature("Chunk", "Chunk:ForceLoad()", "boolean");
         docs.signature("Chunk", "Chunk:GetBlockAt(position: Vector3|CFrame)", "Block?");
         docs.signature("Chunk", "Chunk:GetBlockEntityAt(position: Vector3|CFrame)", "BlockEntity?");
+        docs.signature("Chunk", "Chunk:GetBiomeAt(position: Vector3|CFrame)", "string?");
+        docs.signature("Chunk", "Chunk:GetFluidAt(position: Vector3|CFrame)", "string?");
+        docs.signature("Chunk", "Chunk:GetLightAt(position: Vector3|CFrame)", "number?");
         docs.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string)", "boolean");
         docs.signature("Chunk", "Chunk:GetEntities()", "Entity[]");
         docs.signature("WorldService", "WorldService:Get(dimensionId: string)", "World?");
