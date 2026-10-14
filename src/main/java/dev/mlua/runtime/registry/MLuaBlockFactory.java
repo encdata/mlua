@@ -48,6 +48,7 @@ public final class MLuaBlockFactory {
          throw new IllegalArgumentException("[MLua] Block type must be a string");
       }
       validateCopyDefinition(properties);
+      validateBlockProperties(properties);
    }
 
    public Block create(Map<String, Object> properties, String registryName, Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
@@ -94,6 +95,65 @@ public final class MLuaBlockFactory {
       }
    }
 
+   private static void validateBlockProperties(Map<String, Object> properties) {
+      Object hardness = aliasedProperty(properties, "hardness", "strength");
+      Object resistance = aliasedProperty(properties, "resistance", "explosionResistance");
+      validateNumber(hardness, "hardness", -1.0, Float.MAX_VALUE, false);
+      validateNumber(resistance, "resistance", 0.0, Float.MAX_VALUE, false);
+      if (resistance != null && hardness == null) {
+         throw new IllegalArgumentException("[MLua] Block resistance requires a hardness value");
+      }
+      validateNumber(properties, "lightLevel", 0.0, 15.0, true);
+      validateNumber(properties, "friction", 0.0, Float.MAX_VALUE, false);
+      validateNumber(properties, "speedFactor", 0.0, Float.MAX_VALUE, false);
+      validateNumber(properties, "jumpFactor", 0.0, Float.MAX_VALUE, false);
+      for (String property : new String[]{"requiresCorrectTool", "collision", "noCollision", "noOcclusion", "randomTicks"}) {
+         Object value = properties.get(property);
+         if (value != null && !(value instanceof Boolean)) {
+            throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a boolean");
+         }
+      }
+      if (Boolean.TRUE.equals(properties.get("collision")) && Boolean.TRUE.equals(properties.get("noCollision"))) {
+         throw new IllegalArgumentException("[MLua] Block properties 'collision' and 'noCollision' conflict");
+      }
+      for (String property : new String[]{"sound", "mapColor"}) {
+         Object value = properties.get(property);
+         if (value != null && (!(value instanceof String name) || name.isBlank())) {
+            throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a non-empty string");
+         }
+      }
+      if (properties.get("sound") instanceof String name) sound(name);
+      if (properties.get("mapColor") instanceof String name) mapColor(name);
+   }
+
+   private static void validateNumber(Map<String, Object> properties, String name,
+      double minimum, double maximum, boolean wholeNumber) {
+      validateNumber(properties.get(name), name, minimum, maximum, wholeNumber);
+   }
+
+   private static void validateNumber(Object value, String name, double minimum, double maximum, boolean wholeNumber) {
+      if (value == null) return;
+      if (!(value instanceof Number number)) {
+         throw new IllegalArgumentException("[MLua] Block property '" + name + "' must be numeric");
+      }
+      double converted = number.doubleValue();
+      if (!Double.isFinite(converted) || converted < minimum || converted > maximum
+         || wholeNumber && converted != Math.rint(converted)) {
+         String range = wholeNumber ? "a whole number from " : "a finite number from ";
+         throw new IllegalArgumentException("[MLua] Block property '" + name + "' must be " + range + minimum + " to " + maximum);
+      }
+   }
+
+   private static Object aliasedProperty(Map<String, Object> properties, String canonicalName, String alias) {
+      Object canonical = properties.get(canonicalName);
+      Object alternate = properties.get(alias);
+      if (canonical != null && alternate != null) {
+         throw new IllegalArgumentException("[MLua] Provide only one of block properties '" + canonicalName
+            + "' and '" + alias + "'");
+      }
+      return canonical != null ? canonical : alternate;
+   }
+
    private static String normalizeTypeName(String name) {
       if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Block type name must be non-empty");
       String normalized = name.trim().toLowerCase(Locale.ROOT);
@@ -114,9 +174,10 @@ public final class MLuaBlockFactory {
 
    public BlockBehaviour.Properties makeProperties(Map<String, Object> properties) {
       validateCopyDefinition(properties);
+      validateBlockProperties(properties);
       BlockBehaviour.Properties props = this.copyProperties(properties);
-      Object strength = properties.get("strength");
-      Object resistance = properties.get("explosionResistance");
+      Object strength = aliasedProperty(properties, "hardness", "strength");
+      Object resistance = aliasedProperty(properties, "resistance", "explosionResistance");
       if (strength instanceof Number s && resistance instanceof Number r) {
          props.strength(s.floatValue(), r.floatValue());
       } else if (strength instanceof Number strengthValue) {
@@ -144,7 +205,7 @@ public final class MLuaBlockFactory {
 
       Object light = properties.get("lightLevel");
       if (light instanceof Number lightValue) {
-         int level = Math.max(0, Math.min(15, lightValue.intValue()));
+         int level = lightValue.intValue();
          props.lightLevel((state) -> {
             return level;
          });
@@ -152,17 +213,17 @@ public final class MLuaBlockFactory {
 
       Object friction = properties.get("friction");
       if (friction instanceof Number frictionValue) {
-         props.friction(Math.max(0.0F, frictionValue.floatValue()));
+         props.friction(frictionValue.floatValue());
       }
 
       Object speedFactor = properties.get("speedFactor");
       if (speedFactor instanceof Number speedFactorValue) {
-         props.speedFactor(Math.max(0.0F, speedFactorValue.floatValue()));
+         props.speedFactor(speedFactorValue.floatValue());
       }
 
       Object jumpFactor = properties.get("jumpFactor");
       if (jumpFactor instanceof Number jumpFactorValue) {
-         props.jumpFactor(Math.max(0.0F, jumpFactorValue.floatValue()));
+         props.jumpFactor(jumpFactorValue.floatValue());
       }
 
       Object sound = properties.get("sound");
@@ -197,7 +258,7 @@ public final class MLuaBlockFactory {
       return (Properties)MCApiRuntime.copyBlockProperties(Blocks.STONE);
    }
 
-   private SoundType sound(String name) {
+   private static SoundType sound(String name) {
       SoundType var10000;
       switch (name.toLowerCase(Locale.ROOT)) {
          case "wood":
@@ -462,7 +523,7 @@ public final class MLuaBlockFactory {
       return var10000;
    }
 
-   private MapColor mapColor(String name) {
+   private static MapColor mapColor(String name) {
       MapColor var10000;
       switch (name.toLowerCase(Locale.ROOT)) {
          case "grass":
