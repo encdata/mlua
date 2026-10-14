@@ -127,6 +127,16 @@ public final class MLuaClassMethods {
       if (!documentedMethods.isnil() && !documentedMethods.istable()) {
          throw new IllegalStateException("Lua instance method descriptions must be a table");
       }
+      LuaValue instanceDispatchers = instance.rawget("__mlua_instance_dispatchers");
+      if (!instanceDispatchers.isnil() && !instanceDispatchers.istable()) {
+         throw new IllegalStateException("Lua instance dispatcher metadata must be a table");
+      }
+      LuaValue instanceMeta = instance.getmetatable();
+      if (!instanceMeta.istable()) throw new IllegalStateException("Live class instance has no lookup metatable");
+      LuaValue instanceMethods = instanceMeta.checktable().rawget("__mlua_instance_methods");
+      if (!instanceMethods.isnil() && !instanceMethods.istable()) {
+         throw new IllegalStateException("Live class instance method storage must be a table");
+      }
       LuaTable classTable = registration.classTable(className);
       if (classTable == null) throw new IllegalStateException("Lua class is not registered: " + className);
       LuaValue existing = classTable.rawget(methodName);
