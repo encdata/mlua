@@ -5,6 +5,7 @@ import org.luaj.vm2.LuaValue;
 import dev.mlua.minecraft.ui.UDim2;
 import dev.mlua.minecraft.ui.UDim;
 import dev.mlua.minecraft.ui.data.Vector2;
+import dev.mlua.minecraft.ui.data.Rect;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.core.engine.MLuaLuaBindings;
 
@@ -228,6 +229,15 @@ public abstract class GuiObject extends GuiBase2d {
         LuaTable t = new LuaTable();
         t.set("X", v.x());
         t.set("Y", v.y());
+        return t;
+    }
+
+    protected static LuaTable toLuaRect(Rect rect) {
+        LuaTable t = new LuaTable();
+        t.set("X", rect.x());
+        t.set("Y", rect.y());
+        t.set("Width", rect.width());
+        t.set("Height", rect.height());
         return t;
     }
 
