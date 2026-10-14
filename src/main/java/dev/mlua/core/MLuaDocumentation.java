@@ -3,6 +3,7 @@ package dev.mlua.core;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModuleLoader;
 import dev.mlua.module.MLuaRegistration;
+import dev.mlua.common.enums.InjectionPoint;
 import dev.mlua.modules.enums.EnumsModule;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -262,7 +263,12 @@ public final class MLuaDocumentation {
       }
       appendLiteralAlias(sb, "MLuaMixinMethodName", new ArrayList<>(methodNames));
 
-      sb.append("---@alias MLuaMixinInjectionPoint \"HEAD\"|\"RETURN\"\n\n");
+      sb.append("---@alias MLuaMixinInjectionPoint ");
+      for (int index = 0; index < InjectionPoint.values().length; index++) {
+         if (index > 0) sb.append("|");
+         sb.append("\"").append(InjectionPoint.values()[index].name()).append("\"");
+      }
+      sb.append("\n\n");
 
       sb.append("---@class MLuaMixinInjectOptions\n");
       sb.append("---@field at? MLuaMixinInjectionPoint\n");
@@ -941,7 +947,10 @@ public final class MLuaDocumentation {
         sb.append("};\n\n");
 
         // Runtime code — embedded template
-        sb.append(EXTENSION_JS_RUNTIME);
+        String injectionPoints = java.util.Arrays.stream(InjectionPoint.values())
+           .map(point -> "\"" + point.name() + "\"")
+           .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+        sb.append(EXTENSION_JS_RUNTIME.replace("__MLUA_MIXIN_AT_VALUES__", injectionPoints));
 
        write(apiDir.resolve("extension.js"), sb.toString());
     }
@@ -1071,7 +1080,7 @@ function activate(context) {
         ModifyArg: ['target', 'index', 'callback']
     };
 
-    const MIXIN_AT_VALUES = ['HEAD', 'RETURN'];
+    const MIXIN_AT_VALUES = __MLUA_MIXIN_AT_VALUES__;
 
     function extractStringValue(argText) {
         const match = argText.trim().match(/^["']([^"']*)["']$/);
@@ -2870,7 +2879,7 @@ function deactivate() {}
                    "        -- Runs at the start of Minecraft.tick().\n" +
                    "    end\n" +
                    "})") +
-         "<p>Use <code>Inject</code> for HEAD or RETURN callbacks, <code>Overwrite</code> to replace a method, and <code>Redirect</code> or <code>ModifyArg</code> to target an exact invocation descriptor. Keep target names and descriptors scoped to the Minecraft versions your addon supports.</p>" +
+         "<p>Use <code>Inject</code> at HEAD to run before a method, RETURN to run before every return instruction, or TAIL to run before only the final return instruction. For non-void methods, a non-nil callback result at HEAD or a return point replaces the method result. Use <code>Overwrite</code> to replace a method, and <code>Redirect</code> or <code>ModifyArg</code> to target an exact invocation descriptor.</p>" +
          "<h2>Creating an Addon Service</h2>" +
          "<p>The easiest way to expose your mod's API is by extending <code>MLuaReflectiveService</code>. This base class automatically exposes all public methods to Lua.</p>" +
          "<h3>1. Define the Service Class</h3>" +

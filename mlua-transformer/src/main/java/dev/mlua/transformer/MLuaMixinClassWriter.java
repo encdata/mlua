@@ -143,6 +143,11 @@ public final class MLuaMixinClassWriter {
          if (hasBridgeCallback(method, rule.callbackId())) {
             LOGGER.info("[MLua] Injected RETURN callback into {}#{}", classNode.name, method.name);
          }
+      } else if (rule.at() == InjectionPoint.TAIL) {
+         injectBeforeTailReturn(method, rule.callbackId());
+         if (hasBridgeCallback(method, rule.callbackId())) {
+            LOGGER.info("[MLua] Injected TAIL callback into {}#{}", classNode.name, method.name);
+         }
       }
       if (!hasBridgeCallback(method, rule.callbackId())) {
          throw new IllegalStateException("[MLua] Inject could not place callback at " + rule.at()
@@ -191,8 +196,22 @@ public final class MLuaMixinClassWriter {
          return;
       }
 
-      Type returnType = Type.getReturnType(method.desc);
+      injectBeforeReturnInstructions(method, callbackId, returnInstructions(method));
+   }
+
+   private static void injectBeforeTailReturn(MethodNode method, String callbackId) {
+      if (hasBridgeCallback(method, callbackId)) {
+         return;
+      }
+
       List<AbstractInsnNode> returns = returnInstructions(method);
+      if (returns.isEmpty()) return;
+      injectBeforeReturnInstructions(method, callbackId, List.of(returns.get(returns.size() - 1)));
+   }
+
+   private static void injectBeforeReturnInstructions(MethodNode method, String callbackId,
+                                                       List<AbstractInsnNode> returns) {
+      Type returnType = Type.getReturnType(method.desc);
       if (returnType.getSort() == Type.VOID) {
          for (AbstractInsnNode insn : returns) {
             method.instructions.insertBefore(insn, notifyInvoke(callbackId, method, null, -1));

@@ -33,7 +33,7 @@ public final class MLuaMixinLuaApi {
       descriptions.put("Target", "Binds a Java target class and returns target-scoped Inject, Overwrite, Redirect, and ModifyArg methods.");
       descriptions.put("GetRules", "Returns mixin rules registered by the current script.");
       descriptions.put("GetFailures", "Returns target classes whose registered mixin rules could not be applied.");
-      descriptions.put("Inject", "Injects a callback at the HEAD or RETURN of a target method.");
+      descriptions.put("Inject", "Injects a callback at HEAD, before every RETURN, or at the final RETURN of a target method.");
       descriptions.put("Overwrite", "Replaces a target method with a Lua callback.");
       descriptions.put("Redirect", "Replaces an exact invocation selected by target = 'Lowner;method(descriptor)returnType'; nil preserves the original call.");
       descriptions.put("ModifyArg", "Changes a zero-based argument at the exact invocation selected by target = 'Lowner;method(descriptor)returnType'.");
@@ -81,7 +81,7 @@ public final class MLuaMixinLuaApi {
                case INJECT -> {
                   LuaValue at = options.get("at");
                   if (!at.isnil() && !at.isstring()) {
-                     throw new LuaError("[MLua] Mixin:Inject 'at' must be \"HEAD\" or \"RETURN\"");
+                     throw new LuaError("[MLua] Mixin:Inject 'at' must be a string injection point");
                   }
                   rule = MLuaMixinRegistrar.inject(activeScope.get(), target, method,
                      MLuaMixinRegistrar.optionalDescriptor(options.get("descriptor"), "Inject"),
