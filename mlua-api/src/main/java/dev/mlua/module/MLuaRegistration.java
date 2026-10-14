@@ -69,31 +69,28 @@ public interface MLuaRegistration {
     @Deprecated(forRemoval = false)
     default LuaTable registerInstantiableClass(String name, java.util.List<String> parentNames,
                                                String description) {
-        return registerInstantiableClassInternal(name, parentNames, description);
+        java.util.List<String> parents = normalizeParentNames(parentNames == null ? java.util.List.of() : parentNames);
+        return registerInstantiableClassInternal(name, parents.isEmpty() ? null : parents.get(0), description);
     }
 
-    private LuaTable registerInstantiableClassInternal(String name, java.util.List<String> parentNames,
-                                                       String description) {
+    private LuaTable registerInstantiableClassInternal(String name, String parentName, String description) {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Class name must be non-empty");
         if (description == null || description.isBlank()) throw new IllegalArgumentException("Class description must be non-empty");
-        java.util.List<String> parents = normalizeParentNames(parentNames == null ? java.util.List.of() : parentNames);
         String instanceBase = requireInstanceBaseClassName();
         if (name.equals(instanceBase)) {
             throw new IllegalArgumentException("The shared instance base class cannot be registered as a concrete instance class");
         }
-        boolean inheritsInstance = parents.stream()
-            .filter(parent -> parent != null && !parent.isBlank())
-            .anyMatch(parent -> isClassOrParent(parent, instanceBase, new HashSet<>()));
-        if (!inheritsInstance) {
-            parents.removeIf(parent -> parent != null && !parent.isBlank()
-                && isClassOrParent(instanceBase, parent, new HashSet<>()));
-            if (!parents.isEmpty()) {
+        String parent = parentName == null || parentName.isBlank() ? null : parentName;
+        if (parent != null && !isClassOrParent(parent, instanceBase, new HashSet<>())) {
+            if (isClassOrParent(instanceBase, parent, new HashSet<>())) {
+                parent = null;
+            } else {
                 throw new IllegalArgumentException("Instantiable Lua class '" + name + "' must inherit from '"
-                    + instanceBase + "'; superclass '" + parents.get(0)
+                    + instanceBase + "'; superclass '" + parent
                     + "' does not. Extend the instance class and use behavior mixins for shared behavior.");
             }
-            parents.add(instanceBase);
         }
+        if (parent == null) parent = instanceBase;
         LuaTable existing = classTable(name);
         LuaValue declaredConstructor = existing == null ? LuaValue.NIL : existing.rawget("new");
         if (!declaredConstructor.isnil() && !declaredConstructor.isfunction()) {
@@ -101,7 +98,7 @@ public interface MLuaRegistration {
                 + "' defines 'new' as a non-function; constructors must be callable class functions");
         }
         LuaTable type = registerClassWithParent(name, existing == null ? new LuaTable() : existing,
-            parents.isEmpty() ? null : parents.get(0), description);
+            parent, description);
         if (type.rawget("__mlua_service_class").toboolean()
             || type.get("__mlua_ui_java_type").isuserdata()) return type;
         if (!type.rawget("new").isnil()) return type;
@@ -127,9 +124,7 @@ public interface MLuaRegistration {
     }
 
     default LuaTable registerInstantiableClass(String name, String parentName, String description) {
-        return registerInstantiableClassInternal(name,
-            parentName == null || parentName.isBlank() ? java.util.List.of() : java.util.List.of(parentName),
-            description);
+        return registerInstantiableClassInternal(name, parentName, description);
     }
 
     private static boolean hasInheritedGenericConstructor(MLuaRegistration registration, LuaTable type,
