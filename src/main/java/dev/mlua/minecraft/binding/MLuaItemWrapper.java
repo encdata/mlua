@@ -172,25 +172,8 @@ public final class MLuaItemWrapper {
       itemGlobal.set("Catalog", items);
    }
 
-   public static LuaValue resolveItem(LuaValue val) {
-      if (val.istable()) {
-         LuaValue idVal = val.get("Id");
-         LuaValue countVal = val.get("Count");
-         if (!idVal.isnil()) {
-            return find(idVal.tojstring(), countVal.isnil() ? 1 : countVal.checkint());
-         }
-      }
-      if (val.isstring()) {
-         return find(val.tojstring(), 1);
-      }
-      return LuaValue.NIL;
-   }
-
-   private static LuaValue find(String id, int count) {
-      return find(id, count, MLuaRuntime.get());
-   }
-
    private static LuaValue find(String id, int count, MLuaRegistration registration) {
+      if (count < 0) throw new LuaError("[MLua] Item count must be zero or greater.");
       net.minecraft.world.item.Item item = (net.minecraft.world.item.Item) MCApiRuntime.lookupRegistry("item", id);
       if (item == null) {
          throw new LuaError("[MLua] Unknown item: " + id);
@@ -241,7 +224,7 @@ public final class MLuaItemWrapper {
             MCItemStack item = stack(self);
             int amount = nonNegativeCount(args.checkint(2), "Grow");
             if (amount == 0) return LuaValue.NONE;
-            if (item.getItem() == null) throw new LuaError("[MLua] Item:Grow cannot grow an empty stack without an item type.");
+            if (!hasItemType(item)) throw new LuaError("[MLua] Item:Grow cannot grow an empty stack without an item type.");
             long count = (long)item.getCount() + amount;
             if (count > Integer.MAX_VALUE) throw new LuaError("[MLua] Item:Grow exceeds the maximum supported stack count.");
             item.setCount((int)count);
@@ -257,7 +240,7 @@ public final class MLuaItemWrapper {
             MCItemStack item = stack(self);
             int amount = nonNegativeCount(args.checkint(2), "Split");
             int count = Math.min(amount, Math.max(0, item.getCount()));
-            if (count == 0 || item.getItem() == null) return itemTable(net.minecraft.world.item.ItemStack.EMPTY, registration);
+            if (count == 0 || !hasItemType(item)) return itemTable(net.minecraft.world.item.ItemStack.EMPTY, registration);
             net.minecraft.world.item.ItemStack source = ((MCItemStackImpl)item).inner();
             net.minecraft.world.item.ItemStack result = source.copy();
             result.setCount(count);
@@ -280,7 +263,9 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsStackable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isStackable())), "Returns whether this stack can be stacked with another matching stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getDamageValue())), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", selfItem((self, args) -> {
-            stack(self).setDamageValue(args.checkint(2));
+            int damage = args.checkint(2);
+            if (damage < 0) throw new LuaError("[MLua] Item:SetDamage damage must be zero or greater.");
+            stack(self).setDamageValue(damage);
             return LuaValue.NONE;
          }), "Sets this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
@@ -475,10 +460,21 @@ public final class MLuaItemWrapper {
 
    private static void setCount(MCItemStack item, int count) {
       nonNegativeCount(count, "SetCount");
-      if (count > 0 && item.getItem() == null) {
+      if (count > 0 && !hasItemType(item)) {
          throw new LuaError("[MLua] Item:SetCount cannot add items to an empty stack without an item type.");
       }
       item.setCount(count);
+   }
+
+   public static void setCount(LuaValue item, int count, MLuaRegistration registration) {
+      if (registration == null || !registration.isInstanceOf(item, "Item")) {
+         throw new LuaError("[MLua] ItemStackService:SetCount expects an Item instance.");
+      }
+      setCount(new MCItemStackImpl(toItemStack(item, registration)), count);
+   }
+
+   private static boolean hasItemType(MCItemStack item) {
+      return item instanceof MCItemStackImpl wrapped && wrapped.inner().getItem() != net.minecraft.world.item.Items.AIR;
    }
 
    public static net.minecraft.world.item.ItemStack toItemStack(LuaValue itemVal) {

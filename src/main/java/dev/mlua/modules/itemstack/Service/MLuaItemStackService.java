@@ -72,7 +72,7 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
 
     @MLuaDescription("Sets the number of items in a stack.")
     public void SetCount(LuaValue item, int count) {
-        stack(item).setCount(count);
+        MLuaItemWrapper.setCount(item, count, context.mlua().registration());
     }
 
     @MLuaDescription("Returns an item stack's NBT data or one value by key.")
@@ -113,11 +113,12 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
     }
 
     private LuaValue create(String id, int count) {
+        if (count < 0) throw new LuaError("[MLua] ItemStackService count must be zero or greater.");
         Item item = (Item) MCApiRuntime.lookupRegistry("item", id);
         if (item == null) {
             throw new LuaError("[MLua] Unknown item: " + id);
         }
-        return MLuaItemWrapper.itemTable(new ItemStack(item, Math.max(0, count)), context.registration());
+        return MLuaItemWrapper.itemTable(new ItemStack(item, count), context.registration());
     }
 
     private ItemStack stack(LuaValue value) {
