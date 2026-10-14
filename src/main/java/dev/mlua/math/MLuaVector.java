@@ -150,6 +150,23 @@ public final class MLuaVector {
          }
       });
       methods.set("dot", methods.get("Dot"));
+      methods.set("Angle", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            double ax = a.get("X").todouble();
+            double ay = a.get("Y").todouble();
+            double az = a.get("Z").todouble();
+            double bx = b.get("X").todouble();
+            double by = b.get("Y").todouble();
+            double bz = b.get("Z").todouble();
+            double denominator = Math.sqrt((ax * ax + ay * ay + az * az) * (bx * bx + by * by + bz * bz));
+            if (denominator == 0.0) throw new LuaError("Vector3:Angle requires non-zero vectors");
+            double cosine = (ax * bx + ay * by + az * bz) / denominator;
+            return LuaValue.valueOf(Math.acos(Math.max(-1.0, Math.min(1.0, cosine))));
+         }
+      });
+      methods.set("angle", methods.get("Angle"));
       methods.set("Cross", new TwoArgFunction() {
          public LuaValue call(LuaValue self, LuaValue other) {
             LuaTable a = checkVector3(self);
@@ -164,6 +181,51 @@ public final class MLuaVector {
          }
       });
       methods.set("cross", methods.get("Cross"));
+      methods.set("ProjectOn", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue axis) {
+            LuaTable value = checkVector3(self);
+            LuaTable target = checkVector3(axis);
+            double x = target.get("X").todouble();
+            double y = target.get("Y").todouble();
+            double z = target.get("Z").todouble();
+            double lengthSquared = x * x + y * y + z * z;
+            if (lengthSquared == 0.0) return MLuaVector.vector3(0.0, 0.0, 0.0);
+            double scale = (value.get("X").todouble() * x + value.get("Y").todouble() * y + value.get("Z").todouble() * z) / lengthSquared;
+            return MLuaVector.vector3(x * scale, y * scale, z * scale);
+         }
+      });
+      methods.set("projectOn", methods.get("ProjectOn"));
+      methods.set("Reflect", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue normal) {
+            LuaTable value = checkVector3(self);
+            LuaTable axis = checkVector3(normal);
+            double x = value.get("X").todouble();
+            double y = value.get("Y").todouble();
+            double z = value.get("Z").todouble();
+            double nx = axis.get("X").todouble();
+            double ny = axis.get("Y").todouble();
+            double nz = axis.get("Z").todouble();
+            double scale = 2.0 * (x * nx + y * ny + z * nz);
+            return MLuaVector.vector3(x - scale * nx, y - scale * ny, z - scale * nz);
+         }
+      });
+      methods.set("reflect", methods.get("Reflect"));
+      methods.set("Min", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            return MLuaVector.vector3(Math.min(a.get("X").todouble(), b.get("X").todouble()), Math.min(a.get("Y").todouble(), b.get("Y").todouble()), Math.min(a.get("Z").todouble(), b.get("Z").todouble()));
+         }
+      });
+      methods.set("min", methods.get("Min"));
+      methods.set("Max", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            return MLuaVector.vector3(Math.max(a.get("X").todouble(), b.get("X").todouble()), Math.max(a.get("Y").todouble(), b.get("Y").todouble()), Math.max(a.get("Z").todouble(), b.get("Z").todouble()));
+         }
+      });
+      methods.set("max", methods.get("Max"));
       methods.set("Lerp", new ThreeArgFunction() {
          public LuaValue call(LuaValue self, LuaValue goal, LuaValue alpha) {
             LuaTable a = checkVector3(self);
@@ -325,6 +387,46 @@ public final class MLuaVector {
             return LuaValue.valueOf(a.get("X").todouble() * b.get("X").todouble() + a.get("Y").todouble() * b.get("Y").todouble());
          }
       });
+      methods.set("dot", methods.get("Dot"));
+      methods.set("Angle", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            double ax = a.get("X").todouble();
+            double ay = a.get("Y").todouble();
+            double bx = b.get("X").todouble();
+            double by = b.get("Y").todouble();
+            if ((ax == 0.0 && ay == 0.0) || (bx == 0.0 && by == 0.0)) {
+               throw new LuaError("Vector2:Angle requires non-zero vectors");
+            }
+            return LuaValue.valueOf(Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+         }
+      });
+      methods.set("angle", methods.get("Angle"));
+      methods.set("Cross", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            return LuaValue.valueOf(a.get("X").todouble() * b.get("Y").todouble() - a.get("Y").todouble() * b.get("X").todouble());
+         }
+      });
+      methods.set("cross", methods.get("Cross"));
+      methods.set("Min", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            return MLuaVector.vector2(Math.min(a.get("X").todouble(), b.get("X").todouble()), Math.min(a.get("Y").todouble(), b.get("Y").todouble()));
+         }
+      });
+      methods.set("min", methods.get("Min"));
+      methods.set("Max", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            return MLuaVector.vector2(Math.max(a.get("X").todouble(), b.get("X").todouble()), Math.max(a.get("Y").todouble(), b.get("Y").todouble()));
+         }
+      });
+      methods.set("max", methods.get("Max"));
       methods.set("DistanceSquared", new TwoArgFunction() {
          public LuaValue call(LuaValue self, LuaValue other) {
             LuaTable a = checkVector2(self);

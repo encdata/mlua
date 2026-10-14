@@ -14,6 +14,7 @@ import dev.mlua.math.MLuaMat3;
 import dev.mlua.math.MLuaMat4;
 import dev.mlua.math.MLuaVec4;
 import dev.mlua.math.MLuaVector;
+import dev.mlua.math.MLuaNoise;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -425,18 +426,15 @@ public final class MLuaLuauTypes {
    }
 
    public static boolean isUDim(LuaValue value) {
-      return value.istable() && value.checktable().isfrozen()
-         && UDIM_VALUES.contains(value.checktable());
+      return value.istable() && value.checktable().isfrozen() && UDIM_VALUES.contains(value.checktable());
    }
 
    public static boolean isUDim2(LuaValue value) {
-      return value.istable() && value.checktable().isfrozen()
-         && UDIM2_VALUES.contains(value.checktable());
+      return value.istable() && value.checktable().isfrozen() && UDIM2_VALUES.contains(value.checktable());
    }
 
    public static boolean isColor3(LuaValue value) {
-      return value.istable() && value.checktable().isfrozen()
-         && COLOR3_VALUES.contains(value.checktable());
+      return value.istable() && value.checktable().isfrozen() && COLOR3_VALUES.contains(value.checktable());
    }
 
    private static LuaTable requireColor3(LuaValue value) {
@@ -505,6 +503,42 @@ public final class MLuaLuauTypes {
       math.set("lerp", new ThreeArgFunction() {
          public LuaValue call(LuaValue a, LuaValue b, LuaValue t) {
             return LuaValue.valueOf(MLuaLuauTypes.lerp(a.checkdouble(), b.checkdouble(), t.checkdouble()));
+         }
+      });
+      math.set("inverseLerp", new ThreeArgFunction() {
+         public LuaValue call(LuaValue a, LuaValue b, LuaValue value) {
+            double start = a.checkdouble();
+            double range = b.checkdouble() - start;
+            if (range == 0.0) throw new LuaError("math.inverseLerp endpoints must be different");
+            return LuaValue.valueOf((value.checkdouble() - start) / range);
+         }
+      });
+      math.set("smoothstep", new ThreeArgFunction() {
+         public LuaValue call(LuaValue edge0, LuaValue edge1, LuaValue value) {
+            double low = edge0.checkdouble();
+            double high = edge1.checkdouble();
+            if (low == high) throw new LuaError("math.smoothstep edges must be different");
+            double t = Math.max(0.0, Math.min(1.0, (value.checkdouble() - low) / (high - low)));
+            return LuaValue.valueOf(t * t * (3.0 - 2.0 * t));
+         }
+      });
+      math.set("wrap", new ThreeArgFunction() {
+         public LuaValue call(LuaValue value, LuaValue minimum, LuaValue maximum) {
+            double low = minimum.checkdouble();
+            double width = maximum.checkdouble() - low;
+            if (!(width > 0.0) || !Double.isFinite(width)) throw new LuaError("math.wrap requires a finite increasing range");
+            double wrapped = (value.checkdouble() - low) % width;
+            if (wrapped < 0.0) wrapped += width;
+            return LuaValue.valueOf(low + wrapped);
+         }
+      });
+      math.set("noise", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            int dimensions = args.narg();
+            if (dimensions < 1 || dimensions > 5) throw new LuaError("math.noise expects between 1 and 5 coordinates");
+            double[] coordinates = new double[dimensions];
+            for (int i = 0; i < dimensions; i++) coordinates[i] = args.checkdouble(i + 1);
+            return LuaValue.valueOf(MLuaNoise.sample(coordinates));
          }
       });
    }

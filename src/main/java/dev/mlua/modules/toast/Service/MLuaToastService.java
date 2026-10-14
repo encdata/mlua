@@ -40,17 +40,23 @@ public final class MLuaToastService extends MLuaReflectiveService {
         }
         Component toastTitle = component(title, "title");
         Component toastMessage = component(message, "message");
+        Runnable show = () -> display(minecraft, toastTitle, toastMessage);
+        if (minecraft.isSameThread()) show.run();
+        else minecraft.execute(show);
+    }
+
+    private static void display(Minecraft minecraft, Component title, Component message) {
         //--version 26.1
         minecraft.getToastManager().addToast(SystemToast.multiline(
-            minecraft, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
+            minecraft, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, title, message));
         //--endversion
         //--version 1.21.1
         minecraft.getToasts().addToast(SystemToast.multiline(
-            minecraft, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
+            minecraft, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, title, message));
         //--endversion
         //--version 1.20.1
         minecraft.getToasts().addToast(SystemToast.multiline(
-            minecraft, SystemToast.SystemToastIds.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
+            minecraft, SystemToast.SystemToastIds.PERIODIC_NOTIFICATION, title, message));
         //--endversion
     }
 

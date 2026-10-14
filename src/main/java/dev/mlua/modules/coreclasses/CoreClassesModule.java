@@ -212,9 +212,14 @@ public final class CoreClassesModule implements MLuaModule {
         docs.method("Vector3", "Vector3 * scalar", "Multiplies each component by a scalar.", "a number", "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3 / scalar", "Divides each component by a scalar.", "a non-zero number", "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Dot(other)", "Returns the dot product.", "another Vector3", "number", "shared:Shared", null);
+        docs.method("Vector3", "Vector3:Angle(other)", "Returns the unsigned angle to another non-zero vector in radians.", "another non-zero Vector3", "number", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Cross(other)", "Returns the cross product.", "another Vector3", "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Lerp(other, alpha)", "Interpolates between this vector and another.", "another Vector3 and an interpolation value", "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Distance(other)", "Returns the distance to another vector.", "another Vector3", "number", "shared:Shared", null);
+        docs.method("Vector3", "Vector3:ProjectOn(axis)", "Returns the projection onto an axis; a zero axis returns Vector3.zero.", "another Vector3", "Vector3", "shared:Shared", null);
+        docs.method("Vector3", "Vector3:Reflect(normal)", "Reflects this vector across a surface normal. The normal should be unit length.", "a unit Vector3 normal", "Vector3", "shared:Shared", null);
+        docs.method("Vector3", "Vector3:Min(other)", "Returns the component-wise minimum.", "another Vector3", "Vector3", "shared:Shared", null);
+        docs.method("Vector3", "Vector3:Max(other)", "Returns the component-wise maximum.", "another Vector3", "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Floor()", "Returns a copy with each component rounded down.", null, "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Ceil()", "Returns a copy with each component rounded up.", null, "Vector3", "shared:Shared", null);
         docs.method("Vector3", "Vector3:Abs()", "Returns a copy with the absolute value of each component.", null, "Vector3", "shared:Shared", null);
@@ -231,6 +236,10 @@ public final class CoreClassesModule implements MLuaModule {
         docs.method("Vector2", "Vector2 - other", "Subtracts another vector.", "another Vector2", "Vector2", "shared:Shared", null);
         docs.method("Vector2", "Vector2 * scalar", "Multiplies each component by a scalar.", "a number", "Vector2", "shared:Shared", null);
         docs.method("Vector2", "Vector2:Dot(other)", "Returns the dot product.", "another Vector2", "number", "shared:Shared", null);
+        docs.method("Vector2", "Vector2:Angle(other)", "Returns the signed angle to another non-zero vector in radians.", "another non-zero Vector2", "number", "shared:Shared", null);
+        docs.method("Vector2", "Vector2:Cross(other)", "Returns the signed 2D cross product, useful for determining turn direction.", "another Vector2", "number", "shared:Shared", null);
+        docs.method("Vector2", "Vector2:Min(other)", "Returns the component-wise minimum.", "another Vector2", "Vector2", "shared:Shared", null);
+        docs.method("Vector2", "Vector2:Max(other)", "Returns the component-wise maximum.", "another Vector2", "Vector2", "shared:Shared", null);
         docs.method("Vector2", "Vector2:Lerp(other, alpha)", "Interpolates between this vector and another.", "another Vector2 and an interpolation value", "Vector2", "shared:Shared", null);
         docs.guideStep("Vector2", "Measure a 2D offset",
             "Use Magnitude to turn an X/Y offset into a distance.",
@@ -365,9 +374,16 @@ public final class CoreClassesModule implements MLuaModule {
         docs.method("Math", "math.round(value)", "Rounds a number to the nearest integer.", "a number", "number", "shared:Shared", null);
         docs.method("Math", "math.sign(value)", "Returns -1, 0, or 1 based on the number's sign.", "a number", "number", "shared:Shared", null);
         docs.method("Math", "math.lerp(start, finish, alpha)", "Interpolates from start to finish by alpha.", "start and finish values and an interpolation value", "number", "shared:Shared", null);
+        docs.method("Math", "math.inverseLerp(start, finish, value)", "Returns the relative position of value between two endpoints; values outside the interval remain outside 0 to 1.", "two different endpoints and a value", "number", "shared:Shared", null);
+        docs.method("Math", "math.smoothstep(edge0, edge1, value)", "Maps a value between two edges to a clamped smooth curve from 0 to 1.", "two different edges and a value", "number", "shared:Shared", null);
+        docs.method("Math", "math.wrap(value, min, max)", "Wraps a value into the half-open range from min up to max.", "a value and a finite increasing range", "number", "shared:Shared", null);
+        docs.method("Math", "math.noise(x, y[, z[, w[, v]]])", "Returns deterministic smooth noise from one through five coordinate dimensions, bounded from -1 to 1.", "one to five finite coordinates", "number", "shared:Shared", null);
         docs.guideStep("Math", "Clamp a gameplay value",
             "Clamp user-controlled values before applying them to game state.",
             "local volume = math.clamp(requestedVolume, 0, 1)\nlocal damage = math.round(baseDamage * multiplier)");
+        docs.guideStep("Math", "Sample terrain noise",
+            "Use the same coordinates to get the same smooth noise value. Scale coordinates to change feature size; add another coordinate to animate through a changing noise field.",
+            "local scale = 48\nlocal height = 64 + math.noise(x / scale, z / scale) * 18\nlocal cave = math.noise(x / 24, y / 24, z / 24)\nlocal animated = math.noise(x / 32, z / 32, gameTime / 80)");
 
         docs.method("Table", "table.clone(source)", "Returns a shallow copy of a table.", "the source table", "table", "shared:Shared", null);
         docs.method("Table", "table.clear(target)", "Removes all entries from a table.", "the table to clear", "void", "shared:Shared", null);
