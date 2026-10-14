@@ -1682,6 +1682,12 @@ public final class MLuaGuiService implements MLuaService {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
+        @Override public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+            if (this.invokeClassInputMethod("KeyReleased", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
+                LuaValue.valueOf(modifiers))) return true;
+            return super.keyReleased(keyCode, scanCode, modifiers);
+        }
+
         @Override public boolean charTyped(char character, int modifiers) {
             if (this.invokeClassInputMethod("CharTyped", LuaValue.valueOf(String.valueOf(character)),
                 LuaValue.valueOf(modifiers))) return true;
@@ -1714,9 +1720,15 @@ public final class MLuaGuiService implements MLuaService {
             return super.keyPressed(event);
         }
 
+        @Override public boolean keyReleased(KeyEvent event) {
+            if (this.invokeClassInputMethod("KeyReleased", LuaValue.valueOf(event.key()),
+                LuaValue.valueOf(event.scancode()), LuaValue.valueOf(event.modifiers()))) return true;
+            return super.keyReleased(event);
+        }
+
         @Override public boolean charTyped(CharacterEvent event) {
             if (this.invokeClassInputMethod("CharTyped", LuaValue.valueOf(event.codepointAsString()),
-                LuaValue.valueOf(event.modifiers()))) return true;
+                LuaValue.ZERO)) return true;
             return super.charTyped(event);
         }
 
