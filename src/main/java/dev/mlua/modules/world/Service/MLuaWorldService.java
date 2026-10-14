@@ -887,7 +887,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return entity == null ? LuaValue.NIL : MLuaEntityWrapper.entityTable(entity, context.mlua().registration());
    }
 
-   private static boolean matchesFilter(Entity entity, LuaValue filter) {
+   private boolean matchesFilter(Entity entity, LuaValue filter) {
       if (filter == null || filter.isnil()) {
          return true;
       }
