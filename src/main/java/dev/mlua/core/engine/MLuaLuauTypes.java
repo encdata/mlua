@@ -261,10 +261,7 @@ public final class MLuaLuauTypes {
       LuaTable table = new LuaTable();
       table.set("new", new TwoArgFunction() {
          public LuaValue call(LuaValue scale, LuaValue offset) {
-            LuaTable value = MLuaLuauTypes.typed("UDim");
-            value.set("Scale", scale.optdouble(0.0));
-            value.set("Offset", offset.optint(0));
-            return value;
+            return MLuaLuauTypes.udim(scale.optdouble(0.0), offset.optint(0));
          }
       });
       return table;
