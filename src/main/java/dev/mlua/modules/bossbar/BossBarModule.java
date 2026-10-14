@@ -25,13 +25,9 @@ public class BossBarModule implements MLuaModule {
     @Override public List<String> dependencies() { return List.of("core-classes"); }
     @Override public int priority() { return 12; }
     @Override public List<ServiceEntry> services() {
-        ServiceEntry.Builder bossBar = ServiceEntry.builder("BossBar", MLuaBossBarService::new)
-            .description("Creates and manages server boss bars.");
-        bossBar.function("Create", "Creates a boss bar with a title.")
-            .function("Get", "Returns a live boss bar handle by identifier, or nil when missing.")
-            .function("Remove", "Removes a boss bar by identifier.")
-            .function("GetAll", "Returns the live handles for boss bars owned by the calling mod.");
-        return List.of(bossBar.build());
+        return List.of(ServiceEntry.builder("BossBar", MLuaBossBarService::new)
+            .reflective(MLuaBossBarService.class)
+            .build());
     }
     @Override public void registerClasses(MLuaRegistration registration) {
         registration.registerClass("BossBarHandle", registration.requireInstanceBaseClassName(),

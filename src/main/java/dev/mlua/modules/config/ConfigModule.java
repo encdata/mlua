@@ -12,13 +12,9 @@ public class ConfigModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder config = ServiceEntry.builder("Config", MLuaConfigService::new)
-            .description("Reads and updates registered MLua configuration values.");
-        config.function("Get", "Returns the current value for a registered configuration key.")
-            .function("Set", "Updates a configuration value for the requested scope.")
-            .function("Save", "Persists the current configuration values to disk.")
-            .function("Exists", "Returns whether a configuration key is registered.");
-        return List.of(config.build());
+        return List.of(ServiceEntry.builder("Config", MLuaConfigService::new)
+            .reflective(MLuaConfigService.class)
+            .build());
     }
 
     @Override

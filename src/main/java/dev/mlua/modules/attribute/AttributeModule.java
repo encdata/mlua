@@ -16,15 +16,9 @@ public class AttributeModule implements MLuaModule {
         MLuaAttributeInstance.registerClass(registration);
     }
     @Override public List<ServiceEntry> services() {
-        ServiceEntry.Builder attribute = ServiceEntry.builder("Attribute", MLuaAttributeService::new)
-            .description("Service for managing entity attribute modifiers.");
-        attribute.function("GetAttribute", "Returns an entity attribute value by registered attribute name.")
-            .function("SetBaseValue", "Sets an entity attribute's base value.")
-            .function("GetModifiers", "Returns the modifiers currently applied to an entity attribute.")
-            .function("AddModifier", "Adds or replaces a modifier on an entity attribute.")
-            .function("RemoveModifier", "Removes an attribute modifier by identifier.")
-            .function("GetRegisteredAttributes", "Returns the names of attributes available from Minecraft's attribute registry.");
-        return List.of(attribute.build());
+        return List.of(ServiceEntry.builder("Attribute", MLuaAttributeService::new)
+            .reflective(MLuaAttributeService.class)
+            .build());
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
         docs.service("Attribute", "MLuaAttributeService", "Service for managing entity attribute modifiers.", "services/attribute.html");

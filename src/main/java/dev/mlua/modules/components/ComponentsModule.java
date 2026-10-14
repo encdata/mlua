@@ -63,14 +63,9 @@ public final class ComponentsModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder components = ServiceEntry.builder("Components", MLuaComponentsService::new)
-            .description("Attach reusable Lua behavior components to entities with tick and event callbacks.");
-        components.function("Attach", "Attaches a named Lua behavior component to an entity.")
-            .function("Get", "Returns one of the calling mod's components attached to an entity.")
-            .function("List", "Returns component names attached by the calling mod to an entity.")
-            .function("Remove", "Removes one of the calling mod's components from an entity.")
-            .function("Clear", "Removes all components attached by the calling mod to an entity.");
-        return List.of(components.build());
+        return List.of(ServiceEntry.builder("Components", MLuaComponentsService::new)
+            .reflective(MLuaComponentsService.class)
+            .build());
     }
 
     @Override
