@@ -3,6 +3,7 @@ package dev.mlua.modules.enums;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.function.Function;
+import dev.mlua.common.enums.MLuaTypedEnumValue;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -12,7 +13,7 @@ public final class MLuaEnumValue {
       @Override protected Map<String, LuaTable> computeValue(Class<?> type) { return new HashMap<>(); }
    };
 
-   private static final class EnumTable extends LuaTable {
+   private static final class EnumTable extends LuaTable implements MLuaTypedEnumValue {
       private final Class<?> enumClass;
       private final String name;
       private boolean sealed;
@@ -27,6 +28,9 @@ public final class MLuaEnumValue {
       }
 
       private void seal() { this.sealed = true; }
+
+      @Override public Class<?> enumClass() { return this.enumClass; }
+      @Override public String enumName() { return this.name; }
 
       @Override public void set(int key, LuaValue value) { requireWritable(); super.set(key, value); }
       @Override public void set(LuaValue key, LuaValue value) { requireWritable(); super.set(key, value); }
