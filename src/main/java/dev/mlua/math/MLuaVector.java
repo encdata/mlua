@@ -33,69 +33,6 @@ public final class MLuaVector {
       }
 
       table.set("unit", table.get("Unit"));
-      table.set("Dot", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            LuaTable a = checkVector3(self);
-            LuaTable b = checkVector3(other);
-            return LuaValue.valueOf(a.get("X").todouble() * b.get("X").todouble() + a.get("Y").todouble() * b.get("Y").todouble() + a.get("Z").todouble() * b.get("Z").todouble());
-         }
-      });
-      table.set("dot", table.get("Dot"));
-      table.set("Cross", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            LuaTable a = checkVector3(self);
-            LuaTable b = checkVector3(other);
-            double ax = a.get("X").todouble();
-            double ay = a.get("Y").todouble();
-            double az = a.get("Z").todouble();
-            double bx = b.get("X").todouble();
-            double by = b.get("Y").todouble();
-            double bz = b.get("Z").todouble();
-            return MLuaVector.vector3(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
-         }
-      });
-      table.set("cross", table.get("Cross"));
-      table.set("Lerp", new ThreeArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue goal, LuaValue alpha) {
-            LuaTable a = checkVector3(self);
-            LuaTable b = checkVector3(goal);
-            double t = alpha.checkdouble();
-            return MLuaVector.vector3(MLuaVector.lerp(a.get("X").todouble(), b.get("X").todouble(), t), MLuaVector.lerp(a.get("Y").todouble(), b.get("Y").todouble(), t), MLuaVector.lerp(a.get("Z").todouble(), b.get("Z").todouble(), t));
-         }
-      });
-      table.set("lerp", table.get("Lerp"));
-      table.set("Distance", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            LuaTable a = checkVector3(self);
-            LuaTable b = checkVector3(other);
-            double dx = a.get("X").todouble() - b.get("X").todouble();
-            double dy = a.get("Y").todouble() - b.get("Y").todouble();
-            double dz = a.get("Z").todouble() - b.get("Z").todouble();
-            return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
-         }
-      });
-      table.set("distance", table.get("Distance"));
-      table.set("Floor", new OneArgFunction() {
-         public LuaValue call(LuaValue self) {
-            LuaTable a = checkVector3(self);
-            return MLuaVector.vector3(Math.floor(a.get("X").todouble()), Math.floor(a.get("Y").todouble()), Math.floor(a.get("Z").todouble()));
-         }
-      });
-      table.set("floor", table.get("Floor"));
-      table.set("Ceil", new OneArgFunction() {
-         public LuaValue call(LuaValue self) {
-            LuaTable a = checkVector3(self);
-            return MLuaVector.vector3(Math.ceil(a.get("X").todouble()), Math.ceil(a.get("Y").todouble()), Math.ceil(a.get("Z").todouble()));
-         }
-      });
-      table.set("ceil", table.get("Ceil"));
-      table.set("Abs", new OneArgFunction() {
-         public LuaValue call(LuaValue self) {
-            LuaTable a = checkVector3(self);
-            return MLuaVector.vector3(Math.abs(a.get("X").todouble()), Math.abs(a.get("Y").todouble()), Math.abs(a.get("Z").todouble()));
-         }
-      });
-      table.set("abs", table.get("Abs"));
       table.setmetatable(VECTOR3_METATABLE);
       return table.freeze();
    }
@@ -117,22 +54,6 @@ public final class MLuaVector {
       }
 
       table.set("unit", table.get("Unit"));
-      table.set("Dot", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            LuaTable a = checkVector2(self);
-            LuaTable b = checkVector2(other);
-            return LuaValue.valueOf(a.get("X").todouble() * b.get("X").todouble() + a.get("Y").todouble() * b.get("Y").todouble());
-         }
-      });
-      table.set("Lerp", new ThreeArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue goal, LuaValue alpha) {
-            LuaTable a = checkVector2(self);
-            LuaTable b = checkVector2(goal);
-            double t = alpha.checkdouble();
-            return MLuaVector.vector2(MLuaVector.lerp(a.get("X").todouble(), b.get("X").todouble(), t), MLuaVector.lerp(a.get("Y").todouble(), b.get("Y").todouble(), t));
-         }
-      });
-      table.set("lerp", table.get("Lerp"));
       table.setmetatable(VECTOR2_METATABLE);
       return table.freeze();
    }
@@ -181,6 +102,71 @@ public final class MLuaVector {
 
    private static LuaTable vector3Metatable() {
       LuaTable metatable = new LuaTable();
+      LuaTable methods = new LuaTable();
+      methods.set("Dot", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            return LuaValue.valueOf(a.get("X").todouble() * b.get("X").todouble() + a.get("Y").todouble() * b.get("Y").todouble() + a.get("Z").todouble() * b.get("Z").todouble());
+         }
+      });
+      methods.set("dot", methods.get("Dot"));
+      methods.set("Cross", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            double ax = a.get("X").todouble();
+            double ay = a.get("Y").todouble();
+            double az = a.get("Z").todouble();
+            double bx = b.get("X").todouble();
+            double by = b.get("Y").todouble();
+            double bz = b.get("Z").todouble();
+            return MLuaVector.vector3(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
+         }
+      });
+      methods.set("cross", methods.get("Cross"));
+      methods.set("Lerp", new ThreeArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue goal, LuaValue alpha) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(goal);
+            double t = alpha.checkdouble();
+            return MLuaVector.vector3(MLuaVector.lerp(a.get("X").todouble(), b.get("X").todouble(), t), MLuaVector.lerp(a.get("Y").todouble(), b.get("Y").todouble(), t), MLuaVector.lerp(a.get("Z").todouble(), b.get("Z").todouble(), t));
+         }
+      });
+      methods.set("lerp", methods.get("Lerp"));
+      methods.set("Distance", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            double dx = a.get("X").todouble() - b.get("X").todouble();
+            double dy = a.get("Y").todouble() - b.get("Y").todouble();
+            double dz = a.get("Z").todouble() - b.get("Z").todouble();
+            return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
+         }
+      });
+      methods.set("distance", methods.get("Distance"));
+      methods.set("Floor", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable a = checkVector3(self);
+            return MLuaVector.vector3(Math.floor(a.get("X").todouble()), Math.floor(a.get("Y").todouble()), Math.floor(a.get("Z").todouble()));
+         }
+      });
+      methods.set("floor", methods.get("Floor"));
+      methods.set("Ceil", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable a = checkVector3(self);
+            return MLuaVector.vector3(Math.ceil(a.get("X").todouble()), Math.ceil(a.get("Y").todouble()), Math.ceil(a.get("Z").todouble()));
+         }
+      });
+      methods.set("ceil", methods.get("Ceil"));
+      methods.set("Abs", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable a = checkVector3(self);
+            return MLuaVector.vector3(Math.abs(a.get("X").todouble()), Math.abs(a.get("Y").todouble()), Math.abs(a.get("Z").todouble()));
+         }
+      });
+      methods.set("abs", methods.get("Abs"));
+      metatable.set("__index", methods.freeze());
       metatable.set(LuaValue.ADD, new TwoArgFunction() {
          public LuaValue call(LuaValue left, LuaValue right) {
             LuaTable a = checkVector3(left);
@@ -231,6 +217,24 @@ public final class MLuaVector {
 
    private static LuaTable vector2Metatable() {
       LuaTable metatable = new LuaTable();
+      LuaTable methods = new LuaTable();
+      methods.set("Dot", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            return LuaValue.valueOf(a.get("X").todouble() * b.get("X").todouble() + a.get("Y").todouble() * b.get("Y").todouble());
+         }
+      });
+      methods.set("Lerp", new ThreeArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue goal, LuaValue alpha) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(goal);
+            double t = alpha.checkdouble();
+            return MLuaVector.vector2(MLuaVector.lerp(a.get("X").todouble(), b.get("X").todouble(), t), MLuaVector.lerp(a.get("Y").todouble(), b.get("Y").todouble(), t));
+         }
+      });
+      methods.set("lerp", methods.get("Lerp"));
+      metatable.set("__index", methods.freeze());
       metatable.set(LuaValue.ADD, new TwoArgFunction() {
          public LuaValue call(LuaValue left, LuaValue right) {
             LuaTable a = checkVector2(left);
