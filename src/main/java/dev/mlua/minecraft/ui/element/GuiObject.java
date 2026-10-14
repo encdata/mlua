@@ -173,11 +173,11 @@ public abstract class GuiObject extends GuiBase2d {
         return true;
     }
 
-    public void cancelTween() {
-        if (activeTween != null) {
-            activeTween.done = true;
-            activeTween = null;
-        }
+    public boolean cancelTween() {
+        if (activeTween == null) return false;
+        activeTween.done = true;
+        activeTween = null;
+        return true;
     }
 
     public boolean isTweening() { return activeTween != null; }

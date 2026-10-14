@@ -326,10 +326,9 @@ public final class MLuaUIBindings {
         }, "Animates supported UI properties toward a target table: Position, Size, Rotation, BackgroundTransparency, BackgroundColor3, BorderColor3, BorderSizePixel, TextColor3, TextTransparency, ImageColor3, or ImageTransparency.");
         registration.registerClassFunction("GuiObject", "CancelAnimation", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                requireGuiObject(args.arg1(), "CancelAnimation").cancelTween();
-                return LuaValue.NONE;
+                return LuaValue.valueOf(requireGuiObject(args.arg1(), "CancelAnimation").cancelTween());
             }
-        }, "Stops the active UI animation at its current property values.");
+        }, "Stops the active UI animation at its current property values and returns whether an animation was stopped.");
         registration.registerClassFunction("GuiObject", "IsAnimating", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(requireGuiObject(args.arg1(), "IsAnimating").isTweening());
