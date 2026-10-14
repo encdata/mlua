@@ -714,7 +714,7 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetGameMode(mode: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetPosition(position: Vector3|CFrame)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:Teleport(position: Vector3|CFrame)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:LookAt(target: Vector3|CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:LookAt(target: Vector3|CFrame|Entity)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetRotation()", "Vector2"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetRotationRadians()", "Vector2"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotation(pitch: number, yaw: number)", "void"));
