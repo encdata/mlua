@@ -287,7 +287,9 @@ public interface MLuaRegistration {
         LuaTable table = instance.checktable();
         if (table.rawget("__class").toboolean()) return null;
         LuaValue actual = table.rawget("__type");
-        return actual.isstring() ? actual.tojstring() : null;
+        if (!actual.isstring()) return null;
+        String className = actual.tojstring();
+        return classTable(className) == null ? null : className;
     }
 
     private boolean isClassOrParent(String currentName, String targetName, Set<String> visited) {
