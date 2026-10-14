@@ -176,7 +176,7 @@ public class PlayersModule implements MLuaModule {
 
         registration.registerClass("LivingEntity", "Entity",
             "A living entity with health, damage, equipment, and attributes.");
-        for (String method : List.of("GetHealth", "SetHealth", "GetMaxHealth", "GetArmor", "Damage",
+        for (String method : List.of("GetHealth", "SetHealth", "GetMaxHealth", "GetArmor", "Damage", "Heal",
                 "GetAttribute", "GetAttributeInstance", "SetAttribute", "GetEquipment", "SetEquipment", "GetIsJumping", "GetIsSwimming",
                 "GetAbsorption", "SetAbsorption", "GiveEffect", "RemoveEffect", "HasEffect", "GetEffects", "ClearEffects")) {
             String description = switch (method) {
@@ -193,7 +193,8 @@ public class PlayersModule implements MLuaModule {
                 case "HasEffect" -> "Checks whether this living entity has a potion effect.";
                 case "GetEffects" -> "Returns this living entity's active effects.";
                 case "ClearEffects" -> "Removes all potion effects from this living entity.";
-                case "Damage" -> "Applies damage, optionally using a registered damage source and attacker.";
+                case "Damage" -> "Applies server-side damage and returns whether Minecraft accepted it; accepts a registered damage source and attacker.";
+                case "Heal" -> "Restores health through Minecraft's server-side healing path.";
                 case "GetAttribute" -> "Returns the value of a registered living entity attribute.";
                 case "GetAttributeInstance" -> "Returns a live AttributeInstance for a registered attribute.";
                 case "SetAttribute" -> "Sets the base value of a registered living entity attribute.";
@@ -762,6 +763,12 @@ public class PlayersModule implements MLuaModule {
             "end\n\n" +
             "local waypoint = Vector3.new(24, 64, -12)\n" +
             "updatePatrol(scriptedMob, waypoint)");
+        docs.guideStep("Players", "Apply server-side damage", "LivingEntity:Damage uses Minecraft's damage pipeline and returns true only when the target accepted the hit. Pass an attacker to preserve kill credit and damage attribution.",
+            "local accepted = target:Damage(6, \"generic\", attacker)\n" +
+            "if accepted then\n" +
+            "    attacker:SendMessage(\"Hit confirmed\")\n" +
+            "end\n\n" +
+            "target:Heal(4)");
         docs.clazz("Object", "LuaTable",
                 "Root class in MLua's Lua class hierarchy.",
                 "classes/object.html", null);

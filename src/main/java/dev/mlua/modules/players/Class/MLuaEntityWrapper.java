@@ -462,6 +462,12 @@ public final class MLuaEntityWrapper {
       }));
        MLuaClassMethods.setInstanceMethod(table, "Damage", varArg((args) -> {
           float amount = (float)args.checkdouble(2);
+          if (!Float.isFinite(amount) || amount < 0) {
+             throw new LuaError("[MLua] LivingEntity:Damage amount must be finite and non-negative.");
+          }
+          if (((MCEntityImpl)wrapped).inner().level().isClientSide) {
+             throw new LuaError("[MLua] LivingEntity:Damage is server-side only.");
+          }
           String sourceStr = args.optjstring(3, "generic");
           net.minecraft.world.entity.Entity attacker = entityFromLua(args.arg(4));
           Object runtimeOwner = registration instanceof MLuaRuntime runtime ? runtime.session() : null;
@@ -473,7 +479,15 @@ public final class MLuaEntityWrapper {
              damageName = sourceStr.substring(namespaceSeparator + 1);
           }
           net.minecraft.world.damagesource.DamageSource mcSource = MLuaCombatService.createDamageSource(((MCEntityImpl)wrapped).inner(), damageName, attacker, runtimeOwner, damageOwner);
-          wrapped.hurt(new MCDamageSourceImpl(mcSource), amount);
+          return LuaValue.valueOf(wrapped.hurt(new MCDamageSourceImpl(mcSource), amount));
+       }));
+       MLuaClassMethods.setInstanceMethod(table, "Heal", varArg((args) -> {
+          float amount = (float)args.checkdouble(2);
+          if (!Float.isFinite(amount) || amount < 0) {
+             throw new LuaError("[MLua] LivingEntity:Heal amount must be finite and non-negative.");
+          }
+          if (entity.level().isClientSide) throw new LuaError("[MLua] LivingEntity:Heal is server-side only.");
+          entity.heal(amount);
           return LuaValue.NONE;
        }));
        MLuaClassMethods.setInstanceMethod(table, "GetAttribute", varArg((args) -> {
