@@ -171,7 +171,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       table.set("SetWeather", serverLevelFn(supplier, (level, args) -> {
          String weather = MLuaMinecraftEnums.weatherToJava(args.arg(2));
-         int duration = args.optint(3, 6000);
+         int duration = checkedIntArgument(args, 3, 6000, 0, Integer.MAX_VALUE, "weather duration");
          switch(weather.toLowerCase()) {
          case "clear":
             level.setWeatherParameters(duration, 0, false, false);
@@ -480,7 +480,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          double[] pos = positionArgs(args, 2);
          int particleIndex = 2 + coordinateWidth(args, 2);
          String particleName = args.checkjstring(particleIndex);
-         int count = args.optint(particleIndex + 1, 1);
+         int count = checkedIntArgument(args, particleIndex + 1, 1, 1, Integer.MAX_VALUE, "particle count");
          ResourceLocation id = MLuaResourceLocations.tryParseOrNull(particleName);
          if (id == null) {
             throw new LuaError("[MLua] Invalid particle id: " + particleName);
@@ -531,13 +531,18 @@ public final class MLuaWorldService extends MLuaServiceBase {
          double[] pos = positionArgs(args, 2);
          int itemIndex = 2 + coordinateWidth(args, 2);
          String itemId = args.checkjstring(itemIndex);
-         int count = args.optint(itemIndex + 1, 1);
+         int count = checkedIntArgument(args, itemIndex + 1, 1, 1, Integer.MAX_VALUE, "item count");
          if (!ensureChunkLoaded(level, BlockPos.containing(pos[0], pos[1], pos[2]), true)) return LuaValue.NIL;
          net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(itemId));
          if (item == null) {
             throw new LuaError("[MLua] Unknown item: " + itemId);
          }
-         ItemEntity entity = new ItemEntity(level, pos[0], pos[1], pos[2], new ItemStack(item, Math.max(1, count)));
+         int maxStackSize = new ItemStack(item).getMaxStackSize();
+         if (count > maxStackSize) {
+            throw new LuaError("[MLua] Item count " + count + " exceeds " + itemId
+               + " stack limit " + maxStackSize);
+         }
+         ItemEntity entity = new ItemEntity(level, pos[0], pos[1], pos[2], new ItemStack(item, count));
          if (!level.addFreshEntity(entity)) return LuaValue.NIL;
          return wrapEntity(entity);
       }));
@@ -1047,6 +1052,19 @@ public final class MLuaWorldService extends MLuaServiceBase {
       //--version 1.20.1,1.21.1
       return level.getMaxBuildHeight();
       //--endversion
+   }
+
+   private static int checkedIntArgument(Varargs args, int index, int defaultValue,
+      int minimum, int maximum, String label) {
+      LuaValue value = args.arg(index);
+      if (value.isnil()) return defaultValue;
+      if (!value.isnumber()) throw new LuaError("[MLua] " + label + " must be a whole number");
+      double number = value.todouble();
+      if (!Double.isFinite(number) || number != Math.rint(number)
+         || number < minimum || number > maximum) {
+         throw new LuaError("[MLua] " + label + " must be a whole number from " + minimum + " to " + maximum);
+      }
+      return (int)number;
    }
 
    private static ResourceLocation biomeId(Level level, Biome biome) {

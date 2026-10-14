@@ -205,7 +205,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("SetTime", "Sets this world's day time. This method is server-side only."),
             Map.entry("AddTime", "Adds ticks to this world's day time. This method is server-side only."),
             Map.entry("GetWeather", "Returns this world's current weather."),
-            Map.entry("SetWeather", "Sets this world's weather. This method is server-side only."),
+            Map.entry("SetWeather", "Sets this world's weather for an optional whole-number duration in ticks (default 6000). This method is server-side only."),
             Map.entry("GetDifficulty", "Returns this world's difficulty."),
             Map.entry("SetDifficulty", "Sets the server difficulty."),
             Map.entry("GetBlock", "Returns the live block instance at a position."),
@@ -242,9 +242,9 @@ public class WorldModule implements MLuaModule {
             Map.entry("BreakBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("DestroyBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("PlaySound", "Plays a sound at a position. This method is server-side only."),
-            Map.entry("SpawnParticle", "Spawns particles at a position. This method is server-side only."),
+            Map.entry("SpawnParticle", "Spawns a positive whole-number count of particles at a position. This method is server-side only."),
             Map.entry("SpawnEntity", "Spawns an entity and returns its live instance. This method is server-side only."),
-            Map.entry("DropItem", "Drops an item stack at a position. This method is server-side only."),
+            Map.entry("DropItem", "Drops a positive whole-number item count up to that item's stack limit. This method is server-side only."),
             Map.entry("Explode", "Creates an explosion. This method is server-side only."),
             Map.entry("SpawnLightning", "Spawns lightning at a position. This method is server-side only."),
             Map.entry("GetBlockInventory", "Returns the inventory at a container position, or nil."),
@@ -292,7 +292,7 @@ public class WorldModule implements MLuaModule {
         methods.put("GetAll", "Returns all currently loaded live world instances.");
         methods.put("GetSide", "Returns whether this service belongs to a client or server context.");
         methods.put("GetWeather", "Returns the current world's weather.");
-        methods.put("SetWeather", "Sets the current world's weather. This method is server-side only.");
+        methods.put("SetWeather", "Sets the current world's weather for an optional whole-number duration in ticks (default 6000). This method is server-side only.");
         worldMethods().forEach((name, description) -> {
             if (!isExplicitServiceMethod(name)) methods.put(name, description);
         });
