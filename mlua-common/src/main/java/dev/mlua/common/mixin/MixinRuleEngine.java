@@ -169,6 +169,11 @@ public final class MixinRuleEngine {
         if (rule.type() == dev.mlua.common.enums.MixinType.INJECT && rule.at() == null) {
             throw new IllegalArgumentException("Inject mixin requires an injection point");
         }
+        if (rule.type() == dev.mlua.common.enums.MixinType.INJECT
+                && rule.at() == dev.mlua.common.enums.InjectionPoint.INVOKE
+                && (rule.redirectTarget() == null || rule.redirectTarget().isBlank())) {
+            throw new IllegalArgumentException("Invoke injection requires an exact invocation target");
+        }
         if ((rule.type() == dev.mlua.common.enums.MixinType.REDIRECT
                 || rule.type() == dev.mlua.common.enums.MixinType.MODIFY_ARG)
                 && (rule.redirectTarget() == null || rule.redirectTarget().isBlank())) {

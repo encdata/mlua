@@ -3,7 +3,8 @@ package dev.mlua.common.enums;
 public enum InjectionPoint {
    HEAD,
    RETURN,
-   TAIL;
+   TAIL,
+   INVOKE;
 
    public static InjectionPoint parse(String value) {
       if (value == null || value.isEmpty()) return values()[0];

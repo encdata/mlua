@@ -148,10 +148,44 @@ public final class MLuaMixinClassWriter {
          if (hasBridgeCallback(method, rule.callbackId())) {
             LOGGER.info("[MLua] Injected TAIL callback into {}#{}", classNode.name, method.name);
          }
+      } else if (rule.at() == InjectionPoint.INVOKE) {
+         injectBeforeInvocation(method, rule);
+         if (hasBridgeCallback(method, rule.callbackId())) {
+            LOGGER.info("[MLua] Injected INVOKE callback into {}#{}", classNode.name, method.name);
+         }
       }
       if (!hasBridgeCallback(method, rule.callbackId())) {
          throw new IllegalStateException("[MLua] Inject could not place callback at " + rule.at()
             + " in " + rule.targetClassName() + "#" + method.name + method.desc);
+      }
+   }
+
+   private static void injectBeforeInvocation(MethodNode method, MLuaMixinRule rule) {
+      if (hasBridgeCallback(method, rule.callbackId())) return;
+      InvocationTarget target = InvocationTarget.parse(rule.redirectTarget());
+      List<AbstractInsnNode> calls = new ArrayList<>();
+      for (AbstractInsnNode instruction = method.instructions.getFirst(); instruction != null; instruction = instruction.getNext()) {
+         if (instruction instanceof MethodInsnNode invocation
+               && target.owner().equals(invocation.owner)
+               && target.name().equals(invocation.name)
+               && target.descriptor().equals(invocation.desc)) {
+            calls.add(instruction);
+         }
+      }
+      for (AbstractInsnNode call : calls) {
+         method.instructions.insertBefore(call, notifyInvoke(rule.callbackId(), method, null, -1));
+      }
+   }
+
+   private record InvocationTarget(String owner, String name, String descriptor) {
+      private static InvocationTarget parse(String value) {
+         if (value == null) throw new IllegalArgumentException("Invoke injection requires an exact invocation target");
+         int ownerEnd = value.indexOf(';');
+         int descriptorStart = value.indexOf('(', ownerEnd + 1);
+         if (!value.startsWith("L") || ownerEnd < 2 || descriptorStart <= ownerEnd + 1) {
+            throw new IllegalArgumentException("Invalid exact invocation target: " + value);
+         }
+         return new InvocationTarget(value.substring(1, ownerEnd), value.substring(ownerEnd + 1, descriptorStart), value.substring(descriptorStart));
       }
    }
 

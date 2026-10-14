@@ -28,7 +28,7 @@ public final class MLuaMixinRegistrar {
    }
 
    public static MLuaMixinRule inject(String scope, String targetClass, String method, String descriptor,
-                                      String at, LuaValue callback) {
+                                      String at, String target, LuaValue callback) {
       requireCallback(callback, "Inject");
       InjectionPoint point;
       try {
@@ -36,9 +36,11 @@ public final class MLuaMixinRegistrar {
       } catch (IllegalArgumentException failure) {
          throw new LuaError("[MLua] " + failure.getMessage());
       }
-      String id = callbackId(scope, targetClass, method, descriptor, "inject", point.name());
+      if (point == InjectionPoint.INVOKE) target = invocationTarget(target, "Inject");
+      else if (target != null && !target.isBlank()) throw new LuaError("[MLua] Mixin:Inject 'target' is only valid when at = 'INVOKE'");
+      String id = callbackId(scope, targetClass, method, descriptor, "inject", point.name() + (target == null ? "" : target));
       return register(new MLuaMixinRule(targetClass, method, descriptor, MixinType.INJECT,
-         point, null, 0, id), callback);
+         point, target, 0, id), callback);
    }
 
    public static MLuaMixinRule overwrite(String scope, String targetClass, String method,
