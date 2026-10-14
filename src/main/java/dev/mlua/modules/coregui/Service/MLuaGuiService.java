@@ -139,7 +139,7 @@ public final class MLuaGuiService implements MLuaService {
         });
         canvas.set("DrawText", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawHudText(requireHudGraphics(element), args.arg(2).checkjstring(), args.arg(3).checkint(),
+                drawHudText(requireHudGraphics(element), nativeText(args.arg(2)), args.arg(3).checkint(),
                     args.arg(4).checkint(), args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
                 return LuaValue.NONE;
             }
@@ -173,12 +173,22 @@ public final class MLuaGuiService implements MLuaService {
         }
     }
 
-    private static void drawHudText(Object graphics, String text, int x, int y, int color, boolean shadow) {
+    private static Object nativeText(LuaValue value) {
+        if (value.isstring()) return value.checkjstring();
+        try {
+            Object component = dev.mlua.api.MLuaLuaCoercions.javaValue(value, Component.class);
+            if (component instanceof Component) return component;
+        } catch (RuntimeException ignored) { }
+        throw new LuaError("[MLua] DrawText expects a string or Java Component value.");
+    }
+
+    private static void drawHudText(Object graphics, Object text, int x, int y, int color, boolean shadow) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
+        Class<?> textType = text instanceof Component ? Component.class : String.class;
         for (String name : List.of("text", "drawString")) {
             try {
-                graphics.getClass().getMethod(name, Font.class, String.class, int.class, int.class, int.class, boolean.class)
+                graphics.getClass().getMethod(name, Font.class, textType, int.class, int.class, int.class, boolean.class)
                     .invoke(graphics, minecraft.font, text, x, y, color, shadow);
                 return;
             } catch (ReflectiveOperationException ignored) { }
@@ -338,10 +348,10 @@ public final class MLuaGuiService implements MLuaService {
 
     private interface ScreenDrawing {
         void fill(int left, int top, int right, int bottom, int color);
-        void text(String text, int x, int y, int color, boolean shadow);
+        void text(Object text, int x, int y, int color, boolean shadow);
     }
 
-    private record ScreenText(String text, int x, int y, int color) { }
+    private record ScreenText(Object text, int x, int y, int color) { }
 
     private static void replaceProperties(LuaTable target, LuaTable source) {
         for (LuaValue key : target.keys()) target.set(key, LuaValue.NIL);
@@ -1523,7 +1533,7 @@ public final class MLuaGuiService implements MLuaService {
             });
             builder.set("AddText", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
-                    String text = args.arg(2).checkjstring();
+                    Object text = nativeText(args.arg(2));
                     LuaTable position = requireScreenUDim2(args.arg(3), "Position");
                     int color = args.arg(4).optint(0xFFFFFF);
                     MLuaScriptScreen.this.textLines.add(new ScreenText(text,
@@ -1534,7 +1544,7 @@ public final class MLuaGuiService implements MLuaService {
             });
             builder.set("AddButton", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
-                    String label = args.arg(2).checkjstring();
+                    Object label = nativeText(args.arg(2));
                     LuaTable position = requireScreenUDim2(args.arg(3), "Position");
                     LuaTable size = requireScreenUDim2(args.arg(4), "Size");
                     LuaValue callback = args.arg(5);
@@ -1577,7 +1587,7 @@ public final class MLuaGuiService implements MLuaService {
             }
         }
 
-        private LuaTable addNativeButton(String label, LuaTable position, LuaTable size, LuaValue callback) {
+        private LuaTable addNativeButton(Object label, LuaTable position, LuaTable size, LuaValue callback) {
             int x = screenCoordinate(position, "X", this.width);
             int y = screenCoordinate(position, "Y", this.height);
             int width = screenCoordinate(size, "X", this.width);
@@ -1585,7 +1595,8 @@ public final class MLuaGuiService implements MLuaService {
             if (width < 1 || height < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
             int buttonIndex = this.nextNativeControlIndex++;
             LuaTable[] controlRef = new LuaTable[1];
-            Button button = Button.builder(Component.literal(label), clicked -> {
+            Component component = label instanceof Component styled ? styled : Component.literal((String) label);
+            Button button = Button.builder(component, clicked -> {
                 try {
                     callback.invoke(controlRef[0]);
                 }
@@ -1663,7 +1674,7 @@ public final class MLuaGuiService implements MLuaService {
             });
             canvas.set("DrawText", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
-                    drawing.text(args.arg(2).checkjstring(), args.arg(3).checkint(), args.arg(4).checkint(),
+                    drawing.text(nativeText(args.arg(2)), args.arg(3).checkint(), args.arg(4).checkint(),
                         args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
                     return LuaValue.NONE;
                 }
@@ -1690,10 +1701,10 @@ public final class MLuaGuiService implements MLuaService {
         public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
             this.extractBackground(graphics, mouseX, mouseY, delta);
             super.extractRenderState(graphics, mouseX, mouseY, delta);
-            for (ScreenText line : this.textLines) graphics.text(this.font, line.text(), line.x(), line.y(), line.color(), true);
+            for (ScreenText line : this.textLines) drawHudText(graphics, line.text(), line.x(), line.y(), line.color(), true);
             this.renderLua(new ScreenDrawing() {
                 @Override public void fill(int left, int top, int right, int bottom, int color) { graphics.fill(left, top, right, bottom, color); }
-                @Override public void text(String text, int x, int y, int color, boolean shadow) { graphics.text(MLuaScriptScreen.this.font, text, x, y, color, shadow); }
+                @Override public void text(Object text, int x, int y, int color, boolean shadow) { drawHudText(graphics, text, x, y, color, shadow); }
             }, mouseX, mouseY, delta);
         }
         //--endversion
@@ -1702,10 +1713,10 @@ public final class MLuaGuiService implements MLuaService {
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
             this.renderBackground(graphics);
             super.render(graphics, mouseX, mouseY, delta);
-            for (ScreenText line : this.textLines) graphics.drawString(this.font, line.text(), line.x(), line.y(), line.color(), true);
+            for (ScreenText line : this.textLines) drawHudText(graphics, line.text(), line.x(), line.y(), line.color(), true);
             this.renderLua(new ScreenDrawing() {
                 @Override public void fill(int left, int top, int right, int bottom, int color) { graphics.fill(left, top, right, bottom, color); }
-                @Override public void text(String text, int x, int y, int color, boolean shadow) { graphics.drawString(MLuaScriptScreen.this.font, text, x, y, color, shadow); }
+                @Override public void text(Object text, int x, int y, int color, boolean shadow) { drawHudText(graphics, text, x, y, color, shadow); }
             }, mouseX, mouseY, delta);
         }
         //--endversion
@@ -1714,10 +1725,10 @@ public final class MLuaGuiService implements MLuaService {
         public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
             this.renderBackground(graphics, mouseX, mouseY, delta);
             super.render(graphics, mouseX, mouseY, delta);
-            for (ScreenText line : this.textLines) graphics.drawString(this.font, line.text(), line.x(), line.y(), line.color(), true);
+            for (ScreenText line : this.textLines) drawHudText(graphics, line.text(), line.x(), line.y(), line.color(), true);
             this.renderLua(new ScreenDrawing() {
                 @Override public void fill(int left, int top, int right, int bottom, int color) { graphics.fill(left, top, right, bottom, color); }
-                @Override public void text(String text, int x, int y, int color, boolean shadow) { graphics.drawString(MLuaScriptScreen.this.font, text, x, y, color, shadow); }
+                @Override public void text(Object text, int x, int y, int color, boolean shadow) { drawHudText(graphics, text, x, y, color, shadow); }
             }, mouseX, mouseY, delta);
         }
         //--endversion
