@@ -697,10 +697,12 @@ public final class MLuaJavaService extends MLuaServiceBase {
         if (value instanceof Class<?> clazz) {
             return classProxy(clazz);
         }
+        if (value instanceof Character character) {
+            return LuaValue.valueOf(character.toString());
+        }
         if (value instanceof String
             || value instanceof Number
-            || value instanceof Boolean
-            || value instanceof Character) {
+            || value instanceof Boolean) {
             return CoerceJavaToLua.coerce(value);
         }
         return objectProxy(value, declaredType);
