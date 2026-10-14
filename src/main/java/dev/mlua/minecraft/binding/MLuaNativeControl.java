@@ -283,7 +283,7 @@ public final class MLuaNativeControl {
     }
 
     private static void setDimension(LuaTable self, LuaValue value, boolean size) {
-        if (!value.istable() || !"UDim2".equals(value.get("__type").optjstring(null))) throw new LuaError("[MLua] NativeControl Position and Size require UDim2 values created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
+        if (!MLuaLuauTypes.isUDim2(value)) throw new LuaError("[MLua] NativeControl Position and Size require UDim2 values created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
         Backing backing = backing(self);
         LuaValue x = value.get("X");
         LuaValue y = value.get("Y");

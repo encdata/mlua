@@ -327,16 +327,15 @@ public abstract class GuiBase {
     }
 
     static dev.mlua.minecraft.ui.UDim2 parseUDim2(LuaValue v) {
-        if (!v.istable()) throw new org.luaj.vm2.LuaError("[MLua] UI Position and Size require UDim2 values created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
+        if (!MLuaLuauTypes.isUDim2(v)) throw new org.luaj.vm2.LuaError("[MLua] UI Position and Size require UDim2 values created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
         LuaTable t = v.checktable();
-        if (!"UDim2".equals(t.get("__type").optjstring(null))) throw new org.luaj.vm2.LuaError("[MLua] UI Position and Size require UDim2.new(...), UDim2.fromScale(...), or UDim2.fromOffset(...)");
         LuaValue x = firstNonNil(t.get("X"), t.get("x"));
         LuaValue y = firstNonNil(t.get("Y"), t.get("y"));
         return new dev.mlua.minecraft.ui.UDim2(parseUDim(x), parseUDim(y));
     }
 
     private static dev.mlua.minecraft.ui.UDim parseUDim(LuaValue v) {
-        if (!v.istable() || !"UDim".equals(v.get("__type").optjstring(null))) throw new org.luaj.vm2.LuaError("[MLua] UDim2.X and UDim2.Y require UDim.new(scale, offset) values");
+        if (!MLuaLuauTypes.isUDim(v)) throw new org.luaj.vm2.LuaError("[MLua] UDim2.X and UDim2.Y require UDim.new(scale, offset) values");
         LuaTable t = v.checktable();
         if (!t.get("Scale").isnumber() || !t.get("Offset").isnumber()) throw new org.luaj.vm2.LuaError("[MLua] UDim values require numeric Scale and Offset properties");
         return new dev.mlua.minecraft.ui.UDim(t.get("Scale").todouble(), t.get("Offset").toint());
