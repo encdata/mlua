@@ -428,6 +428,7 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "exclude_entities", "Entity[]", "Exclude these live entity instances from the query results.");
         docs.field("EntityQuery", "alive", "boolean", "Require the entity's alive state to match.");
         docs.field("EntityQuery", "name", "string", "Require an exact entity name.");
+        docs.field("EntityQuery", "name_contains", "string", "Require the entity's display name to contain this case-sensitive text.");
         docs.field("EntityQuery", "tag", "string", "Require this saved MLua entity tag.");
         docs.field("EntityQuery", "tags", "string[]", "Require every listed saved MLua entity tag.");
         docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed saved MLua tag.");

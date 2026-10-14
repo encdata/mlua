@@ -902,6 +902,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }
       LuaValue name = table.get("name");
       if (!name.isnil() && !entity.getName().getString().equals(name.tojstring())) return false;
+      LuaValue nameContains = table.get("name_contains");
+      if (!nameContains.isnil() && !entity.getName().getString().contains(nameContains.tojstring())) return false;
       LuaValue excludedEntity = table.get("exclude");
       if (!excludedEntity.isnil()) {
          if (entityReference(excludedEntity, "EntityQuery.exclude") == entity) return false;
@@ -955,7 +957,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       if (!value.istable()) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
       LuaValue rawEntity = value.checktable().rawget("__entity");
       if (!rawEntity.isuserdata(Entity.class)) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
-      return rawEntity.touserdata(Entity.class);
+      return (Entity)rawEntity.touserdata(Entity.class);
    }
 
    private static double checkedQueryRadius(double radius) {
