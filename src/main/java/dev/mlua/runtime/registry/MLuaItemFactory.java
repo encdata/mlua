@@ -95,6 +95,7 @@ public final class MLuaItemFactory {
       this.definition(properties);
       validateFoodProperty(properties);
       validateStackProperties(properties);
+      validateCommonProperties(properties);
    }
 
    public Item createNamed(Map<String, Object> properties, String registryName) {
@@ -737,6 +738,7 @@ public final class MLuaItemFactory {
       validateCopyDefinition(properties);
       validateFoodProperty(properties);
       validateStackProperties(properties);
+      validateCommonProperties(properties);
       Item.Properties item;
       item = this.copyProperties(properties);
       Object durability = properties.get("durability");
@@ -756,7 +758,7 @@ public final class MLuaItemFactory {
 
       Object rarity = properties.get("rarity");
       if (rarity instanceof String name) {
-         item.rarity(this.rarity(name));
+         item.rarity(rarity(name));
       }
 
       Object craftRemainder = properties.get("craftRemainder");
@@ -860,13 +862,47 @@ public final class MLuaItemFactory {
       }
    }
 
+   private static void validateCommonProperties(Map<String, Object> properties) {
+      Object fireResistant = properties.get("fireResistant");
+      if (fireResistant != null && !(fireResistant instanceof Boolean)) {
+         throw new IllegalArgumentException("[MLua] Item property 'fireResistant' must be a boolean");
+      }
+      Object rawRarity = properties.get("rarity");
+      if (rawRarity != null) {
+         if (!(rawRarity instanceof String name) || name.isBlank()) {
+            throw new IllegalArgumentException("[MLua] Item property 'rarity' must be a non-empty string");
+         }
+         rarity(name);
+      }
+      Object rawRemainder = properties.get("craftRemainder");
+      if (rawRemainder != null && (!(rawRemainder instanceof String id) || id.isBlank())) {
+         throw new IllegalArgumentException("[MLua] Item property 'craftRemainder' must be a non-empty item identifier");
+      }
+      if (rawRemainder instanceof String id && MLuaResourceLocations.tryParseOrNull(id) == null) {
+         throw new IllegalArgumentException("[MLua] Invalid craftRemainder item identifier '" + id + "'");
+      }
+   }
+
    private ItemDefinition definition(Map<String, Object> properties) {
       String kindName = properties.get("kind") instanceof String kind ? kind : "item";
       ItemKind kind = ItemKind.from(kindName);
       Tier tier = kind == ItemKind.ITEM ? Tiers.WOOD : this.tier(properties);
-      float attackDamage = properties.get("attackDamage") instanceof Number number ? number.floatValue() : defaultAttackDamage(kind);
-      float attackSpeed = properties.get("attackSpeed") instanceof Number number ? number.floatValue() : defaultAttackSpeed(kind);
+      float attackDamage = finiteFloat(properties, "attackDamage", defaultAttackDamage(kind));
+      float attackSpeed = finiteFloat(properties, "attackSpeed", defaultAttackSpeed(kind));
       return new ItemDefinition(kind, tier, attackDamage, attackSpeed);
+   }
+
+   private static float finiteFloat(Map<String, Object> properties, String name, float defaultValue) {
+      Object rawValue = properties.get(name);
+      if (rawValue == null) return defaultValue;
+      if (!(rawValue instanceof Number number)) {
+         throw new IllegalArgumentException("[MLua] Item property '" + name + "' must be numeric");
+      }
+      double value = number.doubleValue();
+      if (!Double.isFinite(value) || value < -Float.MAX_VALUE || value > Float.MAX_VALUE) {
+         throw new IllegalArgumentException("[MLua] Item property '" + name + "' must be a finite float");
+      }
+      return (float)value;
    }
 
    private static RegisteredType registeredType(Map<String, Object> properties) {
@@ -893,8 +929,11 @@ public final class MLuaItemFactory {
 
    private Tier tier(Map<String, Object> properties) {
       Object rawTier = properties.get("tier");
-      if (!(rawTier instanceof String tierName)) {
+      if (rawTier == null) {
          return Tiers.WOOD;
+      }
+      if (!(rawTier instanceof String tierName) || tierName.isBlank()) {
+         throw new IllegalArgumentException("[MLua] Item property 'tier' must be a non-empty string");
       }
 
       return switch (tierName.toLowerCase(Locale.ROOT)) {
@@ -908,7 +947,7 @@ public final class MLuaItemFactory {
       };
    }
 
-   private Rarity rarity(String name) {
+   private static Rarity rarity(String name) {
       return switch (name.toLowerCase(Locale.ROOT)) {
          case "common" -> Rarity.COMMON;
          case "uncommon" -> Rarity.UNCOMMON;
