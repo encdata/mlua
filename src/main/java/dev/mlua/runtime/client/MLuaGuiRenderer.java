@@ -275,8 +275,6 @@ public final class MLuaGuiRenderer {
     }
 
     public static void onClientTickEnd() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
         double dt = 0.05;
         MLuaGuiService gui = MLuaGuiService.getInstance();
         if (gui != null) for (ScreenGui sg : gui.getScreenGuis()) tickTweenTree(sg, dt);

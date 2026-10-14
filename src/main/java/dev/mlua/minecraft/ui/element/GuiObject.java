@@ -7,6 +7,7 @@ import dev.mlua.minecraft.ui.UDim;
 import dev.mlua.minecraft.ui.data.Vector2;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import org.luaj.vm2.LuaError;
 
 public abstract class GuiObject extends GuiBase2d {
     protected boolean visible = true;
@@ -128,23 +129,32 @@ public abstract class GuiObject extends GuiBase2d {
         return anchorTargetY - (int)(anchorPoint.y() * absoluteH);
     }
 
-    public boolean tweenPosition(UDim2 endPos, String easingDir, String easingStyle, double time, boolean override, String callback) {
+    public boolean tweenPosition(UDim2 endPos, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, endPos, null, easingDir, easingStyle, time, callback);
+        activeTween = new GuiObjectTween(this, endPos, null, easingDir, easingStyle, time);
         return true;
     }
 
-    public boolean tweenSize(UDim2 endSize, String easingDir, String easingStyle, double time, boolean override, String callback) {
+    public boolean tweenSize(UDim2 endSize, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, null, endSize, easingDir, easingStyle, time, callback);
+        activeTween = new GuiObjectTween(this, null, endSize, easingDir, easingStyle, time);
         return true;
     }
 
-    public boolean tweenSizeAndPosition(UDim2 endSize, UDim2 endPos, String easingDir, String easingStyle, double time, boolean override, String callback) {
+    public boolean tweenSizeAndPosition(UDim2 endSize, UDim2 endPos, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, endPos, endSize, easingDir, easingStyle, time, callback);
+        activeTween = new GuiObjectTween(this, endPos, endSize, easingDir, easingStyle, time);
         return true;
     }
+
+    public void cancelTween() {
+        if (activeTween != null) {
+            activeTween.done = true;
+            activeTween = null;
+        }
+    }
+
+    public boolean isTweening() { return activeTween != null; }
 
     public void tickTween(double dt) {
         if (activeTween != null) {
@@ -162,11 +172,10 @@ public abstract class GuiObject extends GuiBase2d {
         public final String easingDir;
         public final String easingStyle;
         public final double duration;
-        public final String callback;
         public double elapsed;
         public boolean done;
 
-        GuiObjectTween(GuiObject target, UDim2 endPos, UDim2 endSize, String easingDir, String easingStyle, double duration, String callback) {
+        GuiObjectTween(GuiObject target, UDim2 endPos, UDim2 endSize, String easingDir, String easingStyle, double duration) {
             this.target = target;
             this.startPos = target.position;
             this.startSize = target.size;
@@ -175,7 +184,11 @@ public abstract class GuiObject extends GuiBase2d {
             this.easingDir = easingDir;
             this.easingStyle = easingStyle;
             this.duration = duration;
-            this.callback = callback;
+            if (!Double.isFinite(duration) || duration <= 0.0) {
+                throw new LuaError("[MLua] UI animation duration must be a finite number greater than zero.");
+            }
+            if (!isEasingStyle(easingStyle)) throw new LuaError("[MLua] Unsupported UI easing style '" + easingStyle + "'.");
+            if (!isEasingDirection(easingDir)) throw new LuaError("[MLua] Unsupported UI easing direction '" + easingDir + "'.");
             this.elapsed = 0;
             this.done = false;
         }
@@ -208,16 +221,51 @@ public abstract class GuiObject extends GuiBase2d {
             return new UDim(a.scale() + (b.scale() - a.scale()) * t, a.offset() + (int)((b.offset() - a.offset()) * t));
         }
 
-        private static double ease(double t, String style, String dir) {
-            boolean out = "Out".equals(dir);
-            boolean inOut = "InOut".equals(dir);
-            switch (style) {
-                case "Linear": return t;
-                case "Quad": return inOut ? (t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2) : out ? t*(2-t) : t*t;
-                case "Cubic": return inOut ? (t < 0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2) : out ? 1-Math.pow(1-t,3) : t*t*t;
-                case "Sine": return inOut ? (1-Math.cos(Math.PI*t))/2 : out ? Math.sin(Math.PI*t/2) : 1-Math.cos(Math.PI*t/2);
-                default: return t;
+        private static boolean isEasingStyle(String style) {
+            return switch (style) {
+                case "Linear", "Sine", "Quad", "Cubic", "Quart", "Quint", "Expo", "Circ", "Back", "Elastic", "Bounce" -> true;
+                default -> false;
+            };
+        }
+
+        private static boolean isEasingDirection(String direction) {
+            return "In".equals(direction) || "Out".equals(direction) || "InOut".equals(direction);
+        }
+
+        private static double ease(double t, String style, String direction) {
+            if ("Out".equals(direction)) return 1.0 - easeIn(1.0 - t, style);
+            if ("InOut".equals(direction)) {
+                return t < 0.5 ? easeIn(t * 2.0, style) * 0.5 : 1.0 - easeIn((1.0 - t) * 2.0, style) * 0.5;
             }
+            return easeIn(t, style);
+        }
+
+        private static double easeIn(double t, String style) {
+            return switch (style) {
+                case "Linear" -> t;
+                case "Sine" -> 1.0 - Math.cos(t * Math.PI * 0.5);
+                case "Quad" -> t * t;
+                case "Cubic" -> t * t * t;
+                case "Quart" -> t * t * t * t;
+                case "Quint" -> t * t * t * t * t;
+                case "Expo" -> t == 0.0 ? 0.0 : Math.pow(2.0, 10.0 * t - 10.0);
+                case "Circ" -> 1.0 - Math.sqrt(Math.max(0.0, 1.0 - t * t));
+                case "Back" -> 2.70158 * t * t * t - 1.70158 * t * t;
+                case "Elastic" -> t == 0.0 || t == 1.0 ? t
+                    : -Math.pow(2.0, 10.0 * t - 10.0) * Math.sin((t * 10.0 - 10.75) * (2.0 * Math.PI / 3.0));
+                case "Bounce" -> 1.0 - easeOutBounce(1.0 - t);
+                default -> t;
+            };
+        }
+
+        private static double easeOutBounce(double t) {
+            double n = 7.5625;
+            double d = 2.75;
+            if (t < 1.0 / d) return n * t * t;
+            if (t < 2.0 / d) { t -= 1.5 / d; return n * t * t + 0.75; }
+            if (t < 2.5 / d) { t -= 2.25 / d; return n * t * t + 0.9375; }
+            t -= 2.625 / d;
+            return n * t * t + 0.984375;
         }
     }
 

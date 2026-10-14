@@ -10,6 +10,9 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.common.enums.Side;
+import dev.mlua.common.enums.EasingDirection;
+import dev.mlua.common.enums.EasingStyle;
+import dev.mlua.modules.enums.MLuaEnumValue;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaError;
@@ -229,6 +232,71 @@ public final class MLuaUIBindings {
         registerNativeClass(registration, "ImageButton", ImageButton.class, ImageButton::new,
             "A clickable UI object that renders an image.", "GuiButton");
         registerCommonInstanceMethods(registration);
+        registerGuiObjectMethods(registration);
+    }
+
+    private static void registerGuiObjectMethods(MLuaRegistration registration) {
+        registration.registerClassFunction("GuiObject", "MoveTo", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                GuiObject object = requireGuiObject(args.arg1(), "MoveTo");
+                return LuaValue.valueOf(object.tweenPosition(parseUDim2(args.arg(2)), easingDirection(args.arg(5)),
+                    easingStyle(args.arg(4)), positiveDuration(args.arg(3)), args.arg(6).optboolean(true)));
+            }
+        }, "Animates Position to a UDim2 target and returns whether the animation started.");
+        registration.registerClassFunction("GuiObject", "ResizeTo", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                GuiObject object = requireGuiObject(args.arg1(), "ResizeTo");
+                return LuaValue.valueOf(object.tweenSize(parseUDim2(args.arg(2)), easingDirection(args.arg(5)),
+                    easingStyle(args.arg(4)), positiveDuration(args.arg(3)), args.arg(6).optboolean(true)));
+            }
+        }, "Animates Size to a UDim2 target and returns whether the animation started.");
+        registration.registerClassFunction("GuiObject", "MoveAndResizeTo", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                GuiObject object = requireGuiObject(args.arg1(), "MoveAndResizeTo");
+                return LuaValue.valueOf(object.tweenSizeAndPosition(parseUDim2(args.arg(3)), parseUDim2(args.arg(2)),
+                    easingDirection(args.arg(6)), easingStyle(args.arg(5)), positiveDuration(args.arg(4)),
+                    args.arg(7).optboolean(true)));
+            }
+        }, "Animates both Position and Size to UDim2 targets and returns whether the animation started.");
+        registration.registerClassFunction("GuiObject", "CancelAnimation", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                requireGuiObject(args.arg1(), "CancelAnimation").cancelTween();
+                return LuaValue.NONE;
+            }
+        }, "Stops the active Position or Size animation at its current values.");
+        registration.registerClassFunction("GuiObject", "IsAnimating", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return LuaValue.valueOf(requireGuiObject(args.arg1(), "IsAnimating").isTweening());
+            }
+        }, "Returns whether this UI object currently has a running Position or Size animation.");
+    }
+
+    private static GuiObject requireGuiObject(LuaValue value, String method) {
+        GuiBase element = requireGuiElement(value, method);
+        if (!(element instanceof GuiObject object)) throw new LuaError("[MLua] " + method + " requires a GuiObject instance.");
+        return object;
+    }
+
+    private static double positiveDuration(LuaValue value) {
+        double duration = value.checkdouble();
+        if (!Double.isFinite(duration) || duration <= 0.0) {
+            throw new LuaError("[MLua] UI animation duration must be a finite number greater than zero.");
+        }
+        return duration;
+    }
+
+    private static String easingStyle(LuaValue value) {
+        if (value.isnil()) return EasingStyle.Linear.name();
+        EasingStyle style = MLuaEnumValue.toJava(value, EasingStyle.class);
+        if (style == null) throw new LuaError("[MLua] UI animation easing style must be an Enum.EasingStyle value.");
+        return style.name();
+    }
+
+    private static String easingDirection(LuaValue value) {
+        if (value.isnil()) return EasingDirection.Out.name();
+        EasingDirection direction = MLuaEnumValue.toJava(value, EasingDirection.class);
+        if (direction == null) throw new LuaError("[MLua] UI animation easing direction must be an Enum.EasingDirection value.");
+        return direction.name();
     }
 
     private static LuaTable registerClass(MLuaRegistration registration, String name, Class<?> instanceType,
