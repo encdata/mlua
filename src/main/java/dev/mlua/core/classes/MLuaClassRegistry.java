@@ -566,8 +566,6 @@ public final class MLuaClassRegistry {
          }
       } else if (!oldDescriptor.isnil()) {
          throw new IllegalStateException("Lua class '" + className + "' property '" + propertyName + "' has invalid metadata");
-      } else if (this.hasPropertyDefinition(className, propertyName, new HashSet<>())) {
-         throw new IllegalStateException("Lua class '" + className + "' inherits property '" + propertyName + "'");
       }
       LuaValue docsValue = owner.rawget("__mlua_doc_properties");
       if (!docsValue.isnil() && !docsValue.istable()) {
