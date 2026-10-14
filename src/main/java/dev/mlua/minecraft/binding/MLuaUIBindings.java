@@ -264,11 +264,14 @@ public final class MLuaUIBindings {
                 LuaValue goalsValue = args.arg(2);
                 if (!goalsValue.istable()) throw new LuaError("[MLua] AnimateTo expects a table of target properties.");
                 LuaTable goals = goalsValue.checktable();
-                UDim2 position = null;
-                UDim2 size = null;
+                dev.mlua.minecraft.ui.UDim2 position = null;
+                dev.mlua.minecraft.ui.UDim2 size = null;
                 Float rotation = null;
                 Float transparency = null;
                 Integer backgroundColor = null;
+                Integer textColor = null;
+                Integer imageColor = null;
+                Float imageTransparency = null;
                 LuaValue key = LuaValue.NIL;
                 while (true) {
                     Varargs entry = goals.next(key);
@@ -288,28 +291,37 @@ public final class MLuaUIBindings {
                             }
                         }
                         case "BackgroundColor3" -> backgroundColor = value.checkint();
+                        case "TextColor3" -> textColor = value.checkint();
+                        case "ImageColor3" -> imageColor = value.checkint();
+                        case "ImageTransparency" -> {
+                            imageTransparency = finiteFloat(value, "ImageTransparency");
+                            if (imageTransparency < 0.0f || imageTransparency > 1.0f) {
+                                throw new LuaError("[MLua] ImageTransparency animation target must be between zero and one.");
+                            }
+                        }
                         default -> throw new LuaError("[MLua] AnimateTo does not support the UI property '" + name + "'.");
                     }
                 }
-                if (position == null && size == null && rotation == null && transparency == null && backgroundColor == null) {
+                if (position == null && size == null && rotation == null && transparency == null && backgroundColor == null
+                    && textColor == null && imageColor == null && imageTransparency == null) {
                     throw new LuaError("[MLua] AnimateTo requires at least one supported target property.");
                 }
                 return LuaValue.valueOf(object.tweenTo(position, size, rotation, transparency, backgroundColor,
-                    easingDirection(args.arg(5)), easingStyle(args.arg(4)), positiveDuration(args.arg(3)),
-                    args.arg(6).optboolean(true)));
+                    textColor, imageColor, imageTransparency, easingDirection(args.arg(5)), easingStyle(args.arg(4)),
+                    positiveDuration(args.arg(3)), args.arg(6).optboolean(true)));
             }
-        }, "Animates supported GuiObject properties toward a target table: Position, Size, Rotation, BackgroundTransparency, or BackgroundColor3.");
+        }, "Animates supported UI properties toward a target table: Position, Size, Rotation, BackgroundTransparency, BackgroundColor3, TextColor3, ImageColor3, or ImageTransparency.");
         registration.registerClassFunction("GuiObject", "CancelAnimation", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 requireGuiObject(args.arg1(), "CancelAnimation").cancelTween();
                 return LuaValue.NONE;
             }
-        }, "Stops the active Position or Size animation at its current values.");
+        }, "Stops the active UI animation at its current property values.");
         registration.registerClassFunction("GuiObject", "IsAnimating", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(requireGuiObject(args.arg1(), "IsAnimating").isTweening());
             }
-        }, "Returns whether this UI object currently has a running Position or Size animation.");
+        }, "Returns whether this UI object currently has a running property animation.");
     }
 
     private static GuiObject requireGuiObject(LuaValue value, String method) {
