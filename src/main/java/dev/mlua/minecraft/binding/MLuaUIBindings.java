@@ -267,7 +267,7 @@ public final class MLuaUIBindings {
             classTable.setmetatable(meta);
         }
         String parentName = parent == null ? null : parent.rawget("__type").optjstring("");
-        classTable = registration.registerClass(name, classTable, parentName, description);
+        classTable = registration.registerClassTable(name, classTable, parentName, description);
         if (constructor != null) {
             registration.registerClassFunction(name, "new", constructor,
                 "Creates a new " + name + " instance.");
