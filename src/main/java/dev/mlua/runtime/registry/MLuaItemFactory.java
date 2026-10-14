@@ -84,6 +84,7 @@ public final class MLuaItemFactory {
 
    /** Validate a Lua definition while its Register call can still report a useful error. */
    public void validateTypeDefinition(Map<String, Object> properties) {
+      validateCopyDefinition(properties);
       RegisteredType extension = registeredType(properties);
       if (extension != null) return;
       Object kind = properties.get("kind");
@@ -94,6 +95,7 @@ public final class MLuaItemFactory {
    }
 
    public Item createNamed(Map<String, Object> properties, String registryName) {
+      validateCopyDefinition(properties);
       RegisteredType extension = registeredType(properties);
       if (extension != null) return extension.provider().createNamed(Map.copyOf(properties), registryName);
       ItemDefinition definition = this.definition(properties);
@@ -248,6 +250,7 @@ public final class MLuaItemFactory {
    }
 
    public Item createScripted(Map<String, Object> properties, String behaviorKey) {
+      validateCopyDefinition(properties);
       RegisteredType extension = registeredType(properties);
       if (extension != null) return extension.provider().createScripted(Map.copyOf(properties), behaviorKey);
       ItemDefinition definition = this.definition(properties);
@@ -728,6 +731,7 @@ public final class MLuaItemFactory {
    }
 
    public Item.Properties makeProperties(Map<String, Object> properties) {
+      validateCopyDefinition(properties);
       Item.Properties item;
       label40: {
          item = this.copyProperties(properties);
@@ -788,58 +792,75 @@ public final class MLuaItemFactory {
    private Item.Properties copyProperties(Map<String, Object> properties) {
       Object copy = properties.get("copy");
       if (copy instanceof String id && !id.isBlank()) {
-         Item source = (Item) MCApiRuntime.lookupRegistry("item", id);
-         if (source != null) {
-            //--version 1.21.1
-            Item.Properties item = new Item.Properties();
-            int maxDamage = source.components().getOrDefault(DataComponents.MAX_DAMAGE, 0);
-            if (maxDamage > 0) {
-               item.durability(maxDamage);
-            } else {
-               item.stacksTo(source.getDefaultMaxStackSize());
-            }
-
-            item.rarity(source.getDefaultInstance().getRarity());
-            FoodProperties food = source.components().get(DataComponents.FOOD);
-            if (food != null) {
-               item.food(food);
-            }
-
-            if (source.hasCraftingRemainingItem()) {
-               item.craftRemainder(source.getCraftingRemainingItem());
-            }
-
-            return item;
-            //--endversion
-            //--version 1.20.1
-            Item.Properties item = new Item.Properties();
-            int maxDamage = source.getMaxDamage();
-            if (maxDamage > 0) {
-               item.durability(maxDamage);
-            } else {
-               item.stacksTo(source.getMaxStackSize());
-            }
-
-            if (source.isFireResistant()) {
-               item.fireResistant();
-            }
-
-            item.rarity(source.getRarity(ItemStack.EMPTY));
-            FoodProperties food = source.getFoodProperties();
-            if (food != null) {
-               item.food(food);
-            }
-
-            if (source.hasCraftingRemainingItem()) {
-               item.craftRemainder(source.getCraftingRemainingItem());
-            }
-
-            return item;
-            //--endversion
+         final String normalizedId;
+         try {
+            normalizedId = MLuaResourceLocations.parse(id).toString();
+         } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("[MLua] Invalid item copy identifier '" + id + "'", error);
          }
+         Item source = (Item) MCApiRuntime.lookupRegistry("item", normalizedId);
+         if (source == null) {
+            throw new IllegalArgumentException("[MLua] Unknown item in copy property: " + id);
+         }
+         //--version 1.21.1
+         Item.Properties item = new Item.Properties();
+         int maxDamage = source.components().getOrDefault(DataComponents.MAX_DAMAGE, 0);
+         if (maxDamage > 0) {
+            item.durability(maxDamage);
+         } else {
+            item.stacksTo(source.getDefaultMaxStackSize());
+         }
+
+         item.rarity(source.getDefaultInstance().getRarity());
+         FoodProperties food = source.components().get(DataComponents.FOOD);
+         if (food != null) {
+            item.food(food);
+         }
+
+         if (source.hasCraftingRemainingItem()) {
+            item.craftRemainder(source.getCraftingRemainingItem());
+         }
+
+         return item;
+         //--endversion
+         //--version 1.20.1
+         Item.Properties item = new Item.Properties();
+         int maxDamage = source.getMaxDamage();
+         if (maxDamage > 0) {
+            item.durability(maxDamage);
+         } else {
+            item.stacksTo(source.getMaxStackSize());
+         }
+
+         if (source.isFireResistant()) {
+            item.fireResistant();
+         }
+
+         item.rarity(source.getRarity(ItemStack.EMPTY));
+         FoodProperties food = source.getFoodProperties();
+         if (food != null) {
+            item.food(food);
+         }
+
+         if (source.hasCraftingRemainingItem()) {
+            item.craftRemainder(source.getCraftingRemainingItem());
+         }
+
+         return item;
+         //--endversion
       }
 
       return new Item.Properties();
+   }
+
+   private static void validateCopyDefinition(Map<String, Object> properties) {
+      Object copy = properties.get("copy");
+      if (copy != null && (!(copy instanceof String id) || id.isBlank())) {
+         throw new IllegalArgumentException("[MLua] Item copy must be a non-empty item identifier");
+      }
+      if (copy instanceof String id && MLuaResourceLocations.tryParseOrNull(id) == null) {
+         throw new IllegalArgumentException("[MLua] Invalid item copy identifier '" + id + "'");
+      }
    }
 
    private ItemDefinition definition(Map<String, Object> properties) {

@@ -280,7 +280,7 @@ public class RegistryModule implements MLuaModule {
             "onConsume?", "fun(context: ItemConsumeContext)", "Runs once on the server when eating finishes.",
             "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean", "Runs when the item attacks an entity.",
             "model?", "string", "Model resource identifier.", "texture?", "string", "Item texture resource identifier.",
-            "copy?", "string", "Vanilla item whose behavior or properties are copied.",
+            "copy?", "string", "Registered item whose properties are copied; unknown identifiers fail during item creation.",
             "copyModel?", "string", "Whether to copy the source item's model.",
             "food?", "FoodDefinition", "Food properties for edible items.",
             "className?", "string", "Registered Lua class inheriting from Item.");

@@ -89,6 +89,9 @@ public final class MLuaBlockFactory {
       if (copy != null && (!(copy instanceof String id) || id.isBlank())) {
          throw new IllegalArgumentException("[MLua] Block copy must be a non-empty block identifier");
       }
+      if (copy instanceof String id && MLuaResourceLocations.tryParseOrNull(id) == null) {
+         throw new IllegalArgumentException("[MLua] Invalid block copy identifier '" + id + "'");
+      }
    }
 
    private static String normalizeTypeName(String name) {
@@ -110,6 +113,7 @@ public final class MLuaBlockFactory {
    }
 
    public BlockBehaviour.Properties makeProperties(Map<String, Object> properties) {
+      validateCopyDefinition(properties);
       BlockBehaviour.Properties props = this.copyProperties(properties);
       Object strength = properties.get("strength");
       Object resistance = properties.get("explosionResistance");
