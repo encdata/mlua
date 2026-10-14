@@ -155,6 +155,33 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                                     String typeTable, RegistryKind registryKind,
                                     List<String> typedDefinitions) { }
 
+   private void addWorldGenerationRegistration(LuaTable worldGeneration, String name, String resourceType) {
+      VarArgFunction register = new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            String id = args.checkjstring(2);
+            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
+               "worldgen", owner, args.checktable(3));
+            MLuaRegistryService.this.registerWorldGenerationResource(owner, resourceType, id, definition);
+            return LuaValue.NONE;
+         }
+      };
+      worldGeneration.set("Register" + name, register);
+      worldGeneration.set("register" + name, register);
+   }
+
+   private void registerWorldGenerationResource(String owner, String resourceType, String id, LuaTable definition) {
+      JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "world generation resource");
+      try {
+         MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
+         this.context.mlua().registration().onRegistrationRollback(() ->
+            MLuaLoaderRegistry.unregisterGeneratedDataResource(owner, resourceType, id));
+      } catch (IllegalArgumentException | IllegalStateException error) {
+         throw new LuaError("[MLua] " + error.getMessage());
+      }
+   }
+
    public String name() {
       return "Registry";
    }
@@ -281,28 +308,32 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          "Generates JSON files under the addon's assets namespace, including shared manifests such as sounds.json."));
       worldGeneration.set("register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
-            MLuaRegistryService.this.ensureRegistryPhase();
-            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String resourceType = args.checkjstring(2);
             if (!resourceType.equals("dimension")
                && !resourceType.equals("dimension_type") && !resourceType.startsWith("worldgen/")) {
                throw new LuaError("[MLua] WorldGeneration.register accepts dimension, dimension_type, or worldgen/* resources such as worldgen/biome");
             }
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String id = args.checkjstring(3);
             LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
                "worldgen", owner, args.checktable(4));
-            JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "world generation resource");
-            try {
-               MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
-               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                  MLuaLoaderRegistry.unregisterGeneratedDataResource(owner, resourceType, id));
-            } catch (IllegalArgumentException | IllegalStateException error) {
-               throw new LuaError("[MLua] " + error.getMessage());
-            }
+            MLuaRegistryService.this.registerWorldGenerationResource(owner, resourceType, id, definition);
             return LuaValue.NONE;
          }
       });
       worldGeneration.set("Register", worldGeneration.get("register"));
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "Biome", "worldgen/biome");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "DimensionType", "dimension_type");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "Dimension", "dimension");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "NoiseSettings", "worldgen/noise_settings");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "DensityFunction", "worldgen/density_function");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "ConfiguredFeature", "worldgen/configured_feature");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "PlacedFeature", "worldgen/placed_feature");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "ConfiguredCarver", "worldgen/configured_carver");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "Structure", "worldgen/structure");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "StructureSet", "worldgen/structure_set");
+      MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "TemplatePool", "worldgen/template_pool");
       worldGeneration.set("addFeature", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -1043,6 +1074,28 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       worldGenerationDescriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       worldGenerationDescriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       worldGenerationDescriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
+      worldGenerationDescriptions.put("RegisterBiome", "Registers a biome resource under worldgen/biome.");
+      worldGenerationDescriptions.put("registerBiome", "Registers a biome resource under worldgen/biome.");
+      worldGenerationDescriptions.put("RegisterDimensionType", "Registers a dimension type resource.");
+      worldGenerationDescriptions.put("registerDimensionType", "Registers a dimension type resource.");
+      worldGenerationDescriptions.put("RegisterDimension", "Registers a dimension resource.");
+      worldGenerationDescriptions.put("registerDimension", "Registers a dimension resource.");
+      worldGenerationDescriptions.put("RegisterNoiseSettings", "Registers terrain noise settings under worldgen/noise_settings.");
+      worldGenerationDescriptions.put("registerNoiseSettings", "Registers terrain noise settings under worldgen/noise_settings.");
+      worldGenerationDescriptions.put("RegisterDensityFunction", "Registers a terrain density function under worldgen/density_function.");
+      worldGenerationDescriptions.put("registerDensityFunction", "Registers a terrain density function under worldgen/density_function.");
+      worldGenerationDescriptions.put("RegisterConfiguredFeature", "Registers a configured world generation feature.");
+      worldGenerationDescriptions.put("registerConfiguredFeature", "Registers a configured world generation feature.");
+      worldGenerationDescriptions.put("RegisterPlacedFeature", "Registers a placed world generation feature.");
+      worldGenerationDescriptions.put("registerPlacedFeature", "Registers a placed world generation feature.");
+      worldGenerationDescriptions.put("RegisterConfiguredCarver", "Registers a configured cave or canyon carver.");
+      worldGenerationDescriptions.put("registerConfiguredCarver", "Registers a configured cave or canyon carver.");
+      worldGenerationDescriptions.put("RegisterStructure", "Registers a world structure definition.");
+      worldGenerationDescriptions.put("registerStructure", "Registers a world structure definition.");
+      worldGenerationDescriptions.put("RegisterStructureSet", "Registers structure placement and spacing rules.");
+      worldGenerationDescriptions.put("registerStructureSet", "Registers structure placement and spacing rules.");
+      worldGenerationDescriptions.put("RegisterTemplatePool", "Registers a jigsaw structure template pool.");
+      worldGenerationDescriptions.put("registerTemplatePool", "Registers a jigsaw structure template pool.");
       MLuaServiceMetadata.attachMethodDescriptions(worldGeneration, worldGenerationDescriptions);
        wrapTypedDefinition(entities, "item", "RegisterSpawnEgg:3");
        wrapTypedDefinition(blocks, "item", "RegisterItem:3");
