@@ -285,7 +285,7 @@ public class RegistryModule implements MLuaModule {
             "food?", "FoodDefinition", "Food properties for edible items.",
             "className?", "string", "Registered Lua class inheriting from Item.");
         schema(docs, "FoodDefinition", "Nutrition and eating behavior for an item.",
-            "nutrition?", "number", "Hunger points restored.", "saturation?", "number", "Saturation modifier.",
+            "nutrition", "number", "Required whole-number hunger points restored.", "saturation?", "number", "Finite non-negative saturation modifier.",
             "meat?", "boolean", "Whether this food counts as meat.",
             "alwaysEdible?", "boolean", "Whether it can be eaten when hunger is full.",
             "alwaysEat?", "boolean", "Alias for alwaysEdible.", "fast?", "boolean", "Whether eating completes quickly.");

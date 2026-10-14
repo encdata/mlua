@@ -10,6 +10,7 @@ import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -92,6 +93,7 @@ public final class MLuaItemFactory {
          throw new IllegalArgumentException("[MLua] Item kind must be a string");
       }
       this.definition(properties);
+      validateFoodProperty(properties);
    }
 
    public Item createNamed(Map<String, Object> properties, String registryName) {
@@ -732,6 +734,7 @@ public final class MLuaItemFactory {
 
    public Item.Properties makeProperties(Map<String, Object> properties) {
       validateCopyDefinition(properties);
+      validateFoodProperty(properties);
       Item.Properties item;
       label40: {
          item = this.copyProperties(properties);
@@ -922,24 +925,21 @@ public final class MLuaItemFactory {
    }
 
    private FoodProperties food(Map<?, ?> properties) {
+      validateFoodDefinition(properties);
       FoodProperties.Builder builder = new FoodProperties.Builder();
       Object nutrition = properties.get("nutrition");
-      if (!(nutrition instanceof Number n)) {
-         throw new IllegalArgumentException("[MLua] food.nutrition is required");
-      }
-
-      builder.nutrition(Math.max(0, n.intValue()));
+      builder.nutrition(((Number)nutrition).intValue());
       Object saturation = properties.get("saturation");
       boolean alwaysEat = Boolean.TRUE.equals(properties.get("alwaysEat"))
          || Boolean.TRUE.equals(properties.get("alwaysEdible"));
       //--version 1.20.1
-      builder.saturationMod(saturation instanceof Number s ? Math.max(0.0F, s.floatValue()) : 0.0F);
+      builder.saturationMod(saturation instanceof Number s ? s.floatValue() : 0.0F);
       if (Boolean.TRUE.equals(properties.get("meat"))) {
          builder.meat();
       }
       //--endversion
       //--version 1.21.1
-      builder.saturationModifier(saturation instanceof Number s ? Math.max(0.0F, s.floatValue()) : 0.0F);
+      builder.saturationModifier(saturation instanceof Number s ? s.floatValue() : 0.0F);
       //--endversion
 
       //--version 1.21.1
@@ -958,6 +958,45 @@ public final class MLuaItemFactory {
       }
 
       return builder.build();
+   }
+
+   private static void validateFoodProperty(Map<?, ?> itemProperties) {
+      Object rawFood = itemProperties.get("food");
+      if (rawFood == null) return;
+      if (!(rawFood instanceof Map<?, ?> food)) {
+         throw new IllegalArgumentException("[MLua] Item property 'food' must be a table");
+      }
+      validateFoodDefinition(food);
+   }
+
+   private static void validateFoodDefinition(Map<?, ?> food) {
+      Object rawNutrition = food.get("nutrition");
+      if (!(rawNutrition instanceof Number nutrition)) {
+         throw new IllegalArgumentException("[MLua] food.nutrition is required and must be a whole number");
+      }
+      double nutritionValue = nutrition.doubleValue();
+      if (!Double.isFinite(nutritionValue) || nutritionValue != Math.rint(nutritionValue)
+         || nutritionValue < 0 || nutritionValue > Integer.MAX_VALUE) {
+         throw new IllegalArgumentException("[MLua] food.nutrition must be a whole number from 0 to " + Integer.MAX_VALUE);
+      }
+
+      Object rawSaturation = food.get("saturation");
+      if (rawSaturation != null) {
+         if (!(rawSaturation instanceof Number saturation)) {
+            throw new IllegalArgumentException("[MLua] food.saturation must be a non-negative number");
+         }
+         double saturationValue = saturation.doubleValue();
+         if (!Double.isFinite(saturationValue) || saturationValue < 0 || saturationValue > Float.MAX_VALUE) {
+            throw new IllegalArgumentException("[MLua] food.saturation must be finite and within the non-negative float range");
+         }
+      }
+
+      for (String property : List.of("meat", "alwaysEat", "alwaysEdible", "fast")) {
+         Object value = food.get(property);
+         if (value != null && !(value instanceof Boolean)) {
+            throw new IllegalArgumentException("[MLua] food." + property + " must be a boolean");
+         }
+      }
    }
 
    private static float defaultAttackDamage(ItemKind kind) {
