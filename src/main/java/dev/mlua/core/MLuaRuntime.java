@@ -271,6 +271,12 @@ public final class MLuaRuntime implements MLuaRegistration {
       this.registerService(name, Side.BOTH, factory, description, functionDescriptions);
    }
 
+   public void registerService(String name, String className,
+                               Function<MLuaService.Context, MLuaService> factory,
+                               String description, Map<String, String> functionDescriptions) {
+      this.registerService(name, className, Side.BOTH, factory, description, functionDescriptions);
+   }
+
    public synchronized void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                             String description, Map<String, String> functionDescriptions) {
       registerService(name, null, side, factory, description, functionDescriptions);
