@@ -35,7 +35,23 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
 
    public record ApiMetadata(String description, Map<String, String> functionDescriptions) {
       public ApiMetadata {
-         functionDescriptions = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(functionDescriptions));
+         if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Reflective service description must be non-empty");
+         }
+         Map<String, String> functions = new LinkedHashMap<>(
+            java.util.Objects.requireNonNull(functionDescriptions, "functionDescriptions"));
+         if (functions.isEmpty()) {
+            throw new IllegalArgumentException("Reflective services must declare at least one described Lua method");
+         }
+         functions.forEach((name, methodDescription) -> {
+            if (name == null || name.isBlank() || methodDescription == null || methodDescription.isBlank()) {
+               throw new IllegalArgumentException("Reflective service method names and descriptions must be non-empty");
+            }
+            if (MLuaRegistration.isReservedFunctionName(name)) {
+               throw new IllegalArgumentException("Reflective service method name is reserved for MLua metadata: " + name);
+            }
+         });
+         functionDescriptions = java.util.Collections.unmodifiableMap(functions);
       }
    }
 
