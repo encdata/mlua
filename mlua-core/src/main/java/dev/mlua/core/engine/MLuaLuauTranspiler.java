@@ -14,6 +14,8 @@ public final class MLuaLuauTranspiler {
          Seg s = (Seg)segs.get(i);
          if (s.type == MLuaLuauTranspiler.SegType.CODE) {
             s.text = this.transform(s.text);
+         } else if (s.type == MLuaLuauTranspiler.SegType.INTERP_STRING) {
+            s.text = this.interp(s.text);
          }
       }
 
@@ -787,75 +789,84 @@ public final class MLuaLuauTranspiler {
    }
 
    private String interp(String raw) {
-      String inner = raw.substring(1, raw.length() - 1);
-      StringBuilder out = new StringBuilder();
-      boolean first = true;
-      int i = 0;
-      int n = inner.length();
-
-      while(true) {
-         while(i < n) {
-            if (inner.charAt(i) == '{') {
-               int depth = 1;
-
-               int j;
-               for(j = i + 1; j < n && depth > 0; ++j) {
-                  if (inner.charAt(j) == '{') {
-                     ++depth;
-                  } else if (inner.charAt(j) == '}') {
-                     --depth;
-                  }
-               }
-
-               String expr = inner.substring(i + 1, j - 1);
-               if (first) {
-                  out.append('"');
-                  first = false;
-               } else {
-                  out.append(" .. ");
-               }
-
-               out.append(expr);
-               i = j;
-            } else if (inner.charAt(i) == '\\' && i + 1 < n) {
-               if (first) {
-                  out.append('"');
-                  first = false;
-               }
-
-               out.append('\\');
-               ++i;
-               if ("nt\"\\`".indexOf(inner.charAt(i)) >= 0) {
-                  out.append(inner.charAt(i));
-               } else {
-                  out.append(inner.charAt(i));
-               }
-
-               ++i;
-            } else {
-               if (first) {
-                  out.append('"');
-                  first = false;
-               }
-
-               if (inner.charAt(i) == '"') {
-                  out.append("\\\"");
-               } else {
-                  out.append(inner.charAt(i));
-               }
-
-               ++i;
+      String inner = raw.length() >= 2 ? raw.substring(1, raw.length() - 1) : "";
+      List<String> parts = new ArrayList<>();
+      StringBuilder literal = new StringBuilder();
+      for (int i = 0; i < inner.length();) {
+         char current = inner.charAt(i);
+         if (current == '\\' && i + 1 < inner.length()) {
+            char escaped = inner.charAt(i + 1);
+            switch (escaped) {
+               case 'n' -> literal.append('\n');
+               case 'r' -> literal.append('\r');
+               case 't' -> literal.append('\t');
+               case '`', '{', '}', '\\' -> literal.append(escaped);
+               default -> literal.append(escaped);
             }
-         }
-
-         if (first) {
-            out.append("\"\"");
+            i += 2;
+         } else if (current == '{') {
+            int close = this.findInterpolationClose(inner, i);
+            if (close < 0) {
+               literal.append(current);
+               ++i;
+               continue;
+            }
+            if (literal.length() > 0) {
+               parts.add(this.luaString(literal.toString()));
+               literal.setLength(0);
+            }
+            String expression = inner.substring(i + 1, close).trim();
+            if (!expression.isEmpty()) parts.add("tostring(" + this.transform(expression) + ")");
+            else literal.append("{}");
+            i = close + 1;
          } else {
-            out.append('"');
+            literal.append(current);
+            ++i;
          }
-
-         return out.toString();
       }
+      if (literal.length() > 0) parts.add(this.luaString(literal.toString()));
+      return parts.isEmpty() ? "\"\"" : String.join(" .. ", parts);
+   }
+
+   private int findInterpolationClose(String source, int open) {
+      int depth = 1;
+      char quote = 0;
+      for (int i = open + 1; i < source.length(); ++i) {
+         char current = source.charAt(i);
+         if (quote != 0) {
+            if (current == '\\') ++i;
+            else if (current == quote) quote = 0;
+            continue;
+         }
+         if (current == '\'' || current == '\"') {
+            quote = current;
+         } else if (current == '-' && i + 1 < source.length() && source.charAt(i + 1) == '-') {
+            int lineEnd = source.indexOf('\n', i + 2);
+            if (lineEnd < 0) return -1;
+            i = lineEnd;
+         } else if (current == '{') {
+            ++depth;
+         } else if (current == '}' && --depth == 0) {
+            return i;
+         }
+      }
+      return -1;
+   }
+
+   private String luaString(String value) {
+      StringBuilder escaped = new StringBuilder(value.length() + 2).append('\"');
+      for (int i = 0; i < value.length(); ++i) {
+         char current = value.charAt(i);
+         switch (current) {
+            case '\\' -> escaped.append("\\\\");
+            case '\"' -> escaped.append("\\\"");
+            case '\n' -> escaped.append("\\n");
+            case '\r' -> escaped.append("\\r");
+            case '\t' -> escaped.append("\\t");
+            default -> escaped.append(current);
+         }
+      }
+      return escaped.append('\"').toString();
    }
 
    private static final class Seg {
