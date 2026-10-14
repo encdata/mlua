@@ -609,6 +609,17 @@ public final class MLuaNativeControl {
         public void requireCurrent() {
             Object current = MLuaGuiService.currentScreen();
             if (current != this.screen) throw new LuaError("[MLua] NativeControl is stale because its Minecraft screen is no longer open");
+            try {
+                Object children = this.screen.getClass().getMethod("children").invoke(this.screen);
+                if (children instanceof Iterable<?> widgets) {
+                    for (Object widget : widgets) if (widget == this.widget) return;
+                    throw new LuaError("[MLua] NativeControl is stale because its widget is no longer attached to the screen");
+                }
+            } catch (NoSuchMethodException ignored) {
+                // Some third-party screens do not expose their child widgets.
+            } catch (ReflectiveOperationException failure) {
+                throw new LuaError("[MLua] Could not verify whether NativeControl is still attached to its screen");
+            }
         }
     }
 }

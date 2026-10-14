@@ -141,6 +141,9 @@ public final class MLuaBehaviorRegistry {
       if (definition == null) throw new IllegalArgumentException("Scripted container definition is required");
       if (definition.rows() < 1 || definition.rows() > 6) throw new IllegalArgumentException("Scripted container rows must be from 1 to 6");
       if (definition.title() == null || definition.title().isBlank()) throw new IllegalArgumentException("Scripted container title must be non-empty");
+      if (definition.allowedItems().stream().anyMatch(item -> item.isBlank() || !item.contains(":"))) {
+         throw new IllegalArgumentException("Scripted container allowed item ids must be non-empty and namespaced");
+      }
       return definition;
    }
 

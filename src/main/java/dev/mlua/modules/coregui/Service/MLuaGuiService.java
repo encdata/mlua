@@ -951,7 +951,8 @@ public final class MLuaGuiService implements MLuaService {
                 if (!initialize.isfunction()) throw new LuaError("[MLua] Gui:OpenNativeScreen expects an initialization function.");
                 Minecraft minecraft = Minecraft.getInstance();
                 if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
-                MLuaScriptScreen screen = new MLuaScriptScreen(title, initialize, MLuaGuiService.this.state,
+                MLuaScriptScreen screen = new MLuaScriptScreen(title, initialize,
+                    MLuaGuiService.this.context.mlua().registration(), MLuaGuiService.this.state,
                     MLuaGuiService.this.context.mlua().ownerModId());
                 MLuaGuiService.this.state.scriptScreens.add(screen);
                 minecraft.setScreen(screen);
@@ -1338,12 +1339,14 @@ public final class MLuaGuiService implements MLuaService {
         private boolean classInitialized;
         private boolean disposed;
         private boolean renderFailed;
+        private int nextNativeButtonIndex = 1;
 
-        private MLuaScriptScreen(String title, LuaValue initialize, GuiState state, String ownerModId) {
+        private MLuaScriptScreen(String title, LuaValue initialize, MLuaRegistration registration,
+                                 GuiState state, String ownerModId) {
             super(Component.literal(title));
             this.initialize = initialize;
             this.luaInstance = null;
-            this.registration = null;
+            this.registration = registration;
             this.className = null;
             this.fields = null;
             this.state = state;
@@ -1366,6 +1369,7 @@ public final class MLuaGuiService implements MLuaService {
             super.init();
             this.textLines.clear();
             this.renderFailed = false;
+            this.nextNativeButtonIndex = 1;
             LuaTable builder = new LuaTable();
             builder.set("SetOnClose", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
@@ -1401,8 +1405,7 @@ public final class MLuaGuiService implements MLuaService {
                     LuaTable size = requireScreenUDim2(args.arg(4), "Size");
                     LuaValue callback = args.arg(5);
                     if (!callback.isfunction()) throw new LuaError("[MLua] Screen:AddButton expects a callback function.");
-                    MLuaScriptScreen.this.addNativeButton(label, position, size, callback);
-                    return LuaValue.NONE;
+                    return MLuaScriptScreen.this.addNativeButton(label, position, size, callback);
                 }
             });
             try {
@@ -1427,16 +1430,24 @@ public final class MLuaGuiService implements MLuaService {
             }
         }
 
-        private void addNativeButton(String label, LuaTable position, LuaTable size, LuaValue callback) {
+        private LuaTable addNativeButton(String label, LuaTable position, LuaTable size, LuaValue callback) {
             int x = screenCoordinate(position, "X", this.width);
             int y = screenCoordinate(position, "Y", this.height);
             int width = screenCoordinate(size, "X", this.width);
             int height = screenCoordinate(size, "Y", this.height);
             if (width < 1 || height < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
-            this.addRenderableWidget(Button.builder(Component.literal(label), button -> {
-                try { callback.invoke(LuaValue.NONE); }
+            int buttonIndex = this.nextNativeButtonIndex++;
+            LuaTable[] controlRef = new LuaTable[1];
+            Button button = Button.builder(Component.literal(label), clicked -> {
+                try {
+                    callback.invoke(controlRef[0]);
+                }
                 catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen button callback failed", failure); }
-            }).bounds(x, y, width, height).build());
+            }).bounds(x, y, width, height).build();
+            this.addRenderableWidget(button);
+            controlRef[0] = MLuaNativeControl.instance(this.registration,
+                new MLuaNativeControl.Backing(button, this, this.getClass().getName(), buttonIndex));
+            return controlRef[0];
         }
 
         @Override public void onClose() {
