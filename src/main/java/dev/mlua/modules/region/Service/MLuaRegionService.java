@@ -355,9 +355,10 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       return table;
    }
 
-   @dev.mlua.api.MLuaDescription("Creates a spherical region from a center position and radius.")
-   public LuaValue CreateRegion(String name, double centerX, double centerY, double centerZ, double radius) {
-      return this.createRegion(name, centerX, centerY, centerZ, radius);
+   @dev.mlua.api.MLuaDescription("Creates a spherical region from a native Vector3 or CFrame center position and radius.")
+   public LuaValue CreateRegion(String name, LuaValue center, double radius) {
+      double[] position = MLuaCFrame.vector(center);
+      return this.createRegion(name, position[0], position[1], position[2], radius);
    }
 
    @dev.mlua.api.MLuaDescription("Creates a spherical region from a Vector3 or CFrame position and radius.")
@@ -366,10 +367,11 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       return this.createRegion(name, position[0], position[1], position[2], radius);
    }
 
-   @dev.mlua.api.MLuaDescription("Creates an axis-aligned box region from two corner positions.")
-   public LuaValue CreateBoxRegion(String name, double minX, double minY, double minZ,
-                                   double maxX, double maxY, double maxZ) {
-      return this.createBoxRegion(name, minX, minY, minZ, maxX, maxY, maxZ);
+   @dev.mlua.api.MLuaDescription("Creates an axis-aligned box region from native minimum and maximum Vector3 or CFrame positions.")
+   public LuaValue CreateBoxRegion(String name, LuaValue minimum, LuaValue maximum) {
+      double[] min = MLuaCFrame.vector(minimum);
+      double[] max = MLuaCFrame.vector(maximum);
+      return this.createBoxRegion(name, min[0], min[1], min[2], max[0], max[1], max[2]);
    }
 
    @dev.mlua.api.MLuaDescription("Creates an axis-aligned box region from minimum and maximum Vector3 or CFrame positions.")
