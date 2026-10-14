@@ -256,13 +256,11 @@ public final class MLuaRuntime implements MLuaRegistration {
       return this.services;
    }
 
-   /** @deprecated Register services with a service description and function descriptions. */
    @Deprecated(forRemoval = false)
    public void registerService(String name, Function<MLuaService.Context, MLuaService> factory) {
       this.registerService(name, Side.BOTH, factory, null, Map.of());
    }
 
-   /** @deprecated Register services with a service description and function descriptions. */
    @Deprecated(forRemoval = false)
    public void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory) {
       this.registerService(name, side, factory, null, Map.of());
@@ -347,8 +345,6 @@ public final class MLuaRuntime implements MLuaRegistration {
             throw new IllegalStateException("Lua service class '" + className + "' function '" + methodName
                + "' has invalid description metadata");
          }
-         // A service subclass may override a documented parent method with its own
-         // contract. A description already declared on this class remains authoritative.
          if (existingMethodDescription.isstring() && !methodDescription.equals(existingMethodDescription.tojstring())) {
             throw new IllegalStateException("Lua service class '" + className + "' function '" + methodName
                + "' is already registered with a different description");
@@ -513,8 +509,6 @@ public final class MLuaRuntime implements MLuaRegistration {
    public boolean unregisterClassIfUnused(String name) {
       LuaTable classTable = this.classes.get(name);
       boolean removed = this.classes.unregisterIfUnused(name);
-      // A pending service class must release the session's strong reference to its
-      // old live instance so class removal can finish once script contexts release it.
       if (classTable != null) this.session.forgetLuaServicesForClass(classTable);
       return removed;
    }
@@ -1170,10 +1164,6 @@ public final class MLuaRuntime implements MLuaRegistration {
       this.pollClientHotReload();
    }
 
-   /**
-    * Removes this mod's signal listeners, entity components, and scheduled tasks for one side.
-    * @return number of scheduled tasks removed
-    */
    public int clearOwnedScriptState(Side side, String ownerModId) {
       if (side == null || ownerModId == null || ownerModId.isBlank()) return 0;
       MLuaSignal.destroyAllOwned(this.session, ownerModId, side);
