@@ -1024,6 +1024,10 @@ public final class MLuaGuiService implements MLuaService {
         LuaTable vanillaHudElements = new LuaTable();
         vanillaHudElements.set("Hud", LuaValue.valueOf("Hud"));
         vanillaHudElements.set("Chat", LuaValue.valueOf("Chat"));
+        vanillaHudElements.set("Crosshair", LuaValue.valueOf("Crosshair"));
+        vanillaHudElements.set("Hotbar", LuaValue.valueOf("Hotbar"));
+        vanillaHudElements.set("Health", LuaValue.valueOf("Health"));
+        vanillaHudElements.set("Experience", LuaValue.valueOf("Experience"));
         table.set("VanillaHudElements", vanillaHudElements);
         table.set("AttachElementBefore", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -1378,10 +1382,16 @@ public final class MLuaGuiService implements MLuaService {
         if (this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
         if (id == null || id.isBlank()) throw new LuaError("[MLua] HUD element id must not be empty.");
         String normalizedAnchor = anchor == null ? "" : anchor.trim();
-        String positionAnchor;
-        if ("Hud".equalsIgnoreCase(normalizedAnchor)) positionAnchor = "Hud";
-        else if ("Chat".equalsIgnoreCase(normalizedAnchor)) positionAnchor = "Chat";
-        else throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor + "'. Available anchors: Hud, Chat.");
+        String positionAnchor = switch (normalizedAnchor.toLowerCase(java.util.Locale.ROOT)) {
+            case "hud" -> "Hud";
+            case "chat" -> "Chat";
+            case "crosshair" -> "Crosshair";
+            case "hotbar" -> "Hotbar";
+            case "health" -> "Health";
+            case "experience" -> "Experience";
+            default -> throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor
+                + "'. Available anchors: Hud, Chat, Crosshair, Hotbar, Health, Experience.");
+        };
         if (!callback.isfunction()) throw new LuaError("[MLua] HUD element callback must be a function.");
         String owner = this.context.mlua().ownerModId();
         String key = owner + ":" + id;
