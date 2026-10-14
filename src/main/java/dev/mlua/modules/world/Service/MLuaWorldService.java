@@ -14,6 +14,7 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
+import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;

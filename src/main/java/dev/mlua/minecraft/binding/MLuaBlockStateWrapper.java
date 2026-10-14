@@ -3,6 +3,7 @@ package dev.mlua.minecraft.binding;
 import dev.mlua.module.MLuaRegistration;
 import java.util.Locale;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -87,7 +88,12 @@ public final class MLuaBlockStateWrapper {
         registration.registerClassFunction("BlockState", "IsSignalSource", self((self, args) ->
             LuaValue.valueOf(state(self).isSignalSource())), "Returns whether this state can provide a redstone signal.");
         registration.registerClassFunction("BlockState", "GetAnalogOutputSignal", self((self, args) ->
+//--version 26.1,26.1.1,26.1.2
+            LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self), Direction.UP))),
+//--endversion
+//--version 1.20.1,1.21.1
             LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self)))),
+//--endversion
             "Returns this state's analog redstone output at its world position.");
         registration.registerClassFunction("BlockState", "CanOcclude", self((self, args) ->
             LuaValue.valueOf(state(self).canOcclude())), "Returns whether this state occludes neighboring faces.");
@@ -95,7 +101,12 @@ public final class MLuaBlockStateWrapper {
             LuaValue.valueOf(state(self).isViewBlocking(level(self), position(self)))),
             "Returns whether this state blocks visibility at its world position.");
         registration.registerClassFunction("BlockState", "GetLightBlock", self((self, args) ->
+//--version 26.1,26.1.1,26.1.2
+            LuaValue.valueOf(state(self).getLightDampening())),
+//--endversion
+//--version 1.20.1,1.21.1
             LuaValue.valueOf(state(self).getLightBlock(level(self), position(self)))),
+//--endversion
             "Returns the light level blocked by this state at its world position.");
         registration.registerClassFunction("BlockState", "GetDestroySpeed", self((self, args) -> {
             BlockState state = state(self);

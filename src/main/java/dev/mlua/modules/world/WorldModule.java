@@ -322,6 +322,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState");
         docs.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean");
         docs.signature("World", "World:GetFluidState(position: Vector3|CFrame)", "FluidState");
+        docs.signature("Block", "Block:GetFluidState()", "FluidState");
         docs.signature("BlockState", "BlockState:GetId()", "string");
         docs.signature("BlockState", "BlockState:GetBlock()", "Block");
         docs.signature("BlockState", "BlockState:GetPosition()", "Vector3");
@@ -351,6 +352,9 @@ public class WorldModule implements MLuaModule {
         docs.signature("FluidState", "FluidState:IsSource()", "boolean");
         docs.signature("FluidState", "FluidState:GetAmount()", "number");
         docs.signature("FluidState", "FluidState:GetHeight()", "number");
+        docs.signature("FluidState", "FluidState:GetOwnHeight()", "number");
+        docs.signature("FluidState", "FluidState:GetFlow()", "Vector3");
+        docs.signature("FluidState", "FluidState:IsRandomlyTicking()", "boolean");
         docs.signature("FluidState", "FluidState:GetBlockState()", "BlockState");
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("World", "World:ListGameRules()", "GameRuleList");
@@ -502,6 +506,10 @@ public class WorldModule implements MLuaModule {
         docs.property("FluidState", "fluidState.Source", "boolean", "Whether this is a source fluid state.", "shared:Shared");
         docs.property("FluidState", "fluidState.Amount", "number", "This fluid state's level amount.", "shared:Shared");
         docs.property("FluidState", "fluidState.Height", "number", "This fluid state's height at its world position.", "shared:Shared");
+        docs.property("FluidState", "fluidState.OwnHeight", "number", "This fluid state's intrinsic height.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Flow", "Vector3", "This fluid state's flow direction.", "shared:Shared");
+        docs.property("FluidState", "fluidState.RandomlyTicking", "boolean", "Whether this fluid state receives random game ticks.", "shared:Shared");
+        docs.property("FluidState", "fluidState.BlockState", "BlockState", "The legacy block state representing this fluid at its world position.", "shared:Shared");
         docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
         docs.property("Chunk", "chunk.X", "number", "This chunk's X coordinate.", "shared:Shared");
         docs.property("Chunk", "chunk.Z", "number", "This chunk's Z coordinate.", "shared:Shared");

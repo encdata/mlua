@@ -46,6 +46,14 @@ public final class MLuaFluidStateWrapper {
         registration.registerClassFunction("FluidState", "GetHeight", self((self, args) ->
             LuaValue.valueOf(state(self).getHeight(level(self), position(self)))),
             "Returns this fluid state's height at its world position.");
+        registration.registerClassFunction("FluidState", "GetOwnHeight", self((self, args) ->
+            LuaValue.valueOf(state(self).getOwnHeight())), "Returns this fluid state's intrinsic height.");
+        registration.registerClassFunction("FluidState", "GetFlow", self((self, args) -> {
+            net.minecraft.world.phys.Vec3 flow = state(self).getFlow(level(self), position(self));
+            return dev.mlua.math.MLuaVector.vector3(flow.x, flow.y, flow.z);
+        }), "Returns this fluid state's flow direction as a Vector3.");
+        registration.registerClassFunction("FluidState", "IsRandomlyTicking", self((self, args) ->
+            LuaValue.valueOf(state(self).isRandomlyTicking())), "Returns whether this fluid state receives random game ticks.");
         registration.registerClassFunction("FluidState", "GetBlockState", self((self, args) ->
             MLuaBlockStateWrapper.wrap(state(self).createLegacyBlock(), level(self), position(self), registration)),
             "Returns the legacy BlockState that represents this fluid at its world position.");
@@ -55,7 +63,11 @@ public final class MLuaFluidStateWrapper {
             {"Empty", "IsEmpty", "boolean", "Whether this position contains no fluid."},
             {"Source", "IsSource", "boolean", "Whether this is a source fluid state."},
             {"Amount", "GetAmount", "number", "This fluid state's level amount."},
-            {"Height", "GetHeight", "number", "This fluid state's height at its world position."}
+            {"Height", "GetHeight", "number", "This fluid state's height at its world position."},
+            {"OwnHeight", "GetOwnHeight", "number", "This fluid state's intrinsic height."},
+            {"Flow", "GetFlow", "Vector3", "This fluid state's flow direction."},
+            {"RandomlyTicking", "IsRandomlyTicking", "boolean", "Whether this fluid state receives random game ticks."},
+            {"BlockState", "GetBlockState", "BlockState", "The legacy block state representing this fluid at its world position."}
         };
         for (String[] property : properties) {
             MLuaClassMethods.registerInstanceProperty(registration, "FluidState", property[0], property[1], null,
