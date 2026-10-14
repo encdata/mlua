@@ -18,6 +18,7 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.loaderapi.GeneratedAssetKind;
 import dev.mlua.loaderapi.RegistryHandle;
@@ -1137,11 +1138,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          "Registry".equals(category)
             ? "The central registry service for built-in Minecraft content and addon-owned categories."
             : "Registry." + category + " provides the registration and lookup operations available for this content category."));
-      LuaTable methods = new LuaTable();
-      METHOD_DESCRIPTIONS.forEach((name, description) -> {
-         if (target.rawget(name).isfunction()) methods.rawset(name, LuaValue.valueOf(description));
-      });
-      target.rawset("__mlua_doc_methods", methods);
+      MLuaServiceMetadata.attachMethodDescriptions(target, METHOD_DESCRIPTIONS);
    }
 
    private VarArgFunction contentTypeRegistrar(String domain) {

@@ -2,6 +2,7 @@ package dev.mlua.modules.javabridge.Service;
 
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.common.mixin.MLuaClassViewer;
 import dev.mlua.loaderapi.LoaderApi;
 import java.lang.reflect.Array;
@@ -354,13 +355,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 return wrapJavaValue(convertLuaValue(source, conversionType), conversionType);
             }
         });
-        LuaTable methodDescriptions = new LuaTable();
-        SERVICE_METHOD_DESCRIPTIONS.forEach((name, description) -> {
-            if (table.rawget(name).isfunction()) {
-                methodDescriptions.rawset(name, LuaValue.valueOf(description));
-            }
-        });
-        table.set("__mlua_doc_methods", methodDescriptions);
+        MLuaServiceMetadata.attachMethodDescriptions(table, SERVICE_METHOD_DESCRIPTIONS);
         return table;
     }
 

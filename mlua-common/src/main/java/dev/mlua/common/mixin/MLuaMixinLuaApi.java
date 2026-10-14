@@ -1,6 +1,7 @@
 package dev.mlua.common.mixin;
 
 import dev.mlua.common.enums.MixinType;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,25 +51,15 @@ public final class MLuaMixinLuaApi {
       table.set("GetFailures", function(args -> getFailures()));
       table.set("Target", function(args -> targetApi(args.checkjstring(2), activeScope, registrationAllowed)));
       bindOperations(table, args -> args.checkjstring(2), 3, 4, activeScope, registrationAllowed);
-      describeFunctions(table);
+      MLuaServiceMetadata.attachMethodDescriptions(table, FUNCTION_DESCRIPTIONS);
       return table;
-   }
-
-   private static void describeFunctions(LuaTable table) {
-      LuaTable methodDescriptions = new LuaTable();
-      FUNCTION_DESCRIPTIONS.forEach((name, description) -> {
-         if (table.rawget(name).isfunction()) {
-            methodDescriptions.set(name, LuaValue.valueOf(description));
-         }
-      });
-      table.set("__mlua_doc_methods", methodDescriptions);
    }
 
    private static LuaTable targetApi(String targetClass, Supplier<String> activeScope,
                                      BooleanSupplier registrationAllowed) {
       LuaTable target = new LuaTable();
       bindOperations(target, args -> targetClass, 2, 3, activeScope, registrationAllowed);
-      describeFunctions(target);
+      MLuaServiceMetadata.attachMethodDescriptions(target, FUNCTION_DESCRIPTIONS);
       return target;
    }
 

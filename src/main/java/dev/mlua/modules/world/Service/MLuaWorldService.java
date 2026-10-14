@@ -3,6 +3,7 @@ package dev.mlua.modules.world.Service;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
@@ -92,10 +93,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetWeather", currentWorldMethod("GetWeather"));
       table.set("SetWeather", currentWorldMethod("SetWeather"));
       WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
-      LuaTable methodDescriptions = new LuaTable();
-      WorldModule.worldServiceMethods().forEach((name, description) ->
-         methodDescriptions.set(name, LuaValue.valueOf(description)));
-      table.set("__mlua_doc_methods", methodDescriptions);
+      MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods());
       return table;
    }
 
