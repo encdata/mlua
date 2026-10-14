@@ -401,10 +401,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int distanceIndex = 2 + coordinateWidth(args, 2);
          double maxDistance = checkedQueryRadius(args.optdouble(distanceIndex, Double.MAX_VALUE));
          LuaValue filter = args.arg(distanceIndex + 1);
-         AABB box = new AABB(pos[0] - maxDistance, pos[1] - maxDistance, pos[2] - maxDistance, pos[0] + maxDistance, pos[1] + maxDistance, pos[2] + maxDistance);
          Entity nearest = null;
          double nearestDistance = maxDistance * maxDistance;
-         for (Entity entity : level.getEntities((Entity)null, box)) {
+         for (Entity entity : entityCandidates(level, pos, maxDistance)) {
             if (!matchesFilter(entity, filter)) {
                continue;
             }
@@ -664,24 +663,27 @@ public final class MLuaWorldService extends MLuaServiceBase {
    private LuaTable entitiesInRadius(Level level, double[] center, double radius, LuaValue filter) {
       LuaTable list = new LuaTable();
       double radiusSquared = radius * radius;
+      int index = 1;
+      for (Entity entity : entityCandidates(level, center, radius)) {
+         if (matchesFilter(entity, filter) && entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
+            list.set(index++, wrapEntity(entity));
+         }
+      }
+      return list;
+   }
+
+   private Iterable<Entity> entityCandidates(Level level, double[] center, double radius) {
       double minX = center[0] - radius;
       double minY = center[1] - radius;
       double minZ = center[2] - radius;
       double maxX = center[0] + radius;
       double maxY = center[1] + radius;
       double maxZ = center[2] + radius;
-      boolean bounded = Double.isFinite(minX) && Double.isFinite(minY) && Double.isFinite(minZ)
-         && Double.isFinite(maxX) && Double.isFinite(maxY) && Double.isFinite(maxZ);
-      Iterable<Entity> entities = bounded
-         ? level.getEntities((Entity)null, new AABB(minX, minY, minZ, maxX, maxY, maxZ))
-         : this.allEntities(level);
-      int index = 1;
-      for (Entity entity : entities) {
-         if (matchesFilter(entity, filter) && entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
-            list.set(index++, wrapEntity(entity));
-         }
+      if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(minZ)
+            || !Double.isFinite(maxX) || !Double.isFinite(maxY) || !Double.isFinite(maxZ)) {
+         return this.allEntities(level);
       }
-      return list;
+      return level.getEntities((Entity)null, new AABB(minX, minY, minZ, maxX, maxY, maxZ));
    }
 
    private LuaTable playersInRadius(Level level, double[] center, double radius) {
@@ -902,10 +904,17 @@ public final class MLuaWorldService extends MLuaServiceBase {
       if (!name.isnil() && !entity.getName().getString().equals(name.tojstring())) return false;
       LuaValue excludedEntity = table.get("exclude");
       if (!excludedEntity.isnil()) {
-         if (!excludedEntity.istable()) throw new LuaError("[MLua] EntityQuery.exclude must be a live Entity instance.");
-         LuaValue rawEntity = excludedEntity.checktable().rawget("__entity");
-         if (!rawEntity.isuserdata(Entity.class)) throw new LuaError("[MLua] EntityQuery.exclude must be a live Entity instance.");
-         if (rawEntity.touserdata(Entity.class) == entity) return false;
+         if (entityReference(excludedEntity, "EntityQuery.exclude") == entity) return false;
+      }
+      LuaValue excludedEntities = table.get("exclude_entities");
+      if (!excludedEntities.isnil() && !excludedEntities.istable()) {
+         throw new LuaError("[MLua] EntityQuery.exclude_entities must be an array of live Entity instances.");
+      }
+      if (excludedEntities.istable()) {
+         LuaTable entities = excludedEntities.checktable();
+         for (int index = 1; !entities.get(index).isnil(); index++) {
+            if (entityReference(entities.get(index), "EntityQuery.exclude_entities") == entity) return false;
+         }
       }
       LuaValue tag = table.get("tag");
       if (!tag.isnil() && !MLuaDataManager.hasEntityTag(entity, tag.tojstring())) return false;
@@ -940,6 +949,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (expected.equals(value.tojstring())) return true;
       }
       return false;
+   }
+
+   private static Entity entityReference(LuaValue value, String field) {
+      if (!value.istable()) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
+      LuaValue rawEntity = value.checktable().rawget("__entity");
+      if (!rawEntity.isuserdata(Entity.class)) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
+      return rawEntity.touserdata(Entity.class);
    }
 
    private static double checkedQueryRadius(double radius) {

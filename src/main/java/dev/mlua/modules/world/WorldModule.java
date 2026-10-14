@@ -425,6 +425,7 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "players_only", "boolean", "Include only player entities when true.");
         docs.field("EntityQuery", "exclude_players", "boolean", "Exclude player entities when true.");
         docs.field("EntityQuery", "exclude", "Entity", "Exclude this live entity from the query results.");
+        docs.field("EntityQuery", "exclude_entities", "Entity[]", "Exclude these live entity instances from the query results.");
         docs.field("EntityQuery", "alive", "boolean", "Require the entity's alive state to match.");
         docs.field("EntityQuery", "name", "string", "Require an exact entity name.");
         docs.field("EntityQuery", "tag", "string", "Require this saved MLua entity tag.");
@@ -432,7 +433,7 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed saved MLua tag.");
         docs.guideStep("World", "Query several entity types",
             "Use types to include a set of registered entity identifiers and exclude_types to remove specific ones. Radius searches use a spherical distance from the center.",
-            "local world = Minecraft:GetService(\"World\"):Current()\nlocal hostiles = world:FindEntitiesInRadius(player.Position, 24, {\n    types = { \"minecraft:zombie\", \"minecraft:skeleton\", \"minecraft:creeper\" },\n    exclude = player\n})\n\nfor _, entity in ipairs(hostiles) do\n    print(entity.Name, entity.Position)\nend");
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal hostiles = world:FindEntitiesInRadius(player.Position, 24, {\n    types = { \"minecraft:zombie\", \"minecraft:skeleton\", \"minecraft:creeper\" },\n    exclude_entities = { player, projectile }\n})\n\nfor _, entity in ipairs(hostiles) do\n    print(entity.Name, entity.Position)\nend");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance for one dimension, with time, block, entity, and chunk APIs.", "classes/world.html", "Level");
         docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
