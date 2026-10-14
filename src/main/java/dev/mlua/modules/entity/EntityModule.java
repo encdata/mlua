@@ -127,7 +127,7 @@ public final class EntityModule implements MLuaModule {
         docs.signature("EntityService", "EntityService:FindByUUID(uuid: string)", "Entity?");
         docs.signature("EntityService", "EntityService:GetAll()", "Entity[]");
         docs.signature("EntityService", "EntityService:GetNearby(center: Entity|Vector3|CFrame, radius: number)", "Entity[]");
-        docs.signature("EntityService", "EntityService:Spawn(typeId: string, position: Vector3|CFrame, world: World?)", "Entity");
+        docs.signature("EntityService", "EntityService:Spawn(typeId: string, position: Entity|Vector3|CFrame, world: World|string?)", "Entity?");
         docs.signature("EntityService", "EntityService:Teleport(entity: Entity, position: Vector3|CFrame)", "void");
         docs.signature("EntityService", "EntityService:SetVelocity(entity: Entity, velocity: Vector3)", "void");
         docs.signature("EntityService", "EntityService:Damage(entity: Entity, amount: number)", "boolean");

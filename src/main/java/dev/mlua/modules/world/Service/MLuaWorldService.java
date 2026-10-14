@@ -5,6 +5,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
+import dev.mlua.modules.world.MLuaChunkWrapper;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
@@ -143,22 +144,29 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.valueOf(level.hasChunkAt(BlockPos.containing(pos[0], pos[1], pos[2])));
       }));
       table.set("IsBlockLoaded", table.get("IsChunkLoaded"));
+      table.set("GetChunk", levelFn(supplier, (level, args) ->
+         MLuaChunkWrapper.chunkTable(level, chunkPosition(args, 2), context.mlua().registration())));
+      table.set("GetChunkAt", table.get("GetChunk"));
       table.set("LoadChunk", serverLevelFn(supplier, (level, args) -> {
          ChunkPos chunk = chunkPosition(args, 2);
          level.getChunk(chunk.x, chunk.z);
-         return LuaValue.TRUE;
+         return MLuaChunkWrapper.chunkTable(level, chunk, context.mlua().registration());
       }));
       table.set("UnloadChunk", serverLevelFn(supplier, (level, args) -> {
          ChunkPos chunk = chunkPosition(args, 2);
-         return LuaValue.valueOf(level.setChunkForced(chunk.x, chunk.z, false));
+         level.setChunkForced(chunk.x, chunk.z, false);
+         return LuaValue.valueOf(!level.getForcedChunks().contains(ChunkPos.asLong(chunk.x, chunk.z)));
       }));
       table.set("SetChunkForced", serverLevelFn(supplier, (level, args) -> {
          ChunkPos chunk = chunkPosition(args, 2);
-         return LuaValue.valueOf(level.setChunkForced(chunk.x, chunk.z, args.checkboolean(2 + coordinateWidth(args, 2))));
+         boolean forced = args.checkboolean(2 + coordinateWidth(args, 2));
+         level.setChunkForced(chunk.x, chunk.z, forced);
+         return LuaValue.valueOf(level.getForcedChunks().contains(ChunkPos.asLong(chunk.x, chunk.z)) == forced);
       }));
       table.set("ForceLoadChunk", serverLevelFn(supplier, (level, args) -> {
          ChunkPos chunk = chunkPosition(args, 2);
-         return LuaValue.valueOf(level.setChunkForced(chunk.x, chunk.z, true));
+         level.setChunkForced(chunk.x, chunk.z, true);
+         return LuaValue.valueOf(level.getForcedChunks().contains(ChunkPos.asLong(chunk.x, chunk.z)));
       }));
       table.set("IsChunkForced", serverLevelFn(supplier, (level, args) -> {
          ChunkPos chunk = chunkPosition(args, 2);
@@ -443,12 +451,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (entityType == null) {
             throw new LuaError("[MLua] Entity type not yet available: " + entityId);
          }
+         BlockPos spawnPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!ensureChunkLoaded(level, spawnPosition, true)) return LuaValue.NIL;
          Entity entity = entityType.create(level);
          if (entity == null) {
             throw new LuaError("[MLua] Failed to spawn entity: " + entityId);
          }
-         BlockPos spawnPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
-         if (!ensureChunkLoaded(level, spawnPosition, true)) return LuaValue.NIL;
          entity.setPos(pos[0], pos[1], pos[2]);
          entity.setYRot((float)yaw);
          entity.setXRot((float)pitch);

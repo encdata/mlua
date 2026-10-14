@@ -18,6 +18,21 @@ import org.luaj.vm2.LuaValue;
 public class WorldModule implements MLuaModule {
     private static final Map<String, String> WORLD_METHODS = createWorldMethods();
     private static final Map<String, String> WORLD_SERVICE_METHODS = createWorldServiceMethods();
+    private static final Map<String, String> CHUNK_METHODS = Map.ofEntries(
+        Map.entry("GetX", "Returns this chunk's X coordinate."),
+        Map.entry("GetZ", "Returns this chunk's Z coordinate."),
+        Map.entry("GetPosition", "Returns the world-space minimum X/Z position of this chunk."),
+        Map.entry("IsLoaded", "Checks whether this chunk is currently loaded without loading it."),
+        Map.entry("IsForced", "Checks whether this dimension has a force-load ticket for this chunk."),
+        Map.entry("Load", "Loads this chunk on the server and returns the same Chunk instance."),
+        Map.entry("Unload", "Removes this chunk's server force-load ticket; Minecraft decides when it unloads."),
+        Map.entry("SetForced", "Sets this chunk's server force-load ticket."),
+        Map.entry("ForceLoad", "Adds a persistent server force-load ticket for this chunk."),
+        Map.entry("GetBlockAt", "Loads this chunk if needed and returns a block at a world position inside it."),
+        Map.entry("GetBlockEntityAt", "Loads this chunk if needed and returns its block entity at a world position."),
+        Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block at a world position inside it. Server-side only."),
+        Map.entry("GetEntities", "Loads this chunk if needed and returns its live entities.")
+    );
 
     @Override
     public List<String> dependencies() { return List.of("core-classes"); }
@@ -29,6 +44,20 @@ public class WorldModule implements MLuaModule {
         worldMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "World", name, description));
         registerWorldProperties(registration);
+        registration.registerClass("Chunk", "Instance", "A dimension-scoped chunk handle whose data methods load the chunk when needed.");
+        chunkMethods().forEach((name, description) ->
+            MLuaClassMethods.registerInstanceMethod(registration, "Chunk", name, description));
+        String[][] chunkProperties = {
+            {"X", "GetX", "number", "This chunk's X coordinate."},
+            {"Z", "GetZ", "number", "This chunk's Z coordinate."},
+            {"Position", "GetPosition", "Vector3", "The world-space minimum X/Z position of this chunk."},
+            {"Loaded", "IsLoaded", "boolean", "Whether this chunk is loaded now, without loading it."},
+            {"Forced", "IsForced", "boolean", "Whether this chunk has a force-load ticket."}
+        };
+        for (String[] property : chunkProperties) {
+            MLuaClassMethods.registerInstanceProperty(registration, "Chunk", property[0], property[1], null,
+                property[2], "shared:Shared", property[3]);
+        }
     }
 
     private static void registerWorldProperties(MLuaRegistration registration) {
@@ -57,6 +86,10 @@ public class WorldModule implements MLuaModule {
         return WORLD_METHODS;
     }
 
+    public static Map<String, String> chunkMethods() {
+        return CHUNK_METHODS;
+    }
+
     private static Map<String, String> createWorldMethods() {
         return Map.ofEntries(
             Map.entry("GetId", "Returns this world's dimension identifier."),
@@ -67,6 +100,8 @@ public class WorldModule implements MLuaModule {
             Map.entry("IsChunkLoaded", "Returns whether the chunk at a position is loaded."),
             Map.entry("IsBlockLoaded", "Returns whether the chunk containing a position is loaded."),
             Map.entry("LoadChunk", "Loads or generates the chunk containing a position in this dimension."),
+            Map.entry("GetChunk", "Returns a live chunk handle for a position without loading it yet."),
+            Map.entry("GetChunkAt", "Returns a live chunk handle for a position without loading it yet."),
             Map.entry("UnloadChunk", "Removes this dimension's force-load ticket; Minecraft unloads it when no other tickets need it."),
             Map.entry("SetChunkForced", "Sets whether this dimension keeps a chunk force-loaded."),
             Map.entry("ForceLoadChunk", "Keeps a chunk force-loaded in this dimension until its force-load ticket is removed."),
@@ -180,16 +215,33 @@ public class WorldModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.signature("World", "World:IsChunkLoaded(position: Vector3|CFrame)", "boolean");
-        docs.signature("World", "World:LoadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:GetChunkAt(position: Vector3|CFrame)", "Chunk");
+        docs.signature("World", "World:LoadChunk(position: Vector3|CFrame)", "Chunk");
+        docs.signature("World", "World:GetChunk(position: Vector3|CFrame)", "Chunk");
         docs.signature("World", "World:UnloadChunk(position: Vector3|CFrame)", "boolean");
         docs.signature("World", "World:SetChunkForced(position: Vector3|CFrame, forced: boolean)", "boolean");
         docs.signature("World", "World:ForceLoadChunk(position: Vector3|CFrame)", "boolean");
         docs.signature("World", "World:IsChunkForced(position: Vector3|CFrame)", "boolean");
         docs.signature("World", "World:GetEntitiesInChunk(position: Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, loadChunk: boolean?)", "boolean");
+        docs.signature("Chunk", "Chunk:GetX()", "number");
+        docs.signature("Chunk", "Chunk:GetZ()", "number");
+        docs.signature("Chunk", "Chunk:GetPosition()", "Vector3");
+        docs.signature("Chunk", "Chunk:IsLoaded()", "boolean");
+        docs.signature("Chunk", "Chunk:IsForced()", "boolean");
+        docs.signature("Chunk", "Chunk:Load()", "Chunk");
+        docs.signature("Chunk", "Chunk:Unload()", "boolean");
+        docs.signature("Chunk", "Chunk:SetForced(forced: boolean)", "boolean");
+        docs.signature("Chunk", "Chunk:ForceLoad()", "boolean");
+        docs.signature("Chunk", "Chunk:GetBlockAt(position: Vector3|CFrame)", "Block?");
+        docs.signature("Chunk", "Chunk:GetBlockEntityAt(position: Vector3|CFrame)", "BlockEntity?");
+        docs.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string)", "boolean");
+        docs.signature("Chunk", "Chunk:GetEntities()", "Entity[]");
         docs.signature("WorldService", "WorldService:Get(dimensionId: string)", "World?");
         docs.signature("WorldService", "WorldService:GetAll()", "World[]");
-        docs.signature("WorldService", "WorldService:LoadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:LoadChunk(position: Vector3|CFrame)", "Chunk");
+        docs.signature("WorldService", "WorldService:GetChunk(position: Vector3|CFrame)", "Chunk");
+        docs.signature("WorldService", "WorldService:GetChunkAt(position: Vector3|CFrame)", "Chunk");
         docs.signature("WorldService", "WorldService:UnloadChunk(position: Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:SetChunkForced(position: Vector3|CFrame, forced: boolean)", "boolean");
         docs.signature("WorldService", "WorldService:ForceLoadChunk(position: Vector3|CFrame)", "boolean");
@@ -238,16 +290,22 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "tags", "string[]", "Require every listed saved MLua entity tag.");
         docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed saved MLua tag.");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
-        docs.clazz("World", null, "A live world instance with dimension, time, block, entity, and weather APIs.", "classes/world.html", "Level");
+        docs.clazz("World", null, "A live world instance for one dimension, with time, block, entity, and chunk APIs.", "classes/world.html", "Level");
+        docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
+        docs.property("Chunk", "chunk.X", "number", "This chunk's X coordinate.", "shared:Shared");
+        docs.property("Chunk", "chunk.Z", "number", "This chunk's Z coordinate.", "shared:Shared");
+        docs.property("Chunk", "chunk.Position", "Vector3", "The world-space minimum X/Z position of this chunk.", "shared:Shared");
+        docs.property("Chunk", "chunk.Loaded", "boolean", "Whether this chunk is currently loaded, without loading it.", "shared:Shared");
+        docs.property("Chunk", "chunk.Forced", "boolean", "Whether this chunk has a force-load ticket.", "shared:Shared");
         docs.property("World", "world.Raining", "boolean", "Whether it is raining in this world.", "shared:Shared");
         docs.property("World", "world.Thundering", "boolean", "Whether a thunderstorm is active in this world.", "shared:Shared");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");
         docs.guideStep("World", "Load and edit chunks in a dimension",
-            "Each World instance is one dimension. LoadChunk loads or generates that dimension's chunk for immediate work. SetBlock loads the target chunk by default; pass false to avoid loading and get false when it is not already loaded. ForceLoadChunk adds a persistent force-load ticket. UnloadChunk removes that ticket, but Minecraft unloads the chunk only after all other tickets are gone.",
-            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal position = Vector3.new(32, 70, -16)\n\nnether:LoadChunk(position)\nnether:SetBlock(position, \"minecraft:lantern\")\n\nnether:ForceLoadChunk(position)\nprint(nether:IsChunkLoaded(position), nether:IsChunkForced(position))\nnether:UnloadChunk(position)");
+            "Each World instance is one dimension. GetChunk returns a live Chunk handle without loading it. Data methods such as GetBlockAt, SetBlockAt, and GetEntities load that chunk when called. LoadChunk loads it immediately and returns the same kind of handle. ForceLoad adds a persistent ticket; Unload removes that ticket, while Minecraft decides when the chunk can actually unload.",
+            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal position = Vector3.new(32, 70, -16)\nlocal chunk = nether:GetChunk(position)\n\nchunk:SetBlockAt(position, \"minecraft:lantern\")\nlocal loaded = nether:LoadChunk(position)\nprint(loaded.Loaded, loaded.X, loaded.Z)\n\nchunk:ForceLoad()\nprint(chunk.Forced)\nchunk:Unload()");
         docs.guideStep("World", "Find and remove entities in a chunk",
             "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances, so use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
-            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = world:SpawnEntity(\"minecraft:zombie\", position)");
+            "local worlds = Minecraft:GetService(\"World\")\nlocal world = worlds:Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = Minecraft:GetService(\"Entity\"):Spawn(\"minecraft:zombie\", position, world)");
         docs.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");

@@ -14,11 +14,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -84,7 +85,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return out;
     }
 
-    @MLuaDescription("Creates an entity at a position in a world.")
+    @MLuaDescription("Loads the target chunk and creates an entity in the supplied world, dimension, or the overworld by default.")
     public LuaValue Spawn(String typeId, LuaValue positionValue, Optional<LuaValue> second,
                           Optional<LuaValue> third, Optional<LuaValue> fourth) {
         if (context.mlua().server() == null) {
@@ -93,6 +94,9 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         double[] pos = position(positionValue, second.orElse(LuaValue.NIL), third.orElse(LuaValue.NIL));
         LuaValue worldValue = isPosition(positionValue) ? second.orElse(LuaValue.NIL) : fourth.orElse(LuaValue.NIL);
         ServerLevel level = resolveServerLevel(worldValue);
+        BlockPos blockPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
+        ChunkPos chunk = new ChunkPos(blockPosition);
+        level.getChunk(chunk.x, chunk.z);
         EntityType<?> type = (EntityType<?>) MCApiRuntime.lookupRegistry("entity_type", typeId);
         if (type == null) {
             throw new LuaError("[MLua] Unknown entity type: " + typeId);
@@ -114,7 +118,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         //--version 1.20.1,1.21.1
         entity.moveTo(pos[0], pos[1], pos[2], 0.0F, 0.0F);
         //--endversion
-        level.addFreshEntity(entity);
+        if (!level.addFreshEntity(entity)) return LuaValue.NIL;
         return wrap(entity);
     }
 
@@ -260,12 +264,19 @@ public final class MLuaEntityService extends MLuaReflectiveService {
                     return serverLevel;
                 }
             }
+            LuaValue world = value.checktable().rawget("__world");
+            if (!world.isuserdata()) world = value.checktable().rawget("__level");
+            if (world.isuserdata(Level.class) && world.touserdata(Level.class) instanceof ServerLevel serverLevel) {
+                return serverLevel;
+            }
         }
-        ServerPlayer player = context.mlua().server().getPlayerList().getPlayers().isEmpty()
-            ? null
-            : context.mlua().server().getPlayerList().getPlayers().get(0);
-        if (player != null) {
-            return player.serverLevel();
+        if (value.isstring()) {
+            net.minecraft.resources.ResourceLocation dimension = dev.mlua.minecraft.MLuaResourceLocations.tryParseOrNull(value.tojstring());
+            if (dimension == null) throw new LuaError("[MLua] Invalid dimension identifier: " + value.tojstring());
+            for (ServerLevel level : context.mlua().server().getAllLevels()) {
+                if (level.dimension().location().equals(dimension)) return level;
+            }
+            throw new LuaError("[MLua] Dimension is not loaded: " + value.tojstring());
         }
         return context.mlua().server().overworld();
     }
