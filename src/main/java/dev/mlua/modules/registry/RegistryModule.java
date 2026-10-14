@@ -331,6 +331,7 @@ public class RegistryModule implements MLuaModule {
             "onTick?", "fun(context: BlockBehaviorContext)", "Runs when a scheduled block tick fires.",
             "onFallOn?", "fun(context: BlockBehaviorContext)", "Handles an entity landing on the block.",
             "onProjectileHit?", "fun(context: BlockBehaviorContext)", "Runs when a projectile hits the block.",
+            "copy?", "string", "Registered block whose physical properties are copied; unknown identifiers fail when the block is created.",
             "hardness?", "number", "Block mining hardness.", "resistance?", "number", "Explosion resistance.",
             "lightLevel?", "number", "Emitted light level.", "mineableWith?", "string", "Required tool group.",
             "requiredToolTier?", "number", "Minimum tool tier.",

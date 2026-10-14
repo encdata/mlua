@@ -47,11 +47,13 @@ public final class MLuaBlockFactory {
       if (rawType != null && !(rawType instanceof String)) {
          throw new IllegalArgumentException("[MLua] Block type must be a string");
       }
+      validateCopyDefinition(properties);
    }
 
    public Block create(Map<String, Object> properties, String registryName, Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
       RegisteredType extension = registeredType(properties);
       validateType(properties, extension);
+      validateCopyDefinition(properties);
       if (extension != null) {
          return extension.provider().createNamed(Map.copyOf(properties), this.makeProperties(properties), registryName, blockEntityType);
       }
@@ -61,6 +63,7 @@ public final class MLuaBlockFactory {
    public Block createScripted(Map<String, Object> properties, String behaviorKey, Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
       RegisteredType extension = registeredType(properties);
       validateType(properties, extension);
+      validateCopyDefinition(properties);
       if (extension != null) {
          return extension.provider().createScripted(Map.copyOf(properties), this.makeProperties(properties), behaviorKey, blockEntityType);
       }
@@ -78,6 +81,13 @@ public final class MLuaBlockFactory {
       Object rawType = properties.containsKey("type") ? properties.get("type") : properties.get("Type");
       if (rawType instanceof String name && !name.isBlank() && !"default".equals(normalizeTypeName(name)) && registered == null) {
          throw new IllegalArgumentException("[MLua] Unknown block type: " + name);
+      }
+   }
+
+   private static void validateCopyDefinition(Map<String, Object> properties) {
+      Object copy = properties.get("copy");
+      if (copy != null && (!(copy instanceof String id) || id.isBlank())) {
+         throw new IllegalArgumentException("[MLua] Block copy must be a non-empty block identifier");
       }
    }
 
@@ -167,10 +177,17 @@ public final class MLuaBlockFactory {
    private BlockBehaviour.Properties copyProperties(Map<String, Object> properties) {
       Object copy = properties.get("copy");
       if (copy instanceof String id) {
-         Block block = (Block)BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
-         if (block != null) {
-            return (Properties)MCApiRuntime.copyBlockProperties(block);
+         final net.minecraft.resources.ResourceLocation location;
+         try {
+            location = MLuaResourceLocations.parse(id);
+         } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("[MLua] Invalid block copy identifier '" + id + "'", error);
          }
+         Block block = (Block)BuiltInRegistries.BLOCK.getOptional(location).orElse(null);
+         if (block == null) {
+            throw new IllegalArgumentException("[MLua] Unknown block in copy property: " + id);
+         }
+         return (Properties)MCApiRuntime.copyBlockProperties(block);
       }
 
       return (Properties)MCApiRuntime.copyBlockProperties(Blocks.STONE);
