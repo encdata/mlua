@@ -649,6 +649,9 @@ public final class MLuaRuntime implements MLuaRegistration {
             MLuaLogger.LOGGER.error("{} mixin script '{}' failed and was skipped: {}",
                mixinSide == Side.CLIENT ? "Client" : "Server", script.displayName(), error.getMessage());
             this.reportRuntimeFailure("Mixin script '" + script.displayName() + "' failed", error);
+         } catch (RuntimeException | Error failure) {
+            this.unregisterMixinScope(script.path());
+            throw failure;
          }
       });
       this.scripts.stream().filter((script) -> {
@@ -660,6 +663,9 @@ public final class MLuaRuntime implements MLuaRegistration {
             this.unregisterMixinScope(script.path());
             MLuaLogger.LOGGER.error("Mixin entrypoint script '{}' failed and was skipped: {}", script.displayName(), var3.getMessage());
             this.reportRuntimeFailure("Mixin entrypoint script '" + script.displayName() + "' failed", var3);
+         } catch (RuntimeException | Error failure) {
+            this.unregisterMixinScope(script.path());
+            throw failure;
          }
       });
       MixinRuleEngine.markEarlyBootstrapDone();
