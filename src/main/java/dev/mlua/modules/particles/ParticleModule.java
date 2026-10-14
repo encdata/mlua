@@ -49,11 +49,37 @@ public final class ParticleModule implements MLuaModule {
         docs.clazz("ParticleEmitter", "MLuaParticleService",
             "A live client-side particle emitter with mutable position, rate, spread, velocity, and particle settings.",
             "classes/particle-emitter.html", "Instance");
-        docs.signature("ParticleService", "ParticleService:CreateEmitter(particleId: string, position: Vector3, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
-        docs.signature("ParticleService", "ParticleService:CreateTypedEmitter(spec: ParticleSpec, position: Vector3, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
+        docs.signature("ParticleService", "ParticleService:SpawnLocal(particleId: string, position: Vector3|CFrame, count: number?, spread: number?, speed: number?)", null);
+        docs.signature("ParticleService", "ParticleService:Spawn(spec: string|ParticleSpec, position: Vector3|CFrame, count: number?, spread: number?, speed: number?)", null);
+        docs.signature("ParticleService", "ParticleService:SpawnBurst(spec: string|ParticleSpec, position: Vector3|CFrame, properties: ParticleBurstProperties?)", null);
+        docs.signature("ParticleService", "ParticleService:SpawnRing(spec: string|ParticleSpec, position: Vector3|CFrame, count: number?, radius: number?, speed: number?)", null);
+        docs.signature("ParticleService", "ParticleService:SpawnCone(spec: string|ParticleSpec, position: Vector3|CFrame, direction: Vector3, count: number?, angle: number?, speed: number?)", null);
+        docs.signature("ParticleService", "ParticleService:CreateEmitter(particleId: string, position: Vector3|CFrame, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
+        docs.signature("ParticleService", "ParticleService:CreateTypedEmitter(spec: string|ParticleSpec, position: Vector3|CFrame, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
+        docs.signature("ParticleEmitter", "ParticleEmitter:SetPosition(position: Vector3|CFrame)", null);
+        docs.signature("ParticleEmitter", "ParticleEmitter:SetSpreadVector(spread: Vector3)", null);
+        docs.signature("ParticleEmitter", "ParticleEmitter:SetVelocity(velocity: Vector3)", null);
+        docs.signature("ParticleEmitter", "ParticleEmitter:SetOffset(offset: Vector3)", null);
+        docs.type("ParticleSpec", null, "Particle registry identifier or options for dust, block, item, and simple particles.");
+        docs.field("ParticleSpec", "Id", "string", "Minecraft particle, block, or item identifier.");
+        docs.field("ParticleSpec", "Kind", "string", "Particle mode: simple, dust, block, or item.");
+        docs.field("ParticleSpec", "Red", "number", "Dust red component, from 0 through 1.");
+        docs.field("ParticleSpec", "Green", "number", "Dust green component, from 0 through 1.");
+        docs.field("ParticleSpec", "Blue", "number", "Dust blue component, from 0 through 1.");
+        docs.field("ParticleSpec", "Size", "number", "Dust particle size.");
+        docs.type("ParticleBurstProperties", null, "Options for spawning a particle burst.");
+        docs.field("ParticleBurstProperties", "Count", "integer", "Number of particles in the burst.");
+        docs.field("ParticleBurstProperties", "Spread", "number|Vector3", "Scalar spread for every axis or independent spread per axis.");
+        docs.field("ParticleBurstProperties", "SpreadX", "number", "Optional horizontal spread override.");
+        docs.field("ParticleBurstProperties", "SpreadY", "number", "Optional vertical spread override.");
+        docs.field("ParticleBurstProperties", "SpreadZ", "number", "Optional depth spread override.");
+        docs.field("ParticleBurstProperties", "Velocity", "Vector3", "Initial particle velocity.");
         docs.guideStep("ParticleService", "Keep an emitter and update it",
-            "CreateEmitter returns a live ParticleEmitter instance. Its properties stay connected to the running emitter, and inherited Instance methods expose its registered class.",
-            "local Particles = Minecraft:GetService(\"ParticleService\")\nlocal emitter = Particles:CreateEmitter(\"minecraft:smoke\", Vector3.new(0, 65, 0))\n\nemitter.Position = Vector3.new(2, 65, 0)\nemitter.Rate = 12\nemitter.Enabled = true\nprint(emitter:IsA(\"ParticleEmitter\"), emitter.Id)\n\nemitter:Destroy()");
+            "CreateEmitter returns a live ParticleEmitter instance. Its positions accept Vector3 or CFrame; spread, velocity, direction, and offset values use native Vector3 values. Coordinate tables are rejected. The instance properties stay connected to the running emitter, and inherited Instance methods expose its registered class.",
+            "local Particles = Minecraft:GetService(\"ParticleService\")\nlocal emitter = Particles:CreateEmitter(\"minecraft:smoke\", Vector3.new(0, 65, 0))\n\nemitter.Position = CFrame.new(2, 65, 0)\nemitter:SetSpreadVector(Vector3.new(0.5, 0.2, 0.5))\nemitter:SetVelocity(Vector3.new(0, 0.1, 0))\nemitter.Rate = 12\nemitter.Enabled = true\nprint(emitter:IsA(\"ParticleEmitter\"), emitter.Id)\n\nemitter:Destroy()");
+        docs.guideStep("ParticleService", "Spawn particles with native vector types",
+            "Every particle position accepts Vector3 or CFrame. Direction and velocity use Vector3; handmade coordinate tables are rejected. A particle spec can be a registry id string or a spec table.",
+            "local Particles = Minecraft:GetService(\"ParticleService\")\n\nParticles:SpawnLocal(\"minecraft:smoke\", CFrame.new(0, 65, 0), 12)\nParticles:SpawnBurst({\n    Kind = \"dust\",\n    Id = \"minecraft:dust\",\n    Red = 0.8,\n    Green = 0.1,\n    Blue = 0.05,\n    Size = 1.2,\n}, Vector3.new(2, 65, 0), {\n    Count = 20,\n    Spread = Vector3.new(0.4, 0.1, 0.4),\n    Velocity = Vector3.new(0, 0.15, 0),\n})\nParticles:SpawnCone(\"minecraft:flame\", CFrame.new(0, 65, 0), Vector3.new(0, 0, -1), 16, 12, 0.2)");
         docs.type("ParticleDefinition", null, "Options for registering an addon particle texture.");
         docs.field("ParticleDefinition", "texture", "string", "Resource identifier of the particle texture.");
     }

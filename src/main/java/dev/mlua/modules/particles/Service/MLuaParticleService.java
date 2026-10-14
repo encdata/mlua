@@ -1,6 +1,7 @@
 package dev.mlua.modules.particles.Service;
 
 import dev.mlua.math.MLuaVector;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
@@ -30,7 +31,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
             "A live client-side particle emitter with mutable position, rate, spread, velocity, and particle settings.");
         registerEmitterProperty(registration, "Id", "number", "The emitter's runtime identifier.", "", null);
         registerEmitterProperty(registration, "IsDestroyed", "boolean", "Whether the emitter has been removed.", "GetIsDestroyed", null);
-        registerEmitterProperty(registration, "Position", "Vector3", "The emitter's current position.", "GetPosition", "SetPosition");
+        registerEmitterProperty(registration, "Position", "Vector3|CFrame", "The emitter's current position.", "GetPosition", "SetPosition");
         registerEmitterProperty(registration, "Rate", "number", "The emitter's particle rate.", "GetRate", "SetRate");
         registerEmitterProperty(registration, "Spread", "number", "The emitter's scalar spread.", "GetSpread", "SetSpread");
         registerEmitterProperty(registration, "Speed", "number", "The emitter's particle speed.", "GetSpeed", "SetSpeed");
@@ -42,7 +43,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         registerEmitterMethod(registration, "GetIsDestroyed", "Returns whether this emitter has been removed.");
         registerEmitterMethod(registration, "Destroy", "Removes this emitter.");
         registerEmitterMethod(registration, "GetPosition", "Returns the emitter's current position.");
-        registerEmitterMethod(registration, "SetPosition", "Moves the emitter to the given coordinates.");
+        registerEmitterMethod(registration, "SetPosition", "Moves the emitter to a Vector3 or CFrame position.");
         registerEmitterMethod(registration, "GetRate", "Returns the emitter's particle rate.");
         registerEmitterMethod(registration, "SetRate", "Changes the emitter's particle rate.");
         registerEmitterMethod(registration, "GetSpread", "Returns the emitter's scalar spread.");
@@ -73,13 +74,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         };
         LuaValue set = setter == null || setter.isBlank() ? LuaValue.NIL : new TwoArgFunction() {
             @Override public LuaValue call(LuaValue self, LuaValue value) {
-                if (name.equals("Position")) {
-                    LuaTable position = value.checktable();
-                    invokeEmitterOperation(self, setter, LuaValue.valueOf(component(position, "X")),
-                        LuaValue.valueOf(component(position, "Y")), LuaValue.valueOf(component(position, "Z")));
-                } else {
-                    invokeEmitterOperation(self, setter, value);
-                }
+                invokeEmitterOperation(self, setter, value);
                 return LuaValue.NONE;
             }
         };
@@ -125,62 +120,66 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Spawns one or more particles by registry identifier at a position.")
-    public void SpawnLocal(String particleId, double x, double y, double z, Optional<Integer> requestedCount,
+    public void SpawnLocal(String particleId, LuaValue position, Optional<Integer> requestedCount,
                            Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
         ensureClient();
-        MLuaClientParticleManager.spawnOnce(particleId, x, y, z, requestedCount.orElse(1),
+        double[] coordinates = position(position);
+        MLuaClientParticleManager.spawnOnce(particleId, coordinates[0], coordinates[1], coordinates[2], requestedCount.orElse(1),
             requestedSpread.orElse(0.2), requestedSpeed.orElse(0.0));
     }
 
     @MLuaDescription("Spawns particles from a typed particle specification.")
-    public void Spawn(LuaValue specValue, LuaTable position, Optional<Integer> requestedCount,
+    public void Spawn(LuaValue specValue, LuaValue position, Optional<Integer> requestedCount,
                       Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
         ensureClient();
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
-        MLuaClientParticleManager.spawnOnce(spec, component(position, "X"), component(position, "Y"),
-            component(position, "Z"), requestedCount.orElse(1), requestedSpread.orElse(0.2),
+        double[] coordinates = position(position);
+        MLuaClientParticleManager.spawnOnce(spec, coordinates[0], coordinates[1], coordinates[2],
+            requestedCount.orElse(1), requestedSpread.orElse(0.2),
             requestedSpeed.orElse(0.0));
     }
 
     @MLuaDescription("Spawns a burst of particles with spread and velocity options.")
-    public void SpawnBurst(LuaValue specValue, LuaTable position, Optional<LuaValue> properties) {
+    public void SpawnBurst(LuaValue specValue, LuaValue position, Optional<LuaValue> properties) {
         ensureClient();
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
         int count = firstNonNil(props.get("Count"), props.get("count")).optint(12);
-        double spreadX = firstNonNil(props.get("SpreadX"), props.get("spreadX"))
-            .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
-        double spreadY = firstNonNil(props.get("SpreadY"), props.get("spreadY"))
-            .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
-        double spreadZ = firstNonNil(props.get("SpreadZ"), props.get("spreadZ"))
-            .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
+        LuaValue spread = firstNonNil(props.get("Spread"), props.get("spread"));
+        double[] spreadVector = spread.isnumber()
+            ? new double[]{spread.todouble(), spread.todouble(), spread.todouble()}
+            : spread.isnil() ? new double[]{0.2, 0.2, 0.2} : vector3(spread, "Spread");
+        double spreadX = firstNonNil(props.get("SpreadX"), props.get("spreadX")).optdouble(spreadVector[0]);
+        double spreadY = firstNonNil(props.get("SpreadY"), props.get("spreadY")).optdouble(spreadVector[1]);
+        double spreadZ = firstNonNil(props.get("SpreadZ"), props.get("spreadZ")).optdouble(spreadVector[2]);
         LuaValue velocity = firstNonNil(props.get("Velocity"), props.get("velocity"));
-        double velocityX = velocity.isnil() ? 0.0 : component(velocity.checktable(), "X");
-        double velocityY = velocity.isnil() ? 0.0 : component(velocity.checktable(), "Y");
-        double velocityZ = velocity.isnil() ? 0.0 : component(velocity.checktable(), "Z");
-        MLuaClientParticleManager.spawnBurst(spec, component(position, "X"), component(position, "Y"),
-            component(position, "Z"), count, spreadX, spreadY, spreadZ, velocityX, velocityY, velocityZ);
+        double[] velocityVector = velocity.isnil() ? new double[]{0.0, 0.0, 0.0} : vector3(velocity, "Velocity");
+        double[] coordinates = position(position);
+        MLuaClientParticleManager.spawnBurst(spec, coordinates[0], coordinates[1], coordinates[2], count,
+            spreadX, spreadY, spreadZ, velocityVector[0], velocityVector[1], velocityVector[2]);
     }
 
     @MLuaDescription("Spawns particles in a ring around a position.")
-    public void SpawnRing(LuaValue specValue, LuaTable position, Optional<Integer> requestedCount,
+    public void SpawnRing(LuaValue specValue, LuaValue position, Optional<Integer> requestedCount,
                           Optional<Double> requestedRadius, Optional<Double> requestedSpeed) {
         ensureClient();
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
-        MLuaClientParticleManager.spawnRing(spec, component(position, "X"), component(position, "Y"),
-            component(position, "Z"), requestedCount.orElse(16), requestedRadius.orElse(1.0),
+        double[] coordinates = position(position);
+        MLuaClientParticleManager.spawnRing(spec, coordinates[0], coordinates[1], coordinates[2],
+            requestedCount.orElse(16), requestedRadius.orElse(1.0),
             requestedSpeed.orElse(0.05));
     }
 
     @MLuaDescription("Spawns particles in a cone along a direction.")
-    public void SpawnCone(LuaValue specValue, LuaTable position, LuaTable direction,
+    public void SpawnCone(LuaValue specValue, LuaValue position, LuaValue direction,
                           Optional<Integer> requestedCount, Optional<Double> requestedAngle,
                           Optional<Double> requestedSpeed) {
         ensureClient();
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
-        MLuaClientParticleManager.spawnCone(spec, component(position, "X"), component(position, "Y"),
-            component(position, "Z"), component(direction, "X"), component(direction, "Y"),
-            component(direction, "Z"), requestedCount.orElse(10), requestedAngle.orElse(15.0),
+        double[] coordinates = position(position);
+        double[] directionVector = vector3(direction, "Direction");
+        MLuaClientParticleManager.spawnCone(spec, coordinates[0], coordinates[1], coordinates[2],
+            directionVector[0], directionVector[1], directionVector[2], requestedCount.orElse(10), requestedAngle.orElse(15.0),
             requestedSpeed.orElse(0.1));
     }
 
@@ -188,21 +187,21 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     public LuaTable CreateEmitter(String particleId, LuaValue position, Optional<Double> requestedRate,
                                   Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
         ensureClient();
-        if (!MLuaVector.isVector3(position)) throw new LuaError("[MLua] Particle emitter position requires a Vector3 value");
-        LuaTable vector = position.checktable();
-        int id = MLuaClientParticleManager.createEmitter(particleId, component(vector, "X"), component(vector, "Y"),
-            component(vector, "Z"), requestedRate.orElse(8.0),
+        double[] coordinates = position(position);
+        int id = MLuaClientParticleManager.createEmitter(particleId, coordinates[0], coordinates[1],
+            coordinates[2], requestedRate.orElse(8.0),
             requestedSpread.orElse(0.2), requestedSpeed.orElse(0.0), owner());
         return emitterTable(id, owner());
     }
 
     @MLuaDescription("Creates a persistent emitter from a typed particle specification.")
-    public LuaTable CreateTypedEmitter(LuaValue specValue, LuaTable position, Optional<Double> requestedRate,
+    public LuaTable CreateTypedEmitter(LuaValue specValue, LuaValue position, Optional<Double> requestedRate,
                                        Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
         ensureClient();
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
-        int id = MLuaClientParticleManager.createEmitter(spec, component(position, "X"), component(position, "Y"),
-            component(position, "Z"), requestedRate.orElse(8.0), requestedSpread.orElse(0.2),
+        double[] coordinates = position(position);
+        int id = MLuaClientParticleManager.createEmitter(spec, coordinates[0], coordinates[1],
+            coordinates[2], requestedRate.orElse(8.0), requestedSpread.orElse(0.2),
             requestedSpeed.orElse(0.0), owner());
         return emitterTable(id, owner());
     }
@@ -227,7 +226,8 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         }));
         operations.set("SetPosition", fn(args -> {
             var emitter = requireEmitter(id);
-            emitter.setPosition(args.checkdouble(2), args.checkdouble(3), args.checkdouble(4));
+            double[] position = position(args.arg(2));
+            emitter.setPosition(position[0], position[1], position[2]);
             return LuaValue.NONE;
         }));
         operations.set("GetRate", fn(args -> LuaValue.valueOf(requireEmitter(id).rate())));
@@ -241,8 +241,8 @@ public final class MLuaParticleService extends MLuaReflectiveService {
             return LuaValue.NONE;
         }));
         operations.set("SetSpreadVector", fn(args -> {
-            LuaTable spread = args.checktable(2);
-            requireEmitter(id).setSpread(component(spread, "X"), component(spread, "Y"), component(spread, "Z"));
+            double[] spread = vector3(args.arg(2), "Spread");
+            requireEmitter(id).setSpread(spread[0], spread[1], spread[2]);
             return LuaValue.NONE;
         }));
         operations.set("GetSpeed", fn(args -> LuaValue.valueOf(requireEmitter(id).speed())));
@@ -255,8 +255,8 @@ public final class MLuaParticleService extends MLuaReflectiveService {
             return vector3(emitter.velocityX(), emitter.velocityY(), emitter.velocityZ());
         }));
         operations.set("SetVelocity", fn(args -> {
-            LuaTable velocity = args.checktable(2);
-            requireEmitter(id).setVelocity(component(velocity, "X"), component(velocity, "Y"), component(velocity, "Z"));
+            double[] velocity = vector3(args.arg(2), "Velocity");
+            requireEmitter(id).setVelocity(velocity[0], velocity[1], velocity[2]);
             return LuaValue.NONE;
         }));
         operations.set("GetFollowEntity", fn(args -> {
@@ -276,8 +276,8 @@ public final class MLuaParticleService extends MLuaReflectiveService {
             return vector3(emitter.offsetX(), emitter.offsetY(), emitter.offsetZ());
         }));
         operations.set("SetOffset", fn(args -> {
-            LuaTable offset = args.checktable(2);
-            requireEmitter(id).setOffset(component(offset, "X"), component(offset, "Y"), component(offset, "Z"));
+            double[] offset = vector3(args.arg(2), "Offset");
+            requireEmitter(id).setOffset(offset[0], offset[1], offset[2]);
             return LuaValue.NONE;
         }));
         operations.set("GetEnabled", fn(args -> LuaValue.valueOf(requireEmitter(id).enabled())));
@@ -301,6 +301,18 @@ public final class MLuaParticleService extends MLuaReflectiveService {
 
     private static LuaTable vector3(double x, double y, double z) {
         return MLuaVector.vector3(x, y, z);
+    }
+
+    private static double[] position(LuaValue value) {
+        return MLuaCFrame.vector(value);
+    }
+
+    private static double[] vector3(LuaValue value, String property) {
+        if (!MLuaVector.isVector3(value)) {
+            throw new LuaError("[MLua] Particle " + property + " requires a native Vector3 value.");
+        }
+        LuaTable vector = value.checktable();
+        return new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
     }
 
     private MLuaClientParticleManager.Emitter requireEmitter(int id) {
@@ -375,15 +387,6 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         net.minecraft.world.entity.Entity entity = level == null ? null : level.getEntity(entityId);
         if (entity == null) throw new LuaError("[MLua] FollowEntity must reference an entity in the current client world");
         return MLuaEntityScope.of(entity);
-    }
-
-    private static double component(LuaTable table, String key) {
-        if (!MLuaVector.isVector3(table)) throw new LuaError("[MLua] Particle positions, directions, and motion values require Vector3 values");
-        LuaValue value = table.get(key);
-        if (value.isnil()) {
-            value = table.get(key.toLowerCase());
-        }
-        return value.optdouble(0.0);
     }
 
     private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
