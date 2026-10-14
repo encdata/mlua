@@ -216,8 +216,10 @@ public final class MLuaApi {
 
    public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                       String description, Map<String, String> functionDescriptions) {
-      Map<String, String> descriptions = validateServiceRegistration(name, side, factory, description, functionDescriptions);
-      requireBridge().registerService(name, side, factory, description, descriptions);
+      Objects.requireNonNull(side, "side");
+      MLuaModule.ServiceEntry declaration = new MLuaModule.ServiceEntry(
+         name, factory, description, functionDescriptions);
+      requireBridge().registerService(side, declaration);
    }
 
    @Deprecated(forRemoval = false)
@@ -255,15 +257,10 @@ public final class MLuaApi {
                                       String description, Map<String, String> functionDescriptions) {
       Objects.requireNonNull(className, "className");
       if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
-      Map<String, String> descriptions = validateServiceRegistration(name, side, factory, description, functionDescriptions);
-      requireBridge().registerService(name, className, side, factory, description, descriptions);
-   }
-
-   private static Map<String, String> validateServiceRegistration(
-      String name, Side side, Function<MLuaService.Context, MLuaService> factory,
-      String description, Map<String, String> functionDescriptions) {
       Objects.requireNonNull(side, "side");
-      return new MLuaModule.ServiceEntry(name, factory, description, functionDescriptions).functionDescriptions();
+      MLuaModule.ServiceEntry declaration = new MLuaModule.ServiceEntry(
+         name, className, factory, description, functionDescriptions);
+      requireBridge().registerService(side, declaration);
    }
 
    public static RegistryHandle<Item> registerItem(String modId, String name, Supplier<Item> supplier) {

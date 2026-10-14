@@ -2,6 +2,7 @@ package dev.mlua.api;
 
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.common.enums.Side;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
@@ -9,7 +10,6 @@ import dev.mlua.module.MLuaModule;
 import dev.mlua.module.MLuaModuleLoader;
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
@@ -35,29 +35,9 @@ public final class RuntimeMLuaApiBridge implements MLuaApiBridge {
    }
 
    @Override
-   public void registerService(String name, dev.mlua.common.enums.Side side,
-                               Function<MLuaService.Context, MLuaService> factory) {
-      MLuaRuntime.get().registerService(name, side, factory);
-   }
-
-   @Override
-   public void registerService(String name, Function<MLuaService.Context, MLuaService> factory,
-                               String description, Map<String, String> functionDescriptions) {
-      MLuaRuntime.get().registerService(name, factory, description, functionDescriptions);
-   }
-
-   @Override
-   public void registerService(String name, dev.mlua.common.enums.Side side,
-                               Function<MLuaService.Context, MLuaService> factory,
-                               String description, Map<String, String> functionDescriptions) {
-      MLuaRuntime.get().registerService(name, side, factory, description, functionDescriptions);
-   }
-
-   @Override
-   public void registerService(String name, String className, dev.mlua.common.enums.Side side,
-                               Function<MLuaService.Context, MLuaService> factory,
-                               String description, Map<String, String> functionDescriptions) {
-      MLuaRuntime.get().registerService(name, className, side, factory, description, functionDescriptions);
+   public void registerService(Side side, MLuaModule.ServiceEntry service) {
+      MLuaRuntime.get().registerService(service.name(), service.className(), side,
+         service.factory(), service.description(), service.functionDescriptions());
    }
 
    @Override
