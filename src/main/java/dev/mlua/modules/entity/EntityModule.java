@@ -28,7 +28,7 @@ public final class EntityModule implements MLuaModule {
         docs.signature("Entity", "Entity:GetCFrame()", "CFrame");
         docs.signature("Entity", "Entity:SetCFrame(value: CFrame)", "void");
         docs.signature("Entity", "Entity:LookAt(target: Vector3|CFrame)", "void");
-        docs.signature("Entity", "Entity:DistanceTo(position: Vector3|CFrame)", "number");
+        docs.signature("Entity", "Entity:DistanceTo(target: Vector3|CFrame|Entity)", "number");
         docs.signature("Entity", "Entity:GetLevel()", "World");
         docs.signature("Entity", "Entity:GetDimension()", "string");
         docs.signature("Entity", "Entity:GetLookVector()", "Vector3");

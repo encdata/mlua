@@ -168,7 +168,7 @@ public final class MLuaEntityWrapper {
          return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         double[] vel = MLuaPlayerWrapper.positionArgs(args, 2);
+         double[] vel = MLuaVector.components3(args.arg(2));
          wrapped.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
          ((MCEntityImpl)wrapped).inner().hurtMarked = true;
          return LuaValue.NONE;
@@ -209,7 +209,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         double[] other = MLuaPlayerWrapper.positionArgs(args, 2);
+         double[] other = targetPosition(args.arg(2));
          MCVec3 p = wrapped.getPosition();
          double dx = p.x() - other[0];
          double dy = p.y() - other[1];
@@ -305,7 +305,7 @@ public final class MLuaEntityWrapper {
          return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         double[] vel = MLuaPlayerWrapper.positionArgs(args, 2);
+         double[] vel = MLuaVector.components3(args.arg(2));
          wrapped.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
          ((MCEntityImpl)wrapped).inner().hurtMarked = true;
          return LuaValue.NONE;
@@ -548,7 +548,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         double[] other = MLuaPlayerWrapper.positionArgs(args, 2);
+         double[] other = targetPosition(args.arg(2));
          MCVec3 p = wrapped.getPosition();
          double dx = p.x() - other[0];
          double dy = p.y() - other[1];

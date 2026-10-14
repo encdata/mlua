@@ -245,19 +245,16 @@ public class MLuaScriptedEntity extends PathfinderMob {
       LuaTable methods = new LuaTable();
       methods.set("MoveTo", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            double x = args.arg(2).checkdouble();
-            double y = args.arg(3).checkdouble();
-            double z = args.arg(4).checkdouble();
-            double speed = args.arg(5).optdouble(1.0);
-            return LuaValue.valueOf(MLuaScriptedEntity.this.navigation.moveTo(x, y, z, speed));
+            double[] position = MLuaCFrame.vector(args.arg(2));
+            double speed = args.arg(3).optdouble(1.0);
+            return LuaValue.valueOf(MLuaScriptedEntity.this.navigation.moveTo(
+               position[0], position[1], position[2], speed));
          }
       });
       methods.set("LookAt", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            double x = args.arg(2).checkdouble();
-            double y = args.arg(3).checkdouble();
-            double z = args.arg(4).checkdouble();
-            MLuaScriptedEntity.this.getLookControl().setLookAt(x, y, z);
+            double[] position = MLuaCFrame.vector(args.arg(2));
+            MLuaScriptedEntity.this.getLookControl().setLookAt(position[0], position[1], position[2]);
             return LuaValue.NONE;
          }
       });

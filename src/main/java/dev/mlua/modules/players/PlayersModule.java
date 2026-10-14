@@ -95,7 +95,7 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetCFrame", "Sets this entity's position and rotation from a CFrame.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLookVector", "Returns the direction this entity is facing.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "LookAt", "Turns this entity toward a position.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a Vector3, CFrame, or live entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsAlive", "Returns whether this entity is alive.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnGround", "Returns whether this entity is on the ground.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsInWater", "Returns whether this entity is in water.");
@@ -732,7 +732,7 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Player", "Player:SetInventory(items: Item[])", null);
         docs.signature("Player", "Player:SetViewMode(mode: string)", null);
         docs.signature("Player", "Player:HasPermission(level: number)", null);
-        docs.signature("Player", "Player:DistanceTo(position: Vector3|CFrame)", null);
+        docs.signature("Player", "Player:DistanceTo(target: Vector3|CFrame|Entity)", null);
         docs.signature("Player", "Player:HasEffect(effect: string)", null);
         docs.signature("Player", "Player:RemoveEffect(effect: string)", null);
         docs.signature("Player", "Player:SetFood(food: number)", null);

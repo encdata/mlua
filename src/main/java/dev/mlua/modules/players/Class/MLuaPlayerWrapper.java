@@ -275,13 +275,13 @@ public final class MLuaPlayerWrapper {
          return positionTable(v.x(), v.y(), v.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         double[] vel = positionArgs(args, 2);
+         double[] vel = MLuaVector.components3(args.arg(2));
          player.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
          player.setHurtMarked(true);
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         double[] other = positionArgs(args, 2);
+         double[] other = MLuaEntityWrapper.targetPosition(args.arg(2));
          MCVec3 p = MLuaEntityWrapper.position(player);
          double dx = p.x() - other[0];
          double dy = p.y() - other[1];
@@ -769,12 +769,7 @@ public final class MLuaPlayerWrapper {
    }
 
     public static double[] positionArgs(Varargs args, int index) {
-      LuaValue first = args.arg(index);
-      if (first.istable()) {
-         return MLuaCFrame.vector(first);
-      } else {
-         return new double[]{args.checkdouble(index), args.checkdouble(index + 1), args.checkdouble(index + 2)};
-      }
+      return MLuaCFrame.vector(args.arg(index));
    }
 
    private static GameProfile gameProfile(MCPlayer player) {
