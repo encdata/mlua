@@ -93,7 +93,7 @@ public class MCPlayerImpl extends MCLivingEntityImpl implements MCPlayer {
     @Override
     public MCConnection getConnection() {
         if (inner instanceof ServerPlayer sp) {
-            return MCConnectionImpl.fromReal(sp.connection.connection);
+            return MCConnectionImpl.fromReal(sp.connection.getConnection());
         }
         return null;
     }

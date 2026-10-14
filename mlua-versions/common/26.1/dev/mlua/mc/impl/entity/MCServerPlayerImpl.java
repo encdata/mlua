@@ -20,5 +20,5 @@ public class MCServerPlayerImpl extends MCPlayerImpl implements MCServerPlayer {
         return new MCServerLevelImpl(serverPlayer().level());
     }
 
-    @Override public MCConnection getConnection() { return MCConnectionImpl.fromReal(serverPlayer().connection.connection); }
+    @Override public MCConnection getConnection() { return MCConnectionImpl.fromReal(serverPlayer().connection.getConnection()); }
 }
