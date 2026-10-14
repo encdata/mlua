@@ -773,21 +773,21 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     return instanceMethod;
                 }
 
-                Field field = resolveField(instance.getClass(), memberName, false);
-                if (field != null) {
-                    try {
-                        return wrapJavaValue(field.get(instance), field.getGenericType());
-                    } catch (ReflectiveOperationException e) {
-                        throw new LuaError("[MLua] Failed to read field " + instance.getClass().getName() + "." + memberName + ": " + rootMessage(e));
-                    }
-                }
-
                 Method getter = resolvePropertyGetter(instance.getClass(), memberName);
                 if (getter != null) {
                     try {
                         return wrapJavaValue(getter.invoke(instance), getter.getGenericReturnType());
                     } catch (IllegalAccessException | InvocationTargetException e) {
                         throw new LuaError("[MLua] Failed to read property " + instance.getClass().getName() + "." + memberName + ": " + rootMessage(e));
+                    }
+                }
+
+                Field field = resolveField(instance.getClass(), memberName, false);
+                if (field != null) {
+                    try {
+                        return wrapJavaValue(field.get(instance), field.getGenericType());
+                    } catch (ReflectiveOperationException e) {
+                        throw new LuaError("[MLua] Failed to read field " + instance.getClass().getName() + "." + memberName + ": " + rootMessage(e));
                     }
                 }
 
