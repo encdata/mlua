@@ -262,29 +262,8 @@ public final class MLuaApi {
    private static Map<String, String> validateServiceRegistration(
       String name, Side side, Function<MLuaService.Context, MLuaService> factory,
       String description, Map<String, String> functionDescriptions) {
-      Objects.requireNonNull(name, "name");
       Objects.requireNonNull(side, "side");
-      Objects.requireNonNull(factory, "factory");
-      Objects.requireNonNull(functionDescriptions, "functionDescriptions");
-      if (name.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
-      if (description == null || description.isBlank()) {
-         throw new IllegalArgumentException("Service '" + name + "' must have a description");
-      }
-      Map<String, String> descriptions = java.util.Collections.unmodifiableMap(
-         new LinkedHashMap<>(functionDescriptions));
-      if (descriptions.isEmpty()) {
-         throw new IllegalArgumentException("Service '" + name + "' must declare at least one function with a description");
-      }
-      descriptions.forEach((functionName, functionDescription) -> {
-         if (functionName == null || functionName.isBlank()
-            || functionDescription == null || functionDescription.isBlank()) {
-            throw new IllegalArgumentException("Function description names and values must be non-empty");
-         }
-         if (MLuaRegistration.isReservedFunctionName(functionName)) {
-            throw new IllegalArgumentException("Service function name is reserved for MLua metadata: " + functionName);
-         }
-      });
-      return descriptions;
+      return new MLuaModule.ServiceEntry(name, factory, description, functionDescriptions).functionDescriptions();
    }
 
    public static RegistryHandle<Item> registerItem(String modId, String name, Supplier<Item> supplier) {

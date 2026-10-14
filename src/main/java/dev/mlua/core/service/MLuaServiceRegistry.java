@@ -2,7 +2,7 @@ package dev.mlua.core.service;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaContext;
-import dev.mlua.module.MLuaRegistration;
+import dev.mlua.module.MLuaModule;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -265,23 +265,13 @@ public final class MLuaServiceRegistry {
       }
 
       public Registration {
-         requireServiceName(name);
-         if (className == null) className = name;
-         if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
-         Objects.requireNonNull(factory, "factory");
-         if (description == null || description.isBlank()) {
-            throw new IllegalArgumentException("Service '" + name + "' must have a description");
-         }
-         functionDescriptions = Collections.unmodifiableMap(
-            new LinkedHashMap<>(Objects.requireNonNull(functionDescriptions, "functionDescriptions")));
-         functionDescriptions.forEach((method, methodDescription) -> {
-            if (method == null || method.isBlank() || methodDescription == null || methodDescription.isBlank()) {
-               throw new IllegalArgumentException("Service function names and descriptions must be non-empty");
-            }
-            if (MLuaRegistration.isReservedFunctionName(method)) {
-               throw new IllegalArgumentException("Service function name is reserved for MLua metadata: " + method);
-            }
-         });
+         MLuaModule.ServiceEntry declaration = new MLuaModule.ServiceEntry(
+            name, className, factory, description, functionDescriptions);
+         name = declaration.name();
+         className = declaration.className();
+         factory = declaration.factory();
+         description = declaration.description();
+         functionDescriptions = declaration.functionDescriptions();
       }
    }
 
