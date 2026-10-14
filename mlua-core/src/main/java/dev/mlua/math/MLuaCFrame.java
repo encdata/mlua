@@ -78,6 +78,15 @@ public final class MLuaCFrame {
             return MLuaCFrame.fromAxisAngle(MLuaVector.components3(axis), angle.checkdouble()).toLua();
          }
       });
+      table.set("fromMatrix", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            double[] position = MLuaVector.components3(args.arg(1));
+            double[] right = MLuaVector.components3(args.arg(2));
+            double[] up = MLuaVector.components3(args.arg(3));
+            double[] back = args.arg(4).isnil() ? null : MLuaVector.components3(args.arg(4));
+            return MLuaCFrame.fromMatrix(position, right, up, back).toLua();
+         }
+      });
       table.set("fromYawPitch", new TwoArgFunction() {
          public LuaValue call(LuaValue yaw, LuaValue pitch) {
             return MLuaCFrame.fromMinecraftRotation(yaw.checkdouble(), pitch.checkdouble()).toLua();
@@ -143,6 +152,42 @@ public final class MLuaCFrame {
          t * x * x + cosine, t * x * y - sine * z, t * x * z + sine * y,
          t * x * y + sine * z, t * y * y + cosine, t * y * z - sine * x,
          t * x * z - sine * y, t * y * z + sine * x, t * z * z + cosine);
+   }
+
+   public static MLuaCFrame fromMatrix(double[] position, double[] right, double[] up, double[] suppliedBack) {
+      double rightLength = magnitude(right);
+      if (rightLength < 1.0E-10) throw new LuaError("[MLua] CFrame.fromMatrix requires a non-zero right vector");
+      double[] normalizedRight = scale(right, 1.0 / rightLength);
+      double upProjection = dot(up, normalizedRight);
+      double[] orthogonalUp = new double[]{
+         up[0] - normalizedRight[0] * upProjection,
+         up[1] - normalizedRight[1] * upProjection,
+         up[2] - normalizedRight[2] * upProjection
+      };
+      double upLength = magnitude(orthogonalUp);
+      if (upLength < 1.0E-10) throw new LuaError("[MLua] CFrame.fromMatrix right and up vectors must not be parallel");
+      double[] normalizedUp = scale(orthogonalUp, 1.0 / upLength);
+      double[] back = cross(normalizedRight, normalizedUp);
+      if (suppliedBack != null) {
+         if (magnitude(suppliedBack) < 1.0E-10) throw new LuaError("[MLua] CFrame.fromMatrix back vector must not be zero");
+         if (dot(back, suppliedBack) < 0.0) {
+            normalizedUp = scale(normalizedUp, -1.0);
+            back = scale(back, -1.0);
+         }
+      }
+      return fromBasis(position[0], position[1], position[2], normalizedRight, normalizedUp, back);
+   }
+
+   private static double magnitude(double[] vector) {
+      return Math.sqrt(dot(vector, vector));
+   }
+
+   private static double dot(double[] left, double[] right) {
+      return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
+   }
+
+   private static double[] scale(double[] vector, double scale) {
+      return new double[]{vector[0] * scale, vector[1] * scale, vector[2] * scale};
    }
 
    public static MLuaCFrame lookAt(double x, double y, double z, double tx, double ty, double tz) {
