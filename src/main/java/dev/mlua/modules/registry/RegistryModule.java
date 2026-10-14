@@ -346,12 +346,12 @@ public class RegistryModule implements MLuaModule {
             "entity?", "string", "Entity type identifier spawned by the egg.", "primaryColor?", "number", "Primary egg color.",
             "secondaryColor?", "number", "Secondary egg color.", "description?", "string|string[]", "Tooltip description lines.",
             "tooltip?", "string|string[]", "Additional tooltip lines.",
-            "onUse?", "fun(player: Player, item: Item, hand: string): boolean", "Handles use in the air.",
-            "onUseOnBlock?", "fun(player: Player, item: Item, x: number, y: number, z: number): boolean", "Handles use on a block.",
-            "onInventoryTick?", "fun(player: Player, item: Item, slot: number, selected: boolean)", "Runs while the egg is in an inventory.",
-            "onCrafted?", "fun(player: Player, item: Item)", "Runs when the egg is crafted.",
-            "onConsume?", "fun(player: Player, item: Item)", "Runs when the egg is consumed.",
-            "onAttackEntity?", "fun(player: Player, item: Item, target: Entity): boolean", "Handles an attack with the egg.");
+            "onUse?", "fun(context: ItemUseContext): boolean", "Handles use in the air.",
+            "onUseOnBlock?", "fun(context: ItemUseOnBlockContext): boolean", "Handles use on a block.",
+            "onInventoryTick?", "fun(context: ItemInventoryTickContext)", "Runs while the egg is in an inventory.",
+            "onCrafted?", "fun(context: ItemCraftedContext)", "Runs when the egg is crafted.",
+            "onConsume?", "fun(context: ItemConsumeContext)", "Runs when the egg is consumed.",
+            "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean", "Handles an attack with the egg.");
         schema(docs, "AIDefinition", "One scripted AI goal for a registered entity.",
             "type", "string", "AI goal name.", "priority?", "number", "Goal priority.", "speed?", "number", "Movement speed.",
             "target?", "string", "Optional target entity type.", "radius?", "number", "Search radius.");
