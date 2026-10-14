@@ -473,6 +473,11 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    @Override
+   public boolean hasBehaviorMixin(String className, String mixinName) {
+      return this.classes.hasMixin(className, mixinName);
+   }
+
+   @Override
    public boolean unregisterBehaviorMixin(String mixinName) {
       return this.classes.removeMixin(mixinName);
    }

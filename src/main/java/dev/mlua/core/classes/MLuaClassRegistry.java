@@ -409,6 +409,12 @@ public final class MLuaClassRegistry {
       return result;
    }
 
+   public synchronized boolean hasMixin(String className, String mixinName) {
+      return className != null && !className.isBlank() && mixinName != null && !mixinName.isBlank()
+         && this.classes.containsKey(className)
+         && this.effectiveMixins(className, new HashSet<>()).contains(mixinName);
+   }
+
    public synchronized boolean removeMixin(String className, String mixinName) {
       List<String> applied = this.appliedMixins.get(className);
       if (applied == null || !applied.remove(mixinName)) return false;
