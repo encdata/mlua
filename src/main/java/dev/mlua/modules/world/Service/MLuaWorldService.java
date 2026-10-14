@@ -640,11 +640,22 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       GameRules.Value rule = level.getGameRules().getRule((GameRules.Key)key);
       if (rule instanceof GameRules.BooleanValue booleanValue) {
+         if (!value.isboolean()) {
+            throw new LuaError("[MLua] Gamerule " + name + " requires a boolean value.");
+         }
          booleanValue.set(value.checkboolean(), this.context.mlua().server());
          return;
       }
       if (rule instanceof GameRules.IntegerValue integerValue) {
-         integerValue.set(value.checkint(), this.context.mlua().server());
+         if (!value.isnumber()) {
+            throw new LuaError("[MLua] Gamerule " + name + " requires an integer value.");
+         }
+         double number = value.todouble();
+         if (!Double.isFinite(number) || number != Math.rint(number)
+            || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+            throw new LuaError("[MLua] Gamerule " + name + " requires a whole number within the 32-bit integer range.");
+         }
+         integerValue.set((int)number, this.context.mlua().server());
          return;
       }
       throw new LuaError("[MLua] Unsupported gamerule type: " + name);

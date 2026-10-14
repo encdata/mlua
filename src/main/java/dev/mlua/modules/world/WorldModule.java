@@ -240,7 +240,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("World", "World:ListGameRules()", "GameRuleList");
         docs.signature("World", "World:GetGameRule(name: string)", "boolean|number|string");
-        docs.signature("World", "World:SetGameRule(name: string, value: boolean|number|string)", "void");
+        docs.signature("World", "World:SetGameRule(name: string, value: boolean|number)", "void");
         docs.signature("Chunk", "Chunk:GetX()", "number");
         docs.signature("Chunk", "Chunk:GetZ()", "number");
         docs.signature("Chunk", "Chunk:GetDimension()", "string");
@@ -266,7 +266,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:GetAll()", "World[]");
         docs.signature("WorldService", "WorldService:ListGameRules()", "GameRuleList");
         docs.signature("WorldService", "WorldService:GetGameRule(name: string)", "boolean|number|string");
-        docs.signature("WorldService", "WorldService:SetGameRule(name: string, value: boolean|number|string)", "void");
+        docs.signature("WorldService", "WorldService:SetGameRule(name: string, value: boolean|number)", "void");
         docs.signature("WorldService", "WorldService:IsChunkLoaded(coordinates: Vector2|Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:IsBlockLoaded(position: Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:LoadChunk(coordinates: Vector2|Vector3|CFrame)", "Chunk");
@@ -351,7 +351,7 @@ public class WorldModule implements MLuaModule {
             "SetSpawnPosition takes a native Vector3 or CFrame and an optional yaw in degrees. It is server-side only; SpawnPosition can also be assigned directly.",
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal spawn = Vector3.new(0, 65, 0)\nworld:SetSpawnPosition(spawn, 90)\nworld.SpawnPosition = spawn");
         docs.guideStep("World", "Read and change dimension gamerules",
-            "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns the rule's boolean, numeric, or string value; SetGameRule accepts a matching Lua value and errors for an unknown name or incompatible value. ListGameRules can be traversed with ipairs or indexed by the rule name.",
+            "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns the rule's current value; SetGameRule accepts a boolean for boolean rules and a whole 32-bit number for integer rules. Unknown rule names and mismatched values raise an error. ListGameRules can be traversed with ipairs or indexed by the rule name.",
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, rule in ipairs(world:ListGameRules()) do\n    print(rule.Name, rule.Value)\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)");
         docs.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
