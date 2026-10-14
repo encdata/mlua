@@ -38,14 +38,16 @@ public interface MLuaRegistration {
     @Deprecated(forRemoval = false)
     LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
 
+    default LuaTable registerClass(String name, LuaTable classTable, String parentName) {
+        return registerClass(name, classTable, parentName == null || parentName.isBlank()
+            ? new String[0] : new String[]{parentName});
+    }
+
     default LuaTable registerClass(String name, LuaTable classTable, String parentName,
                                    String description) {
-        java.util.List<String> parents = parentName == null || parentName.isBlank()
-            ? java.util.List.of() : java.util.List.of(parentName);
         validateClassDescription(this.classTable(name), name, description);
         validateClassDescription(classTable, name, description);
-        LuaTable table = registerClass(name, classTable, parents.isEmpty() ? new String[0]
-            : new String[]{parents.get(0)});
+        LuaTable table = registerClass(name, classTable, parentName);
         recordClassDescription(table, name, description);
         refreshClassMetadata(name);
         return table;

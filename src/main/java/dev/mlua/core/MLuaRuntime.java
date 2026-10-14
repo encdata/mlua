@@ -393,6 +393,11 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    @Override
+   public LuaTable registerClass(String name, LuaTable classTable, String parentName) {
+      return this.classes.register(name, classTable, parentName);
+   }
+
+   @Override
    public LuaTable registerFunction(LuaTable owner, String name, LuaValue function, String description) {
       return this.classes.registerFunction(owner, name, function, description);
    }

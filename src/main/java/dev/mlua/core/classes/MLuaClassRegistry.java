@@ -34,14 +34,18 @@ public final class MLuaClassRegistry {
    public synchronized LuaTable register(String name, String parentName) {
       requireClassName(name);
       if (this.mixins.containsKey(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
-      this.requireParents(parentName == null || parentName.isBlank() ? new String[0] : new String[]{parentName});
-      if (parentName != null && !parentName.isBlank() && wouldCreateCycle(name, parentName)) {
-         throw new IllegalStateException("Lua class inheritance cycle: " + name + " -> " + parentName);
+      if (parentName == null || parentName.isBlank()) {
+         parentName = null;
+      } else {
+         this.requireParent(parentName);
+         if (wouldCreateCycle(name, parentName)) {
+            throw new IllegalStateException("Lua class inheritance cycle: " + name + " -> " + parentName);
+         }
       }
       LuaTable existing = this.classes.get(name);
       if (existing != null) {
          this.pendingClassRemovals.remove(name);
-         this.requireStableParent(name, parentName == null || parentName.isBlank() ? null : parentName);
+         this.requireStableParent(name, parentName);
          this.refreshParentLookup(existing, name);
          this.refreshInheritedMethodDescriptions();
          return existing;
@@ -54,13 +58,19 @@ public final class MLuaClassRegistry {
       classTable.rawset("__class", LuaValue.TRUE);
       this.classes.put(name, classTable);
       this.registeredClassTables.add(classTable);
-      if (parentName != null && !parentName.isBlank()) this.recordParent(name, parentName);
+      if (parentName != null) this.recordParent(name, parentName);
       this.refreshParentLookup(classTable, name);
       this.refreshInheritedMethodDescriptions();
       return classTable;
    }
 
+   @Deprecated
    public synchronized LuaTable register(String name, LuaTable classTable, String... parentNames) {
+      List<String> normalized = normalizedParents(parentNames);
+      return this.register(name, classTable, normalized.isEmpty() ? null : normalized.get(0));
+   }
+
+   public synchronized LuaTable register(String name, LuaTable classTable, String parentName) {
       requireClassName(name);
       if (this.mixins.containsKey(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
       Objects.requireNonNull(classTable, "classTable");
@@ -81,25 +91,26 @@ public final class MLuaClassRegistry {
       if (!publicName.isnil() && (!publicName.isstring() || !name.equals(publicName.tojstring()))) {
          throw new IllegalArgumentException("Lua class table has a conflicting ClassName for '" + name + "'");
       }
-      List<String> normalizedParents = normalizedParents(parentNames);
-      this.requireParents(normalizedParents.toArray(String[]::new));
-      for (String parentName : normalizedParents) {
+      if (parentName != null && !parentName.isBlank()) {
+         this.requireParent(parentName);
          if (wouldCreateCycle(name, parentName)) {
             throw new IllegalStateException("Lua class inheritance cycle: " + name + " -> " + parentName);
          }
+      } else {
+         parentName = null;
       }
       LuaTable existing = this.classes.get(name);
       if (existing != null && existing != classTable) {
          throw new IllegalStateException("Lua class already registered: " + name);
       }
-      if (existing != null) this.requireStableParent(name, normalizedParents.isEmpty() ? null : normalizedParents.get(0));
+      if (existing != null) this.requireStableParent(name, parentName);
       this.pendingClassRemovals.remove(name);
       classTable.rawset("__type", LuaValue.valueOf(name));
       if (classTable.rawget("ClassName").isnil()) classTable.rawset("ClassName", LuaValue.valueOf(name));
       classTable.rawset("__class", LuaValue.TRUE);
       this.classes.put(name, classTable);
       this.registeredClassTables.add(classTable);
-      for (String parentName : normalizedParents) this.recordParent(name, parentName);
+      if (parentName != null) this.recordParent(name, parentName);
       this.refreshParentLookup(classTable, name);
       this.refreshInheritedMethodDescriptions();
       return classTable;
@@ -1365,13 +1376,9 @@ public final class MLuaClassRegistry {
       return false;
    }
 
-   private void requireParents(String... parentNames) {
-      if (parentNames == null) return;
-      for (String parentName : parentNames) {
-         if (parentName == null || parentName.isBlank()) continue;
-         if (!this.classes.containsKey(parentName)) {
-            throw new IllegalStateException("Lua parent class is not registered: " + parentName);
-         }
+   private void requireParent(String parentName) {
+      if (parentName != null && !parentName.isBlank() && !this.classes.containsKey(parentName)) {
+         throw new IllegalStateException("Lua parent class is not registered: " + parentName);
       }
    }
 
