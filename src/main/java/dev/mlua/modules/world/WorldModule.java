@@ -152,6 +152,8 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetEntitiesInRadius", "Returns entities within a radius of a position."),
             Map.entry("GetEntitiesNearby", "Returns entities within a radius of a position."),
             Map.entry("FindEntitiesInBox", "Returns entities within an axis-aligned box."),
+            Map.entry("FindEntitiesInBounds", "Returns entities within an EntityBounds instance."),
+            Map.entry("FindPlayersInBounds", "Returns players whose positions lie within an EntityBounds instance."),
             Map.entry("FindPlayersInRadius", "Returns players within a radius of a position."),
             Map.entry("GetPlayersNearby", "Returns players within a radius of a position."),
             Map.entry("FindNearestPlayer", "Returns the nearest player to a position, or nil."),
@@ -314,6 +316,8 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:SpawnLightning(position: Vector3|CFrame)", "Entity?");
         docs.signature("WorldService", "WorldService:FindEntitiesInRadius(center: Vector3|CFrame, radius: number, filters: EntityQuery?)", "Entity[]");
         docs.signature("WorldService", "WorldService:FindEntitiesInBox(minimum: Vector3|CFrame, maximum: Vector3|CFrame, filters: EntityQuery?)", "Entity[]");
+        docs.signature("WorldService", "WorldService:FindEntitiesInBounds(bounds: EntityBounds, filters: EntityQuery?)", "Entity[]");
+        docs.signature("WorldService", "WorldService:FindPlayersInBounds(bounds: EntityBounds)", "Player[]");
         docs.signature("WorldService", "WorldService:FindPlayersInRadius(center: Vector3|CFrame, radius: number)", "Player[]");
         docs.signature("WorldService", "WorldService:FindNearestPlayer(position: Vector3|CFrame, maxDistance: number?)", "Player?");
         docs.signature("WorldService", "WorldService:FindNearestEntity(position: Vector3|CFrame, maxDistance: number?, filters: EntityQuery?)", "Entity?");

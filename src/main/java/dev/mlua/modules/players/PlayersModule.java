@@ -362,6 +362,21 @@ public class PlayersModule implements MLuaModule {
     private static void registerEntityBoundsClass(MLuaRegistration registration) {
         registration.registerClass("EntityBounds", registration.requireInstanceBaseClassName(),
             "An axis-aligned entity bounding box with Vector3 corners and spatial queries.");
+        registration.registerClassFunction("EntityBounds", "new", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue minimum = args.arg(1);
+                LuaValue maximum = args.arg(2);
+                if (!dev.mlua.math.MLuaVector.isVector3(minimum)
+                        || !dev.mlua.math.MLuaVector.isVector3(maximum)) {
+                    throw new LuaError("[MLua] EntityBounds.new expects minimum and maximum Vector3 values.");
+                }
+                LuaTable min = minimum.checktable();
+                LuaTable max = maximum.checktable();
+                return entityBounds(registration,
+                    min.get("X").todouble(), min.get("Y").todouble(), min.get("Z").todouble(),
+                    max.get("X").todouble(), max.get("Y").todouble(), max.get("Z").todouble());
+            }
+        }, "Creates bounds from ordered minimum and maximum Vector3 corners.");
         for (String name : List.of("Minimum", "Maximum")) {
             String getter = "Get" + name;
             registration.registerClassFunction("EntityBounds", getter, new org.luaj.vm2.lib.OneArgFunction() {
@@ -396,6 +411,18 @@ public class PlayersModule implements MLuaModule {
         }, "Returns the box dimensions as a Vector3.");
         MLuaClassMethods.registerInstanceProperty(registration, "EntityBounds", "Size", "GetSize", null,
             "Vector3", "shared:Shared", "The dimensions of the bounds.");
+        registration.registerClassFunction("EntityBounds", "GetVolume", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                return LuaValue.valueOf((max.get("X").todouble() - min.get("X").todouble())
+                    * (max.get("Y").todouble() - min.get("Y").todouble())
+                    * (max.get("Z").todouble() - min.get("Z").todouble()));
+            }
+        }, "Returns the volume of this box in cubic blocks.");
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityBounds", "Volume", "GetVolume", null,
+            "number", "shared:Shared", "The volume of the bounds in cubic blocks.");
         registration.registerClassFunction("EntityBounds", "Contains", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 LuaValue point = args.arg(2);
@@ -526,6 +553,22 @@ public class PlayersModule implements MLuaModule {
                 return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
             }
         }, "Returns the shortest distance from a Vector3 point to this box.");
+        registration.registerClassFunction("EntityBounds", "ClosestPoint", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue point = args.arg(2);
+                if (!dev.mlua.math.MLuaVector.isVector3(point)) {
+                    throw new LuaError("[MLua] EntityBounds:ClosestPoint expects a Vector3.");
+                }
+                LuaTable position = point.checktable();
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                return dev.mlua.math.MLuaVector.vector3(
+                    Math.max(min.get("X").todouble(), Math.min(max.get("X").todouble(), position.get("X").todouble())),
+                    Math.max(min.get("Y").todouble(), Math.min(max.get("Y").todouble(), position.get("Y").todouble())),
+                    Math.max(min.get("Z").todouble(), Math.min(max.get("Z").todouble(), position.get("Z").todouble())));
+            }
+        }, "Returns the nearest point on or inside this box.");
     }
 
     private static LuaTable entityBounds(MLuaRegistration registration,

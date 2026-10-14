@@ -287,6 +287,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
          AABB box = new AABB(min[0], min[1], min[2], max[0], max[1], max[2]);
          return this.entitiesTable(level, box, args.arg(maxIndex + coordinateWidth(args, maxIndex)));
       }));
+      table.set("FindEntitiesInBounds", levelFn(supplier, (level, args) ->
+         this.entitiesTable(level, entityBounds(args.arg(2)), args.arg(3))));
+      table.set("FindPlayersInBounds", levelFn(supplier, (level, args) ->
+         this.playersTable(level, entityBounds(args.arg(2)))));
       table.set("FindPlayersInRadius", levelFn(supplier, (level, args) -> {
          double[] center = positionArgs(args, 2);
          double radius = args.checkdouble(2 + coordinateWidth(args, 2));
@@ -576,6 +580,33 @@ public final class MLuaWorldService extends MLuaServiceBase {
          }
       }
       return list;
+   }
+
+   private static AABB entityBounds(LuaValue value) {
+      if (!value.istable() || !value.get("__type").isstring()
+            || !value.get("__type").checkjstring().equals("EntityBounds")) {
+         throw new LuaError("[MLua] Expected an EntityBounds instance.");
+      }
+      LuaTable bounds = value.checktable();
+      LuaValue minimum = bounds.get("Minimum");
+      LuaValue maximum = bounds.get("Maximum");
+      if (!dev.mlua.math.MLuaVector.isVector3(minimum) || !dev.mlua.math.MLuaVector.isVector3(maximum)) {
+         throw new LuaError("[MLua] EntityBounds must contain Vector3 Minimum and Maximum corners.");
+      }
+      LuaTable min = minimum.checktable();
+      LuaTable max = maximum.checktable();
+      double minX = min.get("X").todouble();
+      double minY = min.get("Y").todouble();
+      double minZ = min.get("Z").todouble();
+      double maxX = max.get("X").todouble();
+      double maxY = max.get("Y").todouble();
+      double maxZ = max.get("Z").todouble();
+      if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(minZ)
+            || !Double.isFinite(maxX) || !Double.isFinite(maxY) || !Double.isFinite(maxZ)
+            || minX > maxX || minY > maxY || minZ > maxZ) {
+         throw new LuaError("[MLua] EntityBounds corners must be finite and ordered from minimum to maximum.");
+      }
+      return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
    }
 
    private Iterable<Entity> allEntities(Level level) {
