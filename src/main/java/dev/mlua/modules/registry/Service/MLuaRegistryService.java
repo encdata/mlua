@@ -110,6 +110,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
       descriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       descriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
+      descriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       return java.util.Collections.unmodifiableMap(descriptions);
    }
 
@@ -127,7 +128,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       addEndpoint(endpoints, "DataPack", "Register", "datapack", "DataPack", null, List.of("data", "datapack", "data_pack"), "Register:4");
       addEndpoint(endpoints, "Assets", "register", "assets", "Assets", null, List.of("asset", "assets"));
       addEndpoint(endpoints, "WorldGeneration", "addFeature", "worldgen", "WorldGeneration", null,
-         List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"), "addFeature:3", "register:4");
+         List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"),
+         "addFeature:3", "register:4", "AddFeature:3", "Register:4");
       addEndpoint(endpoints, "Tabs", "Register", "tab", "Tabs", RegistryKind.CREATIVE_TAB, List.of("tab", "tabs", "creative_tab", "creative_tabs"), "Register:3");
       addEndpoint(endpoints, "Recipes", "Register", "recipe", "Recipes", null, List.of("recipe", "recipes"), "Register:3", "RegisterShaped:3", "RegisterShapeless:3", "RegisterSmelting:3", "RegisterStonecutting:3");
       addEndpoint(endpoints, "Loot", "Register", "loot", "Loot", null, List.of("loot"), "Register:3", "RegisterEntity:3", "RegisterSimpleBlock:3", "RegisterSelfBlock:3", "RegisterSilkTouchBlock:3", "RegisterOreBlock:3");
@@ -277,8 +279,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       });
       assets.rawset("__mlua_doc_description", LuaValue.valueOf(
          "Generates JSON files under the addon's assets namespace, including shared manifests such as sounds.json."));
-      MLuaServiceMetadata.attachMethodDescriptions(assets, Map.of(
-         "register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json."));
       worldGeneration.set("register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -302,6 +302,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return LuaValue.NONE;
          }
       });
+      worldGeneration.set("Register", worldGeneration.get("register"));
       worldGeneration.set("addFeature", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -328,6 +329,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return LuaValue.NONE;
          }
       });
+      worldGeneration.set("AddFeature", worldGeneration.get("addFeature"));
+      assets.set("Register", assets.get("register"));
       containers.set("Register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -1025,6 +1028,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        }
        documentRegistryTable(table, "Registry");
        documentRegistryTable(contentTypes, "ContentTypes");
+      Map<String, String> assetDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
+      assetDescriptions.put("Register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json.");
+      assetDescriptions.put("register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json.");
+      MLuaServiceMetadata.attachMethodDescriptions(assets, assetDescriptions);
+      Map<String, String> worldGenerationDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
+      worldGenerationDescriptions.put("Register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
+      worldGenerationDescriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
+      worldGenerationDescriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
+      worldGenerationDescriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
+      MLuaServiceMetadata.attachMethodDescriptions(worldGeneration, worldGenerationDescriptions);
        wrapTypedDefinition(entities, "item", "RegisterSpawnEgg:3");
        wrapTypedDefinition(blocks, "item", "RegisterItem:3");
        return table;
