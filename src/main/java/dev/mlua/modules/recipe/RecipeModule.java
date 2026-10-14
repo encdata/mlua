@@ -40,6 +40,8 @@ public class RecipeModule implements MLuaModule {
             "Maps one pattern character to an item identifier.");
         MLuaClassMethods.registerInstanceMethod(registration, "ShapedRecipeBuilder", "WithTagKey",
             "Maps one pattern character to an item tag identifier.");
+        MLuaClassMethods.registerInstanceMethod(registration, "ShapedRecipeBuilder", "SetGroup",
+            "Sets an optional recipe book group.");
 
         registration.registerClass("ShapelessRecipeBuilder", "RecipeBuilder",
             "A builder for a shapeless crafting recipe with up to nine ingredients.");
@@ -47,6 +49,8 @@ public class RecipeModule implements MLuaModule {
             "Adds an item identifier as a recipe ingredient.");
         MLuaClassMethods.registerInstanceMethod(registration, "ShapelessRecipeBuilder", "AddTagIngredient",
             "Adds an item tag identifier as a recipe ingredient.");
+        MLuaClassMethods.registerInstanceMethod(registration, "ShapelessRecipeBuilder", "SetGroup",
+            "Sets an optional recipe book group.");
     }
 
     @Override
@@ -58,9 +62,11 @@ public class RecipeModule implements MLuaModule {
         docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:Row(row: string, ...): ShapedRecipeBuilder", "Adds one or more rows to the shaped recipe pattern.", "one or more equally sized pattern rows", "ShapedRecipeBuilder", "Shared", null);
         docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:WithKey(symbol: string, itemId: string): ShapedRecipeBuilder", "Maps one pattern character to an item identifier.", "a single pattern character and an item identifier", "ShapedRecipeBuilder", "Shared", null);
         docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:WithTagKey(symbol: string, tagId: string): ShapedRecipeBuilder", "Maps one pattern character to an item tag identifier.", "a single pattern character and an item tag identifier without a leading #", "ShapedRecipeBuilder", "Shared", null);
+        docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:SetGroup(group: string): ShapedRecipeBuilder", "Sets the optional recipe book group. An empty string clears the group.", "recipe book group name", "ShapedRecipeBuilder", "Shared", null);
         docs.clazz("ShapelessRecipeBuilder", "MLuaRecipeService", "A builder for a shapeless crafting recipe with up to nine ingredients.", "classes/shapeless-recipe-builder.html", "RecipeBuilder");
         docs.method("ShapelessRecipeBuilder", "ShapelessRecipeBuilder:AddIngredient(itemId: string): ShapelessRecipeBuilder", "Adds an item identifier as a recipe ingredient.", "an item identifier", "ShapelessRecipeBuilder", "Shared", null);
         docs.method("ShapelessRecipeBuilder", "ShapelessRecipeBuilder:AddTagIngredient(tagId: string): ShapelessRecipeBuilder", "Adds an item tag identifier as a recipe ingredient.", "an item tag identifier without a leading #", "ShapelessRecipeBuilder", "Shared", null);
+        docs.method("ShapelessRecipeBuilder", "ShapelessRecipeBuilder:SetGroup(group: string): ShapelessRecipeBuilder", "Sets the optional recipe book group. An empty string clears the group.", "recipe book group name", "ShapelessRecipeBuilder", "Shared", null);
         docs.signature("Recipe", "Recipe:Shaped(rows: number, result: string, count?: number)", "ShapedRecipeBuilder");
         docs.signature("Recipe", "Recipe:Shapeless(result: string, count?: number)", "ShapelessRecipeBuilder");
         docs.signature("Recipe", "Recipe:Smelting(input: string, output: string, experience?: number, cookTime?: number)", "string");

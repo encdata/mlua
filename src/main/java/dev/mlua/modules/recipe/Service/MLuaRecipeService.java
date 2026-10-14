@@ -44,6 +44,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
 
             final String[] pattern = new String[rows];
             final int[] nextRow = {0};
+            final String[] group = {null};
             final Map<String, JsonObject> keyMap = new LinkedHashMap<>();
 
             LuaTable builder = new LuaTable();
@@ -99,6 +100,14 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                 }
             });
 
+            MLuaClassMethods.setInstanceMethod(builder, "SetGroup", new VarArgFunction() {
+                public Varargs invoke(Varargs args) {
+                    String value = args.checkjstring(2);
+                    group[0] = value.isBlank() ? null : value;
+                    return builder;
+                }
+            });
+
             MLuaClassMethods.setInstanceMethod(builder, "Build", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     for (int i = 0; i < pattern.length; i++) {
@@ -133,6 +142,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                     recipe.add("pattern", rows);
                     recipe.add("key", keys);
                     recipe.add("result", itemStackResult(output, count));
+                    if (group[0] != null) recipe.addProperty("group", group[0]);
                     return LuaValue.valueOf(recipe.toString());
                 }
             });
@@ -147,6 +157,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
             if (count < 1) throw new LuaError("[MLua] Shapeless recipe count must be at least 1");
 
             final List<JsonObject> ingredients = new ArrayList<>();
+            final String[] group = {null};
 
             LuaTable builder = new LuaTable();
             attachBuilder(builder, "ShapelessRecipeBuilder");
@@ -171,6 +182,14 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                 }
             });
 
+            MLuaClassMethods.setInstanceMethod(builder, "SetGroup", new VarArgFunction() {
+                public Varargs invoke(Varargs args) {
+                    String value = args.checkjstring(2);
+                    group[0] = value.isBlank() ? null : value;
+                    return builder;
+                }
+            });
+
             MLuaClassMethods.setInstanceMethod(builder, "Build", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     if (ingredients.isEmpty()) {
@@ -182,6 +201,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                     recipe.addProperty("type", "minecraft:crafting_shapeless");
                     recipe.add("ingredients", entries);
                     recipe.add("result", itemStackResult(output, count));
+                    if (group[0] != null) recipe.addProperty("group", group[0]);
                     return LuaValue.valueOf(recipe.toString());
                 }
             });
