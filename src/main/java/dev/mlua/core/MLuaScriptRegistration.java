@@ -228,8 +228,9 @@ final class MLuaScriptRegistration implements MLuaRegistration {
             if (mixinName.equals(entry.arg(2).optjstring(""))) alreadyApplied = true;
          }
       }
+      if (alreadyApplied) return;
       delegate.applyBehaviorMixin(className, mixinName);
-      if (!alreadyApplied) applications.add(new MixinApplication(className, mixinName));
+      applications.add(new MixinApplication(className, mixinName));
    }
 
    @Override public boolean removeBehaviorMixin(String className, String mixinName) {
