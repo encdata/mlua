@@ -44,6 +44,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.Font;
 //--version 26.1
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 //--endversion
@@ -94,6 +95,76 @@ public final class MLuaGuiService implements MLuaService {
             GuiState state = STATES.get(scheduler);
             return state == null ? null : new MLuaGuiService(state);
         }
+    }
+
+    public static void renderHudElements(String position, Object graphics) {
+        if (position == null || graphics == null) return;
+        List<GuiState> states;
+        synchronized (STATES) { states = List.copyOf(STATES.values()); }
+        for (GuiState state : states) {
+            for (HudElement element : List.copyOf(state.hudElements.values())) {
+                if (element.position.equals(position) && !element.failed) renderHudElement(element, graphics);
+            }
+        }
+    }
+
+    private static void renderHudElement(HudElement element, Object graphics) {
+        LuaTable canvas = new LuaTable();
+        Object window = Minecraft.getInstance() == null ? null : Minecraft.getInstance().getWindow();
+        canvas.set("Width", LuaValue.valueOf(readNumber(window, "getGuiScaledWidth", "guiScaledWidth")));
+        canvas.set("Height", LuaValue.valueOf(readNumber(window, "getGuiScaledHeight", "guiScaledHeight")));
+        canvas.set("Fill", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                drawHudFill(graphics, args.arg(2).checkint(), args.arg(3).checkint(), args.arg(4).checkint(),
+                    args.arg(5).checkint(), args.arg(6).checkint());
+                return LuaValue.NONE;
+            }
+        });
+        canvas.set("DrawText", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                drawHudText(graphics, args.arg(2).checkjstring(), args.arg(3).checkint(), args.arg(4).checkint(),
+                    args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
+                return LuaValue.NONE;
+            }
+        });
+        try { element.callback.invoke(canvas); }
+        catch (RuntimeException failure) {
+            element.failed = true;
+            MLuaLogger.LOGGER.error("Lua HUD element '{}' failed; rendering is paused until it is registered again", element.id, failure);
+        }
+    }
+
+    private static int readNumber(Object target, String... methodNames) {
+        if (target == null) return 0;
+        for (String name : methodNames) {
+            try {
+                Object value = target.getClass().getMethod(name).invoke(target);
+                if (value instanceof Number number) return number.intValue();
+            } catch (ReflectiveOperationException ignored) { }
+        }
+        return 0;
+    }
+
+    private static void drawHudFill(Object graphics, int left, int top, int right, int bottom, int color) {
+        try {
+            graphics.getClass().getMethod("fill", int.class, int.class, int.class, int.class, int.class)
+                .invoke(graphics, left, top, right, bottom, color);
+        } catch (ReflectiveOperationException failure) {
+            throw new LuaError("[MLua] This Minecraft HUD graphics context does not support Fill.");
+        }
+    }
+
+    private static void drawHudText(Object graphics, String text, int x, int y, int color, boolean shadow) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
+        for (String name : List.of("text", "drawString")) {
+            try {
+                graphics.getClass().getMethod(name, Font.class, String.class, int.class, int.class, int.class, boolean.class)
+                    .invoke(graphics, minecraft.font, text, x, y, color, shadow);
+                return;
+            } catch (ReflectiveOperationException ignored) { }
+        }
+        throw new LuaError("[MLua] This Minecraft HUD graphics context does not support DrawText.");
     }
 
     public static boolean matchesRegisteredScreenTarget(MLuaTaskSchedulerView scheduler, String target, Object screen) {
@@ -846,6 +917,10 @@ public final class MLuaGuiService implements MLuaService {
         if (ownerId == null || ownerId.isBlank()) return 0;
         int removed = 0;
         synchronized (this.state) {
+            for (Map.Entry<String, HudElement> entry : List.copyOf(this.state.hudElements.entrySet())) {
+                if (ownerId.equals(entry.getValue().owner)
+                    && this.state.hudElements.remove(entry.getKey(), entry.getValue())) removed++;
+            }
             for (MLuaScriptScreen screen : List.copyOf(this.state.scriptScreens)) {
                 if (ownerId.equals(screen.ownerModId)) {
                     screen.dispose();
@@ -910,6 +985,27 @@ public final class MLuaGuiService implements MLuaService {
         table.set("UnregisterScreenTarget", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.unregisterScreenTarget(args.arg(2).checkjstring()));
+            }
+        });
+        table.set("AttachHudElementBeforeChat", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
+                    args.arg(2).checkjstring(), "BeforeChat", args.arg(3)));
+            }
+        });
+        table.set("AttachHudElementAfterChat", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
+                    args.arg(2).checkjstring(), "AfterChat", args.arg(3)));
+            }
+        });
+        table.set("RemoveHudElement", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                if (MLuaGuiService.this.context == null) return LuaValue.FALSE;
+                String key = MLuaGuiService.this.context.mlua().ownerModId() + ":" + args.arg(2).checkjstring();
+                HudElement element = MLuaGuiService.this.state.hudElements.get(key);
+                return LuaValue.valueOf(element != null
+                    && MLuaGuiService.this.state.hudElements.remove(key, element));
             }
         });
         if (this.context != null) {
@@ -1238,6 +1334,17 @@ public final class MLuaGuiService implements MLuaService {
         root.setScheduler(this.context.mlua().scheduler());
         root.setRegistration(this.context.mlua().registration());
         root.setOwnerContext(this.context.mlua().ownerModId(), this.context.mlua().side(), this.context.mlua().globals());
+    }
+
+    private String attachHudElement(String id, String position, LuaValue callback) {
+        if (this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
+        if (id == null || id.isBlank()) throw new LuaError("[MLua] HUD element id must not be empty.");
+        if (!callback.isfunction()) throw new LuaError("[MLua] HUD element callback must be a function.");
+        String owner = this.context.mlua().ownerModId();
+        String key = owner + ":" + id;
+        HudElement element = new HudElement(key, owner, position, callback);
+        this.state.hudElements.put(key, element);
+        return id;
     }
 
     private static void processChildren(LuaTable parentTable, GuiBase parent) {
@@ -1593,6 +1700,7 @@ public final class MLuaGuiService implements MLuaService {
     private static final class GuiState {
         private final List<ScreenGui> screens = new CopyOnWriteArrayList<>();
         private final List<MLuaScriptScreen> scriptScreens = new CopyOnWriteArrayList<>();
+        private final Map<String, HudElement> hudElements = new ConcurrentHashMap<>();
         private final Set<CoreGuiType> disabledTypes = EnumSet.noneOf(CoreGuiType.class);
         private final List<NativeLayout> nativeLayouts = new CopyOnWriteArrayList<>();
         private final Map<String, ScreenTarget> screenTargets = new ConcurrentHashMap<>();
@@ -1601,6 +1709,7 @@ public final class MLuaGuiService implements MLuaService {
         private volatile boolean enabled = true;
 
         private void clear() {
+            this.hudElements.clear();
             for (MLuaScriptScreen screen : List.copyOf(this.scriptScreens)) screen.dispose();
             List<NativeLayout> layouts = List.copyOf(this.nativeLayouts);
             for (int index = layouts.size() - 1; index >= 0; index--) {
@@ -1616,6 +1725,21 @@ public final class MLuaGuiService implements MLuaService {
             this.screenTargets.clear();
             this.screenOpened.Destroy();
             this.chatLineAdding.Destroy();
+        }
+    }
+
+    private static final class HudElement {
+        private final String id;
+        private final String owner;
+        private final String position;
+        private final LuaValue callback;
+        private volatile boolean failed;
+
+        private HudElement(String id, String owner, String position, LuaValue callback) {
+            this.id = id;
+            this.owner = owner;
+            this.position = position;
+            this.callback = callback;
         }
     }
 
