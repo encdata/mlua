@@ -196,16 +196,7 @@ public final class MLuaCFrame {
          MLuaCFrame cframe = fromLua(value);
          return new double[]{cframe.x(), cframe.y(), cframe.z()};
       }
-      LuaTable table = value.checktable();
-      if (!table.isfrozen() || !"Vector3".equals(table.get("__type").optjstring(null))) {
-         throw new LuaError("[MLua] Expected a Vector3 or CFrame value; coordinate tables are not accepted");
-      }
-      return new double[]{component(table, "X", "x"), component(table, "Y", "y"), component(table, "Z", "z")};
-   }
-
-   private static double component(LuaTable table, String upper, String lower) {
-      LuaValue value = table.get(upper);
-      return value.isnumber() ? value.todouble() : table.get(lower).checkdouble();
+      return MLuaVector.components3(value);
    }
 
    public double x() {

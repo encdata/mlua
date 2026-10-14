@@ -321,6 +321,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean");
         docs.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
+        docs.signature("World", "World:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?)", "BlockRaycastResult?");
         docs.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState");
         docs.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean");
         docs.signature("World", "World:GetFluidState(position: Vector3|CFrame)", "FluidState");

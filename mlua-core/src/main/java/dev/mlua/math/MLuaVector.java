@@ -70,18 +70,31 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y + z * z);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
+      table.setmetatable(VECTOR3_METATABLE);
       return table.freeze();
    }
 
    private static LuaTable checkVector3(LuaValue value) {
-      if (!value.istable() || !"Vector3".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen()) {
+      if (!value.istable() || !"Vector3".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen() || value.getmetatable() != VECTOR3_METATABLE) {
          throw new LuaError("Vector3 operations require values created by Vector3.new");
       }
       return value.checktable();
    }
 
+   public static double[] components3(LuaValue value) {
+      LuaTable vector = checkVector3(value);
+      return new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
+   }
+
+   public static boolean isVector3(LuaValue value) {
+      if (!value.istable() || !value.checktable().isfrozen() || value.getmetatable() != VECTOR3_METATABLE) {
+         return false;
+      }
+      return "Vector3".equals(value.get("__type").optjstring(null));
+   }
+
    private static LuaTable checkVector2(LuaValue value) {
-      if (!value.istable() || !"Vector2".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen()) {
+      if (!value.istable() || !"Vector2".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen() || value.getmetatable() != VECTOR2_METATABLE) {
          throw new LuaError("Vector2 operations require values created by Vector2.new");
       }
       return value.checktable();
@@ -97,6 +110,7 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
+      table.setmetatable(VECTOR2_METATABLE);
       return table.freeze();
    }
 

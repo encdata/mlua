@@ -261,7 +261,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("Raycast", levelFn(supplier, (level, args) -> {
          double[] origin = positionArgs(args, 2);
          int directionIndex = 2 + coordinateWidth(args, 2);
-         double[] direction = positionArgs(args, directionIndex);
+         double[] direction = dev.mlua.math.MLuaVector.components3(args.arg(directionIndex));
          int distanceIndex = directionIndex + coordinateWidth(args, directionIndex);
          double distance = args.optdouble(distanceIndex, 100.0);
          if (!Double.isFinite(distance) || distance < 0) {

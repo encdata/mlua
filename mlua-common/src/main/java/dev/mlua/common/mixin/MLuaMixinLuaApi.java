@@ -1,6 +1,7 @@
 package dev.mlua.common.mixin;
 
 import dev.mlua.common.enums.MixinType;
+import dev.mlua.common.enums.InjectionPoint;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import java.util.Collections;
 import java.util.LinkedHashMap;

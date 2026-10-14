@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.math.MLuaVector;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
@@ -278,7 +279,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
         }));
         bindWorldMethod(result, implementations, "Raycast", levelFunction(level, (world, args) -> {
             double[] originValues = positionArgs(args, 2);
-            double[] directionValues = positionArgs(args, 3);
+            double[] directionValues = MLuaVector.components3(args.arg(3));
+            if (directionValues[0] == 0.0 && directionValues[1] == 0.0 && directionValues[2] == 0.0) {
+                throw new LuaError("Raycast direction must not be Vector3.zero");
+            }
             Vec3 origin = new Vec3(originValues[0], originValues[1], originValues[2]);
             Vec3 direction = new Vec3(directionValues[0], directionValues[1], directionValues[2]).normalize();
             double distance = args.optdouble(4, 100.0);
