@@ -238,8 +238,8 @@ public class RegistryModule implements MLuaModule {
         docs.property("BlockEntity", "blockEntity.Inventory", "Container|nil", "Alias for blockEntity.Container.", "shared:Shared");
         docs.property("BlockEntity", "blockEntity.HasContainer", "boolean", "Whether this block entity owns a live Container.", "shared:Shared");
         docs.guideStep("BlockEntity", "Extend a block with saved state",
-                "Register a Lua class under BlockEntity and assign it in the block definition. Retrieve the live instance from Block:GetBlockEntity().",
-                "Minecraft:RegisterClass(\"RuneChestEntity\", \"BlockEntity\", \"Stores a rune chest's state.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"SetCharge\", function(self, charge)\n    self.Nbt.charge = charge\nend, \"Saves this block's charge value.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"GetCharge\", function(self)\n    return self.Nbt.charge or 0\nend, \"Returns the saved charge value.\")\n\nRegistry.Blocks:Register(\"rune_chest\", {\n    container = { Rows = 3 },\n    blockEntity = { className = \"RuneChestEntity\" }\n})\n\nlocal World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(position)\nlocal entity = block:GetBlockEntity()\nentity:SetCharge(12)");
+                "Register a Lua class under BlockEntity and assign it in the block definition. The nested onLoad callback receives the live subclass instance and a context table when Minecraft loads the block entity on the server. Retrieve the same live instance from Block:GetBlockEntity().",
+                "Minecraft:RegisterClass(\"RuneChestEntity\", \"BlockEntity\", \"Stores a rune chest's state.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"SetCharge\", function(self, charge)\n    self.Nbt.charge = charge\nend, \"Saves this block's charge value.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"GetCharge\", function(self)\n    return self.Nbt.charge or 0\nend, \"Returns the saved charge value.\")\n\nRegistry.Blocks:Register(\"rune_chest\", {\n    container = { Rows = 3 },\n    blockEntity = {\n        className = \"RuneChestEntity\",\n        onLoad = function(self, context)\n            self.Nbt.charge = self.Nbt.charge or 0\n            print(context.World, context.Position)\n        end\n    }\n})\n\nlocal World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(position)\nlocal entity = block:GetBlockEntity()\nentity:SetCharge(12)");
         docs.guideStep("Block", "Inspect a block from the world",
                 "World:GetBlock returns a live instance of Block or the addon subclass registered for that block. Use its inherited methods and GetClassName to inspect its class.",
                 "local World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(Vector3.new(0, 64, 0))\nprint(block.Id, block:GetClassName())\nblock:Break(false)");
@@ -312,8 +312,9 @@ public class RegistryModule implements MLuaModule {
             "className?", "string", "Registered Lua class inheriting from Block.",
             "blockEntity?", "BlockEntityDefinition", "Lua block entity class and behavior settings.",
             "blockEntityClass?", "string", "Registered Lua class inheriting from BlockEntity.");
-        schema(docs, "BlockEntityDefinition", "Lua class assigned to a block's live block entity.",
-            "className?", "string", "Registered Lua class inheriting from BlockEntity.");
+        schema(docs, "BlockEntityDefinition", "Lua class and load behavior for a block's live block entity.",
+            "className?", "string", "Registered Lua class inheriting from BlockEntity.",
+            "onLoad?", "fun(self: BlockEntity, context: table)", "Runs server-side when Minecraft loads the block entity, including when its chunk loads.");
         schema(docs, "BlockItemDefinition", "Options and callbacks for a block's item form.",
             "className?", "string", "Registered Lua class inheriting from BlockItem.",
             "onUse?", "fun(context: ItemUseContext): boolean", "Runs when a player uses this block item.",

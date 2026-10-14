@@ -22,6 +22,7 @@ public final class MLuaBehaviorRegistry {
 
    public static void clearBlockCallbacks(String key) {
       clearBehaviors("block", key);
+      clearBehaviors("block_entity", key);
       BLOCK_CONTAINERS.remove(key);
    }
 

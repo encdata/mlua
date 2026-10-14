@@ -15,6 +15,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
+import dev.mlua.core.MLuaLogger;
+import dev.mlua.core.MLuaRuntime;
+import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 //--version 26.1
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -33,6 +38,29 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       if (block instanceof MLuaScriptedBlock scripted) {
          MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
          if (definition != null) this.items = NonNullList.withSize(definition.rows() * 9, ItemStack.EMPTY);
+      }
+   }
+
+   @Override public void onLoad() {
+      super.onLoad();
+      if (this.level == null || this.level.isClientSide) return;
+      net.minecraft.resources.ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(this.getBlockState().getBlock());
+      if (blockId == null) return;
+      String key = blockId.toString();
+      LuaValue callback = MLuaBehaviorRegistry.getCallback("block_entity", key, "onLoad");
+      if (!callback.isfunction()) return;
+      try {
+         var registration = MLuaRuntime.registrationForLevel(this.level);
+         if (registration == null) return;
+         LuaTable block = MLuaBlockWrapper.blockTable(this.level, this.worldPosition, registration);
+         LuaTable blockEntity = block.get("BlockEntity").checktable();
+         LuaTable context = new LuaTable();
+         context.set("Block", block);
+         context.set("World", this.level.dimension().location().toString());
+         context.set("Position", dev.mlua.math.MLuaVector.vector3(this.worldPosition.getX(), this.worldPosition.getY(), this.worldPosition.getZ()));
+         callback.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
+      } catch (Exception exception) {
+         MLuaLogger.LOGGER.error("MLua block entity onLoad callback failed for '{}': {}", key, exception.getMessage());
       }
    }
 
