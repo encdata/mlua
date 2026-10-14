@@ -231,7 +231,7 @@ public final class MLuaContainer {
 
    public static LuaTable containerTable(MCAbstractContainerMenu menu, MCComponent title, boolean writable, MLuaRegistration registration) {
       Object backing = menu instanceof dev.mlua.mc.impl.container.MCAbstractContainerMenuImpl container ? container.inner() : menu;
-      String titleStr = title != null ? title.getString() : "";
+      String titleStr = title == null ? null : title.getString();
       return cachedInstance(registration, backing, "Container", writable, titleStr,
          () -> createMenuTable(menu, title, writable, registration));
    }
@@ -302,7 +302,7 @@ public final class MLuaContainer {
       MLuaClassMethods.setInstanceMethod(table, "GetTitle", new ZeroArgFunction() {
          @Override
          public LuaValue call() {
-            return LuaValue.valueOf(titleStr);
+            return titleStr == null ? LuaValue.NIL : LuaValue.valueOf(titleStr);
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetAll", new ZeroArgFunction() {
@@ -426,7 +426,7 @@ public final class MLuaContainer {
    }
 
    public static LuaTable containerTable(MCAbstractContainerMenu menu) {
-      return containerTable(menu, MCComponent.literal(""), true);
+      return containerTable(menu, null, true);
    }
 
    private static int toRawIndex(int index, int size) {
