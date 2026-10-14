@@ -132,11 +132,7 @@ public final class MLuaClassMethods {
          }
       }
       registerInstanceMethod(registration, className, methodName, description);
-      documentedMethods = instance.rawget("__mlua_doc_methods");
-      LuaTable instanceDocs = documentedMethods.istable() ? documentedMethods.checktable() : new LuaTable();
-      instanceDocs.rawset(methodName, LuaValue.valueOf(description));
-      instance.rawset("__mlua_doc_methods", instanceDocs);
-      setInstanceMethod(instance, methodName, implementation);
+      setInstanceMethod(instance, methodName, implementation, description);
       if (existingInstanceMethod == implementation) instance.rawset(methodName, LuaValue.NIL);
    }
 
