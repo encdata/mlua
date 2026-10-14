@@ -959,6 +959,11 @@ public final class MLuaEntityWrapper {
 
    public static LuaValue setVelocity(MCEntity entity, LuaValue value) {
       double[] velocity = MLuaVector.components3(value);
+      for (double component : velocity) {
+         if (!Double.isFinite(component)) {
+            throw new LuaError("[MLua] Entity:SetVelocity requires finite Vector3 components.");
+         }
+      }
       entity.setDeltaMovement(MCVec3.of(velocity[0], velocity[1], velocity[2]));
       ((MCEntityImpl)entity).inner().hurtMarked = true;
       return LuaValue.NONE;
