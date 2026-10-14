@@ -405,7 +405,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaBehaviorRegistry.registerContentClass("block_entity", key,
                "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
             MLuaBehaviorRegistry.clearBlockCallbacks(key);
-            registerCallbacks("block_entity", key, blockEntityProperties, "onLoad");
+            registerCallbacks("block_entity", key, blockEntityProperties, "onLoad", "onUnload");
             MLuaBehaviorRegistry.ContainerDefinition containerDefinition = null;
             if (propsTable != null) {
                LuaValue containerValue = propsTable.get("container");

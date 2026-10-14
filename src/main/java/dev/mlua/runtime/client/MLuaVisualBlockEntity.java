@@ -19,6 +19,7 @@ import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 //--version 26.1
@@ -30,6 +31,8 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
    private static final int MAX_CONTAINER_SLOTS = 54;
    private NonNullList<ItemStack> items = NonNullList.create();
    private Level loadCallbackLevel;
+   private final String behaviorKey;
+   private boolean unloadCallbackFired;
    public MLuaVisualBlockEntity(BlockPos pos, BlockState state) {
       this(resolveType(state), pos, state);
    }
@@ -37,6 +40,8 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
    public MLuaVisualBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
       super((BlockEntityType)java.util.Objects.requireNonNull(type, "blockEntityType"), pos, state);
       Block block = state.getBlock();
+      net.minecraft.resources.ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(block);
+      this.behaviorKey = blockId == null ? null : blockId.toString();
       if (block instanceof MLuaScriptedBlock scripted) {
          MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
          if (definition != null) this.items = NonNullList.withSize(definition.rows() * 9, ItemStack.EMPTY);
@@ -47,28 +52,55 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       super.setLevel(level);
       if (level == null || level.isClientSide || this.loadCallbackLevel == level) return;
       this.loadCallbackLevel = level;
-      net.minecraft.resources.ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(this.getBlockState().getBlock());
-      if (blockId == null) return;
-      String key = blockId.toString();
-      LuaValue callback = MLuaBehaviorRegistry.getCallback("block_entity", key, "onLoad");
+      this.invokeLifecycle("onLoad", "OnLoad", level);
+   }
+
+   @Override public void setRemoved() {
+      if (!this.unloadCallbackFired) {
+         this.unloadCallbackFired = true;
+         this.invokeLifecycle("onUnload", "OnUnload", this.level);
+      }
+      super.setRemoved();
+   }
+
+   private void invokeLifecycle(String callbackName, String methodName, Level level) {
+      if (level == null || level.isClientSide || this.behaviorKey == null) return;
+      LuaValue callback = MLuaBehaviorRegistry.getCallback("block_entity", this.behaviorKey, callbackName);
+      String className = MLuaBehaviorRegistry.getContentClass("block_entity", this.behaviorKey);
+      if (className == null) className = "BlockEntity";
       try {
          var registration = MLuaRuntime.registrationForLevel(level);
          if (registration == null) return;
          LuaTable block = MLuaBlockWrapper.blockTable(level, this.worldPosition, registration);
-         LuaTable blockEntity = block.get("BlockEntity").checktable();
+         LuaTable blockEntity = MLuaBlockWrapper.blockEntityTable(this, level, className, registration);
          LuaTable context = new LuaTable();
          context.set("Block", block);
-         context.set("World", level.dimension().location().toString());
+         context.set("BlockEntity", blockEntity);
+         context.set("World", MLuaLevelWrapper.levelTable(level, registration));
          context.set("Position", dev.mlua.math.MLuaVector.vector3(this.worldPosition.getX(), this.worldPosition.getY(), this.worldPosition.getZ()));
-         LuaValue classMethod = blockEntity.get("OnLoad");
+         LuaValue classMethod = findLifecycleMethod(registration, className, methodName);
          if (classMethod.isfunction()) {
             classMethod.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
          } else if (callback.isfunction()) {
             callback.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
          }
       } catch (Exception exception) {
-         MLuaLogger.LOGGER.error("MLua block entity onLoad callback failed for '{}': {}", key, exception.getMessage());
+         MLuaLogger.LOGGER.error("MLua block entity {} callback failed for '{}': {}", callbackName, this.behaviorKey, exception.getMessage());
       }
+   }
+
+   private static LuaValue findLifecycleMethod(dev.mlua.module.MLuaRegistration registration,
+                                                String className, String methodName) {
+      String currentClass = className;
+      while (currentClass != null && !"BlockEntity".equals(currentClass)) {
+         LuaTable type = registration.classTable(currentClass);
+         if (type != null) {
+            LuaValue method = type.rawget(methodName);
+            if (method.isfunction()) return method;
+         }
+         currentClass = registration.superclassName(currentClass);
+      }
+      return LuaValue.NIL;
    }
 
    private static BlockEntityType<?> resolveType(BlockState state) {

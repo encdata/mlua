@@ -117,6 +117,12 @@ public final class MLuaBlockWrapper {
       }
    }
 
+   public static LuaTable blockEntityTable(net.minecraft.world.level.block.entity.BlockEntity entity,
+                                            net.minecraft.world.level.Level level, String className,
+                                            MLuaRegistration registration) {
+      return blockEntityTable(entity, level, entity.getBlockPos(), className, registration);
+   }
+
    public static LuaTable classTable() {
       return classTable(MLuaRuntime.get());
    }
@@ -196,6 +202,12 @@ public final class MLuaBlockWrapper {
                return MLuaVector.vector3(entity.getBlockPos().getX(), entity.getBlockPos().getY(), entity.getBlockPos().getZ());
             }
          }, "Returns this block entity's world position.");
+         registration.registerClassFunction("BlockEntity", "OnLoad", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
+         }, "Runs when Minecraft attaches this block entity to a level.");
+         registration.registerClassFunction("BlockEntity", "OnUnload", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
+         }, "Runs when Minecraft removes this block entity from a level.");
          registration.registerClassFunction("BlockEntity", "GetLevel", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                LuaTable self = args.arg1().checktable();
