@@ -428,6 +428,13 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    @Override
+   public LuaTable registerClassProperty(String className, String propertyName,
+                                         LuaValue getter, LuaValue setter, String valueType,
+                                         String side, String description) {
+      return this.classes.registerProperty(className, propertyName, getter, setter, valueType, side, description);
+   }
+
+   @Override
    public boolean unregisterClassProperty(String className, String propertyName, LuaValue expectedGetter) {
       return this.classes.unregisterProperty(className, propertyName, expectedGetter);
    }

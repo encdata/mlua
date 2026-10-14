@@ -445,6 +445,20 @@ final class MLuaModuleRegistrations {
             }
 
             @Override
+            public LuaTable registerClassProperty(String className, String propertyName,
+                                                  LuaValue getter, LuaValue setter, String valueType,
+                                                  String side, String description) {
+                snapshotClass(registration, className, snapshots);
+                LuaTable owner = registration.classTable(className);
+                LuaValue properties = owner == null ? LuaValue.NIL : owner.rawget("__mlua_properties");
+                boolean isNew = !properties.istable() || properties.checktable().rawget(propertyName).isnil();
+                LuaTable result = registration.registerClassProperty(className, propertyName, getter, setter,
+                    valueType, side, description);
+                if (isNew) ownedClassProperties.put(className + "\u0000" + propertyName, getter);
+                return result;
+            }
+
+            @Override
             public boolean unregisterClassProperty(String className, String propertyName, LuaValue expectedGetter) {
                 String key = className + "\u0000" + propertyName;
                 if (ownedClassProperties.get(key) != expectedGetter) {

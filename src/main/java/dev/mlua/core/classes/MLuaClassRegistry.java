@@ -590,6 +590,17 @@ public final class MLuaClassRegistry {
 
    public synchronized LuaTable registerProperty(String className, String propertyName,
                                                  LuaValue getter, LuaValue setter, String description) {
+      return this.registerProperty(className, propertyName, getter, setter, null, null, description);
+   }
+
+   public synchronized LuaTable registerProperty(String className, String propertyName,
+                                                 LuaValue getter, LuaValue setter, String valueType,
+                                                 String side, String description) {
+      if ((valueType == null) != (side == null)) {
+         throw new IllegalArgumentException("Property value type and side must be declared together");
+      }
+      if (valueType != null && valueType.isBlank()) throw new IllegalArgumentException("Property value type must be non-empty");
+      if (side != null && side.isBlank()) throw new IllegalArgumentException("Property side must be non-empty");
       LuaTable owner = this.classes.get(className);
       if (owner == null) throw new IllegalStateException("Lua class is not registered: " + className);
       if (propertyName == null || propertyName.isBlank()) throw new IllegalArgumentException("Property name must be non-empty");
@@ -636,9 +647,14 @@ public final class MLuaClassRegistry {
       if (!oldDescription.isnil() && !oldDescription.isstring()) {
          throw new IllegalStateException("Lua class '" + className + "' property '" + propertyName + "' has invalid description metadata");
       }
-      LuaTable descriptor = new LuaTable();
+      LuaTable descriptor = oldDescriptor.istable()
+         ? copyTableOrNil(oldDescriptor).checktable() : new LuaTable();
       descriptor.rawset("get", getter);
       descriptor.rawset("set", setter == null ? LuaValue.NIL : setter);
+      if (valueType != null) {
+         descriptor.rawset("type", LuaValue.valueOf(valueType));
+         descriptor.rawset("side", LuaValue.valueOf(side));
+      }
       descriptors.rawset(propertyName, descriptor);
       docs.rawset(propertyName, LuaValue.valueOf(description));
       this.pendingClassRemovals.remove(className);

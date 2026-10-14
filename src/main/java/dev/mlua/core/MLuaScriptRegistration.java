@@ -190,6 +190,19 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    @Override
+   public LuaTable registerClassProperty(String className, String propertyName,
+                                         LuaValue getter, LuaValue setter, String valueType,
+                                         String side, String description) {
+      LuaTable type = delegate.classTable(className);
+      LuaValue properties = type == null ? LuaValue.NIL : type.rawget("__mlua_properties");
+      boolean added = !properties.istable() || properties.checktable().rawget(propertyName).isnil();
+      LuaTable registered = delegate.registerClassProperty(className, propertyName, getter, setter,
+         valueType, side, description);
+      if (added) classProperties.add(new ClassProperty(className, propertyName, getter));
+      return registered;
+   }
+
+   @Override
    public boolean unregisterClassProperty(String className, String propertyName, LuaValue expectedGetter) {
       ClassProperty contribution = new ClassProperty(className, propertyName, expectedGetter);
       if (!classProperties.contains(contribution)) return false;
