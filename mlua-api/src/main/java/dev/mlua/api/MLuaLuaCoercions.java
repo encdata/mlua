@@ -139,11 +139,11 @@ public final class MLuaLuaCoercions {
          if (targetType.isPrimitive()) throw conversionError(value, targetType);
          return null;
       }
+      if (targetType == Object.class) return value.isuserdata() ? value.touserdata() : javaValue(value);
       if (targetType.isInstance(value)) return value;
       if (value.isuserdata(targetType)) return value.touserdata(targetType);
       Adapter<?> adapter = ADAPTERS.get(targetType);
       if (adapter != null) return fromLuaWithAdapter(value, targetType, adapter);
-      if (targetType == Object.class) return value.isuserdata() ? value.touserdata() : javaValue(value);
       if (targetType == String.class) {
          if (value.isstring()) return value.tojstring();
          throw conversionError(value, targetType);
