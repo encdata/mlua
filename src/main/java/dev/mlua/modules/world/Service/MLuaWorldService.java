@@ -218,6 +218,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
          ResourceLocation id = BuiltInRegistries.FLUID.getKey(state.getType());
          return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
       }));
+      table.set("GetFluidState", levelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         return MLuaFluidStateWrapper.wrap(level.getFluidState(blockPos), level, blockPos, context.mlua().registration());
+      }));
       table.set("GetBiome", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          Biome biome = level.getBiome(BlockPos.containing(pos[0], pos[1], pos[2])).value();

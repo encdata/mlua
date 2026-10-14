@@ -344,6 +344,11 @@ public final class MLuaBlockWrapper {
             net.minecraft.resources.ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluid.getType());
             return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
          }), "Returns the fluid identifier at this position, or nil when empty.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetFluidState", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return MLuaFluidStateWrapper.wrap(rawLevel.getFluidState(rawPos), rawLevel, rawPos, registration);
+         }), "Returns the typed FluidState at this position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetLightLevel", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();

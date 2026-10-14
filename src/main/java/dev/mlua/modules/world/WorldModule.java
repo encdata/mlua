@@ -7,6 +7,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
+import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule.ServiceEntry;
 import java.util.List;
@@ -54,6 +55,7 @@ public class WorldModule implements MLuaModule {
             MLuaClassMethods.registerInstanceMethod(registration, "World", name, description));
         registerWorldProperties(registration);
         MLuaBlockStateWrapper.classTable(registration);
+        MLuaFluidStateWrapper.classTable(registration);
         registration.registerClass("Chunk", "Instance", "A dimension-scoped chunk handle whose data methods load the chunk when needed.");
         chunkMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "Chunk", name, description));
@@ -209,6 +211,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetBlockState", "Returns a BlockState instance with the block type, position, and current state properties."),
             Map.entry("SetBlockState", "Places an immutable BlockState at a position, loading its chunk by default. This method is server-side only."),
             Map.entry("GetFluid", "Returns the fluid identifier at a position, or nil when empty."),
+            Map.entry("GetFluidState", "Returns the live position-aware FluidState at a position."),
             Map.entry("GetBiome", "Returns the biome identifier at a position."),
             Map.entry("GetLightLevel", "Returns the maximum local light level at a position."),
             Map.entry("GetSkyLight", "Returns the sky light level at a position."),
@@ -299,6 +302,7 @@ public class WorldModule implements MLuaModule {
         globals.set("Level", context.registration().classTable("Level"));
         globals.set("World", context.registration().classTable("World"));
         globals.set("BlockState", context.registration().classTable("BlockState"));
+        globals.set("FluidState", context.registration().classTable("FluidState"));
         globals.set("Chunk", context.registration().classTable("Chunk"));
     }
 
@@ -317,6 +321,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
         docs.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState");
         docs.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean");
+        docs.signature("World", "World:GetFluidState(position: Vector3|CFrame)", "FluidState");
         docs.signature("BlockState", "BlockState:GetId()", "string");
         docs.signature("BlockState", "BlockState:GetBlock()", "Block");
         docs.signature("BlockState", "BlockState:GetPosition()", "Vector3");
@@ -329,13 +334,24 @@ public class WorldModule implements MLuaModule {
         docs.signature("BlockState", "BlockState:IsSolid()", "boolean");
         docs.signature("BlockState", "BlockState:IsReplaceable()", "boolean");
         docs.signature("BlockState", "BlockState:GetFluid()", "string|nil");
+        docs.signature("BlockState", "BlockState:GetFluidState()", "FluidState");
         docs.signature("BlockState", "BlockState:HasBlockEntity()", "boolean");
         docs.signature("BlockState", "BlockState:IsRandomlyTicking()", "boolean");
         docs.signature("BlockState", "BlockState:CanSurvive()", "boolean");
         docs.signature("BlockState", "BlockState:GetLightEmission()", "number");
         docs.signature("BlockState", "BlockState:IsSignalSource()", "boolean");
         docs.signature("BlockState", "BlockState:GetAnalogOutputSignal()", "number");
+        docs.signature("BlockState", "BlockState:CanOcclude()", "boolean");
+        docs.signature("BlockState", "BlockState:IsViewBlocking()", "boolean");
+        docs.signature("BlockState", "BlockState:GetLightBlock()", "number");
         docs.signature("BlockState", "BlockState:GetDestroySpeed()", "number");
+        docs.signature("FluidState", "FluidState:GetId()", "string|nil");
+        docs.signature("FluidState", "FluidState:GetPosition()", "Vector3");
+        docs.signature("FluidState", "FluidState:IsEmpty()", "boolean");
+        docs.signature("FluidState", "FluidState:IsSource()", "boolean");
+        docs.signature("FluidState", "FluidState:GetAmount()", "number");
+        docs.signature("FluidState", "FluidState:GetHeight()", "number");
+        docs.signature("FluidState", "FluidState:GetBlockState()", "BlockState");
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("World", "World:ListGameRules()", "GameRuleList");
         docs.signature("World", "World:GetGameRule(name: string)", "boolean|number|string");
@@ -463,6 +479,7 @@ public class WorldModule implements MLuaModule {
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance for one dimension, with time, block, entity, and chunk APIs.", "classes/world.html", "Level");
         docs.clazz("BlockState", "MLuaBlockStateWrapper", "An immutable Minecraft block state at a world position, with typed state queries.", "classes/block-state.html", "Instance");
+        docs.clazz("FluidState", "MLuaFluidStateWrapper", "An immutable Minecraft fluid state at a world position.", "classes/fluid-state.html", "Instance");
         docs.property("BlockState", "state.Id", "string", "The block identifier for this state.", "shared:Shared");
         docs.property("BlockState", "state.Block", "Block", "The live block instance at this state's position.", "shared:Shared");
         docs.property("BlockState", "state.Position", "Vector3", "This state's world position.", "shared:Shared");
@@ -475,7 +492,16 @@ public class WorldModule implements MLuaModule {
         docs.property("BlockState", "state.Survivable", "boolean", "Whether this state can remain at its world position.", "shared:Shared");
         docs.property("BlockState", "state.LightEmission", "number", "The light level emitted by this state.", "shared:Shared");
         docs.property("BlockState", "state.SignalSource", "boolean", "Whether this state can provide a redstone signal.", "shared:Shared");
+        docs.property("BlockState", "state.Occluding", "boolean", "Whether this state occludes neighboring faces.", "shared:Shared");
+        docs.property("BlockState", "state.ViewBlocking", "boolean", "Whether this state blocks visibility at its world position.", "shared:Shared");
+        docs.property("BlockState", "state.LightBlock", "number", "The light level blocked by this state at its world position.", "shared:Shared");
         docs.property("BlockState", "state.DestroySpeed", "number", "The state destroy speed in its world context.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Id", "string|nil", "This fluid state's registered fluid identifier.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Position", "Vector3", "This fluid state's world position.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Empty", "boolean", "Whether this position contains no fluid.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Source", "boolean", "Whether this is a source fluid state.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Amount", "number", "This fluid state's level amount.", "shared:Shared");
+        docs.property("FluidState", "fluidState.Height", "number", "This fluid state's height at its world position.", "shared:Shared");
         docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
         docs.property("Chunk", "chunk.X", "number", "This chunk's X coordinate.", "shared:Shared");
         docs.property("Chunk", "chunk.Z", "number", "This chunk's Z coordinate.", "shared:Shared");
@@ -511,7 +537,10 @@ public class WorldModule implements MLuaModule {
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal blockEntity = world:GetBlockEntity(Vector3.new(0, 64, 0))\nif blockEntity and blockEntity:HasContainer() then\n    local container = blockEntity:GetContainer()\n    print(\"Slots:\", container:GetSize())\n    for _, slot in ipairs(container:GetAll()) do\n        if not slot:IsEmpty() then\n            print(slot:GetItem():GetId(), slot:GetCount())\n        end\n    end\nend");
         docs.guideStep("World", "Inspect a block state",
             "GetBlockState returns an immutable BlockState instance, while GetBlock returns the live position-aware Block instance. Read typed state properties from BlockState.Properties and check for a property before querying optional values. WithProperty creates a new state value; SetBlockState applies that state to the world on the server.",
-            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed, state.LightEmission, state.Survivable)\nif state:IsSignalSource() then\n    print("Analog output:", state:GetAnalogOutputSignal())\nend\n\nif state:HasProperty(\"facing\") then\n    local rotated = state:WithProperty(\"facing\", \"east\")\n    world:SetBlockState(position, rotated)\nend\n\nlocal block = world:GetBlock(position)\nprint(block:GetClassName(), block:GetStateProperties().facing)");
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed, state.LightEmission, state.Survivable)\nif state:IsSignalSource() then\n    print(\"Analog output:\", state:GetAnalogOutputSignal())\nend\n\nif state:HasProperty(\"facing\") then\n    local rotated = state:WithProperty(\"facing\", \"east\")\n    world:SetBlockState(position, rotated)\nend\n\nlocal block = world:GetBlock(position)\nprint(block:GetClassName(), block:GetStateProperties().facing)");
+        docs.guideStep("World", "Inspect fluid at a position",
+            "GetFluid returns the fluid identifier for simple comparisons. GetFluidState returns the native-style FluidState instance, including whether it is empty or a source, its amount and height, and the legacy BlockState representation.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 63, 4)\nlocal fluid = world:GetFluidState(position)\nif not fluid.Empty then\n    print(fluid.Id, fluid.Source, fluid.Amount, fluid.Height)\n    local legacyState = fluid:GetBlockState()\n    print(legacyState.Id)\nend");
     }
 
     @Override

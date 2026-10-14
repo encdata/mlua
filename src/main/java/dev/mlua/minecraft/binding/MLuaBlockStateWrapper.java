@@ -70,6 +70,11 @@ public final class MLuaBlockStateWrapper {
             var id = BuiltInRegistries.FLUID.getKey(fluid.getType());
             return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
         }), "Returns the fluid identifier in this state, or nil when empty.");
+        registration.registerClassFunction("BlockState", "GetFluidState", self((self, args) -> {
+            BlockPos position = position(self);
+            Level level = level(self);
+            return MLuaFluidStateWrapper.wrap(state(self).getFluidState(), level, position, registration);
+        }), "Returns the typed FluidState at this block position.");
         registration.registerClassFunction("BlockState", "HasBlockEntity", self((self, args) ->
             LuaValue.valueOf(state(self).hasBlockEntity())), "Returns whether this state has a block entity.");
         registration.registerClassFunction("BlockState", "IsRandomlyTicking", self((self, args) ->
@@ -84,6 +89,14 @@ public final class MLuaBlockStateWrapper {
         registration.registerClassFunction("BlockState", "GetAnalogOutputSignal", self((self, args) ->
             LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self)))),
             "Returns this state's analog redstone output at its world position.");
+        registration.registerClassFunction("BlockState", "CanOcclude", self((self, args) ->
+            LuaValue.valueOf(state(self).canOcclude())), "Returns whether this state occludes neighboring faces.");
+        registration.registerClassFunction("BlockState", "IsViewBlocking", self((self, args) ->
+            LuaValue.valueOf(state(self).isViewBlocking(level(self), position(self)))),
+            "Returns whether this state blocks visibility at its world position.");
+        registration.registerClassFunction("BlockState", "GetLightBlock", self((self, args) ->
+            LuaValue.valueOf(state(self).getLightBlock(level(self), position(self)))),
+            "Returns the light level blocked by this state at its world position.");
         registration.registerClassFunction("BlockState", "GetDestroySpeed", self((self, args) -> {
             BlockState state = state(self);
             return LuaValue.valueOf(state.getDestroySpeed(level(self), position(self)));
@@ -101,6 +114,9 @@ public final class MLuaBlockStateWrapper {
             {"Survivable", "CanSurvive", "boolean", "Whether this state can remain at its world position."},
             {"LightEmission", "GetLightEmission", "number", "The light level emitted by this state."},
             {"SignalSource", "IsSignalSource", "boolean", "Whether this state can provide a redstone signal."},
+            {"Occluding", "CanOcclude", "boolean", "Whether this state occludes neighboring faces."},
+            {"ViewBlocking", "IsViewBlocking", "boolean", "Whether this state blocks visibility at its world position."},
+            {"LightBlock", "GetLightBlock", "number", "The light level blocked by this state at its world position."},
             {"DestroySpeed", "GetDestroySpeed", "number", "The state destroy speed in its world context."}
         };
         for (String[] property : properties) {
