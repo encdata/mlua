@@ -209,18 +209,17 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void registerGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject definition) {
+        Objects.requireNonNull(kind, "kind");
+        if (kind == GeneratedAssetKind.ITEM_TAG || kind == GeneratedAssetKind.BLOCK_TAG
+            || kind == GeneratedAssetKind.ENTITY_TYPE_TAG) {
+            throw new IllegalArgumentException("[MLua] Use registerTag for tag assets");
+        }
+        String key = assetKey(modId, name);
         if (frozen) throw new IllegalStateException("[MLua] Registries are frozen");
         Objects.requireNonNull(definition, "definition");
-        String key = assetKey(modId, name);
-        switch (kind) {
-            case ITEM_TAG, BLOCK_TAG, ENTITY_TYPE_TAG ->
-                throw new IllegalArgumentException("[MLua] Use registerTag for tag assets");
-            default -> {
-                JsonObject previous = generatedAssets.computeIfAbsent(kind, ignored -> new LinkedHashMap<>())
-                    .putIfAbsent(key, definition.deepCopy());
-                if (previous != null) throw new IllegalArgumentException("[MLua] Duplicate " + kind + " asset: " + key);
-            }
-        }
+        JsonObject previous = generatedAssets.computeIfAbsent(kind, ignored -> new LinkedHashMap<>())
+            .putIfAbsent(key, definition.deepCopy());
+        if (previous != null) throw new IllegalArgumentException("[MLua] Duplicate " + kind + " asset: " + key);
     }
 
     @Override
@@ -230,10 +229,10 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void registerTag(RegistryKind registryKind, String modId, String name, boolean replace, JsonArray values) {
-        if (frozen) throw new IllegalStateException("[MLua] Registries are frozen");
         Objects.requireNonNull(values, "values");
         GeneratedAssetKind tagKind = RegistryBridge.requireTagKind(registryKind);
         String key = assetKey(modId, name);
+        if (frozen) throw new IllegalStateException("[MLua] Registries are frozen");
         JsonObject definition = new JsonObject();
         definition.addProperty("replace", replace);
         definition.add("values", values.deepCopy());
@@ -344,6 +343,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
         if (modId == null || modId.isBlank() || name == null || name.isBlank()) {
             throw new IllegalArgumentException("[MLua] Asset mod id and name must be non-empty");
         }
+        MLuaResourceNameValidator.validate(modId);
         return MLuaResourceLocations.parse(name.contains(":") ? name : modId + ":" + name).toString();
     }
 
