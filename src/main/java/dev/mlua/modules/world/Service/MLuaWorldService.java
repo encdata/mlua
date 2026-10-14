@@ -156,11 +156,16 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("IsDay", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isDay())));
       table.set("IsNight", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isNight())));
       table.set("SetTime", serverLevelFn(supplier, (level, args) -> {
-         level.setDayTime(args.checklong(2));
+         level.setDayTime(MLuaLuaArguments.wholeLong(args, 2, "World:SetTime", "ticks"));
          return LuaValue.NONE;
       }));
       table.set("AddTime", serverLevelFn(supplier, (level, args) -> {
-         level.setDayTime(level.getDayTime() + args.checklong(2));
+         long ticks = MLuaLuaArguments.wholeLong(args, 2, "World:AddTime", "ticks");
+         try {
+            level.setDayTime(Math.addExact(level.getDayTime(), ticks));
+         } catch (ArithmeticException error) {
+            throw new LuaError("[MLua] World:AddTime would overflow the world's day time.");
+         }
          return LuaValue.NONE;
       }));
 

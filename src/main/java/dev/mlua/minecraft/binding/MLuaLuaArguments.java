@@ -53,4 +53,17 @@ public final class MLuaLuaArguments {
         }
         return converted;
     }
+
+    public static long wholeLong(Varargs args, int index, String method, String parameter) {
+        LuaValue value = args.arg(index);
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be an integer number.");
+        }
+        double number = value.todouble();
+        if (!Double.isFinite(number) || number != Math.rint(number)
+            || number < Long.MIN_VALUE || number >= 0x1.0p63) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a whole number in the 64-bit integer range.");
+        }
+        return (long)number;
+    }
 }
