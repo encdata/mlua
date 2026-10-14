@@ -82,8 +82,7 @@ public final class MLuaDocumentation {
            generateExtensionFiles(docs.resolve("api"), specs, dluaSourceRoot, mcClasses, builder.signatures());
           write(docs.resolve("index.html"), page("MLua Documentation", sidebar("index"), overviewContent()));
           write(docs.resolve("api").resolve("lua.html"), page("Lua API - MLua", sidebar("api/lua"),
-             content("Lua API", "Browse the Lua classes, services, and globals registered by MLua.", null,
-                callout("info", "MLua builds this inventory by reading Lua globals and service tables. Registered class and service descriptions appear beside their members. The crawl reads tables and registration metadata without calling API functions or property accessors."))));
+             luaApiInventoryContent()));
           Files.deleteIfExists(docs.resolve("live-lua-api.html"));
            write(docs.resolve("classes").resolve("command-context.html"), page("CommandContext - MLua", sidebar("classes/command-context"), commandContextContent()));
            // Discover and generate all enum documentation pages
@@ -2543,6 +2542,35 @@ function deactivate() {}
       return content("Getting Started", "Install MLua, create a script, and make a first change in a world.", null,
          body.toString());
     }
+
+   private static String luaApiInventoryContent() {
+      StringBuilder body = new StringBuilder();
+      body.append(callout("info", "This inventory links to the generated reference pages bundled beside this file. It works without a network connection."));
+      appendInventorySection(body, "Services", MLuaDocBuilder.DocEntryType.SERVICE);
+      appendInventorySection(body, "Classes", MLuaDocBuilder.DocEntryType.CLASS);
+      appendInventorySection(body, "Data Types", MLuaDocBuilder.DocEntryType.DATA_TYPE);
+      appendInventorySection(body, "Libraries", MLuaDocBuilder.DocEntryType.LIBRARY);
+      StringBuilder enums = new StringBuilder("<div class=\"cards\">");
+      for (EnumInfo entry : discoverEnums()) {
+         enums.append(card("../enums/" + entry.fileName + ".html", entry.name, entry.description));
+      }
+      enums.append("</div>");
+      body.append(section("Enums", "", enums.toString()));
+      return content("Lua API", "Browse the classes, services, data types, enums, and libraries shipped with this runtime.", null,
+         body.toString());
+   }
+
+   private static void appendInventorySection(StringBuilder body, String title,
+                                              MLuaDocBuilder.DocEntryType type) {
+      StringBuilder cards = new StringBuilder("<div class=\"cards\">");
+      for (MLuaDocBuilder.DocEntry entry : moduleEntries(type)) {
+         if (entry.filePath() != null) {
+            cards.append(card("../" + entry.filePath(), entry.name(), entry.desc()));
+         }
+      }
+      cards.append("</div>");
+      body.append(section(title, "", cards.toString()));
+   }
 
     private static String builtInGettingStartedContent() {
        List<MLuaExampleScripts.ExampleScript> examples = MLuaExampleScripts.scripts();
