@@ -274,11 +274,8 @@ public final class MLuaUIBindings {
             meta.set("__index", parents[0]);
             classTable.setmetatable(meta);
         }
-        String[] parentNames = java.util.Arrays.stream(parents)
-            .map(parent -> parent.rawget("__type").optjstring(""))
-            .filter(parent -> !parent.isBlank())
-            .toArray(String[]::new);
-        classTable = registration.registerClass(name, classTable, java.util.List.of(parentNames), description);
+        String parentName = parents.length == 0 ? null : parents[0].rawget("__type").optjstring("");
+        classTable = registration.registerClassWithParent(name, classTable, parentName, description);
         if (constructor != null) {
             registration.registerClassFunction(name, "new", constructor,
                 "Creates a new " + name + " instance.");

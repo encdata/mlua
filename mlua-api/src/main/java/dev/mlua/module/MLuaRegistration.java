@@ -38,17 +38,27 @@ public interface MLuaRegistration {
     @Deprecated(forRemoval = false)
     LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
 
-    default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
-        java.util.Objects.requireNonNull(parentNames, "parentNames");
-        java.util.List<String> parents = normalizeParentNames(parentNames);
+    default LuaTable registerClassWithParent(String name, LuaTable classTable, String parentName,
+                                             String description) {
+        java.util.List<String> parents = parentName == null || parentName.isBlank()
+            ? java.util.List.of() : java.util.List.of(parentName);
         validateClassDescription(this.classTable(name), name, description);
         validateClassDescription(classTable, name, description);
-        LuaTable table = registerClass(name, classTable, parents.toArray(String[]::new));
+        LuaTable table = registerClass(name, classTable, parents.isEmpty() ? new String[0]
+            : new String[]{parents.get(0)});
         recordClassDescription(table, name, description);
         refreshClassMetadata(name);
         return table;
     }
 
+    @Deprecated(forRemoval = false)
+    default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
+        java.util.Objects.requireNonNull(parentNames, "parentNames");
+        java.util.List<String> parents = normalizeParentNames(parentNames);
+        return registerClassWithParent(name, classTable, parents.isEmpty() ? null : parents.get(0), description);
+    }
+
+    @Deprecated(forRemoval = false)
     default LuaTable registerClassWithParents(String name, java.util.List<String> parentNames, String description) {
         java.util.Objects.requireNonNull(parentNames, "parentNames");
         LuaTable classTable = classTable(name);
@@ -56,8 +66,14 @@ public interface MLuaRegistration {
         return registerClass(name, classTable, parentNames, description);
     }
 
+    @Deprecated(forRemoval = false)
     default LuaTable registerInstantiableClass(String name, java.util.List<String> parentNames,
                                                String description) {
+        return registerInstantiableClassInternal(name, parentNames, description);
+    }
+
+    private LuaTable registerInstantiableClassInternal(String name, java.util.List<String> parentNames,
+                                                       String description) {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Class name must be non-empty");
         if (description == null || description.isBlank()) throw new IllegalArgumentException("Class description must be non-empty");
         java.util.List<String> parents = normalizeParentNames(parentNames == null ? java.util.List.of() : parentNames);
@@ -84,7 +100,8 @@ public interface MLuaRegistration {
             throw new IllegalStateException("Lua class '" + name
                 + "' defines 'new' as a non-function; constructors must be callable class functions");
         }
-        LuaTable type = registerClass(name, existing == null ? new LuaTable() : existing, parents, description);
+        LuaTable type = registerClassWithParent(name, existing == null ? new LuaTable() : existing,
+            parents.isEmpty() ? null : parents.get(0), description);
         if (type.rawget("__mlua_service_class").toboolean()
             || type.get("__mlua_ui_java_type").isuserdata()) return type;
         if (!type.rawget("new").isnil()) return type;
@@ -110,7 +127,7 @@ public interface MLuaRegistration {
     }
 
     default LuaTable registerInstantiableClass(String name, String parentName, String description) {
-        return registerInstantiableClass(name,
+        return registerInstantiableClassInternal(name,
             parentName == null || parentName.isBlank() ? java.util.List.of() : java.util.List.of(parentName),
             description);
     }
