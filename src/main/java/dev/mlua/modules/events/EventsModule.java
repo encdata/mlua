@@ -389,12 +389,13 @@ public class EventsModule implements MLuaModule {
             ctx.set("Level", MLuaLevelWrapper.levelTable(level, MLuaRuntime.registrationForLevel(level)));
             ctx.set("Dimension", LuaValue.valueOf(dimensionName(level)));
         }
-        if (position instanceof BlockPos pos && levelObj instanceof Level level) {
-            ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
+        if (position instanceof BlockPos pos) {
+            if (levelObj instanceof Level level) {
+                ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
+            }
+            ctx.set("Position", MLuaPlayerWrapper.positionTable(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5));
         } else if (position instanceof Vec3 vector) {
             ctx.set("Position", MLuaPlayerWrapper.positionTable(vector.x, vector.y, vector.z));
-        } else if (position != null) {
-            ctx.set("Position", LuaValue.userdataOf(position));
         }
         fireSignal(MLuaEventsService.EXPLOSION, levelObj instanceof Level level ? level : null, Side.SERVER, ctx);
     }

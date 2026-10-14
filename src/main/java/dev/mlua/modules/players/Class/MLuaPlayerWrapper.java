@@ -225,7 +225,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
          return positionTable((double)player.getBlockPosition().getX(), (double)player.getBlockPosition().getY(), (double)player.getBlockPosition().getZ());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return positionTable(look.x(), look.y(), look.z());
       }));
@@ -529,7 +529,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> MLuaPotionEffectsService.effectsTable(player)));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() ->
          positionTable(player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ())));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(new MCEntityImpl(player));
          return positionTable(look.x(), look.y(), look.z());
       }));
@@ -669,7 +669,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
          return positionTable((double)player.getBlockPosition().getX(), (double)player.getBlockPosition().getY(), (double)player.getBlockPosition().getZ());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
+      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return positionTable(look.x(), look.y(), look.z());
       }));

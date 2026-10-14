@@ -255,7 +255,7 @@ public class PlayersModule implements MLuaModule {
             {"IsSprinting", "Whether this player is sprinting."},
             {"IsSwimming", "Whether this player is swimming."},
             {"GetBlockPosition", "Returns this player's block-aligned position."},
-            {"GetLookDirection", "Returns the direction this player is looking."},
+            {"GetLookVector", "Returns the direction this player is looking."},
             {"GetSelectedSlot", "Returns the selected hotbar slot using a one-based index."},
             {"SetSelectedSlot", "Selects a hotbar slot using a one-based index from 1 to 9."},
             {"GetHeldItem", "Returns the item in this player's main hand, or nil."},
