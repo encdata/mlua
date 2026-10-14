@@ -1028,6 +1028,12 @@ public final class MLuaGuiService implements MLuaService {
         vanillaHudElements.set("Hotbar", LuaValue.valueOf("Hotbar"));
         vanillaHudElements.set("Health", LuaValue.valueOf("Health"));
         vanillaHudElements.set("Experience", LuaValue.valueOf("Experience"));
+        vanillaHudElements.set("Effects", LuaValue.valueOf("Effects"));
+        vanillaHudElements.set("Food", LuaValue.valueOf("Food"));
+        vanillaHudElements.set("OverlayMessage", LuaValue.valueOf("OverlayMessage"));
+        vanillaHudElements.set("Title", LuaValue.valueOf("Title"));
+        vanillaHudElements.set("Scoreboard", LuaValue.valueOf("Scoreboard"));
+        vanillaHudElements.set("PlayerList", LuaValue.valueOf("PlayerList"));
         table.set("VanillaHudElements", vanillaHudElements);
         table.set("AttachElementBefore", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -1389,8 +1395,14 @@ public final class MLuaGuiService implements MLuaService {
             case "hotbar" -> "Hotbar";
             case "health" -> "Health";
             case "experience" -> "Experience";
+            case "effects" -> "Effects";
+            case "food" -> "Food";
+            case "overlaymessage", "overlay_message" -> "OverlayMessage";
+            case "title" -> "Title";
+            case "scoreboard" -> "Scoreboard";
+            case "playerlist", "player_list", "tablist", "tab_list" -> "PlayerList";
             default -> throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor
-                + "'. Available anchors: Hud, Chat, Crosshair, Hotbar, Health, Experience.");
+                + "'. Available anchors: Hud, Chat, Crosshair, Hotbar, Health, Experience, Effects, Food, OverlayMessage, Title, Scoreboard, PlayerList.");
         };
         if (!callback.isfunction()) throw new LuaError("[MLua] HUD element callback must be a function.");
         String owner = this.context.mlua().ownerModId();

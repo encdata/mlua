@@ -70,6 +70,56 @@ public abstract class GuiHudMixin {
     private void mlua$afterExperience(GuiGraphicsExtractor graphics, int x, CallbackInfo callback) {
         MLuaGuiService.renderHudElements("AfterExperience", graphics);
     }
+
+    @Inject(method = "extractEffects", at = @At("HEAD"))
+    private void mlua$beforeEffects(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeEffects", graphics);
+    }
+
+    @Inject(method = "extractEffects", at = @At("TAIL"))
+    private void mlua$afterEffects(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterEffects", graphics);
+    }
+
+    @Inject(method = "extractOverlayMessage", at = @At("HEAD"))
+    private void mlua$beforeOverlayMessage(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeOverlayMessage", graphics);
+    }
+
+    @Inject(method = "extractOverlayMessage", at = @At("TAIL"))
+    private void mlua$afterOverlayMessage(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterOverlayMessage", graphics);
+    }
+
+    @Inject(method = "extractTitle", at = @At("HEAD"))
+    private void mlua$beforeTitle(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeTitle", graphics);
+    }
+
+    @Inject(method = "extractTitle", at = @At("TAIL"))
+    private void mlua$afterTitle(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterTitle", graphics);
+    }
+
+    @Inject(method = "extractScoreboardSidebar", at = @At("HEAD"))
+    private void mlua$beforeScoreboard(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeScoreboard", graphics);
+    }
+
+    @Inject(method = "extractScoreboardSidebar", at = @At("TAIL"))
+    private void mlua$afterScoreboard(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterScoreboard", graphics);
+    }
+
+    @Inject(method = "extractTabList", at = @At("HEAD"))
+    private void mlua$beforePlayerList(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforePlayerList", graphics);
+    }
+
+    @Inject(method = "extractTabList", at = @At("TAIL"))
+    private void mlua$afterPlayerList(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterPlayerList", graphics);
+    }
     //--endversion
 
     //--version 1.21.1
@@ -122,6 +172,66 @@ public abstract class GuiHudMixin {
     private void mlua$afterExperience(GuiGraphics graphics, int x, CallbackInfo callback) {
         MLuaGuiService.renderHudElements("AfterExperience", graphics);
     }
+
+    @Inject(method = "renderEffects", at = @At("HEAD"))
+    private void mlua$beforeEffects(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeEffects", graphics);
+    }
+
+    @Inject(method = "renderEffects", at = @At("TAIL"))
+    private void mlua$afterEffects(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterEffects", graphics);
+    }
+
+    @Inject(method = "renderOverlayMessage", at = @At("HEAD"))
+    private void mlua$beforeOverlayMessage(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeOverlayMessage", graphics);
+    }
+
+    @Inject(method = "renderOverlayMessage", at = @At("TAIL"))
+    private void mlua$afterOverlayMessage(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterOverlayMessage", graphics);
+    }
+
+    @Inject(method = "renderTitle", at = @At("HEAD"))
+    private void mlua$beforeTitle(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeTitle", graphics);
+    }
+
+    @Inject(method = "renderTitle", at = @At("TAIL"))
+    private void mlua$afterTitle(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterTitle", graphics);
+    }
+
+    @Inject(method = "renderScoreboardSidebar", at = @At("HEAD"))
+    private void mlua$beforeScoreboard(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeScoreboard", graphics);
+    }
+
+    @Inject(method = "renderScoreboardSidebar", at = @At("TAIL"))
+    private void mlua$afterScoreboard(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterScoreboard", graphics);
+    }
+
+    @Inject(method = "renderTabList", at = @At("HEAD"))
+    private void mlua$beforePlayerList(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforePlayerList", graphics);
+    }
+
+    @Inject(method = "renderTabList", at = @At("TAIL"))
+    private void mlua$afterPlayerList(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterPlayerList", graphics);
+    }
+
+    @Inject(method = "renderFood", at = @At("HEAD"))
+    private void mlua$beforeFood(GuiGraphics graphics, net.minecraft.world.entity.player.Player player, int top, int right, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeFood", graphics);
+    }
+
+    @Inject(method = "renderFood", at = @At("TAIL"))
+    private void mlua$afterFood(GuiGraphics graphics, net.minecraft.world.entity.player.Player player, int top, int right, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterFood", graphics);
+    }
     //--endversion
 
     //--version 1.20.1
@@ -173,6 +283,16 @@ public abstract class GuiHudMixin {
     @Inject(method = "renderExperienceBar", at = @At("TAIL"))
     private void mlua$afterExperience(GuiGraphics graphics, int x, CallbackInfo callback) {
         MLuaGuiService.renderHudElements("AfterExperience", graphics);
+    }
+
+    @Inject(method = "renderEffects", at = @At("HEAD"))
+    private void mlua$beforeEffects(GuiGraphics graphics, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("BeforeEffects", graphics);
+    }
+
+    @Inject(method = "renderEffects", at = @At("TAIL"))
+    private void mlua$afterEffects(GuiGraphics graphics, CallbackInfo callback) {
+        MLuaGuiService.renderHudElements("AfterEffects", graphics);
     }
     //--endversion
 }
