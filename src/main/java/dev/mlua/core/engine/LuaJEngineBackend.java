@@ -5,6 +5,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaThread;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Prototype;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
@@ -17,6 +18,8 @@ import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.script.MLuaScript;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.module.MLuaModuleLoader;
+import java.io.IOException;
+import java.io.StringReader;
 import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -39,12 +42,14 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    public synchronized void replaceScripts(List<MLuaScript> scripts) {
       this.scripts = List.copyOf(scripts);
       this.evaluationCache.clear();
+      this.compiledPrototypes.clear();
    }
 
    @Override
    public synchronized void resetSide(Side side) {
       this.globalsBySide.remove(side);
       this.evaluationCache.keySet().removeIf(key -> key.side() == side);
+      this.compiledPrototypes.keySet().removeIf(key -> key.side() == side);
    }
 
    public String name() {
@@ -78,8 +83,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
          LuaTable previousEntrypoints = this.snapshotEntrypoints(globals);
 
          try {
-            String source = TRANSPILER.transpile(script.source());
-            LuaValue chunk = globals.load(source, script.displayName());
+            LuaValue chunk = this.loadChunk(globals, script, context.side());
             LuaThread thread = new LuaThread(globals, chunk);
             Varargs result = thread.resume(LuaValue.NONE);
             if (!result.arg1().toboolean()) {
@@ -284,6 +288,23 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    }
 
    private final Map<EvaluationKey, ScriptEvaluation> evaluationCache = new java.util.HashMap<>();
+   private final Map<CompiledChunkKey, Prototype> compiledPrototypes = new java.util.HashMap<>();
+
+   private LuaValue loadChunk(Globals globals, MLuaScript script, Side side) {
+      String chunkName = script.displayName();
+      String source = TRANSPILER.transpile(script.source());
+      CompiledChunkKey key = new CompiledChunkKey(side, chunkName, source);
+      Prototype prototype = this.compiledPrototypes.get(key);
+      try {
+         if (prototype == null) {
+            prototype = globals.compilePrototype(new StringReader(source), chunkName);
+            this.compiledPrototypes.put(key, prototype);
+         }
+         return globals.loader.load(prototype, chunkName, globals);
+      } catch (IOException error) {
+         throw new LuaError("Could not load script '" + chunkName + "': " + error.getMessage());
+      }
+   }
 
    private ScriptEvaluation evaluate(MLuaScript script, MLuaContext context) {
       EvaluationKey key = new EvaluationKey(script, context.side());
@@ -295,8 +316,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       LuaTable previousEntrypoints = this.snapshotEntrypoints(globals);
 
       try {
-         String source = TRANSPILER.transpile(script.source());
-         LuaValue chunk = globals.load(source, script.displayName());
+         LuaValue chunk = this.loadChunk(globals, script, context.side());
          LuaValue result = chunk.call();
          LuaTable currentEntrypoints = this.snapshotEntrypoints(globals);
          ScriptEvaluation evaluation = new ScriptEvaluation(result, currentEntrypoints);
@@ -428,4 +448,5 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    }
 
    private static record EvaluationKey(MLuaScript script, Side side) { }
+   private static record CompiledChunkKey(Side side, String chunkName, String source) { }
 }
