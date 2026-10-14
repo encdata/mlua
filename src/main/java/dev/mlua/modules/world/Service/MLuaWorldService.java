@@ -268,6 +268,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          result.set("Distance", LuaValue.valueOf(Math.sqrt(from.distanceToSqr(hitResult.getLocation()))));
          result.set("Block", LuaValue.valueOf(String.valueOf(BuiltInRegistries.BLOCK.getKey(level.getBlockState(hitResult.getBlockPos()).getBlock()))));
          result.set("Face", LuaValue.valueOf(hitResult.getDirection().getName()));
+         result.set("BlockInstance", MLuaBlockWrapper.blockTable(level, hitResult.getBlockPos(), this.context.mlua().registration()));
          return result;
       }));
       table.set("RaycastEntity", levelFn(supplier, (level, args) -> {
@@ -815,6 +816,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }
       LuaValue name = table.get("name");
       if (!name.isnil() && !entity.getName().getString().equals(name.tojstring())) return false;
+      LuaValue excludedEntity = table.get("exclude");
+      if (!excludedEntity.isnil()) {
+         if (!excludedEntity.istable()) throw new LuaError("[MLua] EntityQuery.exclude must be a live Entity instance.");
+         LuaValue rawEntity = excludedEntity.checktable().rawget("__entity");
+         if (!rawEntity.isuserdata(Entity.class)) throw new LuaError("[MLua] EntityQuery.exclude must be a live Entity instance.");
+         if (rawEntity.touserdata(Entity.class) == entity) return false;
+      }
       LuaValue tag = table.get("tag");
       if (!tag.isnil() && !MLuaDataManager.hasEntityTag(entity, tag.tojstring())) return false;
       LuaValue requiredTags = table.get("tags");

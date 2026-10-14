@@ -89,6 +89,11 @@ public class WorldModule implements MLuaModule {
             MLuaClassMethods.registerInstanceProperty(registration, "BlockRaycastResult", property[0],
                 "Get" + property[0], null, property[1], "shared:Shared", property[2]);
         }
+        registration.registerClassFunction("BlockRaycastResult", "GetBlockInstance", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return self.checktable().get("BlockInstance"); }
+        }, "Returns the live Block instance at the hit position, including its registered subclass.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BlockRaycastResult", "BlockInstance", "GetBlockInstance", null,
+            "Block", "shared:Shared", "The live Block instance at the hit position.");
         registration.registerClass("GameRuleEntry", registration.requireInstanceBaseClassName(),
             "One registered Minecraft gamerule and its current value.");
         for (String property : List.of("Name", "Value")) {
@@ -116,6 +121,9 @@ public class WorldModule implements MLuaModule {
         registration.registerClassFunction("GameRuleEntry", "IsNumber", new org.luaj.vm2.lib.OneArgFunction() {
             @Override public LuaValue call(LuaValue self) { return LuaValue.valueOf(self.checktable().get("Value").isnumber()); }
         }, "Returns whether this gamerule stores a numeric value.");
+        registration.registerClassFunction("GameRuleEntry", "IsString", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return LuaValue.valueOf(self.checktable().get("Value").isstring()); }
+        }, "Returns whether this gamerule stores a string value.");
         String[][] chunkProperties = {
             {"X", "GetX", "number", "This chunk's X coordinate."},
             {"Z", "GetZ", "number", "This chunk's Z coordinate."},
@@ -376,6 +384,7 @@ public class WorldModule implements MLuaModule {
         docs.method("GameRuleEntry", "GameRuleEntry:GetValueType(): string", "Returns the Lua value type of this gamerule's value.", null, "string", "server:Server", null);
         docs.method("GameRuleEntry", "GameRuleEntry:IsBoolean(): boolean", "Checks whether this gamerule stores a boolean value.", null, "boolean", "server:Server", null);
         docs.method("GameRuleEntry", "GameRuleEntry:IsNumber(): boolean", "Checks whether this gamerule stores a numeric value.", null, "boolean", "server:Server", null);
+        docs.method("GameRuleEntry", "GameRuleEntry:IsString(): boolean", "Checks whether this gamerule stores a string value.", null, "boolean", "server:Server", null);
         docs.signature("WorldService", "WorldService:BreakBlock(position: Vector3|CFrame, dropItems: boolean?)", "boolean");
         docs.signature("WorldService", "WorldService:PlaySound(position: Vector3|CFrame, sound: string, volume: number?, pitch: number?)", "void");
         docs.signature("WorldService", "WorldService:SpawnParticle(position: Vector3|CFrame, particle: string, count: number?)", "void");
@@ -403,13 +412,15 @@ public class WorldModule implements MLuaModule {
         docs.field("BlockRaycastResult", "Type", "string", "Compatibility field for HitType.");
         docs.property("BlockRaycastResult", "BlockRaycastResult.Block", "string", "The registered block identifier hit by the ray.", "read:Read");
         docs.property("BlockRaycastResult", "BlockRaycastResult.Face", "string", "The face of the block hit by the ray.", "read:Read");
+        docs.property("BlockRaycastResult", "BlockRaycastResult.BlockInstance", "Block", "The live Block instance at the hit position.", "read:Read");
         docs.guideStep("World", "Raycast from the player's view",
-            "RaycastEntity finds the closest matching entity along the direction and stops at colliding blocks. The result contains the live Entity, hit Position, and Distance.",
-            "local world = Minecraft:GetService(\"World\"):Current()\nlocal hit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude_players = true })\n\nif hit then\n    print(hit:IsA(\"EntityRaycastResult\"), hit.Entity.Name, hit.Distance)\nend");
+            "RaycastEntity finds the closest matching entity along the direction and stops at colliding blocks. Both block and entity results inherit RaycastResult; block hits also return the live block instance.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal entityHit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude = player })\nif entityHit then\n    print(entityHit:IsA(\"RaycastResult\"), entityHit.Entity.Name, entityHit.Distance)\nend\n\nlocal blockHit = world:Raycast(player.EyePosition, player.LookVector, 32)\nif blockHit then\n    print(blockHit:IsA(\"BlockRaycastResult\"), blockHit.Block, blockHit.BlockInstance.Id, blockHit.Face)\nend");
         docs.type("EntityQuery", null, "Filters accepted by world entity search methods.");
         docs.field("EntityQuery", "type", "string", "Required registered entity type identifier.");
         docs.field("EntityQuery", "players_only", "boolean", "Include only player entities when true.");
         docs.field("EntityQuery", "exclude_players", "boolean", "Exclude player entities when true.");
+        docs.field("EntityQuery", "exclude", "Entity", "Exclude this live entity from the query results.");
         docs.field("EntityQuery", "alive", "boolean", "Require the entity's alive state to match.");
         docs.field("EntityQuery", "name", "string", "Require an exact entity name.");
         docs.field("EntityQuery", "tag", "string", "Require this saved MLua entity tag.");
@@ -440,7 +451,7 @@ public class WorldModule implements MLuaModule {
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal spawn = Vector3.new(0, 65, 0)\nworld:SetSpawnPosition(spawn, 90)\nworld.SpawnPosition = spawn");
         docs.guideStep("World", "Read and change dimension gamerules",
             "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns the rule's current value; GetGameRuleEntry returns one typed entry with its name, value, and value type. SetGameRule accepts a boolean for boolean rules and a whole 32-bit number for integer rules. Unknown rule names and mismatched values raise an error. ListGameRules can be traversed with ipairs or indexed by the rule name.",
-            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, rule in ipairs(world:ListGameRules()) do\n    print(rule:IsA(\"GameRuleEntry\"), rule.Name, rule.Value)\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)");
+            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nlocal rule = world:GetGameRuleEntry(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue, rule:IsA(\"GameRuleEntry\"), rule.ValueType)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, entry in ipairs(world:ListGameRules()) do\n    print(entry.Name, entry.Value, entry:IsBoolean())\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)");
         docs.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");
