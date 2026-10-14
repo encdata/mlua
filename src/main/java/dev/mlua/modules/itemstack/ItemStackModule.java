@@ -38,6 +38,18 @@ public final class ItemStackModule implements MLuaModule {
         docs.clazz("Item", "MLuaItemWrapper", "A live item stack instance with count, durability, display name, tags, and enchantments.", "classes/item.html", "Instance");
         docs.clazz("BlockItem", "MLuaItemWrapper", "An item instance that places its associated block and inherits the item stack API.", "classes/block-item.html", "Item");
         docs.clazz("Weapon", "MLuaItemWrapper", "A scriptable weapon base for melee, ranged, thrown, and other item actions.", "classes/weapon.html", "Item");
+        docs.signature("Item", "Item:GetDisplayName()", "string");
+        docs.signature("Item", "Item:SetDisplayName(name: string|Component)", "void");
+        docs.signature("Item", "Item:SetLore(lore: string|string[])", "void");
+        docs.signature("Item", "Item:SetCount(count: number)", "void");
+        docs.signature("Item", "Item:SetDamage(damage: number)", "void");
+        docs.signature("Item", "Item:GetTag(key: string)", "any");
+        docs.signature("Item", "Item:GetTagKeys()", "string[]");
+        docs.signature("Item", "Item:SetTag(key: string, value: any)", "void");
+        docs.signature("Item", "Item:HasTagKey(key: string)", "boolean");
+        docs.signature("Item", "Item:GetNbt()", "Nbt");
+        docs.signature("Item", "Item:SetNbt(nbt: Nbt|table)", "void");
+        docs.signature("Item", "Item:SetNbt(key: string, value: any)", "void");
         docs.signature("Item", "Item:GetRemainingDurability()", "number");
         docs.signature("Item", "Item:GetDamagePercent()", "number");
         docs.signature("Item", "Item:IsEnchantable()", "boolean");
@@ -47,7 +59,7 @@ public final class ItemStackModule implements MLuaModule {
         docs.signature("Item", "Item:Split(amount: number)", "Item");
         docs.signature("Item", "Item:Copy()", "Item");
         docs.guideStep("Item", "Read and change a live item stack",
-            "Item values are live stack wrappers returned by player inventory and held-item methods. Use Item.Find to create a stack when you need one directly.",
+            "Item values are live typed stack instances returned by player inventory and held-item methods. Use Item.Find or Item.new to create one directly, then pass that instance to inventory and container methods.",
             "local item = Item.Find(\"minecraft:torch\", 4)\nprint(item:GetId(), item:GetCount(), item:IsStackable())\nif item:IsDamageable() then\n    print(item.RemainingDurability, item.DamagePercent)\nend\nlocal half = item:Split(2)\nitem:Grow(1)\nprint(item.Count, half.Count)");
         docs.guideStep("Weapon", "Build a weapon from item actions",
             "Weapon is a reusable Item subclass. Combine onUse and onAttackEntity callbacks with registered projectile types to define thrown, ranged, melee, or hybrid behavior without a weapon-specific item kind. Attack callbacks expose Attacker and Target as live entity instances; Player is also available when the attacker is a player.",

@@ -370,7 +370,7 @@ public final class MLuaPlayerWrapper {
          if (itemVal.isnil()) {
             player.getInventory().setItem(slot, MCItemStack.EMPTY);
          } else {
-            player.getInventory().setItem(slot, MCItemStackImpl.fromReal(MLuaItemWrapper.toItemStack(itemVal)));
+            player.getInventory().setItem(slot, MCItemStackImpl.fromReal(MLuaItemWrapper.toItemStack(itemVal, registration)));
          }
          return LuaValue.NONE;
       }));
@@ -926,7 +926,7 @@ public final class MLuaPlayerWrapper {
             int size = rawInventory.getContainerSize();
             for (int slot = 1; slot <= size; slot++) {
                LuaValue value = inventoryTable.get(slot);
-               rawInventory.setItem(slot - 1, value.isnil() ? net.minecraft.world.item.ItemStack.EMPTY : MLuaItemWrapper.toItemStack(value));
+               rawInventory.setItem(slot - 1, value.isnil() ? net.minecraft.world.item.ItemStack.EMPTY : MLuaItemWrapper.toItemStack(value, registration));
             }
             return LuaValue.NONE;
          }));

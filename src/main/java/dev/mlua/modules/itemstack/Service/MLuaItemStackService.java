@@ -120,8 +120,8 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
         return MLuaItemWrapper.itemTable(new ItemStack(item, Math.max(0, count)), context.registration());
     }
 
-    private static ItemStack stack(LuaValue value) {
-        return MLuaItemWrapper.toItemStack(value);
+    private ItemStack stack(LuaValue value) {
+        return MLuaItemWrapper.toItemStack(value, context.mlua().registration());
     }
 
     private static String id(ItemStack stack) {

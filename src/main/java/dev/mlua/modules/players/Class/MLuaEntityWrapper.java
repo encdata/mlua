@@ -538,7 +538,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetEquipment", varArg((args) -> {
          net.minecraft.world.entity.EquipmentSlot slot = MLuaMinecraftEnums.resolveSlot(args.arg(2));
-         net.minecraft.world.item.ItemStack stack = MLuaItemWrapper.toItemStack(args.arg(3));
+         net.minecraft.world.item.ItemStack stack = MLuaItemWrapper.toItemStack(args.arg(3), registration);
          //--version 1.21.1
          ((net.minecraft.world.entity.LivingEntity)((MCLivingEntityImpl)wrapped).inner()).setItemSlot(slot, stack);
          //--endversion

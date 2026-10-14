@@ -117,7 +117,7 @@ public final class MLuaContainer {
                   throw new org.luaj.vm2.LuaError("[MLua] Hotbar slot must be between 1 and "
                      + layout.hotbarSize() + ".");
                }
-               setSlot(inv, writable, index, args.arg(3));
+               setSlot(inv, writable, index, args.arg(3), registration);
                return LuaValue.NONE;
             }
          });
@@ -129,14 +129,14 @@ public final class MLuaContainer {
                   throw new org.luaj.vm2.LuaError("[MLua] Armor slot must be between 1 and "
                      + layout.armorSize() + ".");
                }
-               setSlot(inv, writable, layout.armorStartIndex() + index - 1, args.arg(3));
+               setSlot(inv, writable, layout.armorStartIndex() + index - 1, args.arg(3), registration);
                return LuaValue.NONE;
             }
          });
          MLuaClassMethods.setInstanceMethod(table, "SetOffhandSlot", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-               setSlot(inv, writable, layout.offhandIndex(), args.arg(2));
+               setSlot(inv, writable, layout.offhandIndex(), args.arg(2), registration);
                return LuaValue.NONE;
             }
          });
@@ -154,11 +154,12 @@ public final class MLuaContainer {
          stack -> container.setItem(rawIndex, stack), oneBasedIndex, writable, registration);
    }
 
-   private static void setSlot(MCContainer container, boolean writable, int oneBasedIndex, LuaValue value) {
+   private static void setSlot(MCContainer container, boolean writable, int oneBasedIndex, LuaValue value,
+                               MLuaRegistration registration) {
       ensureWritable(writable);
       int rawIndex = requireRawIndex(oneBasedIndex, container.getContainerSize());
       container.setItem(rawIndex, value.isnil() ? MCItemStack.EMPTY
-         : new MCItemStackImpl(MLuaItemWrapper.toItemStack(value)));
+         : new MCItemStackImpl(MLuaItemWrapper.toItemStack(value, registration)));
    }
 
    public static LuaTable containerTable(MCAbstractContainerMenu menu, MCComponent title, boolean writable) {
@@ -217,7 +218,7 @@ public final class MLuaContainer {
             int rawIndex = requireRawIndex(args.checkint(2), access.size());
             LuaValue itemValue = args.arg(3);
             access.setItem(rawIndex, itemValue.isnil() ? MCItemStack.EMPTY
-               : new MCItemStackImpl(MLuaItemWrapper.toItemStack(itemValue)));
+               : new MCItemStackImpl(MLuaItemWrapper.toItemStack(itemValue, registration)));
             return LuaValue.NONE;
          }
       });

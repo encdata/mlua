@@ -140,7 +140,7 @@ public final class MLuaSlot {
          ensureWritable(state.writable);
          LuaValue itemValue = args.arg(2);
          state.setter.accept(itemValue.isnil() ? MCItemStack.EMPTY
-            : MCItemStackImpl.fromReal(MLuaItemWrapper.toItemStack(itemValue)));
+            : MCItemStackImpl.fromReal(MLuaItemWrapper.toItemStack(itemValue, state.registration)));
          return LuaValue.NONE;
       });
       register(registration, "Clear", "Removes the item from this writable slot.", args -> {

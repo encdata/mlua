@@ -55,7 +55,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
     @MLuaDescription("Adds an item stack to a player's inventory.")
     public boolean AddItem(LuaValue playerValue, LuaValue itemValue) {
         ensureServer();
-        return player(playerValue).getInventory().add(MLuaItemWrapper.toItemStack(itemValue));
+        return player(playerValue).getInventory().add(MLuaItemWrapper.toItemStack(itemValue, context.mlua().registration()));
     }
 
     @MLuaDescription("Counts matching item stacks across a player's inventory.")

@@ -108,12 +108,6 @@ public class RegistryModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Item", "Item:SetDisplayName(name: string)", null);
-        docs.signature("Item", "Item:SetLore(lore: string[])", null);
-        docs.signature("Item", "Item:SetCount(count: number)", null);
-        docs.signature("Item", "Item:SetDamage(damage: number)", null);
-        docs.signature("Item", "Item:SetNbt(nbt: string)", null);
-        docs.signature("Item", "Item:SetTag(tag: string)", null);
         docs.signature("Registry.DataPack", "Registry.DataPack:Register(resourceType: string, id: string, definition: table)", null);
         docs.signature("Registry.Assets", "Registry.Assets:Register(path: string, definition: table)", null);
         docs.signature("Registry.Assets", "Registry.Assets:register(path: string, definition: table)", "Alias of Register.");

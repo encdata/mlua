@@ -12,7 +12,6 @@ import dev.mlua.mc.impl.item.MCItemStackImpl;
 import dev.mlua.mc.impl.nbt.MCCompoundTagImpl;
 import dev.mlua.mc.impl.nbt.MCListTagImpl;
 import dev.mlua.mc.impl.nbt.MCStringTagImpl;
-import dev.mlua.mcapi.core.MCComponent;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.mcapi.item.MCItem;
 import dev.mlua.mcapi.item.MCItemStack;
@@ -289,27 +288,25 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).hasTag())), "Returns whether this item has NBT data.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayName", selfItem((self, ignored) -> LuaValue.valueOf(MCComponent.toJson(stack(self).getHoverName()))), "Returns this item's display name.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayName", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getHoverName().getString())), "Returns this item's rendered display name as plain text.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDisplayName", selfItem((self, args) -> {
-            String raw = args.checkjstring(2);
+            LuaValue value = args.arg(2);
+            net.minecraft.network.chat.Component component;
             try {
-               String displayText;
-               try {
-                  com.google.gson.JsonElement jsonEl = com.google.gson.JsonParser.parseString(raw);
-                  if (jsonEl.isJsonObject() && jsonEl.getAsJsonObject().has("text")) {
-                     displayText = jsonEl.getAsJsonObject().get("text").getAsString();
-                  } else {
-                     displayText = raw;
+               if (value.isstring()) component = net.minecraft.network.chat.Component.literal(value.checkjstring());
+               else {
+                  Object nativeValue = dev.mlua.api.MLuaLuaCoercions.javaValue(value, net.minecraft.network.chat.Component.class);
+                  if (!(nativeValue instanceof net.minecraft.network.chat.Component text)) {
+                     throw new LuaError("[MLua] Item:SetDisplayName expects a string or Java Component value.");
                   }
-               } catch (Exception e) {
-                  displayText = raw;
+                  component = text;
                }
-               stack(self).setHoverName(MCComponentImpl.fromReal(net.minecraft.network.chat.Component.literal(displayText)));
             } catch (Exception e) {
-               stack(self).setHoverName(MCComponentImpl.literal(raw));
+               throw new LuaError("[MLua] Item:SetDisplayName expects a string or Java Component value.");
             }
+            stack(self).setHoverName(MCComponentImpl.fromReal(component));
             return LuaValue.NONE;
-         }), "Sets this item's display name.");
+         }), "Sets this item's display name from a string or Java Component.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetLore", selfItem((self, ignored) -> lore(stack(self))), "Returns this item's lore lines.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetLore", selfItem((self, args) -> {
             setLore(stack(self), args.arg(2));
@@ -408,7 +405,7 @@ public final class MLuaItemWrapper {
               {"Enchantable", "IsEnchantable", null, "boolean", "Whether this item stack can receive enchantments."},
               {"Stackable", "IsStackable", null, "boolean", "Whether this stack can be stacked with a matching stack."},
               {"HasTag", "GetHasTag", null, "boolean", "Whether this item has NBT data."},
-              {"DisplayName", "GetDisplayName", "SetDisplayName", "string", "This item's display name."},
+              {"DisplayName", "GetDisplayName", "SetDisplayName", "string|Component", "This item's rendered display name; assign a string or Java Component."},
               {"Lore", "GetLore", "SetLore", "table", "This item's lore lines."},
               {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This item's live NBT view; assign a table to replace its data."},
               {"Enchantments", "GetEnchantments", null, "table", "A map from enchantment id to level for this item."}
@@ -485,18 +482,23 @@ public final class MLuaItemWrapper {
    }
 
    public static net.minecraft.world.item.ItemStack toItemStack(LuaValue itemVal) {
+      MLuaRuntime runtime = MLuaRuntime.get();
+      if (runtime == null) throw new LuaError("[MLua] Item conversion requires an active MLua registration.");
+      return toItemStack(itemVal, runtime);
+   }
+
+   public static net.minecraft.world.item.ItemStack toItemStack(LuaValue itemVal, MLuaRegistration registration) {
       if (itemVal.isnil()) return net.minecraft.world.item.ItemStack.EMPTY;
+      if (registration == null) throw new LuaError("[MLua] Item conversion requires an active MLua registration.");
+      if (!registration.isInstanceOf(itemVal, "Item")) {
+         throw new LuaError("[MLua] Expected an Item instance created by Item.new, Item.Find, or an inventory API.");
+      }
       LuaTable table = itemVal.checktable();
       LuaValue stackVal = table.rawget("__item_stack");
       if (stackVal.isuserdata(net.minecraft.world.item.ItemStack.class)) {
          return (net.minecraft.world.item.ItemStack)stackVal.touserdata(net.minecraft.world.item.ItemStack.class);
       }
-      String id = table.get("Id").optjstring(table.get("id").optjstring(""));
-      if (id.isEmpty()) return net.minecraft.world.item.ItemStack.EMPTY;
-      int count = (int)table.get("Count").optdouble(table.get("count").optdouble(1.0));
-      net.minecraft.world.item.Item item = (net.minecraft.world.item.Item) MCApiRuntime.lookupRegistry("item", id);
-      if (item == null) return net.minecraft.world.item.ItemStack.EMPTY;
-      return new net.minecraft.world.item.ItemStack(item, count);
+      throw new LuaError("[MLua] Item instance has no native ItemStack backing.");
    }
 
    private static LuaValue selfItem(BiFunction<LuaValue, Varargs, LuaValue> body) {
