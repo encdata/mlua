@@ -1,7 +1,6 @@
 package dev.mlua.core.classes;
 
 import java.util.HashMap;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -400,7 +399,8 @@ public final class MLuaClassRegistry {
    private List<String> effectiveMixins(String className, Set<String> visited) {
       if (!visited.add(className)) return List.of();
       List<String> result = new ArrayList<>(this.appliedMixins.getOrDefault(className, List.of()));
-      for (String parentName : parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          for (String inherited : this.effectiveMixins(parentName, visited)) {
             if (!result.contains(inherited)) result.add(inherited);
          }
@@ -660,7 +660,8 @@ public final class MLuaClassRegistry {
       LuaValue descriptors = owner.rawget("__mlua_properties");
       LuaValue descriptor = descriptors.istable() ? descriptors.checktable().rawget(propertyName) : LuaValue.NIL;
       if (descriptor.istable()) return descriptor.checktable();
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          LuaTable inherited = this.findPropertyDescriptor(parentName, propertyName, visited);
          if (inherited != null) return inherited;
       }
@@ -675,7 +676,8 @@ public final class MLuaClassRegistry {
       if (descriptors.istable() && !descriptors.checktable().rawget(propertyName).isnil()) return true;
       LuaValue documented = owner.rawget("__mlua_doc_properties");
       if (documented.istable() && !documented.checktable().rawget(propertyName).isnil()) return true;
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          if (this.hasPropertyDefinition(parentName, propertyName, visited)) return true;
       }
       return false;
@@ -783,17 +785,10 @@ public final class MLuaClassRegistry {
    private void requireStableParent(String name, String declaredParent) {
       String existingParent = this.parents.get(name);
       if (!Objects.equals(existingParent, declaredParent)) {
-         throw new IllegalStateException("Lua class '" + name + "' is already registered with parents "
-            + parentChain(name) + " and cannot be redeclared with " + parentChainValue(declaredParent));
+         throw new IllegalStateException("Lua class '" + name + "' is already registered with superclass '"
+            + (existingParent == null ? "<none>" : existingParent) + "' and cannot be redeclared with '"
+            + (declaredParent == null ? "<none>" : declaredParent) + "'");
       }
-   }
-
-   private static List<String> parentChainValue(String parent) {
-      return parent == null ? List.of() : List.of(parent);
-   }
-
-   private List<String> parentChain(String className) {
-      return parentChainValue(this.parents.get(className));
    }
 
    private static List<String> normalizedParents(String[] parentNames) {
@@ -840,7 +835,8 @@ public final class MLuaClassRegistry {
             if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
          }
       }
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          LuaTable parentDescriptions = new LuaTable();
          this.collectMethodDescriptions(parentName, parentDescriptions, new HashSet<>(visited));
          LuaValue key = LuaValue.NIL;
@@ -882,7 +878,8 @@ public final class MLuaClassRegistry {
             if (output.rawget(key).isnil()) output.rawset(key, LuaValue.FALSE);
          }
       }
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          LuaTable parentDispatchers = new LuaTable();
          this.collectInstanceDispatchers(parentName, parentDispatchers, new HashSet<>(visited));
          LuaValue key = LuaValue.NIL;
@@ -911,10 +908,8 @@ public final class MLuaClassRegistry {
 
    private boolean inheritsFrom(String className, String ancestor, Set<String> visited) {
       if (!visited.add(className)) return false;
-      for (String parent : this.parentChain(className)) {
-         if (parent.equals(ancestor) || this.inheritsFrom(parent, ancestor, visited)) return true;
-      }
-      return false;
+      String parent = this.parents.get(className);
+      return parent != null && (parent.equals(ancestor) || this.inheritsFrom(parent, ancestor, visited));
    }
 
    private boolean isClassOrParent(String className, String expectedName) {
@@ -940,7 +935,8 @@ public final class MLuaClassRegistry {
             if (classTable.rawget(key).isnil() && inherited.rawget(key).isnil()) inherited.rawset(key, next.arg(2));
          }
       }
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          LuaTable parentDescriptions = new LuaTable();
          this.collectMethodDescriptions(parentName, parentDescriptions, new HashSet<>(ancestry));
          LuaValue key = LuaValue.NIL;
@@ -1035,7 +1031,8 @@ public final class MLuaClassRegistry {
             }
          }
       }
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          this.collectPropertyDescriptions(parentName, output, visited);
       }
    }
@@ -1077,7 +1074,8 @@ public final class MLuaClassRegistry {
             }
          }
       }
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          this.ensureNoShadowedProperties(instance, parentName, visited);
       }
    }
@@ -1096,7 +1094,8 @@ public final class MLuaClassRegistry {
                + "' shadows a registered class method");
          }
       }
-      for (String parentName : this.parentChain(className)) {
+      String parentName = this.parents.get(className);
+      if (parentName != null) {
          this.ensureNoShadowedMethods(instance, parentName, visited);
       }
    }
@@ -1221,12 +1220,12 @@ public final class MLuaClassRegistry {
    }
 
    private void refreshParentLookup(LuaTable classTable, String className) {
-      List<String> parentNames = this.parentChain(className);
+      String parentName = this.parents.get(className);
       List<String> mixinNames = this.appliedMixins.getOrDefault(className, List.of());
       LuaValue metaValue = classTable.getmetatable();
       LuaTable meta = metaValue != null && metaValue.istable() ? metaValue.checktable() : new LuaTable();
       this.installClassWriteGuard(classTable, meta);
-      if ((parentNames == null || parentNames.isEmpty()) && mixinNames.isEmpty()) {
+      if (parentName == null && mixinNames.isEmpty()) {
          classTable.rawset("__mlua_doc_parents", LuaValue.NIL);
          if (meta.rawget("__mlua_parent_lookup").toboolean()) {
             LuaValue fallback = meta.rawget("__mlua_parent_fallback");
@@ -1244,20 +1243,17 @@ public final class MLuaClassRegistry {
          fallback = previousIndex.isnil() ? LuaValue.FALSE : previousIndex;
       }
       LuaValue parentFallback = fallback;
-      List<String> orderedParents = parentNames == null ? List.of() : List.copyOf(parentNames);
       List<String> orderedMixins = List.copyOf(mixinNames);
       LuaTable documentedParents = new LuaTable();
-      for (int index = 0; index < orderedParents.size(); index++) {
-         documentedParents.rawset(index + 1, LuaValue.valueOf(orderedParents.get(index)));
-      }
-      classTable.rawset("__mlua_doc_parents", orderedParents.isEmpty() ? LuaValue.NIL : documentedParents);
+      if (parentName != null) documentedParents.rawset(1, LuaValue.valueOf(parentName));
+      classTable.rawset("__mlua_doc_parents", parentName == null ? LuaValue.NIL : documentedParents);
       meta.rawset("__mlua_parent_fallback", parentFallback);
       meta.rawset("__mlua_parent_lookup", LuaValue.TRUE);
       meta.rawset("__index", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             LuaValue key = args.arg(2);
-            List<LuaTable> inheritedParents = new ArrayList<>(orderedParents.size());
+            LuaTable inheritedParent;
             synchronized (MLuaClassRegistry.this) {
                for (String mixinName : orderedMixins) {
                   LuaTable mixin = MLuaClassRegistry.this.mixins.get(mixinName);
@@ -1266,13 +1262,10 @@ public final class MLuaClassRegistry {
                      if (!mixed.isnil()) return mixed;
                   }
                }
-               for (String parentName : orderedParents) {
-                  LuaTable parent = MLuaClassRegistry.this.classes.get(parentName);
-                  if (parent != null) inheritedParents.add(parent);
-               }
+               inheritedParent = parentName == null ? null : MLuaClassRegistry.this.classes.get(parentName);
             }
-            for (LuaTable parent : inheritedParents) {
-               LuaValue inherited = parent.get(key);
+            if (inheritedParent != null) {
+               LuaValue inherited = inheritedParent.get(key);
                if (!inherited.isnil()) return inherited;
             }
             if (parentFallback.istable()) return parentFallback.get(key);
@@ -1326,12 +1319,11 @@ public final class MLuaClassRegistry {
       String actualName = this.classNameOf(value);
       if (actualName == null) actualName = "";
       if (targetName.equals(actualName)) return true;
-      ArrayDeque<String> pending = new ArrayDeque<>(this.parentChain(actualName));
       Set<String> visited = new HashSet<>();
-      while (!pending.isEmpty()) {
-         String parent = pending.removeFirst();
+      String parent = this.parents.get(actualName);
+      while (parent != null && visited.add(parent)) {
          if (targetName.equals(parent)) return true;
-         if (visited.add(parent)) pending.addAll(this.parentChain(parent));
+         parent = this.parents.get(parent);
       }
       return false;
    }
@@ -1364,13 +1356,11 @@ public final class MLuaClassRegistry {
    }
 
    private boolean wouldCreateCycle(String child, String parent) {
-      ArrayDeque<String> pending = new ArrayDeque<>();
       Set<String> visited = new HashSet<>();
-      pending.add(parent);
-      while (!pending.isEmpty()) {
-         String current = pending.removeFirst();
+      String current = parent;
+      while (current != null && visited.add(current)) {
          if (child.equals(current)) return true;
-         if (visited.add(current)) pending.addAll(this.parentChain(current));
+         current = this.parents.get(current);
       }
       return false;
    }
