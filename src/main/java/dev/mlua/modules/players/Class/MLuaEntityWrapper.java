@@ -1051,18 +1051,17 @@ public final class MLuaEntityWrapper {
    }
 
    public static double[] targetPosition(LuaValue value) {
-      if (!value.istable()) {
-         throw new LuaError("[MLua] Expected Vector3, Entity, or Player target");
-      } else {
-         LuaTable table = value.checktable();
-         LuaValue pos = table.get("Position");
-         if (!pos.isnil()) {
-            return MLuaCFrame.vector(pos);
-         } else {
-            LuaValue getPosition = table.get("GetPosition");
-            return getPosition.isfunction() ? MLuaCFrame.vector(getPosition.call(table)) : MLuaCFrame.vector(value);
+      if (MLuaCFrame.isCFrame(value) || MLuaVector.isVector3(value)) {
+         return MLuaCFrame.vector(value);
+      }
+      net.minecraft.world.entity.Entity entity = entityFromLua(value);
+      if (entity != null) {
+         MLuaRegistration registration = MLuaRuntime.registrationForLevel(entity.level());
+         if (registration != null && registration.isInstanceOf(value, "Entity")) {
+            return new double[]{entity.getX(), entity.getY(), entity.getZ()};
          }
       }
+      throw new LuaError("[MLua] Expected a native Vector3, CFrame, or Entity instance");
    }
 
    private static net.minecraft.world.entity.Entity entityFromLua(LuaValue value) {
