@@ -47,6 +47,9 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.Font;
 //--version 26.1
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 //--endversion
 //--version 1.20.1,1.21.1
 import net.minecraft.client.gui.GuiGraphics;
@@ -1672,6 +1675,7 @@ public final class MLuaGuiService implements MLuaService {
             }
         }
 
+        //--version 1.20.1,1.21.1
         @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
             if (this.invokeClassInputMethod("KeyPressed", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
                 LuaValue.valueOf(modifiers))) return true;
@@ -1686,7 +1690,7 @@ public final class MLuaGuiService implements MLuaService {
 
         @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (this.invokeClassInputMethod("MouseClicked", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
-                LuaValue.valueOf(button))) return true;
+                LuaValue.valueOf(button), LuaValue.FALSE)) return true;
             return super.mouseClicked(mouseX, mouseY, button);
         }
 
@@ -1701,6 +1705,60 @@ public final class MLuaGuiService implements MLuaService {
                 LuaValue.valueOf(button), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
             return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         }
+        //--endversion
+
+        //--version 26.1
+        @Override public boolean keyPressed(KeyEvent event) {
+            if (this.invokeClassInputMethod("KeyPressed", LuaValue.valueOf(event.key()),
+                LuaValue.valueOf(event.scancode()), LuaValue.valueOf(event.modifiers()))) return true;
+            return super.keyPressed(event);
+        }
+
+        @Override public boolean charTyped(CharacterEvent event) {
+            if (this.invokeClassInputMethod("CharTyped", LuaValue.valueOf(event.codepointAsString()),
+                LuaValue.valueOf(event.modifiers()))) return true;
+            return super.charTyped(event);
+        }
+
+        @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+            if (this.invokeClassInputMethod("MouseClicked", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
+                LuaValue.valueOf(event.button()), LuaValue.valueOf(doubleClick))) return true;
+            return super.mouseClicked(event, doubleClick);
+        }
+
+        @Override public boolean mouseReleased(MouseButtonEvent event) {
+            if (this.invokeClassInputMethod("MouseReleased", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
+                LuaValue.valueOf(event.button()))) return true;
+            return super.mouseReleased(event);
+        }
+
+        @Override public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+            if (this.invokeClassInputMethod("MouseDragged", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
+                LuaValue.valueOf(event.button()), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
+            return super.mouseDragged(event, dragX, dragY);
+        }
+        //--endversion
+
+        @Override public void mouseMoved(double mouseX, double mouseY) {
+            this.invokeClassInputMethod("MouseMoved", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY));
+            super.mouseMoved(mouseX, mouseY);
+        }
+
+        //--version 1.20.1
+        @Override public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+            if (this.invokeClassInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+                LuaValue.ZERO, LuaValue.valueOf(delta))) return true;
+            return super.mouseScrolled(mouseX, mouseY, delta);
+        }
+        //--endversion
+
+        //--version 1.21.1,26.1
+        @Override public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+            if (this.invokeClassInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+                LuaValue.valueOf(scrollX), LuaValue.valueOf(scrollY))) return true;
+            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        }
+        //--endversion
 
         private void renderLua(ScreenDrawing drawing, int mouseX, int mouseY, float delta) {
             if (this.disposed || this.renderFailed) return;
