@@ -46,6 +46,7 @@ import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 public final class MLuaJavaService extends MLuaServiceBase {
     private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
+    private final Object javaProxyMarker = new Object();
     private final Map<String, Class<?>> resolvedClasses = new ConcurrentHashMap<>();
     private final Map<MethodCacheKey, List<Method>> resolvedMethods = new ConcurrentHashMap<>();
     private final Map<Class<?>, List<Method>> collectedMethods = new ConcurrentHashMap<>();
@@ -423,7 +424,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         }
 
         if (value.istable()) {
-            LuaValue proxiedClass = value.get("__javaClass");
+            LuaValue proxiedClass = javaProxyField(value, "__javaClass");
             if (proxiedClass.isuserdata(Class.class)) {
                 return (Class<?>) proxiedClass.touserdata(Class.class);
             }
@@ -500,7 +501,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return null;
         }
         if (value.istable()) {
-            LuaValue proxiedObject = value.get("__javaObject");
+            LuaValue proxiedObject = javaProxyField(value, "__javaObject");
             if (!proxiedObject.isnil()) {
                 Object userdata = proxiedObject.touserdata();
                 if (userdata != null) {
@@ -508,7 +509,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 }
             }
 
-            LuaValue proxiedClass = value.get("__javaClass");
+            LuaValue proxiedClass = javaProxyField(value, "__javaClass");
             if (proxiedClass.isuserdata(Class.class)) {
                 return proxiedClass.touserdata(Class.class);
             }
@@ -566,7 +567,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     private Object convertLuaValue(LuaValue value, Type targetType, IdentityHashMap<LuaTable, Boolean> activeTables) {
         Class<?> rawType = rawClass(targetType);
-        if (value.istable() && (!value.get("__javaObject").isnil() || !value.get("__javaClass").isnil())) {
+        if (isJavaProxy(value)) {
             return convertTypedValue(unwrapJavaValue(value), targetType);
         }
         if (!value.istable()) return convertTypedValue(unwrapJavaValue(value), targetType);
@@ -685,6 +686,18 @@ public final class MLuaJavaService extends MLuaServiceBase {
         return wrapJavaValue(value, Object.class);
     }
 
+    private boolean isJavaProxy(LuaValue value) {
+        if (!value.istable()) return false;
+        LuaValue meta = value.getmetatable();
+        if (meta == null || !meta.istable()) return false;
+        LuaValue marker = meta.checktable().rawget("__mlua_java_proxy");
+        return marker.isuserdata() && marker.touserdata() == this.javaProxyMarker;
+    }
+
+    private LuaValue javaProxyField(LuaValue value, String name) {
+        return isJavaProxy(value) ? value.checktable().rawget(name) : LuaValue.NIL;
+    }
+
     private LuaValue wrapJavaValue(Object value, Type declaredType) {
         if (value == null) {
             return LuaValue.NIL;
@@ -713,6 +726,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         proxy.set("__javaClass", CoerceJavaToLua.coerce(clazz));
 
         LuaTable meta = new LuaTable();
+        meta.set("__mlua_java_proxy", CoerceJavaToLua.coerce(this.javaProxyMarker));
         meta.set("__index", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
@@ -795,6 +809,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         proxy.set("__javaClass", CoerceJavaToLua.coerce(instance.getClass()));
 
         LuaTable meta = new LuaTable();
+        meta.set("__mlua_java_proxy", CoerceJavaToLua.coerce(this.javaProxyMarker));
         meta.set("__index", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
@@ -1366,7 +1381,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private boolean isPlainLuaTable(LuaValue value) {
-        return value.istable() && value.get("__javaObject").isnil() && value.get("__javaClass").isnil();
+        return value.istable() && !isJavaProxy(value);
     }
 
     private Constructor<?> resolveConstructor(Class<?> clazz, Object[] rawArgs) {
