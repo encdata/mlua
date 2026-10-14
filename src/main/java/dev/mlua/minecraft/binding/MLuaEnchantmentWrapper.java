@@ -13,7 +13,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
 public final class MLuaEnchantmentWrapper {
@@ -56,10 +55,10 @@ public final class MLuaEnchantmentWrapper {
    }
 
    public static int getEnchantmentLevel(MCItemStack stack, String idStr) {
-      net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(idStr);
-      if (id == null) throw new LuaError("[MLua] Invalid enchantment id: " + idStr);
+      net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
+      if (id == null) return 0;
       Enchantment enchantment = BuiltInRegistries.ENCHANTMENT.get(id);
-      if (enchantment == null) throw new LuaError("[MLua] Unknown enchantment: " + idStr);
+      if (enchantment == null) return 0;
       return stack.getEnchantmentLevel(new MCEnchantmentImpl(enchantment));
    }
    //--endversion
@@ -90,9 +89,10 @@ public final class MLuaEnchantmentWrapper {
    }
 
    public static int getEnchantmentLevel(MCItemStack stack, String idStr) {
-      Holder.Reference<Enchantment> enchantment = enchantmentRegistry()
-         .getHolder(MLuaResourceLocations.parse(idStr)).orElse(null);
-      if (enchantment == null) throw new LuaError("[MLua] Unknown enchantment: " + idStr);
+      net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
+      if (id == null) return 0;
+      Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(id).orElse(null);
+      if (enchantment == null) return 0;
       return stack.getEnchantmentLevel(new MCEnchantmentImpl(enchantment.value()));
    }
 
