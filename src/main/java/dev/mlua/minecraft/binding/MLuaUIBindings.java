@@ -270,6 +270,7 @@ public final class MLuaUIBindings {
                 Float transparency = null;
                 Integer backgroundColor = null;
                 Integer borderColor = null;
+                Integer borderSizePixel = null;
                 Integer textColor = null;
                 Integer imageColor = null;
                 Float imageTransparency = null;
@@ -293,6 +294,7 @@ public final class MLuaUIBindings {
                         }
                         case "BackgroundColor3" -> backgroundColor = parseColor3(value);
                         case "BorderColor3" -> borderColor = parseColor3(value);
+                        case "BorderSizePixel" -> borderSizePixel = nonNegativePixelSize(value);
                         case "TextColor3" -> textColor = parseColor3(value);
                         case "ImageColor3" -> imageColor = parseColor3(value);
                         case "ImageTransparency" -> {
@@ -304,15 +306,17 @@ public final class MLuaUIBindings {
                         default -> throw new LuaError("[MLua] AnimateTo does not support the UI property '" + name + "'.");
                     }
                 }
-                if (position == null && size == null && rotation == null && transparency == null && backgroundColor == null && borderColor == null
+                if (position == null && size == null && rotation == null && transparency == null && backgroundColor == null
+                    && borderColor == null && borderSizePixel == null
                     && textColor == null && imageColor == null && imageTransparency == null) {
                     throw new LuaError("[MLua] AnimateTo requires at least one supported target property.");
                 }
                 return LuaValue.valueOf(object.tweenTo(position, size, rotation, transparency, backgroundColor,
-                    borderColor, textColor, imageColor, imageTransparency, easingDirection(args.arg(5)), easingStyle(args.arg(4)),
+                    borderColor, borderSizePixel, textColor, imageColor, imageTransparency,
+                    easingDirection(args.arg(5)), easingStyle(args.arg(4)),
                     positiveDuration(args.arg(3)), args.arg(6).optboolean(true)));
             }
-        }, "Animates supported UI properties toward a target table: Position, Size, Rotation, BackgroundTransparency, BackgroundColor3, BorderColor3, TextColor3, ImageColor3, or ImageTransparency.");
+        }, "Animates supported UI properties toward a target table: Position, Size, Rotation, BackgroundTransparency, BackgroundColor3, BorderColor3, BorderSizePixel, TextColor3, ImageColor3, or ImageTransparency.");
         registration.registerClassFunction("GuiObject", "CancelAnimation", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 requireGuiObject(args.arg1(), "CancelAnimation").cancelTween();
@@ -362,6 +366,14 @@ public final class MLuaUIBindings {
         if (dev.mlua.core.engine.MLuaLuauTypes.isColor3(value)) return dev.mlua.core.engine.MLuaLuauTypes.color3Argb(value);
         if (value.isnumber()) return value.checkint();
         throw new LuaError("[MLua] UI color animation targets require a native Color3 value or packed color integer.");
+    }
+
+    private static int nonNegativePixelSize(LuaValue value) {
+        double size = value.checkdouble();
+        if (!Double.isFinite(size) || size < 0.0 || size > Integer.MAX_VALUE) {
+            throw new LuaError("[MLua] BorderSizePixel animation target must be a finite non-negative value within the supported range.");
+        }
+        return (int)Math.round(size);
     }
 
     private static float finiteFloat(LuaValue value, String property) {

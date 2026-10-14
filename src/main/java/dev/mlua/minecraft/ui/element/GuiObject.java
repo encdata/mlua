@@ -134,29 +134,31 @@ public abstract class GuiObject extends GuiBase2d {
 
     public boolean tweenPosition(UDim2 endPos, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, endPos, null, null, null, null, null, null, null, null, easingDir, easingStyle, time);
+        activeTween = new GuiObjectTween(this, endPos, null, null, null, null, null, null, null, null, null, easingDir, easingStyle, time);
         return true;
     }
 
     public boolean tweenSize(UDim2 endSize, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, null, endSize, null, null, null, null, null, null, null, easingDir, easingStyle, time);
+        activeTween = new GuiObjectTween(this, null, endSize, null, null, null, null, null, null, null, null, easingDir, easingStyle, time);
         return true;
     }
 
     public boolean tweenSizeAndPosition(UDim2 endSize, UDim2 endPos, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, endPos, endSize, null, null, null, null, null, null, null, easingDir, easingStyle, time);
+        activeTween = new GuiObjectTween(this, endPos, endSize, null, null, null, null, null, null, null, null, easingDir, easingStyle, time);
         return true;
     }
 
     public boolean tweenTo(UDim2 endPos, UDim2 endSize, Float endRotation, Float endTransparency,
-                           Integer endBackgroundColor, Integer endBorderColor, Integer endTextColor, Integer endImageColor,
+                           Integer endBackgroundColor, Integer endBorderColor, Integer endBorderSizePixel,
+                           Integer endTextColor, Integer endImageColor,
                            Float endImageTransparency, String easingDir, String easingStyle, double time,
                            boolean override) {
         if (!override && activeTween != null) return false;
         if (endPos == null && endSize == null && endRotation == null && endTransparency == null
-            && endBackgroundColor == null && endBorderColor == null && endTextColor == null && endImageColor == null
+            && endBackgroundColor == null && endBorderColor == null && endBorderSizePixel == null
+            && endTextColor == null && endImageColor == null
             && endImageTransparency == null) throw new LuaError("[MLua] AnimateTo requires at least one supported target property.");
         if (endTextColor != null && !(this instanceof TextLabel || this instanceof TextButton)) {
             throw new LuaError("[MLua] TextColor3 animation requires a TextLabel or TextButton.");
@@ -166,7 +168,8 @@ public abstract class GuiObject extends GuiBase2d {
             throw new LuaError("[MLua] ImageColor3 and ImageTransparency animation require an ImageLabel or ImageButton.");
         }
         activeTween = new GuiObjectTween(this, endPos, endSize, endRotation, endTransparency,
-            endBackgroundColor, endBorderColor, endTextColor, endImageColor, endImageTransparency, easingDir, easingStyle, time);
+            endBackgroundColor, endBorderColor, endBorderSizePixel, endTextColor, endImageColor,
+            endImageTransparency, easingDir, easingStyle, time);
         return true;
     }
 
@@ -203,6 +206,8 @@ public abstract class GuiObject extends GuiBase2d {
         public final Integer endBackgroundColor;
         public final int startBorderColor;
         public final Integer endBorderColor;
+        public final int startBorderSizePixel;
+        public final Integer endBorderSizePixel;
         public final Integer startTextColor;
         public final Integer endTextColor;
         public final Integer startImageColor;
@@ -216,7 +221,8 @@ public abstract class GuiObject extends GuiBase2d {
         public boolean done;
 
         GuiObjectTween(GuiObject target, UDim2 endPos, UDim2 endSize, Float endRotation, Float endTransparency,
-                       Integer endBackgroundColor, Integer endBorderColor, Integer endTextColor, Integer endImageColor,
+                       Integer endBackgroundColor, Integer endBorderColor, Integer endBorderSizePixel,
+                       Integer endTextColor, Integer endImageColor,
                        Float endImageTransparency, String easingDir, String easingStyle, double duration) {
             this.target = target;
             this.startPos = target.position;
@@ -231,6 +237,8 @@ public abstract class GuiObject extends GuiBase2d {
             this.endBackgroundColor = endBackgroundColor;
             this.startBorderColor = target.borderColor3;
             this.endBorderColor = endBorderColor;
+            this.startBorderSizePixel = target.borderSizePixel;
+            this.endBorderSizePixel = endBorderSizePixel;
             this.startTextColor = textColor(target);
             this.endTextColor = endTextColor;
             this.startImageColor = imageColor(target);
@@ -276,6 +284,10 @@ public abstract class GuiObject extends GuiBase2d {
                 target.setBackgroundColor3(lerpColor(startBackgroundColor, endBackgroundColor, e));
             }
             if (endBorderColor != null) target.setBorderColor3(lerpColor(startBorderColor, endBorderColor, e));
+            if (endBorderSizePixel != null) {
+                long borderSize = Math.round(startBorderSizePixel + ((double)endBorderSizePixel - startBorderSizePixel) * e);
+                target.setBorderSizePixel((int)Math.max(0L, Math.min(Integer.MAX_VALUE, borderSize)));
+            }
             if (endTextColor != null) setTextColor(target, lerpColor(startTextColor, endTextColor, e));
             if (endImageColor != null) setImageColor(target, lerpColor(startImageColor, endImageColor, e));
             if (endImageTransparency != null) {
