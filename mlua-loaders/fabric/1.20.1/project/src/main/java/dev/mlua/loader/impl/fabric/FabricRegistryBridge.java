@@ -229,16 +229,12 @@ public final class FabricRegistryBridge implements RegistryBridge {
     public void registerTag(RegistryKind registryKind, String modId, String name, boolean replace, JsonArray values) {
         if (frozen) throw new IllegalStateException("[MLua] Registries are frozen");
         Objects.requireNonNull(values, "values");
+        GeneratedAssetKind tagKind = RegistryBridge.requireTagKind(registryKind);
         String key = assetKey(modId, name);
         JsonObject definition = new JsonObject();
         definition.addProperty("replace", replace);
         definition.add("values", values.deepCopy());
-        switch (registryKind) {
-            case ITEM -> mergeTagAsset(GeneratedAssetKind.ITEM_TAG, key, definition);
-            case BLOCK -> mergeTagAsset(GeneratedAssetKind.BLOCK_TAG, key, definition);
-            case ENTITY -> mergeTagAsset(GeneratedAssetKind.ENTITY_TYPE_TAG, key, definition);
-            default -> throw new IllegalArgumentException("[MLua] Unsupported tag registry: " + registryKind);
-        }
+        mergeTagAsset(tagKind, key, definition);
     }
 
     @Override

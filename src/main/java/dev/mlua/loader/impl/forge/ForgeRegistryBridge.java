@@ -11,6 +11,7 @@ import dev.mlua.runtime.registry.MLuaForgeRegistry;
 import dev.mlua.runtime.registry.MLuaTextureDescriptor;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -205,10 +206,13 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void registerTag(RegistryKind registryKind, String modId, String name, boolean replace, JsonArray values) {
-        switch (registryKind) {
-            case ITEM -> forgeRegistry.registerItemTag(modId, name, replace, values);
-            case BLOCK -> forgeRegistry.registerBlockTag(modId, name, replace, values);
-            case ENTITY -> forgeRegistry.registerEntityTypeTag(modId, name, replace, values);
+        Objects.requireNonNull(values, "values");
+        JsonArray snapshot = values.deepCopy();
+        switch (RegistryBridge.requireTagKind(registryKind)) {
+            case ITEM_TAG -> forgeRegistry.registerItemTag(modId, name, replace, snapshot);
+            case BLOCK_TAG -> forgeRegistry.registerBlockTag(modId, name, replace, snapshot);
+            case ENTITY_TYPE_TAG -> forgeRegistry.registerEntityTypeTag(modId, name, replace, snapshot);
+            default -> throw new IllegalStateException("Unsupported generated tag kind");
         }
     }
 

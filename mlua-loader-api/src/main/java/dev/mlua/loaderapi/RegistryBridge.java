@@ -22,6 +22,15 @@ public interface RegistryBridge {
         throw new IllegalArgumentException("Visual metadata is supported only for ITEM and BLOCK registries; got " + registryKind);
     }
 
+    static GeneratedAssetKind requireTagKind(RegistryKind registryKind) {
+        return switch (registryKind) {
+            case ITEM -> GeneratedAssetKind.ITEM_TAG;
+            case BLOCK -> GeneratedAssetKind.BLOCK_TAG;
+            case ENTITY -> GeneratedAssetKind.ENTITY_TYPE_TAG;
+            default -> throw new IllegalArgumentException("Unsupported tag registry: " + registryKind);
+        };
+    }
+
     <T> RegistryHandle<T> register(RegistryKind registryKind, String modId, String name, Supplier<T> supplier);
     <T> RegistryHandle<T> get(RegistryKind registryKind, String modId, String name);
     <T> RegistryHandle<T> registerEntity(String modId, String name, Supplier<T> supplier, Supplier<?> attributes);
