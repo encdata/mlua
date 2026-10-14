@@ -124,7 +124,16 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     @MLuaDescription("Kills a living entity.")
     public void Kill(LuaValue value) {
-        requireEntity(value).kill();
+        Entity entity = requireEntity(value);
+        //--version 26.1
+        if (!(entity.level() instanceof ServerLevel serverLevel)) {
+            throw new LuaError("[MLua] Kill requires a server-side entity.");
+        }
+        entity.kill(serverLevel);
+        //--endversion
+        //--version 1.20.1,1.21.1
+        entity.kill();
+        //--endversion
     }
 
     @MLuaDescription("Moves an entity to a position.")

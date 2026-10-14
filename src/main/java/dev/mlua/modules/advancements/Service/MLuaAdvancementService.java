@@ -71,7 +71,9 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       var display = raw.display().orElse(null);
       info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
       info.set("Description", LuaValue.valueOf(display == null ? "" : display.getDescription().getString()));
-      info.set("Parent", raw.parent().map(parent -> LuaValue.valueOf(parent.toString())).orElse(LuaValue.NIL));
+      info.set("Parent", raw.parent().isPresent()
+         ? LuaValue.valueOf(raw.parent().get().toString())
+         : LuaValue.NIL);
       LuaTable requirements = new LuaTable();
       var reqs = raw.requirements().requirements();
       for (int i = 0; i < reqs.size(); i++) {

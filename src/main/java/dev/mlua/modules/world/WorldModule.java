@@ -7,7 +7,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.module.MLuaDocBuilder;
-import dev.mlua.module.ServiceEntry;
+import dev.mlua.module.MLuaModule.ServiceEntry;
 import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.Globals;

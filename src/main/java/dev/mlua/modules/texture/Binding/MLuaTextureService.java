@@ -14,7 +14,7 @@ public final class MLuaTextureService extends MLuaReflectiveService {
 
     public MLuaTextureService(MLuaService.Context context) {
         super(context);
-        this.state = this.context.sharedState("textures:" + this.context.ownerModId(), TextureState.class,
+        this.state = this.sharedState("textures:" + this.context.ownerModId(), TextureState.class,
             TextureState::new);
     }
 

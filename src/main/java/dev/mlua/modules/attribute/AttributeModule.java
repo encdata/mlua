@@ -2,7 +2,7 @@ package dev.mlua.modules.attribute;
 
 import dev.mlua.minecraft.binding.MLuaAttributeInstance;
 import dev.mlua.module.MLuaRegistration;
-import dev.mlua.module.ServiceEntry;
+import dev.mlua.module.MLuaModule.ServiceEntry;
 import dev.mlua.modules.attribute.Service.MLuaAttributeService;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;

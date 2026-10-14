@@ -8,6 +8,7 @@ import dev.mlua.module.MLuaModule;
 import dev.mlua.module.MLuaRegistration;
 import java.util.List;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;

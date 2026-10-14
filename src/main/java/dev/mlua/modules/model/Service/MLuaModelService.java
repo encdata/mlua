@@ -119,7 +119,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Returns the model part names supported by the active renderer.")
-    public List<String> GetPartNames(LuaValue entity) {
+    public Iterable<String> GetPartNames(LuaValue entity) {
         ensureClient();
         return MLuaClientModelManager.getPartNames(resolveEntityScope(entity), owner());
     }
