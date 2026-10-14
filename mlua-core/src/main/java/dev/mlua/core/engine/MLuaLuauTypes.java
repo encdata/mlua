@@ -18,9 +18,16 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Random;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 public final class MLuaLuauTypes {
    private static final Random SHARED_RNG = new Random();
+   private static final LuaTable UDIM_METATABLE = valueMetatable("UDim");
+   private static final LuaTable UDIM2_METATABLE = valueMetatable("UDim2");
+   private static final Set<LuaTable> UDIM_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
+   private static final Set<LuaTable> UDIM2_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
 
    private MLuaLuauTypes() {
    }
@@ -239,10 +246,7 @@ public final class MLuaLuauTypes {
       LuaTable table = new LuaTable();
       table.set("new", new TwoArgFunction() {
          public LuaValue call(LuaValue scale, LuaValue offset) {
-            LuaTable value = MLuaLuauTypes.typed("UDim");
-            value.set("Scale", scale.optdouble(0.0));
-            value.set("Offset", offset.optint(0));
-            return value;
+            return MLuaLuauTypes.udim(scale.optdouble(0.0), offset.optint(0));
          }
       });
       return table;
@@ -375,6 +379,8 @@ public final class MLuaLuauTypes {
       LuaTable value = typed("UDim");
       value.set("Scale", scale);
       value.set("Offset", offset);
+      value.setmetatable(UDIM_METATABLE);
+      UDIM_VALUES.add(value);
       return value.freeze();
    }
 
@@ -382,17 +388,35 @@ public final class MLuaLuauTypes {
       LuaTable value = typed("UDim2");
       value.set("X", udim(xScale, xOffset));
       value.set("Y", udim(yScale, yOffset));
+      value.setmetatable(UDIM2_METATABLE);
+      UDIM2_VALUES.add(value);
       return value.freeze();
    }
 
    public static LuaTable udim2(LuaValue x, LuaValue y) {
-      if (!x.istable() || !y.istable() || !x.checktable().isfrozen() || !y.checktable().isfrozen() || !"UDim".equals(x.get("__type").optjstring(null)) || !"UDim".equals(y.get("__type").optjstring(null))) {
+      if (!isUDim(x) || !isUDim(y)) {
          throw new LuaError("UDim2.new expects two UDim values or four numeric scale and offset values");
       }
       LuaTable value = typed("UDim2");
       value.set("X", x);
       value.set("Y", y);
+      value.setmetatable(UDIM2_METATABLE);
+      UDIM2_VALUES.add(value);
       return value.freeze();
+   }
+
+   public static boolean isUDim(LuaValue value) {
+      return value.istable() && value.checktable().isfrozen() && UDIM_VALUES.contains(value.checktable());
+   }
+
+   public static boolean isUDim2(LuaValue value) {
+      return value.istable() && value.checktable().isfrozen() && UDIM2_VALUES.contains(value.checktable());
+   }
+
+   private static LuaTable valueMetatable(String type) {
+      LuaTable metatable = new LuaTable();
+      metatable.set("__metatable", LuaValue.valueOf(type));
+      return metatable.freeze();
    }
 
    private static LuaTable typed(String type) {

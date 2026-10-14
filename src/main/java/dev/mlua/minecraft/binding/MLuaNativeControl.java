@@ -310,7 +310,7 @@ public final class MLuaNativeControl {
     }
 
     private static boolean validDimension(LuaValue value) {
-        return value.istable() && "UDim".equals(value.get("__type").optjstring(null)) && value.get("Scale").isnumber() && value.get("Offset").isnumber();
+        return MLuaLuauTypes.isUDim(value);
     }
 
     private static String propertyName(LuaValue value) {
