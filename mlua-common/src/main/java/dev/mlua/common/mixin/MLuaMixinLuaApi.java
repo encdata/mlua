@@ -33,7 +33,7 @@ public final class MLuaMixinLuaApi {
       descriptions.put("Target", "Binds a Java target class and returns target-scoped Inject, Overwrite, Redirect, and ModifyArg methods.");
       descriptions.put("GetRules", "Returns mixin rules registered by the current script.");
       descriptions.put("GetFailures", "Returns target classes whose registered mixin rules could not be applied.");
-      descriptions.put("Inject", "Injects a callback at HEAD, before every RETURN, at the final RETURN, or before an exact invocation. The callback receives self and enclosing method arguments; at INVOKE it then receives the invocation receiver and arguments. For non-void target methods, callbacks at HEAD, RETURN, or TAIL may return a compatible value to override the result; nil keeps execution. At INVOKE, the callback return is ignored. At HEAD, false cancels a void target method.");
+      descriptions.put("Inject", "Injects a callback at Enum.MixinAt.Head, Return, Tail, or Invoke. The callback receives self and enclosing method arguments; at Invoke it then receives the invocation receiver and arguments. For non-void target methods, callbacks at Head, Return, or Tail may return a compatible value to override the result; nil keeps execution. At Invoke, the callback return is ignored. At Head, false cancels a void target method.");
       descriptions.put("Overwrite", "Replaces a target method with a Lua callback that receives self followed by the target method arguments. Return a value compatible with the Java method; Java object and array returns are converted from Lua values.");
       descriptions.put("Redirect", "Replaces an exact invocation selected by target = 'Lowner;method(descriptor)returnType'. The callback receives the enclosing self, invocation receiver (nil for static calls), invocation arguments, then enclosing method arguments. Return nil to execute the original invocation.");
       descriptions.put("ModifyArg", "Changes a zero-based argument at the exact invocation selected by target = 'Lowner;method(descriptor)returnType'. The callback receives self, the old argument, then enclosing method arguments; return nil to keep the old value.");
@@ -80,16 +80,14 @@ public final class MLuaMixinLuaApi {
             switch (type) {
                case INJECT -> {
                   LuaValue at = options.get("at");
-                  if (!at.isnil() && !at.isstring()) {
-                     throw new LuaError("[MLua] Mixin:Inject 'at' must be a string injection point");
-                  }
                   LuaValue invocation = options.get("target");
                   if (!invocation.isnil() && !invocation.isstring()) {
                      throw new LuaError("[MLua] Mixin:Inject 'target' must be an exact invocation descriptor");
                   }
                   rule = MLuaMixinRegistrar.inject(activeScope.get(), target, method,
                      MLuaMixinRegistrar.optionalDescriptor(options.get("descriptor"), "Inject"),
-                     at.isnil() ? null : at.checkjstring(), invocation.isnil() ? null : invocation.checkjstring(), callback);
+                     at.isnil() ? null : InjectionPoint.parse(at).name(),
+                     invocation.isnil() ? null : invocation.checkjstring(), callback);
                }
                case OVERWRITE -> rule = MLuaMixinRegistrar.overwrite(activeScope.get(), target, method,
                   MLuaMixinRegistrar.optionalDescriptor(options.get("descriptor"), "Overwrite"), callback);

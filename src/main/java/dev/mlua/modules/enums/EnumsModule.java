@@ -3,6 +3,7 @@ package dev.mlua.modules.enums;
 import dev.mlua.common.enums.AnimationPriority;
 import dev.mlua.common.enums.EasingDirection;
 import dev.mlua.common.enums.EasingStyle;
+import dev.mlua.common.enums.InjectionPoint;
 import dev.mlua.minecraft.binding.MLuaKeyCatalog;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
 import dev.mlua.module.MLuaModule;
@@ -44,6 +45,7 @@ public class EnumsModule implements MLuaModule {
         enumTable.set("AnimationPriority", MLuaEnumValue.enumConstants(AnimationPriority.class, null));
         enumTable.set("EasingStyle", MLuaEnumValue.enumConstants(EasingStyle.class, null));
         enumTable.set("EasingDirection", MLuaEnumValue.enumConstants(EasingDirection.class, null));
+        enumTable.set("MixinAt", MLuaEnumValue.enumConstants(InjectionPoint.class, null));
 
         LuaTable generationStep = new LuaTable();
         generationStep.set("Decoration", MLuaEnumValue.enumConstants(
