@@ -5,7 +5,7 @@ import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.api.MLuaDescription;
-import dev.mlua.math.MLuaCFrame;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
@@ -67,7 +67,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         }
         Entity centerEntity = entityValue(centerValue);
         double[] center = centerEntity == null
-            ? MLuaCFrame.vector(centerValue)
+            ? MLuaLuaArguments.finiteVector3(centerValue, "EntityService:GetNearby center")
             : new double[]{centerEntity.getX(), centerEntity.getY(), centerEntity.getZ()};
         Level level = centerEntity != null ? centerEntity.level() : currentLevel();
         LuaTable out = new LuaTable();
@@ -336,7 +336,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
     private double[] position(LuaValue value) {
         Entity entity = entityValue(value);
         if (entity != null) return new double[]{entity.getX(), entity.getY(), entity.getZ()};
-        return MLuaCFrame.vector(value);
+        return MLuaLuaArguments.finiteVector3(value, "EntityService position");
     }
 
 }

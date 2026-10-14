@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.binding;
 
+import dev.mlua.math.MLuaCFrame;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -17,5 +18,15 @@ public final class MLuaLuaArguments {
             throw new LuaError("[MLua] " + method + " " + parameter + " must be a boolean.");
         }
         return value.toboolean();
+    }
+
+    public static double[] finiteVector3(LuaValue value, String argumentName) {
+        double[] coordinates = MLuaCFrame.vector(value);
+        for (double coordinate : coordinates) {
+            if (!Double.isFinite(coordinate)) {
+                throw new LuaError("[MLua] " + argumentName + " coordinates must be finite.");
+            }
+        }
+        return coordinates;
     }
 }

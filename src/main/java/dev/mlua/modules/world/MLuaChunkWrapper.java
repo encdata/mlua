@@ -230,7 +230,7 @@ public final class MLuaChunkWrapper {
                 chunkCoordinate(vector.get("X"), "X"),
                 chunkCoordinate(vector.get("Y"), "Y"));
         }
-        double[] position = MLuaCFrame.vector(value);
+        double[] position = MLuaLuaArguments.finiteVector3(value, "Chunk position");
         BlockPos blockPosition = BlockPos.containing(position[0], position[1], position[2]);
         return new ChunkPos(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
     }
@@ -246,12 +246,19 @@ public final class MLuaChunkWrapper {
     }
 
     public static double[] positionArgs(Varargs args, int index) {
-        return MLuaCFrame.vector(args.arg(index));
+        return MLuaLuaArguments.finiteVector3(args.arg(index), "World position");
     }
 
     public static float positionYaw(Varargs args, int positionIndex, int yawIndex) {
         LuaValue yaw = args.arg(yawIndex);
-        if (!yaw.isnil()) return (float)yaw.checkdouble();
+        if (!yaw.isnil()) {
+            double value = yaw.checkdouble();
+            float converted = (float)value;
+            if (!Double.isFinite(value) || !Float.isFinite(converted)) {
+                throw new LuaError("[MLua] Yaw must be finite and within the supported range.");
+            }
+            return converted;
+        }
         LuaValue position = args.arg(positionIndex);
         return MLuaCFrame.isCFrame(position) ? MLuaCFrame.fromLua(position).minecraftYaw() : 0.0f;
     }
@@ -292,7 +299,7 @@ public final class MLuaChunkWrapper {
         });
         bindWorldMethod(world, registration, "IsBlockLoaded", args -> {
             Level level = level(args.arg1());
-            double[] coordinates = MLuaCFrame.vector(args.arg(2));
+            double[] coordinates = MLuaLuaArguments.finiteVector3(args.arg(2), "World position");
             BlockPos position = BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]);
             return LuaValue.valueOf(level.hasChunkAt(position));
         });
@@ -422,7 +429,7 @@ public final class MLuaChunkWrapper {
     }
 
     private static BlockPos requirePosition(Varargs args, int index, LuaValue self) {
-        double[] coordinates = MLuaCFrame.vector(args.arg(index));
+        double[] coordinates = MLuaLuaArguments.finiteVector3(args.arg(index), "Chunk block position");
         ChunkPos chunk = chunkPosition(self);
         BlockPos position = BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]);
         if (position.getX() >> 4 != chunkX(chunk) || position.getZ() >> 4 != chunkZ(chunk)) {
