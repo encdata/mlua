@@ -217,13 +217,16 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
         return new MLuaBossBarRegistry.Key(runtimeOwner(), ownerModId(), name);
     }
 
-    private static ServerPlayer extractPlayer(LuaValue playerVal) {
+    private ServerPlayer extractPlayer(LuaValue playerVal) {
+        if (!context.mlua().registration().isInstanceOf(playerVal, "Player")) {
+            throw new LuaError("[MLua] Expected a Player instance");
+        }
         LuaTable t = playerVal.checktable();
         LuaValue e = t.get("__entity");
         if (e.isuserdata(ServerPlayer.class)) {
             return (ServerPlayer) e.checkuserdata(ServerPlayer.class);
         }
-        throw new LuaError("[MLua] Expected a Player table");
+        throw new LuaError("[MLua] Expected a live Player instance");
     }
 
     private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {

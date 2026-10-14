@@ -329,8 +329,8 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 //--endversion
 
    private MCServerPlayer extractPlayer(LuaValue playerTable) {
-      if (!playerTable.istable()) {
-         throw new LuaError("[MLua] Expected a player table");
+      if (!this.context.mlua().registration().isInstanceOf(playerTable, "Player")) {
+         throw new LuaError("[MLua] Expected a Player instance");
       }
       LuaValue ud = playerTable.get("__entity");
       if (ud != null && ud.isuserdata()) {
@@ -339,7 +339,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
             return MCServerPlayerImpl.fromReal(sp);
          }
       }
-      throw new LuaError("[MLua] Expected a valid player table");
+      throw new LuaError("[MLua] Expected a live Player instance");
    }
 
 }

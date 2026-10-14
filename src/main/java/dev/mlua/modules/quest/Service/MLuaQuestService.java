@@ -221,13 +221,16 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     private static boolean isBooleanTag(CompoundTag tag, String key) { return tag.get(key) instanceof ByteTag; }
     //--endversion
 
-    private static ServerPlayer extractPlayer(LuaValue playerVal) {
+    private ServerPlayer extractPlayer(LuaValue playerVal) {
+        if (!context.mlua().registration().isInstanceOf(playerVal, "Player")) {
+            throw new LuaError("[MLua] Expected a Player instance");
+        }
         LuaTable t = playerVal.checktable();
         LuaValue entityObj = t.get("__entity");
         if (entityObj.isuserdata(Player.class)) {
             return (ServerPlayer) entityObj.checkuserdata(Player.class);
         }
-        throw new LuaError("[MLua] Expected a Player table");
+        throw new LuaError("[MLua] Expected a live Player instance");
     }
 
 }

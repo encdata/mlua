@@ -76,7 +76,10 @@ public final class MLuaTitleService extends MLuaReflectiveService {
         }
     }
 
-    private static ServerPlayer extractPlayer(LuaValue playerValue) {
+    private ServerPlayer extractPlayer(LuaValue playerValue) {
+        if (!context.mlua().registration().isInstanceOf(playerValue, "Player")) {
+            throw new LuaError("[MLua] Expected a Player instance");
+        }
         LuaTable table = playerValue.checktable();
         LuaValue entity = table.get("__entity");
         if (entity.isuserdata(Player.class)) {
@@ -84,6 +87,6 @@ public final class MLuaTitleService extends MLuaReflectiveService {
             if (player instanceof ServerPlayer serverPlayer) return serverPlayer;
             throw new LuaError("[MLua] Expected a ServerPlayer, got " + player.getClass().getSimpleName());
         }
-        throw new LuaError("[MLua] Expected a Player table");
+        throw new LuaError("[MLua] Expected a live Player instance");
     }
 }
