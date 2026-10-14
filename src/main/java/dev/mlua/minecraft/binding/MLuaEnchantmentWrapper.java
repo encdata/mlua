@@ -63,6 +63,10 @@ public final class MLuaEnchantmentWrapper {
       if (enchantment == null) return 0;
       return stack.getEnchantmentLevel(new MCEnchantmentImpl(enchantment));
    }
+
+   public static boolean hasEnchantment(MCItemStack stack, String idStr) {
+      return getEnchantmentLevel(stack, idStr) > 0;
+   }
    //--endversion
    //--version 1.21.1
    public static LuaTable getEnchantments(MCItemStack stack) {
@@ -100,6 +104,10 @@ public final class MLuaEnchantmentWrapper {
       Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(id).orElse(null);
       if (enchantment == null) return 0;
       return stack.getEnchantmentLevel(new MCEnchantmentImpl(enchantment.value()));
+   }
+
+   public static boolean hasEnchantment(MCItemStack stack, String idStr) {
+      return getEnchantmentLevel(stack, idStr) > 0;
    }
 
    @SuppressWarnings("unchecked")

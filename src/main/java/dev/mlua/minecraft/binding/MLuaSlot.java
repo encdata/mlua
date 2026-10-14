@@ -93,6 +93,11 @@ public final class MLuaSlot {
             return LuaValue.valueOf(stack.isEmpty() ? 0
                : MLuaEnchantmentWrapper.getEnchantmentLevel(stack, args.checkjstring(2)));
          });
+      register(registration, "HasEnchantment", "Returns whether this slot's item has the given enchantment.", args -> {
+         MCItemStack stack = currentStack(state(args.arg1()).stackSupplier);
+         return LuaValue.valueOf(!stack.isEmpty()
+            && MLuaEnchantmentWrapper.hasEnchantment(stack, args.checkjstring(2)));
+      });
       register(registration, "AddEnchantment", "Adds an enchantment to this slot's item when writable.", args -> {
          SlotState state = state(args.arg1());
          ensureWritable(state.writable);

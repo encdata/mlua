@@ -333,6 +333,9 @@ public final class MLuaItemWrapper {
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetEnchantmentLevel", selfItem((self, args) ->
               LuaValue.valueOf(MLuaEnchantmentWrapper.getEnchantmentLevel(stack(self), args.checkjstring(2)))),
               "Returns this item's level for the given enchantment id, or zero when it is not applied.");
+          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "HasEnchantment", selfItem((self, args) ->
+              LuaValue.valueOf(MLuaEnchantmentWrapper.hasEnchantment(stack(self), args.checkjstring(2)))),
+              "Returns whether this item has the given enchantment at a positive level.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "AddEnchantment", selfItem((self, args) -> {
               MLuaEnchantmentWrapper.addEnchantment(stack(self), args.checkjstring(2), args.optint(3, 1));
              return LuaValue.NONE;
