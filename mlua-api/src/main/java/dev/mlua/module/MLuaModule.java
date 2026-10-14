@@ -162,17 +162,19 @@ public interface MLuaModule extends MLuaReloadable {
             private final java.util.Map<String, String> functions = new java.util.LinkedHashMap<>();
 
             private Builder(String name, Function<MLuaService.Context, MLuaService> factory) {
-                this.name = name;
-                this.factory = factory;
+                this.name = Objects.requireNonNull(name, "name");
+                this.factory = Objects.requireNonNull(factory, "factory");
             }
 
             public Builder className(String className) {
+                Objects.requireNonNull(className, "className");
+                if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
                 this.className = className;
                 return this;
             }
 
             public Builder description(String description) {
-                this.description = description;
+                this.description = Objects.requireNonNull(description, "description");
                 return this;
             }
 

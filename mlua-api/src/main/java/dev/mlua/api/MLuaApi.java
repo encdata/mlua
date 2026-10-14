@@ -63,7 +63,9 @@ public final class MLuaApi {
 
       public ServiceBuilder className(String className) {
          ensureOpen();
-         this.declaration.className(Objects.requireNonNull(className, "className"));
+         Objects.requireNonNull(className, "className");
+         if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
+         this.declaration.className(className);
          this.explicitClassName = true;
          return this;
       }
