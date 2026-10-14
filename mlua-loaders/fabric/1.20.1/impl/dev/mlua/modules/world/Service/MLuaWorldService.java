@@ -5,12 +5,14 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
+import dev.mlua.modules.world.MLuaChunkWrapper;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
@@ -235,9 +237,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       bindWorldMethod(table, implementations, "Raycast", levelFn(supplier, (level, args) -> {
          double[] origin = positionArgs(args, 2);
-         double[] direction = positionArgs(args, 5);
-         double distance = args.optdouble(8, 100.0);
-         boolean includeFluids = args.optboolean(9, false);
+         double[] direction = positionArgs(args, 3);
+         double distance = args.optdouble(4, 100.0);
+         boolean includeFluids = args.optboolean(5, false);
          Vec3 from = new Vec3(origin[0], origin[1], origin[2]);
          Vec3 dir = new Vec3(direction[0], direction[1], direction[2]).normalize();
          BlockHitResult hitResult = level.clip(new ClipContext(from, from.add(dir.scale(distance)), ClipContext.Block.COLLIDER, includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity)null));
@@ -257,21 +259,21 @@ public final class MLuaWorldService extends MLuaServiceBase {
       bindWorldMethod(table, implementations, "GetEntities", levelFn(supplier, (level, args) -> this.entitiesTable(level, null, LuaValue.NIL)));
       bindWorldMethod(table, implementations, "FindEntitiesInRadius", levelFn(supplier, (level, args) -> {
          double[] center = positionArgs(args, 2);
-         double radius = args.checkdouble(5);
+         double radius = args.checkdouble(3);
          AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
-         return this.entitiesTable(level, box, args.arg(6));
+         return this.entitiesTable(level, box, args.arg(4));
       }));
       bindWorldAlias(table, implementations, "GetEntitiesInRadius", "FindEntitiesInRadius");
       bindWorldAlias(table, implementations, "GetEntitiesNearby", "FindEntitiesInRadius");
       bindWorldMethod(table, implementations, "FindEntitiesInBox", levelFn(supplier, (level, args) -> {
          double[] min = positionArgs(args, 2);
-         double[] max = positionArgs(args, 5);
+         double[] max = positionArgs(args, 3);
          AABB box = new AABB(min[0], min[1], min[2], max[0], max[1], max[2]);
-         return this.entitiesTable(level, box, args.arg(8));
+         return this.entitiesTable(level, box, args.arg(4));
       }));
       bindWorldMethod(table, implementations, "FindPlayersInRadius", levelFn(supplier, (level, args) -> {
          double[] center = positionArgs(args, 2);
-         double radius = args.checkdouble(5);
+         double radius = args.checkdouble(3);
          AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
          return this.playersTable(level, box);
       }));
@@ -282,7 +284,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          }
 
          double[] pos = positionArgs(args, 2);
-         double maxDistance = args.optdouble(5, Double.MAX_VALUE);
+         double maxDistance = args.optdouble(3, Double.MAX_VALUE);
          ServerPlayer nearest = null;
          double nearestDistance = maxDistance * maxDistance;
          for (ServerPlayer player : serverLevel.players()) {
@@ -299,8 +301,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       bindWorldAlias(table, implementations, "GetNearestPlayer", "FindNearestPlayer");
       bindWorldMethod(table, implementations, "FindNearestEntity", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         double maxDistance = args.optdouble(5, Double.MAX_VALUE);
-         LuaValue filter = args.arg(6);
+         double maxDistance = args.optdouble(3, Double.MAX_VALUE);
+         LuaValue filter = args.arg(4);
          AABB box = new AABB(pos[0] - maxDistance, pos[1] - maxDistance, pos[2] - maxDistance, pos[0] + maxDistance, pos[1] + maxDistance, pos[2] + maxDistance);
          Entity nearest = null;
          double nearestDistance = maxDistance * maxDistance;
@@ -320,37 +322,42 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       bindWorldMethod(table, implementations, "SetBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         String blockId = args.checkjstring(5);
+         String blockId = args.checkjstring(3);
          Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(blockId)).orElse(null);
          if (block == null) {
             throw new LuaError("[MLua] Unknown block: " + blockId);
          }
-         level.setBlock(BlockPos.containing(pos[0], pos[1], pos[2]), block.defaultBlockState(), 3);
-         return LuaValue.TRUE;
+         BlockPos blockPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
+         boolean load = args.optboolean(5, true);
+         if (!level.hasChunkAt(blockPosition)) {
+            if (!load) return LuaValue.FALSE;
+            level.getChunk(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
+         }
+         return LuaValue.valueOf(level.setBlock(blockPosition,
+            MLuaBlockStateProperties.apply(block.defaultBlockState(), args.arg(4)), 3));
       }));
       bindWorldMethod(table, implementations, "BreakBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         boolean dropItems = args.optboolean(5, true);
-         level.destroyBlock(BlockPos.containing(pos[0], pos[1], pos[2]), dropItems);
-         return LuaValue.TRUE;
+         boolean dropItems = args.optboolean(3, true);
+         return LuaValue.valueOf(level.destroyBlock(BlockPos.containing(pos[0], pos[1], pos[2]), dropItems));
       }));
       bindWorldAlias(table, implementations, "DestroyBlock", "BreakBlock");
       bindWorldMethod(table, implementations, "PlaySound", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         String soundName = args.checkjstring(5);
+         String soundName = args.checkjstring(3);
          SoundEvent sound = BuiltInRegistries.SOUND_EVENT.getOptional(MLuaResourceLocations.parse(soundName)).orElse(null);
          if (sound == null) {
             throw new LuaError("[MLua] Unknown sound: " + soundName);
          }
-         float volume = (float)args.optdouble(6, 1.0);
-         float pitch = (float)args.optdouble(7, 1.0);
+         float volume = (float)args.optdouble(4, 1.0);
+         float pitch = (float)args.optdouble(5, 1.0);
          level.playSound((Player)null, pos[0], pos[1], pos[2], sound, SoundSource.PLAYERS, volume, pitch);
          return LuaValue.NONE;
       }));
       bindWorldMethod(table, implementations, "SpawnParticle", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         String particleName = args.checkjstring(5);
-         int count = args.optint(6, 1);
+         String particleName = args.checkjstring(3);
+         int count = args.optint(4, 1);
          ResourceLocation id = MLuaResourceLocations.tryParseOrNull(particleName);
          if (id == null) {
             throw new LuaError("[MLua] Invalid particle id: " + particleName);
@@ -367,9 +374,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       bindWorldMethod(table, implementations, "SpawnEntity", serverLevelFn(supplier, (level, args) -> {
          String entityId = args.checkjstring(2);
-         double[] pos = MLuaPlayerWrapper.positionArgs(args, 3);
-         double yaw = args.optdouble(6, 0.0);
-         double pitch = args.optdouble(7, 0.0);
+         double[] pos = positionArgs(args, 3);
+         double yaw = args.optdouble(4, 0.0);
+         double pitch = args.optdouble(5, 0.0);
          if (!entityId.contains(":")) {
             entityId = this.context.mlua().ownerModId() + ":" + entityId;
          }
@@ -396,8 +403,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       bindWorldMethod(table, implementations, "DropItem", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         String itemId = args.checkjstring(5);
-         int count = args.optint(6, 1);
+         String itemId = args.checkjstring(3);
+         int count = args.optint(4, 1);
          net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(itemId));
          if (item == null) {
             throw new LuaError("[MLua] Unknown item: " + itemId);
@@ -408,8 +415,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       bindWorldMethod(table, implementations, "Explode", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         float power = (float)args.optdouble(5, 4.0);
-         boolean fire = args.optboolean(6, false);
+         float power = (float)args.optdouble(3, 4.0);
+         boolean fire = args.optboolean(4, false);
          level.explode((Entity)null, pos[0], pos[1], pos[2], power, fire, Level.ExplosionInteraction.BLOCK);
          return LuaValue.NONE;
       }));
@@ -457,6 +464,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NONE;
       }));
 
+      MLuaChunkWrapper.bindWorldMethods(table, context.mlua().registration());
       if (initial != null) this.worldInstances.put(initial, new WeakReference<>(table));
       return table;
    }
@@ -659,7 +667,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static double[] positionArgs(Varargs args, int index) {
-      return MLuaPlayerWrapper.positionArgs(args, index);
+      return MLuaChunkWrapper.positionArgs(args, index);
    }
 
    private LuaValue levelFn(Supplier<Level> supplier, LevelFunction fn) {

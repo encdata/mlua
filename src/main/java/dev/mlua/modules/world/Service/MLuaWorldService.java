@@ -11,8 +11,6 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
-import dev.mlua.math.MLuaCFrame;
-import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaContainer;
@@ -142,50 +140,6 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetSide", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isClientSide ? "CLIENT" : "SERVER")));
       table.set("IsClient", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isClientSide)));
       table.set("IsServer", levelFn(supplier, (level, args) -> LuaValue.valueOf(!level.isClientSide)));
-      table.set("IsChunkLoaded", levelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         BlockPos origin = new BlockPos(chunk.getMinBlockX(), minBuildHeight(level), chunk.getMinBlockZ());
-         return LuaValue.valueOf(level.hasChunkAt(origin));
-      }));
-      table.set("IsBlockLoaded", table.get("IsChunkLoaded"));
-      table.set("GetChunk", levelFn(supplier, (level, args) ->
-         MLuaChunkWrapper.chunkTable(level, chunkPosition(args, 2), context.mlua().registration())));
-      table.set("GetChunkAt", table.get("GetChunk"));
-      table.set("LoadChunk", serverLevelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         level.getChunk(chunkX(chunk), chunkZ(chunk));
-         return MLuaChunkWrapper.chunkTable(level, chunk, context.mlua().registration());
-      }));
-      table.set("UnloadChunk", serverLevelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         level.setChunkForced(chunkX(chunk), chunkZ(chunk), false);
-         return LuaValue.valueOf(!isChunkForced(level, chunk));
-      }));
-      table.set("SetChunkForced", serverLevelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         boolean forced = args.checkboolean(2 + coordinateWidth(args, 2));
-         level.setChunkForced(chunkX(chunk), chunkZ(chunk), forced);
-         return LuaValue.valueOf(isChunkForced(level, chunk) == forced);
-      }));
-      table.set("ForceLoadChunk", serverLevelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         level.setChunkForced(chunkX(chunk), chunkZ(chunk), true);
-         return LuaValue.valueOf(isChunkForced(level, chunk));
-      }));
-      table.set("IsChunkForced", serverLevelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         return LuaValue.valueOf(isChunkForced(level, chunk));
-      }));
-      table.set("GetEntitiesInChunk", serverLevelFn(supplier, (level, args) -> {
-         ChunkPos chunk = chunkPosition(args, 2);
-         boolean load = args.optboolean(2 + coordinateWidth(args, 2), true);
-         BlockPos chunkOrigin = new BlockPos(chunk.getMinBlockX(), minBuildHeight(level), chunk.getMinBlockZ());
-         if (!ensureChunkLoaded(level, chunkOrigin, load)) return new LuaTable();
-         AABB bounds = new AABB(chunk.getMinBlockX(), minBuildHeight(level), chunk.getMinBlockZ(),
-            chunk.getMinBlockX() + 16, maxBuildHeight(level), chunk.getMinBlockZ() + 16);
-         return entitiesTable(level, bounds, LuaValue.NIL);
-      }));
-
       table.set("GetTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getDayTime())));
       table.set("GetDayTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)(level.getDayTime() % 24000L))));
       table.set("GetGameTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getGameTime())));
@@ -540,6 +494,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
 
       WorldModule.bindWorldInstanceMethods(this.context.mlua().registration(), table);
+      MLuaChunkWrapper.bindWorldMethods(table, this.context.mlua().registration());
       worldInstances.put(initial, new WeakReference<>(table));
       return table;
    }
@@ -768,22 +723,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static double[] positionArgs(Varargs args, int index) {
-      return MLuaCFrame.vector(args.arg(index));
+      return MLuaChunkWrapper.positionArgs(args, index);
    }
 
    private static int coordinateWidth(Varargs args, int index) {
       return args.arg(index).istable() ? 1 : 3;
-   }
-
-   private static ChunkPos chunkPosition(Varargs args, int index) {
-      LuaValue value = args.arg(index);
-      if (MLuaVector.isVector2(value)) {
-         LuaTable vector = value.checktable();
-         return new ChunkPos(vector.get("X").checkint(), vector.get("Y").checkint());
-      }
-      double[] position = positionArgs(args, index);
-      BlockPos blockPosition = BlockPos.containing(position[0], position[1], position[2]);
-      return new ChunkPos(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
    }
 
    private static boolean ensureChunkLoaded(ServerLevel level, BlockPos position, boolean load) {
@@ -795,30 +739,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static int chunkX(ChunkPos chunk) {
-      //--version 26.1
-      return chunk.x();
-      //--endversion
-      //--version 1.20.1,1.21.1
-      return chunk.x;
-      //--endversion
+      return MLuaChunkWrapper.chunkX(chunk);
    }
 
    private static int chunkZ(ChunkPos chunk) {
-      //--version 26.1
-      return chunk.z();
-      //--endversion
-      //--version 1.20.1,1.21.1
-      return chunk.z;
-      //--endversion
-   }
-
-   private static boolean isChunkForced(ServerLevel level, ChunkPos chunk) {
-      //--version 26.1
-      return level.getForceLoadedChunks().contains(chunk.pack());
-      //--endversion
-      //--version 1.20.1,1.21.1
-      return level.getForcedChunks().contains(ChunkPos.asLong(chunkX(chunk), chunkZ(chunk)));
-      //--endversion
+      return MLuaChunkWrapper.chunkZ(chunk);
    }
 
    private static int minBuildHeight(Level level) {
