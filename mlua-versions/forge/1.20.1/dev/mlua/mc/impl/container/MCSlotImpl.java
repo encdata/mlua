@@ -43,6 +43,11 @@ public class MCSlotImpl implements MCSlot {
     }
 
     @Override
+    public void setChanged() {
+        inner.setChanged();
+    }
+
+    @Override
     public int getMaxStackSize() {
         return inner.getMaxStackSize();
     }

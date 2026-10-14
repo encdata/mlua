@@ -18,7 +18,6 @@ import dev.mlua.mcapi.container.MCSlot;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mcapi.item.MCItemStack;
 import dev.mlua.mcapi.core.MCComponent;
-import dev.mlua.mc.impl.container.MCSlotImpl;
 import dev.mlua.mc.impl.item.MCItemStackImpl;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.MLuaRuntime;
@@ -264,7 +263,7 @@ public final class MLuaContainer {
          @Override public void setItem(int index, MCItemStack stack) {
             MCSlot slot = menu.slots().get(index);
             slot.set(stack);
-            ((MCSlotImpl) slot).inner().setChanged();
+            slot.setChanged();
          }
          @Override public void clear() {
             for (int index = 0; index < menu.slots().size(); index++) setItem(index, MCItemStack.EMPTY);
