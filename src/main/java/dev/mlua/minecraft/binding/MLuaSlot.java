@@ -83,7 +83,7 @@ public final class MLuaSlot {
          }
          return lore;
       });
-      register(registration, "GetEnchantments", "Returns this slot item's enchantments.", args -> {
+      register(registration, "GetEnchantments", "Returns a map from enchantment id to level for this slot's item.", args -> {
          MCItemStack stack = currentStack(state(args.arg1()).stackSupplier);
          return stack.isEmpty() ? new LuaTable() : MLuaEnchantmentWrapper.getEnchantments(stack);
       });
@@ -158,7 +158,7 @@ public final class MLuaSlot {
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Lore", "GetLore", null,
          "string[]", "shared:Shared", "Returns this slot item's lore lines.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Enchantments", "GetEnchantments", null,
-         "table", "shared:Shared", "Returns this slot item's enchantments.");
+         "table", "shared:Shared", "Returns a map from enchantment id to level for this slot's item.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "HasDataTag", "HasTag", null,
          "boolean", "shared:Shared", "Whether this slot's item has a data tag.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Empty", "IsEmpty", null,

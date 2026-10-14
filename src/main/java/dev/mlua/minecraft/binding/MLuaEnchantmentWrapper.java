@@ -26,13 +26,9 @@ public final class MLuaEnchantmentWrapper {
          return t;
       }
       MCListTag enchList = stack.getTag().getList("Enchantments", 10);
-      int idx = 1;
       for (int i = 0; i < enchList.size(); i++) {
          MCCompoundTag entry = (MCCompoundTag) enchList.get(i);
-         LuaTable ench = new LuaTable();
-         ench.set("Id", LuaValue.valueOf(entry.getString("id")));
-         ench.set("Level", LuaValue.valueOf(entry.getInt("lvl")));
-         t.set(idx++, ench);
+         t.set(entry.getString("id"), LuaValue.valueOf(entry.getInt("lvl")));
       }
       return t;
    }
@@ -70,12 +66,9 @@ public final class MLuaEnchantmentWrapper {
    //--version 1.21.1
    public static LuaTable getEnchantments(MCItemStack stack) {
       LuaTable table = new LuaTable();
-      int index = 1;
       for (var entry : ((MCItemStackImpl) stack).inner().getEnchantments().entrySet()) {
-         LuaTable ench = new LuaTable();
-         ench.set("Id", LuaValue.valueOf(entry.getKey().unwrapKey().map(key -> key.location().toString()).orElse("unknown")));
-         ench.set("Level", LuaValue.valueOf(entry.getIntValue()));
-         table.set(index++, ench);
+         String id = entry.getKey().unwrapKey().map(key -> key.location().toString()).orElse("unknown");
+         table.set(id, LuaValue.valueOf(entry.getIntValue()));
       }
       return table;
    }

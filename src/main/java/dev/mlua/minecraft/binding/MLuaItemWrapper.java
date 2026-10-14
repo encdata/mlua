@@ -329,7 +329,7 @@ public final class MLuaItemWrapper {
          }), "Returns a copy of this item stack.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetEnchantments", selfItem((self, ignored) -> {
               return MLuaEnchantmentWrapper.getEnchantments(stack(self));
-          }), "Returns this item's enchantments.");
+          }), "Returns a map from enchantment id to level for this item.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetEnchantmentLevel", selfItem((self, args) ->
               LuaValue.valueOf(MLuaEnchantmentWrapper.getEnchantmentLevel(stack(self), args.checkjstring(2)))),
               "Returns this item's level for the given enchantment id, or zero when it is not applied.");
@@ -356,7 +356,7 @@ public final class MLuaItemWrapper {
               {"DisplayName", "GetDisplayName", "SetDisplayName", "string", "This item's display name."},
               {"Lore", "GetLore", "SetLore", "table", "This item's lore lines."},
               {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This item's live NBT view; assign a table to replace its data."},
-              {"Enchantments", "GetEnchantments", null, "table", "The enchantments applied to this item."}
+              {"Enchantments", "GetEnchantments", null, "table", "A map from enchantment id to level for this item."}
           };
           for (String[] property : properties) {
               MLuaClassMethods.registerInstanceProperty(registration, "Item", property[0], property[1], property[2],

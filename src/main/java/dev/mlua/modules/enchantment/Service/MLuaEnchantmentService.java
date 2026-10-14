@@ -138,7 +138,7 @@ public final class MLuaEnchantmentService extends MLuaReflectiveService {
         //--endversion
     }
 
-    @MLuaDescription("Returns enchantments currently on an item stack.")
+    @MLuaDescription("Returns a map from enchantment id to level for an item stack.")
     public LuaTable GetEnchantments(LuaValue itemValue) {
         ItemStack stack = extractItemStack(itemValue);
         LuaTable result = new LuaTable();
