@@ -67,10 +67,10 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    @Override
-   public LuaTable registerClassWithParent(String name, LuaTable classTable, String parentName,
-                                           String description) {
+   public LuaTable registerClass(String name, LuaTable classTable, String parentName,
+                                 String description) {
       this.snapshotClassDescription(name);
-      return MLuaRegistration.super.registerClassWithParent(name, classTable, parentName, description);
+      return MLuaRegistration.super.registerClass(name, classTable, parentName, description);
    }
 
    @Override

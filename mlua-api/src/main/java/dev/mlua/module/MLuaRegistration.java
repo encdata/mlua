@@ -38,8 +38,8 @@ public interface MLuaRegistration {
     @Deprecated(forRemoval = false)
     LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
 
-    default LuaTable registerClassWithParent(String name, LuaTable classTable, String parentName,
-                                             String description) {
+    default LuaTable registerClass(String name, LuaTable classTable, String parentName,
+                                   String description) {
         java.util.List<String> parents = parentName == null || parentName.isBlank()
             ? java.util.List.of() : java.util.List.of(parentName);
         validateClassDescription(this.classTable(name), name, description);
@@ -51,16 +51,17 @@ public interface MLuaRegistration {
         return table;
     }
 
-    default LuaTable registerClass(String name, LuaTable classTable, String parentName,
-                                   String description) {
-        return registerClassWithParent(name, classTable, parentName, description);
+    @Deprecated(forRemoval = false)
+    default LuaTable registerClassWithParent(String name, LuaTable classTable, String parentName,
+                                             String description) {
+        return registerClass(name, classTable, parentName, description);
     }
 
     @Deprecated(forRemoval = false)
     default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
         java.util.Objects.requireNonNull(parentNames, "parentNames");
         java.util.List<String> parents = normalizeParentNames(parentNames);
-        return registerClassWithParent(name, classTable, parents.isEmpty() ? null : parents.get(0), description);
+        return registerClass(name, classTable, parents.isEmpty() ? null : parents.get(0), description);
     }
 
     @Deprecated(forRemoval = false)
