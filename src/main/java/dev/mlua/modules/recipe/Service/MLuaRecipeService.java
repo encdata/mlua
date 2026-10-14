@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-@MLuaDescription("Service for creating recipe builders.")
+@MLuaDescription("Creates and validates recipe definitions for registration through Registry.Recipes.")
 public final class MLuaRecipeService extends MLuaReflectiveService {
     private final MLuaRegistration registration;
 
@@ -176,32 +176,25 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
     @MLuaDescription("Creates a furnace recipe definition.")
     public String Smelting(String input, String output, Optional<Double> requestedExperience,
                            Optional<Integer> requestedCookTime) {
-            double xp = requestedExperience.orElse(0.35);
-            int cookTime = requestedCookTime.orElse(200);
-            MLuaResourceLocations.parse(input);
-            MLuaResourceLocations.parse(output);
-            if (!Double.isFinite(xp) || xp < 0) throw new LuaError("[MLua] Smelting experience must be finite and non-negative");
-            if (cookTime < 1) throw new LuaError("[MLua] Smelting cookTime must be at least 1");
+            return cookingRecipe("minecraft:smelting", input, output, requestedExperience, requestedCookTime, 200);
+    }
 
-            JsonObject ingredient = new JsonObject();
-            ingredient.addProperty("item", input);
-            JsonObject recipe = new JsonObject();
-            recipe.addProperty("type", "minecraft:smelting");
-            recipe.add("ingredient", ingredient);
-            //--version 1.20.1
-            recipe.addProperty("result", output);
-            //--endversion
-            //--version 1.21.1
-            JsonObject smeltingResult = new JsonObject();
-            smeltingResult.addProperty("id", output);
-            recipe.add("result", smeltingResult);
-            //--endversion
-            //--version 26.1
-            recipe.add("result", itemStackResult(output, 1));
-            //--endversion
-            recipe.addProperty("experience", xp);
-            recipe.addProperty("cookingtime", cookTime);
-            return recipe.toString();
+    @MLuaDescription("Creates a blast furnace recipe definition.")
+    public String Blasting(String input, String output, Optional<Double> requestedExperience,
+                           Optional<Integer> requestedCookTime) {
+            return cookingRecipe("minecraft:blasting", input, output, requestedExperience, requestedCookTime, 100);
+    }
+
+    @MLuaDescription("Creates a smoker recipe definition.")
+    public String Smoking(String input, String output, Optional<Double> requestedExperience,
+                          Optional<Integer> requestedCookTime) {
+            return cookingRecipe("minecraft:smoking", input, output, requestedExperience, requestedCookTime, 100);
+    }
+
+    @MLuaDescription("Creates a campfire cooking recipe definition.")
+    public String CampfireCooking(String input, String output, Optional<Double> requestedExperience,
+                                  Optional<Integer> requestedCookTime) {
+            return cookingRecipe("minecraft:campfire_cooking", input, output, requestedExperience, requestedCookTime, 600);
     }
 
     @MLuaDescription("Creates a stonecutting recipe definition.")
@@ -250,6 +243,39 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
         //--endversion
         result.addProperty("count", count);
         return result;
+    }
+
+    private static String cookingRecipe(String type, String input, String output,
+                                        Optional<Double> requestedExperience,
+                                        Optional<Integer> requestedCookTime, int defaultCookTime) {
+        double experience = requestedExperience.orElse(0.35);
+        int cookTime = requestedCookTime.orElse(defaultCookTime);
+        MLuaResourceLocations.parse(input);
+        MLuaResourceLocations.parse(output);
+        if (!Double.isFinite(experience) || experience < 0) {
+            throw new LuaError("[MLua] Cooking recipe experience must be finite and non-negative");
+        }
+        if (cookTime < 1) throw new LuaError("[MLua] Cooking recipe cook time must be at least 1");
+
+        JsonObject ingredient = new JsonObject();
+        ingredient.addProperty("item", input);
+        JsonObject recipe = new JsonObject();
+        recipe.addProperty("type", type);
+        recipe.add("ingredient", ingredient);
+        //--version 1.20.1
+        recipe.addProperty("result", output);
+        //--endversion
+        //--version 1.21.1
+        JsonObject cookingResult = new JsonObject();
+        cookingResult.addProperty("id", output);
+        recipe.add("result", cookingResult);
+        //--endversion
+        //--version 26.1
+        recipe.add("result", itemStackResult(output, 1));
+        //--endversion
+        recipe.addProperty("experience", experience);
+        recipe.addProperty("cookingtime", cookTime);
+        return recipe.toString();
     }
 
 }

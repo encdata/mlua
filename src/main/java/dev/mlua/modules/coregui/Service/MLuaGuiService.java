@@ -184,7 +184,7 @@ public final class MLuaGuiService implements MLuaService {
             Object component = dev.mlua.api.MLuaLuaCoercions.javaValue(value, Component.class);
             if (component instanceof Component) return component;
         } catch (RuntimeException ignored) { }
-        throw new LuaError("[MLua] DrawText expects a string or Java Component value.");
+        throw new LuaError("[MLua] Expected a string or Java Component value.");
     }
 
     private static void drawHudText(Object graphics, Object text, int x, int y, int color, boolean shadow) {
@@ -1080,7 +1080,7 @@ public final class MLuaGuiService implements MLuaService {
 
         table.set("OpenNativeScreen", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                String title = args.arg(2).checkjstring();
+                Object title = nativeText(args.arg(2));
                 LuaValue initialize = args.arg(3);
                 if (!initialize.isfunction()) throw new LuaError("[MLua] Gui:OpenNativeScreen expects an initialization function.");
                 Minecraft minecraft = Minecraft.getInstance();
@@ -1098,7 +1098,7 @@ public final class MLuaGuiService implements MLuaService {
             @Override public Varargs invoke(Varargs args) {
                 if (MLuaGuiService.this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
                 String className = args.arg(2).checkjstring();
-                String title = args.arg(3).checkjstring();
+                Object title = nativeText(args.arg(3));
                 LuaValue fieldsValue = args.arg(4);
                 if (!fieldsValue.isnil() && !fieldsValue.istable()) throw new LuaError("[MLua] Gui:OpenScreen fields must be a table.");
                 if (fieldsValue.istable()) {
@@ -1491,9 +1491,9 @@ public final class MLuaGuiService implements MLuaService {
         private boolean renderFailed;
         private int nextNativeControlIndex = 1;
 
-        private MLuaScriptScreen(String title, LuaValue initialize, MLuaRegistration registration,
+        private MLuaScriptScreen(Object title, LuaValue initialize, MLuaRegistration registration,
                                  GuiState state, String ownerModId) {
-            super(Component.literal(title));
+            super(screenTitle(title));
             this.initialize = initialize;
             this.luaInstance = null;
             this.registration = registration;
@@ -1503,9 +1503,9 @@ public final class MLuaGuiService implements MLuaService {
             this.ownerModId = ownerModId;
         }
 
-        private MLuaScriptScreen(String title, LuaTable luaInstance, MLuaRegistration registration,
+        private MLuaScriptScreen(Object title, LuaTable luaInstance, MLuaRegistration registration,
                                  String className, LuaTable fields, GuiState state, String ownerModId) {
-            super(Component.literal(title));
+            super(screenTitle(title));
             this.initialize = LuaValue.NIL;
             this.luaInstance = luaInstance;
             this.registration = registration;
@@ -1513,6 +1513,10 @@ public final class MLuaGuiService implements MLuaService {
             this.fields = fields;
             this.state = state;
             this.ownerModId = ownerModId;
+        }
+
+        private static Component screenTitle(Object title) {
+            return title instanceof Component component ? component : Component.literal((String) title);
         }
 
         @Override protected void init() {

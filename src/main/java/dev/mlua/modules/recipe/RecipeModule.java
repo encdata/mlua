@@ -47,7 +47,7 @@ public class RecipeModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Recipe", "MLuaRecipeService", "Service for creating recipe builders.", "services/recipe.html");
+        docs.service("Recipe", "MLuaRecipeService", "Creates and validates recipe definitions for registration through Registry.Recipes.", "services/recipe.html");
         docs.clazz("RecipeBuilder", "MLuaRecipeService", "Base class for recipe builders that validate and serialize recipe data.", "classes/recipe-builder.html", "Instance");
         docs.method("RecipeBuilder", "RecipeBuilder:Build(): string", "Validates the builder and returns the recipe JSON.", null, "string", "Shared", null);
         docs.clazz("ShapedRecipeBuilder", "MLuaRecipeService", "A builder for a shaped crafting recipe with a pattern and ingredient keys.", "classes/shaped-recipe-builder.html", "RecipeBuilder");
@@ -57,6 +57,17 @@ public class RecipeModule implements MLuaModule {
         docs.method("ShapelessRecipeBuilder", "ShapelessRecipeBuilder:AddIngredient(itemId: string): ShapelessRecipeBuilder", "Adds an item identifier as a recipe ingredient.", "an item identifier", "ShapelessRecipeBuilder", "Shared", null);
         docs.signature("Recipe", "Recipe:Shaped(rows: number, result: string, count?: number)", "ShapedRecipeBuilder");
         docs.signature("Recipe", "Recipe:Shapeless(result: string, count?: number)", "ShapelessRecipeBuilder");
+        docs.signature("Recipe", "Recipe:Smelting(input: string, output: string, experience?: number, cookTime?: number)", "string");
+        docs.signature("Recipe", "Recipe:Blasting(input: string, output: string, experience?: number, cookTime?: number)", "string");
+        docs.signature("Recipe", "Recipe:Smoking(input: string, output: string, experience?: number, cookTime?: number)", "string");
+        docs.signature("Recipe", "Recipe:CampfireCooking(input: string, output: string, experience?: number, cookTime?: number)", "string");
+        docs.signature("Recipe", "Recipe:Stonecutting(input: string, output: string, count?: number)", "string");
+        docs.guideStep("Recipe", "Build and register a shaped recipe",
+            "Recipe builders validate their pattern and ingredient keys, then Build returns a JSON definition accepted by Registry.Recipes:Register. Put both calls in a .registry.lua script so the recipe is available when the generated data pack loads.",
+            "local Recipe = Minecraft:GetService(\"Recipe\")\nlocal Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nlocal definition = Recipe:Shaped(2, \"myaddon:signal_flare\")\n    :Row(\" I \", \"ISI\")\n    :WithKey(\"I\", \"minecraft:iron_ingot\")\n    :WithKey(\"S\", \"minecraft:stick\")\n    :Build()\n\nRecipes:Register(\"signal_flare\", definition)");
+        docs.guideStep("Recipe", "Create cooking and stonecutting recipes",
+            "Smelting, blasting, smoking, and campfire cooking share the same arguments. Their default cook times match the vanilla station. Each method returns a version-shaped JSON definition for Registry.Recipes:Register.",
+            "local Recipe = Minecraft:GetService(\"Recipe\")\nlocal Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nRecipes:Register(\"iron_from_ore\", Recipe:Smelting(\"minecraft:raw_iron\", \"minecraft:iron_ingot\"))\nRecipes:Register(\"gold_from_ore\", Recipe:Blasting(\"minecraft:raw_gold\", \"minecraft:gold_ingot\"))\nRecipes:Register(\"cooked_beef\", Recipe:Smoking(\"minecraft:beef\", \"minecraft:cooked_beef\"))\nRecipes:Register(\"charcoal\", Recipe:CampfireCooking(\"minecraft:oak_log\", \"minecraft:charcoal\"))\nRecipes:Register(\"stone_slab\", Recipe:Stonecutting(\"minecraft:stone\", \"minecraft:stone_slab\", 2))");
         docs.type("RecipeDefinition", null, "Options for a shaped or shapeless crafting recipe.");
         docs.field("RecipeDefinition", "result", "string", "Item identifier and optional count produced by the recipe.");
         docs.field("RecipeDefinition", "pattern?", "string[]", "Crafting grid rows for a shaped recipe.");
