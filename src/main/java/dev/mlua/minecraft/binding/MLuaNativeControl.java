@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.binding;
 
+import dev.mlua.core.engine.MLuaLuauTypes;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.coregui.Service.MLuaGuiService;
 import org.luaj.vm2.LuaError;
@@ -282,7 +283,7 @@ public final class MLuaNativeControl {
     }
 
     private static void setDimension(LuaTable self, LuaValue value, boolean size) {
-        if (!value.istable()) throw new LuaError("[MLua] NativeControl Position and Size expect UDim2 tables");
+        if (!value.istable() || !"UDim2".equals(value.get("__type").optjstring(null))) throw new LuaError("[MLua] NativeControl Position and Size require UDim2 values created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
         Backing backing = backing(self);
         LuaValue x = value.get("X");
         LuaValue y = value.get("Y");
@@ -309,7 +310,7 @@ public final class MLuaNativeControl {
     }
 
     private static boolean validDimension(LuaValue value) {
-        return value.istable() && value.get("Scale").isnumber() && value.get("Offset").isnumber();
+        return value.istable() && "UDim".equals(value.get("__type").optjstring(null)) && value.get("Scale").isnumber() && value.get("Offset").isnumber();
     }
 
     private static String propertyName(LuaValue value) {
@@ -534,33 +535,13 @@ public final class MLuaNativeControl {
             return toLuaUDim2(size ? object.getSize() : object.getPosition());
         }
         Object widget = backing.widget;
-        LuaTable value = new LuaTable();
         int x = readInt(widget, size ? "getWidth" : "getX", size ? "width" : "x", 0);
         int y = readInt(widget, size ? "getHeight" : "getY", size ? "height" : "y", 0);
-        value.set("X", udim(x));
-        value.set("Y", udim(y));
-        return value;
+        return MLuaLuauTypes.udim2(0.0, x, 0.0, y);
     }
 
     private static LuaTable toLuaUDim2(dev.mlua.minecraft.ui.UDim2 value) {
-        LuaTable table = new LuaTable();
-        table.set("X", toLuaUDim(value.x()));
-        table.set("Y", toLuaUDim(value.y()));
-        return table;
-    }
-
-    private static LuaTable toLuaUDim(dev.mlua.minecraft.ui.UDim value) {
-        LuaTable table = new LuaTable();
-        table.set("Scale", LuaValue.valueOf(value.scale()));
-        table.set("Offset", LuaValue.valueOf(value.offset()));
-        return table;
-    }
-
-    private static LuaTable udim(int offset) {
-        LuaTable value = new LuaTable();
-        value.set("Scale", LuaValue.ZERO);
-        value.set("Offset", LuaValue.valueOf(offset));
-        return value;
+        return MLuaLuauTypes.udim2(value.x().scale(), value.x().offset(), value.y().scale(), value.y().offset());
     }
 
     private static LuaValue readText(Object widget) {

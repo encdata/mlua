@@ -7,6 +7,7 @@ import dev.mlua.minecraft.ui.element.GuiBase;
 import dev.mlua.minecraft.ui.element.GuiObject;
 import dev.mlua.minecraft.ui.element.ScreenGui;
 import dev.mlua.minecraft.ui.element.ScrollingFrame;
+import dev.mlua.math.MLuaVector;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -192,10 +193,7 @@ public final class MLuaInputHandler {
         LuaTable input = new LuaTable();
         input.set("UserInputType", LuaValue.valueOf(button < 0 ? "MouseMovement" : "MouseButton" + (button + 1)));
         input.set("Button", button < 0 ? LuaValue.NIL : LuaValue.valueOf(button + 1));
-        LuaTable position = new LuaTable();
-        position.set("X", x);
-        position.set("Y", y);
-        input.set("Position", position);
+        input.set("Position", MLuaVector.vector2(x, y));
         return input;
     }
 

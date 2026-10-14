@@ -142,26 +142,17 @@ public final class MLuaLuauTypes {
       LuaTable table = new LuaTable();
       table.set("new", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            LuaTable value = MLuaLuauTypes.typed("UDim2");
-            value.set("X", MLuaLuauTypes.udim(args.optdouble(1, 0.0), args.optint(2, 0)));
-            value.set("Y", MLuaLuauTypes.udim(args.optdouble(3, 0.0), args.optint(4, 0)));
-            return value;
+            return MLuaLuauTypes.udim2(args.optdouble(1, 0.0), args.optint(2, 0), args.optdouble(3, 0.0), args.optint(4, 0));
          }
       });
       table.set("fromScale", new TwoArgFunction() {
          public LuaValue call(LuaValue x, LuaValue y) {
-            LuaTable value = MLuaLuauTypes.typed("UDim2");
-            value.set("X", MLuaLuauTypes.udim(x.optdouble(0.0), 0));
-            value.set("Y", MLuaLuauTypes.udim(y.optdouble(0.0), 0));
-            return value;
+            return MLuaLuauTypes.udim2(x.optdouble(0.0), 0, y.optdouble(0.0), 0);
          }
       });
       table.set("fromOffset", new TwoArgFunction() {
          public LuaValue call(LuaValue x, LuaValue y) {
-            LuaTable value = MLuaLuauTypes.typed("UDim2");
-            value.set("X", MLuaLuauTypes.udim(0.0, x.optint(0)));
-            value.set("Y", MLuaLuauTypes.udim(0.0, y.optint(0)));
-            return value;
+            return MLuaLuauTypes.udim2(0.0, x.optint(0), 0.0, y.optint(0));
          }
       });
       return table;
@@ -267,10 +258,17 @@ public final class MLuaLuauTypes {
       return new double[]{h, s, max};
    }
 
-   private static LuaTable udim(double scale, int offset) {
+   public static LuaTable udim(double scale, int offset) {
       LuaTable value = typed("UDim");
       value.set("Scale", scale);
       value.set("Offset", offset);
+      return value;
+   }
+
+   public static LuaTable udim2(double xScale, int xOffset, double yScale, int yOffset) {
+      LuaTable value = typed("UDim2");
+      value.set("X", udim(xScale, xOffset));
+      value.set("Y", udim(yScale, yOffset));
       return value;
    }
 

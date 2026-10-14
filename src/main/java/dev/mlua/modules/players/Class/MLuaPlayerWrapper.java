@@ -223,7 +223,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(player.isSwimming());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
-         return positionTable((double)player.blockPosition().getX(), (double)player.blockPosition().getY(), (double)player.blockPosition().getZ());
+         return positionTable((double)player.getBlockPosition().getX(), (double)player.getBlockPosition().getY(), (double)player.getBlockPosition().getZ());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
