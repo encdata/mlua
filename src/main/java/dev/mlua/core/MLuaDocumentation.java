@@ -2548,8 +2548,9 @@ function deactivate() {}
       body.append(callout("info", "This inventory links to the generated reference pages bundled beside this file. It works without a network connection."));
       appendInventorySection(body, "Services", MLuaDocBuilder.DocEntryType.SERVICE);
       appendInventorySection(body, "Classes", MLuaDocBuilder.DocEntryType.CLASS);
+      appendInventorySection(body, "Globals", MLuaDocBuilder.DocEntryType.LIBRARY, "Globals");
       appendInventorySection(body, "Data Types", MLuaDocBuilder.DocEntryType.DATA_TYPE);
-      appendInventorySection(body, "Libraries", MLuaDocBuilder.DocEntryType.LIBRARY);
+      appendInventorySection(body, "Libraries", MLuaDocBuilder.DocEntryType.LIBRARY, null);
       StringBuilder enums = new StringBuilder("<div class=\"cards\">");
       for (EnumInfo entry : discoverEnums()) {
          enums.append(card("../enums/" + entry.fileName + ".html", entry.name, entry.description));
@@ -2561,10 +2562,13 @@ function deactivate() {}
    }
 
    private static void appendInventorySection(StringBuilder body, String title,
-                                              MLuaDocBuilder.DocEntryType type) {
+                                              MLuaDocBuilder.DocEntryType type, String excludedName) {
       StringBuilder cards = new StringBuilder("<div class=\"cards\">");
       for (MLuaDocBuilder.DocEntry entry : moduleEntries(type)) {
-         if (entry.filePath() != null) {
+         boolean included = excludedName == null
+            ? !entry.name().equalsIgnoreCase("Globals")
+            : entry.name().equalsIgnoreCase(excludedName);
+         if (entry.filePath() != null && included) {
             cards.append(card("../" + entry.filePath(), entry.name(), entry.desc()));
          }
       }
