@@ -1073,6 +1073,11 @@ public final class MLuaEntityWrapper {
       return entityValue.isuserdata(net.minecraft.world.entity.Entity.class) ? (net.minecraft.world.entity.Entity) entityValue.touserdata(net.minecraft.world.entity.Entity.class) : null;
    }
 
+   public static net.minecraft.world.entity.Entity fromLuaInstance(LuaValue value, MLuaRegistration registration) {
+      if (registration == null || !registration.isInstanceOf(value, "Entity")) return null;
+      return entityFromLua(value);
+   }
+
    private static LuaValue luaFn(final Supplier<LuaValue> fn) {
       return new ZeroArgFunction() {
          public LuaValue call() {

@@ -9,6 +9,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientSoundManager;
 import dev.mlua.runtime.client.MLuaSoundOwnershipRegistry;
@@ -278,14 +279,10 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             return this.resolveEntityScope(value.toint());
         }
         if (value.istable()) {
-            LuaValue entity = value.get("__entity");
-            if (entity.isuserdata(net.minecraft.world.entity.Entity.class)) {
-                return MLuaEntityScope.of((net.minecraft.world.entity.Entity) entity.checkuserdata(net.minecraft.world.entity.Entity.class));
-            }
-            LuaValue id = value.get("Id");
-            if (id.isint()) return this.resolveEntityScope(id.toint());
+            net.minecraft.world.entity.Entity entity = MLuaEntityWrapper.fromLuaInstance(value, this.context.mlua().registration());
+            if (entity != null) return MLuaEntityScope.of(entity);
         }
-        throw new LuaError("[MLua] Expected entity table or entity id");
+        throw new LuaError("[MLua] Expected an Entity instance or entity ID");
     }
 
     private MLuaEntityScope resolveEntityScope(int entityId) {
