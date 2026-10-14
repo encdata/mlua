@@ -1176,8 +1176,6 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     private Field resolveField(Class<?> clazz, String fieldName, boolean requireStatic) {
         String normalized = normalizeMemberName(fieldName);
-        Field fallback = null;
-
         for (Class<?> current = clazz; current != null; current = current.getSuperclass()) {
             for (Field field : current.getDeclaredFields()) {
                 if (Modifier.isStatic(field.getModifiers()) != requireStatic) {
@@ -1187,18 +1185,24 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     if (prepareAccessible(field)) {
                         return field;
                     }
-                    continue;
-                }
-                if (fallback == null && normalizeMemberName(field.getName()).equals(normalized)) {
-                    if (prepareAccessible(field)) {
-                        fallback = field;
-                    }
                 }
             }
         }
 
-        if (fallback != null) {
-            return fallback;
+        for (Class<?> current = clazz; current != null; current = current.getSuperclass()) {
+            Field fallback = null;
+            for (Field field : current.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) == requireStatic
+                    && normalizeMemberName(field.getName()).equals(normalized)
+                    && prepareAccessible(field)) {
+                    if (fallback != null) {
+                        throw new LuaError("[MLua] Java field name '" + fieldName + "' is ambiguous in "
+                            + current.getName() + "; use an exact Java field name");
+                    }
+                    fallback = field;
+                }
+            }
+            if (fallback != null) return fallback;
         }
 
         return null;
