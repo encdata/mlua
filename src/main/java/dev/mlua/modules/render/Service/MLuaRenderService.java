@@ -611,7 +611,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (!thickness.isnil()) object.setThickness(atLeast(thickness, "Thickness", 1.0));
         LuaValue resource = property(props, "Resource");
         LuaValue text = property(props, "Text");
-        if (!resource.isnil() && !text.isnil() && !resource.eq_b(text)) {
+        if (!resource.isnil() && !text.isnil()) {
             throw new LuaError("[MLua] RenderObject properties Resource and Text refer to the same content value; provide only one.");
         }
         LuaValue content = text.isnil() ? resource : text;
@@ -624,9 +624,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     private static LuaValue property(LuaTable props, String name) {
         LuaValue value = props.get(name);
-        if (!value.isnil() || name.isEmpty()) return value;
+        if (name.isEmpty()) return value;
         String lowerCamel = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-        return props.get(lowerCamel);
+        LuaValue alias = props.get(lowerCamel);
+        if (!value.isnil() && !alias.isnil()) {
+            throw new LuaError("[MLua] RenderObject properties '" + name + "' and '" + lowerCamel
+                + "' are aliases; provide only one.");
+        }
+        return value.isnil() ? alias : value;
     }
 
     private static double opacity(LuaValue value, String propertyName) {
