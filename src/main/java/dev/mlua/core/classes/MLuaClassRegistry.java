@@ -973,6 +973,21 @@ public final class MLuaClassRegistry {
          LuaTable dispatchers = new LuaTable();
          this.collectInstanceDispatchers(className, dispatchers, new HashSet<>());
          instance.rawset("__mlua_instance_dispatchers", dispatchers);
+         LuaValue metaValue = instance.getmetatable();
+         LuaValue instanceMethodsValue = metaValue.istable()
+            ? metaValue.checktable().rawget("__mlua_instance_methods") : LuaValue.NIL;
+         if (instanceMethodsValue.istable()) {
+            LuaTable instanceMethods = instanceMethodsValue.checktable();
+            List<LuaValue> staleMethods = new ArrayList<>();
+            LuaValue methodKey = LuaValue.NIL;
+            while (true) {
+               Varargs method = instanceMethods.next(methodKey);
+               methodKey = method.arg1();
+               if (methodKey.isnil()) break;
+               if (!dispatchers.rawget(methodKey).toboolean()) staleMethods.add(methodKey);
+            }
+            staleMethods.forEach(method -> instanceMethods.rawset(method, LuaValue.NIL));
+         }
          LuaTable descriptions = new LuaTable();
          this.collectMethodDescriptions(className, descriptions, new HashSet<>());
          LuaValue previousValue = instance.rawget("__mlua_doc_methods");
