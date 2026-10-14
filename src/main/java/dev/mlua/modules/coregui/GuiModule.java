@@ -64,6 +64,8 @@ public class GuiModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.signature("Gui", "Gui:OpenNativeScreen(title: string|Component, initialize: function): NativeScreen", "Opens a screen and runs its native widget initialization callback.");
+        docs.signature("Gui", "Gui:OpenScreen(className: string, title: string|Component, fields?: table): Screen", "Creates a registered Screen subclass and opens it.");
         docs.service("Gui", "MLuaGuiService",
                 "Manages live UI instances, screen overlays, native Minecraft controls, and chat rendering. Native screens expose Minecraft's init, tick, render, and close lifecycle. ScreenOpened supplies the screen class name, its live NativeControl instances, and a live NativeScreen; ChatLineAdding supplies a short-lived ChatLine whose Text, Prefix, and Suffix can be changed before Minecraft stores the message.",
                 "services/gui.html");
