@@ -89,6 +89,33 @@ public class WorldModule implements MLuaModule {
             MLuaClassMethods.registerInstanceProperty(registration, "BlockRaycastResult", property[0],
                 "Get" + property[0], null, property[1], "shared:Shared", property[2]);
         }
+        registration.registerClass("GameRuleEntry", registration.requireInstanceBaseClassName(),
+            "One registered Minecraft gamerule and its current value.");
+        for (String property : List.of("Name", "Value")) {
+            String valueType = property.equals("Name") ? "string" : "boolean|number|string";
+            String description = property.equals("Name")
+                ? "The gamerule name accepted by GetGameRule and SetGameRule."
+                : "The current gamerule value with its Minecraft type.";
+            registration.registerClassFunction("GameRuleEntry", "Get" + property, new org.luaj.vm2.lib.OneArgFunction() {
+                @Override public LuaValue call(LuaValue self) { return self.checktable().get(property); }
+            }, description);
+            MLuaClassMethods.registerInstanceProperty(registration, "GameRuleEntry", property,
+                "Get" + property, null, valueType, "server:Server", description);
+        }
+        registration.registerClassFunction("GameRuleEntry", "GetValueType", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) {
+                LuaValue value = self.checktable().get("Value");
+                return LuaValue.valueOf(value.isboolean() ? "boolean" : value.isnumber() ? "number" : "string");
+            }
+        }, "Returns whether this gamerule value is boolean, number, or string.");
+        MLuaClassMethods.registerInstanceProperty(registration, "GameRuleEntry", "ValueType", "GetValueType", null,
+            "string", "server:Server", "The Lua value type of this gamerule's value.");
+        registration.registerClassFunction("GameRuleEntry", "IsBoolean", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return LuaValue.valueOf(self.checktable().get("Value").isboolean()); }
+        }, "Returns whether this gamerule stores a boolean value.");
+        registration.registerClassFunction("GameRuleEntry", "IsNumber", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return LuaValue.valueOf(self.checktable().get("Value").isnumber()); }
+        }, "Returns whether this gamerule stores a numeric value.");
         String[][] chunkProperties = {
             {"X", "GetX", "number", "This chunk's X coordinate."},
             {"Z", "GetZ", "number", "This chunk's Z coordinate."},
@@ -211,6 +238,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("RemoveData", "Removes a persistent world data key. This method is server-side only."),
             Map.entry("ListGameRules", "Returns the names and current values of this world's gamerules. This method is server-side only."),
             Map.entry("GetGameRule", "Returns a world gamerule value by name. This method is server-side only."),
+            Map.entry("GetGameRuleEntry", "Returns one typed gamerule entry by name. This method is server-side only."),
             Map.entry("SetGameRule", "Sets a world gamerule. This method is server-side only.")
         );
     }
@@ -277,6 +305,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("World", "World:ListGameRules()", "GameRuleList");
         docs.signature("World", "World:GetGameRule(name: string)", "boolean|number|string");
+        docs.signature("World", "World:GetGameRuleEntry(name: string): GameRuleEntry?", null);
         docs.signature("World", "World:SetGameRule(name: string, value: boolean|number)", "void");
         docs.signature("Chunk", "Chunk:GetX()", "number");
         docs.signature("Chunk", "Chunk:GetZ()", "number");
@@ -303,6 +332,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:GetAll()", "World[]");
         docs.signature("WorldService", "WorldService:ListGameRules()", "GameRuleList");
         docs.signature("WorldService", "WorldService:GetGameRule(name: string)", "boolean|number|string");
+        docs.signature("WorldService", "WorldService:GetGameRuleEntry(name: string): GameRuleEntry?", null);
         docs.signature("WorldService", "WorldService:SetGameRule(name: string, value: boolean|number)", "void");
         docs.signature("WorldService", "WorldService:IsChunkLoaded(coordinates: Vector2|Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:IsBlockLoaded(position: Vector3|CFrame)", "boolean");
@@ -339,9 +369,13 @@ public class WorldModule implements MLuaModule {
         docs.field("BlockStateProperties", "*", "string|number|boolean", "A block state property, such as facing = \"north\" or waterlogged = false.");
         docs.type("GameRuleList", null, "ListGameRules returns numeric entries containing Name and Value, plus direct lookup by gamerule name. Gamerule changes and reads require a server World.");
         docs.field("GameRuleList", "*", "GameRuleEntry|boolean|number|string", "An ordered GameRuleEntry at a numeric index, or the current value when indexed by gamerule name.");
-        docs.type("GameRuleEntry", null, "One registered Minecraft gamerule and its current value.");
-        docs.field("GameRuleEntry", "Name", "string", "The gamerule name accepted by GetGameRule and SetGameRule.");
-        docs.field("GameRuleEntry", "Value", "boolean|number|string", "The current value, represented as a boolean, number, or string according to that rule's type.");
+        docs.clazz("GameRuleEntry", "WorldModule", "One registered Minecraft gamerule and its current value.", "classes/gamerule-entry.html", "Instance");
+        docs.property("GameRuleEntry", "GameRuleEntry.Name", "string", "The gamerule name accepted by GetGameRule and SetGameRule.", "read:Read");
+        docs.property("GameRuleEntry", "GameRuleEntry.Value", "boolean|number|string", "The current value, represented as a boolean, number, or string according to that rule's type.", "read:Read");
+        docs.property("GameRuleEntry", "GameRuleEntry.ValueType", "string", "The Lua value type of this gamerule's value.", "read:Read");
+        docs.method("GameRuleEntry", "GameRuleEntry:GetValueType(): string", "Returns the Lua value type of this gamerule's value.", null, "string", "server:Server", null);
+        docs.method("GameRuleEntry", "GameRuleEntry:IsBoolean(): boolean", "Checks whether this gamerule stores a boolean value.", null, "boolean", "server:Server", null);
+        docs.method("GameRuleEntry", "GameRuleEntry:IsNumber(): boolean", "Checks whether this gamerule stores a numeric value.", null, "boolean", "server:Server", null);
         docs.signature("WorldService", "WorldService:BreakBlock(position: Vector3|CFrame, dropItems: boolean?)", "boolean");
         docs.signature("WorldService", "WorldService:PlaySound(position: Vector3|CFrame, sound: string, volume: number?, pitch: number?)", "void");
         docs.signature("WorldService", "WorldService:SpawnParticle(position: Vector3|CFrame, particle: string, count: number?)", "void");
@@ -405,8 +439,8 @@ public class WorldModule implements MLuaModule {
             "SetSpawnPosition takes a native Vector3 or CFrame and an optional yaw in degrees. It is server-side only; SpawnPosition can also be assigned directly.",
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal spawn = Vector3.new(0, 65, 0)\nworld:SetSpawnPosition(spawn, 90)\nworld.SpawnPosition = spawn");
         docs.guideStep("World", "Read and change dimension gamerules",
-            "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns the rule's current value; SetGameRule accepts a boolean for boolean rules and a whole 32-bit number for integer rules. Unknown rule names and mismatched values raise an error. ListGameRules can be traversed with ipairs or indexed by the rule name.",
-            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, rule in ipairs(world:ListGameRules()) do\n    print(rule.Name, rule.Value)\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)");
+            "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns the rule's current value; GetGameRuleEntry returns one typed entry with its name, value, and value type. SetGameRule accepts a boolean for boolean rules and a whole 32-bit number for integer rules. Unknown rule names and mismatched values raise an error. ListGameRules can be traversed with ipairs or indexed by the rule name.",
+            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, rule in ipairs(world:ListGameRules()) do\n    print(rule:IsA(\"GameRuleEntry\"), rule.Name, rule.Value)\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)");
         docs.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");

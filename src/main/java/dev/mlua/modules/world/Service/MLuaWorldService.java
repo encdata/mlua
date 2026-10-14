@@ -543,6 +543,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       table.set("ListGameRules", serverLevelFn(supplier, (level, args) -> this.listGameRules(level)));
       table.set("GetGameRule", serverLevelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
+      table.set("GetGameRuleEntry", serverLevelFn(supplier, (level, args) -> this.getGameRuleEntry(level, args.checkjstring(2))));
       table.set("SetGameRule", serverLevelFn(supplier, (level, args) -> {
          this.setGameRule(level, args.checkjstring(2), args.arg(3));
          return LuaValue.NONE;
@@ -699,13 +700,24 @@ public final class MLuaWorldService extends MLuaServiceBase {
       List<String> names = new ArrayList<>(keys.keySet());
       names.sort(String::compareTo);
       for (String name : names) {
-         LuaTable entry = new LuaTable();
-         entry.set("Name", LuaValue.valueOf(name));
-         entry.set("Value", gameRuleValue(level.getGameRules(), keys.get(name)));
+         LuaTable entry = this.gameRuleEntry(level, name, keys.get(name));
          table.set(index++, entry);
          table.set(name, entry.get("Value"));
       }
       return table;
+   }
+
+   private LuaValue getGameRuleEntry(Level level, String name) {
+      GameRules.Key<?> key = gameRuleKeys().get(name);
+      if (key == null) throw new LuaError("[MLua] Unknown gamerule: " + name);
+      return this.gameRuleEntry(level, name, key);
+   }
+
+   private LuaTable gameRuleEntry(Level level, String name, GameRules.Key<?> key) {
+      LuaTable entry = this.context.mlua().registration().createClassInstance("GameRuleEntry");
+      entry.set("Name", LuaValue.valueOf(name));
+      entry.set("Value", gameRuleValue(level.getGameRules(), key));
+      return entry;
    }
 
    private LuaValue getGameRule(Level level, String name) {
