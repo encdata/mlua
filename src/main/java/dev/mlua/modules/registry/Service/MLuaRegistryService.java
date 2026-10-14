@@ -2089,20 +2089,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private static boolean booleanProperty(LuaTable table, String... keys) {
       if (table == null) {
          return false;
-      } else {
-         String[] var2 = keys;
-         int var3 = keys.length;
-
-         for(int var4 = 0; var4 < var3; ++var4) {
-            String key = var2[var4];
-            LuaValue value = table.get(key);
-            if (!value.isnil()) {
-               return value.optboolean(false);
-            }
-         }
-
-         return false;
       }
+      LuaValue selected = LuaValue.NIL;
+      String selectedKey = null;
+      for (String key : keys) {
+         LuaValue value = table.get(key);
+         if (value.isnil()) continue;
+         if (selectedKey != null) {
+            throw new LuaError("[MLua] Registry properties '" + selectedKey + "' and '" + key + "' are aliases; provide only one.");
+         }
+         if (!value.isboolean()) {
+            throw new LuaError("[MLua] Registry property '" + key + "' must be a boolean.");
+         }
+         selected = value;
+         selectedKey = key;
+      }
+      return !selected.isnil() && selected.toboolean();
    }
 
    private static boolean hasProperty(LuaTable table, String... keys) {

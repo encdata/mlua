@@ -886,7 +886,17 @@ public final class MLuaItemFactory {
    private ItemDefinition definition(Map<String, Object> properties) {
       String kindName = properties.get("kind") instanceof String kind ? kind : "item";
       ItemKind kind = ItemKind.from(kindName);
-      Tier tier = kind == ItemKind.ITEM ? Tiers.WOOD : this.tier(properties);
+      boolean tieredTool = switch (kind) {
+         case SWORD, PICKAXE, AXE, SHOVEL, HOE -> true;
+         case ITEM, BOW -> false;
+      };
+      if (!tieredTool && properties.get("tier") != null) {
+         throw new IllegalArgumentException("[MLua] Item property 'tier' is only valid for tiered tool kinds");
+      }
+      if (!tieredTool && (properties.get("attackDamage") != null || properties.get("attackSpeed") != null)) {
+         throw new IllegalArgumentException("[MLua] Item attackDamage and attackSpeed are only valid for tiered tool kinds");
+      }
+      Tier tier = tieredTool ? this.tier(properties) : Tiers.WOOD;
       float attackDamage = finiteFloat(properties, "attackDamage", defaultAttackDamage(kind));
       float attackSpeed = finiteFloat(properties, "attackSpeed", defaultAttackSpeed(kind));
       return new ItemDefinition(kind, tier, attackDamage, attackSpeed);

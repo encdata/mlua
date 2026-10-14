@@ -447,6 +447,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private Object createLuaInterfaceProxy(Class<?>[] interfaces, LuaTable implementation) {
+        validateInterfaceImplementation(interfaces, implementation);
         for (Class<?> iface : interfaces) {
             if (!iface.isInterface()) {
                 throw new LuaError("[MLua] Java:Proxy only supports interfaces in v1: " + iface.getName());
@@ -460,6 +461,34 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return Proxy.newProxyInstance(loader, interfaces, new LuaInvocationHandler(implementation));
         } catch (IllegalArgumentException error) {
             throw new LuaError("[MLua] Could not create Java interface proxy: " + error.getMessage());
+        }
+    }
+
+    private void validateInterfaceImplementation(Class<?>[] interfaces, LuaTable implementation) {
+        Map<String, Method> requiredMethods = new LinkedHashMap<>();
+        for (Class<?> iface : interfaces) {
+            if (!iface.isInterface()) {
+                throw new LuaError("[MLua] Java:Proxy only supports interfaces in v1: " + iface.getName());
+            }
+            for (Method method : iface.getMethods()) {
+                if (Modifier.isStatic(method.getModifiers()) || method.isDefault()
+                    || method.getDeclaringClass() == Object.class) {
+                    continue;
+                }
+                requiredMethods.putIfAbsent(method.getName(), method);
+            }
+        }
+
+        List<String> missing = new ArrayList<>();
+        for (Map.Entry<String, Method> entry : requiredMethods.entrySet()) {
+            LuaValue implementationMethod = implementation.get(entry.getKey());
+            if (!implementationMethod.isfunction()) {
+                missing.add(entry.getValue().toGenericString());
+            }
+        }
+        if (!missing.isEmpty()) {
+            missing.sort(String::compareTo);
+            throw new LuaError("[MLua] Java:Proxy is missing Lua functions for interface methods: " + missing);
         }
     }
 

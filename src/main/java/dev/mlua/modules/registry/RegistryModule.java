@@ -290,7 +290,7 @@ public class RegistryModule implements MLuaModule {
             "craftRemainder?", "string", "Item identifier left behind after crafting; it must name a registered item when creation runs.",
             "model?", "string", "Model resource identifier.", "texture?", "string", "Item texture resource identifier.",
             "copy?", "string", "Registered item whose properties are copied; unknown identifiers fail during item creation.",
-            "copyModel?", "string", "Whether to copy the source item's model.",
+            "copyModel?", "boolean", "Whether to copy the source item's model.",
             "food?", "FoodDefinition", "Food properties for edible items.",
             "className?", "string", "Registered Lua class inheriting from Item.");
         schema(docs, "FoodDefinition", "Nutrition and eating behavior for an item.",
