@@ -99,7 +99,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         LuaValue loadClass = new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                String rootName = args.checkjstring(serviceArgIndex(args, table, 1));
+                String rootName = args.checkjstring(serviceArgumentIndex(args, table, 1));
                 Class<?> direct = tryResolveClass(rootName);
                 if (direct == null) {
                     throw new LuaError("[MLua] Could not resolve Java class '" + rootName + "'");
@@ -115,7 +115,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         LuaValue packageFn = new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                String rootName = args.checkjstring(serviceArgIndex(args, table, 1));
+                String rootName = args.checkjstring(serviceArgumentIndex(args, table, 1));
                 return packageProxy(rootName);
             }
         };
@@ -125,7 +125,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         LuaValue newFn = new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int classIndex = serviceArgIndex(args, table, 1);
+                int classIndex = serviceArgumentIndex(args, table, 1);
                 Class<?> clazz = resolveClassArg(args.arg(classIndex));
                 LuaValue constructor = wrapJavaValue(clazz).get("new");
                 if (constructor.isnil()) {
@@ -140,7 +140,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         LuaValue proxyFn = new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int startIndex = serviceArgIndex(args, table, 1);
+                int startIndex = serviceArgumentIndex(args, table, 1);
                 int n = args.narg() - startIndex + 1;
                 if (n < 2) {
                     throw new LuaError("[MLua] Java:Proxy requires at least one interface and a Lua table");
@@ -164,7 +164,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("IsInstance", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int valueIndex = serviceArgIndex(args, table, 1);
+                int valueIndex = serviceArgumentIndex(args, table, 1);
                 Object value = unwrapJavaValue(args.arg(valueIndex));
                 Class<?> clazz = resolveClassArg(args.arg(valueIndex + 1));
                 return LuaValue.valueOf(value != null && clazz.isInstance(value));
@@ -173,7 +173,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("Cast", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int valueIndex = serviceArgIndex(args, table, 1);
+                int valueIndex = serviceArgumentIndex(args, table, 1);
                 Object value = unwrapJavaValue(args.arg(valueIndex));
                 if (value == null) {
                     return LuaValue.NIL;
@@ -188,7 +188,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("TypeOf", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                Object value = unwrapJavaValue(args.arg(serviceArgIndex(args, table, 1)));
+                Object value = unwrapJavaValue(args.arg(serviceArgumentIndex(args, table, 1)));
                 if (value == null) {
                     return LuaValue.NIL;
                 }
@@ -199,7 +199,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("GetMethods", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                Class<?> clazz = resolveTargetClass(args.arg(serviceArgIndex(args, table, 1)));
+                Class<?> clazz = resolveTargetClass(args.arg(serviceArgumentIndex(args, table, 1)));
                 LuaTable methods = new LuaTable();
                 int index = 1;
                 for (Method method : collectMethods(clazz)) {
@@ -219,7 +219,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("GetFields", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                Class<?> clazz = resolveTargetClass(args.arg(serviceArgIndex(args, table, 1)));
+                Class<?> clazz = resolveTargetClass(args.arg(serviceArgumentIndex(args, table, 1)));
                 LuaTable fields = new LuaTable();
                 int index = 1;
                 for (Field field : collectFields(clazz)) {
@@ -237,7 +237,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("GetField", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int targetIndex = serviceArgIndex(args, table, 1);
+                int targetIndex = serviceArgumentIndex(args, table, 1);
                 Object target = unwrapJavaValue(args.arg(targetIndex));
                 if (target == null) throw new LuaError("[MLua] Java:GetField target cannot be nil");
                 String fieldName = args.checkjstring(targetIndex + 1);
@@ -259,7 +259,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("SetField", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int targetIndex = serviceArgIndex(args, table, 1);
+                int targetIndex = serviceArgumentIndex(args, table, 1);
                 Object target = unwrapJavaValue(args.arg(targetIndex));
                 if (target == null) throw new LuaError("[MLua] Java:SetField target cannot be nil");
                 String fieldName = args.checkjstring(targetIndex + 1);
@@ -285,14 +285,14 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("Inspect", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                Class<?> clazz = resolveTargetClass(args.arg(serviceArgIndex(args, table, 1)));
+                Class<?> clazz = resolveTargetClass(args.arg(serviceArgumentIndex(args, table, 1)));
                 return MLuaClassViewer.inspect(clazz);
             }
         });
         table.set("ViewClass", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                Class<?> clazz = resolveTargetClass(args.arg(serviceArgIndex(args, table, 1)));
+                Class<?> clazz = resolveTargetClass(args.arg(serviceArgumentIndex(args, table, 1)));
                 return LuaValue.valueOf(MLuaClassViewer.renderLua(clazz));
             }
         });
@@ -300,7 +300,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("GetEnumConstants", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                Class<?> clazz = resolveClassArg(args.arg(serviceArgIndex(args, table, 1)));
+                Class<?> clazz = resolveClassArg(args.arg(serviceArgumentIndex(args, table, 1)));
                 if (!clazz.isEnum()) {
                     throw new LuaError("[MLua] " + clazz.getName() + " is not an enum type");
                 }
@@ -315,13 +315,13 @@ public final class MLuaJavaService extends MLuaServiceBase {
         table.set("ToTable", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                return toLuaTable(unwrapJavaValue(args.arg(serviceArgIndex(args, table, 1))));
+                return toLuaTable(unwrapJavaValue(args.arg(serviceArgumentIndex(args, table, 1))));
             }
         });
         table.set("FromTable", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                int valueIndex = serviceArgIndex(args, table, 1);
+                int valueIndex = serviceArgumentIndex(args, table, 1);
                 LuaValue source = args.arg(valueIndex);
                 if (!source.istable()) {
                     throw new LuaError("[MLua] Java:FromTable expects a Lua table as its first argument");
@@ -362,18 +362,6 @@ public final class MLuaJavaService extends MLuaServiceBase {
         return table;
     }
 
-    private int serviceArgIndex(Varargs args, LuaTable serviceTable, int logicalIndex) {
-        LuaValue receiver = args.arg1();
-        if (receiver == serviceTable) return logicalIndex + 1;
-        if (receiver.istable()) {
-            LuaValue meta = receiver.getmetatable();
-            if (meta != null && meta.istable() && this.name().equals(meta.checktable()
-                .rawget("__mlua_service_name").optjstring(""))) {
-                return logicalIndex + 1;
-            }
-        }
-        return logicalIndex;
-    }
 
     private LuaValue packageProxy(String path) {
         LuaTable proxy = new LuaTable();

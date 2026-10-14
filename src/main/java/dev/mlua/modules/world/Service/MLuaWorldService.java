@@ -85,17 +85,17 @@ public final class MLuaWorldService extends MLuaServiceBase {
       LuaTable table = new LuaTable();
       table.set("__side", LuaValue.valueOf(this.context.mlua().side().name()));
       table.set("Current", varArg((args) -> this.worldValue(this.currentLevel())));
-      table.set("Get", varArg((args) -> this.worldValue(this.resolveLevel(args.checkjstring(2)))));
+      table.set("Get", varArg((args) -> this.worldValue(this.resolveLevel(args.checkjstring(serviceArgumentIndex(args, table, 1))))));
       table.set("GetAll", varArg((args) -> this.allWorlds()));
       table.set("GetSide", varArg((args) -> LuaValue.valueOf(this.context.mlua().side().name())));
-      table.set("GetWeather", currentWorldMethod("GetWeather"));
-      table.set("SetWeather", currentWorldMethod("SetWeather"));
-      WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
+      table.set("GetWeather", currentWorldMethod(table, "GetWeather"));
+      table.set("SetWeather", currentWorldMethod(table, "SetWeather"));
+      WorldModule.bindWorldServiceMethods(table, methodName -> this.currentWorldMethod(table, methodName));
       MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods());
       return table;
    }
 
-   private LuaValue currentWorldMethod(String methodName) {
+   private LuaValue currentWorldMethod(LuaTable service, String methodName) {
       return varArg(args -> {
          Level level = this.currentLevel();
          if (level == null) return LuaValue.NIL;
@@ -105,9 +105,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
             throw new LuaError("[MLua] World service class declares '" + methodName
                + "', but the current live World instance does not implement it.");
          }
-         LuaValue[] forwarded = new LuaValue[Math.max(1, args.narg())];
+         int firstArgument = serviceArgumentIndex(args, service, 1);
+         int argumentCount = Math.max(0, args.narg() - firstArgument + 1);
+         LuaValue[] forwarded = new LuaValue[argumentCount + 1];
          forwarded[0] = instance;
-         for (int index = 2; index <= args.narg(); index++) forwarded[index - 1] = args.arg(index);
+         for (int index = 0; index < argumentCount; index++) {
+            forwarded[index + 1] = args.arg(firstArgument + index);
+         }
          return method.invoke(LuaValue.varargsOf(forwarded));
       });
    }
