@@ -71,11 +71,11 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("package", "Returns a lazy proxy for navigating a Java package; alias for Package.");
         descriptions.put("New", "Constructs an object using a compatible public Java constructor.");
         descriptions.put("newInstance", "Constructs an object using a compatible public Java constructor; alias for New.");
-        descriptions.put("Proxy", "Creates a Java interface implementation backed by Lua functions.");
+        descriptions.put("Proxy", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions.");
         descriptions.put("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy.");
         descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
         descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
-        descriptions.put("TypeOf", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.");
+        descriptions.put("TypeOf", "Returns the runtime Java class name of a Java value, object proxy, or class proxy. Returns nil for nil.");
         descriptions.put("GetMethods", "Lists Java methods with structured parameter and return types, signatures, declaring classes, and abstract, default, varargs, and static status.");
         descriptions.put("GetFields", "Lists Java fields with raw and generic types, declaring classes, and whether they are static or final.");
         descriptions.put("GetField", "Reads a Java instance or static field by its exact Java name, including inherited superclass and interface fields.");

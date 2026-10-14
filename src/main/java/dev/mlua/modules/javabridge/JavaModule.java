@@ -31,14 +31,14 @@ public final class JavaModule implements MLuaModule {
             "packageName: package path", "JavaPackage", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:New(classNameOrClass, ...)", "Constructs an object using a compatible public Java constructor.",
             "classNameOrClass: class name or JavaClass; remaining arguments match a public constructor", "JavaObject", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:Proxy(interface1, ..., implementationTable)", "Creates a Java interface implementation backed by Lua functions.",
-            "One or more interfaces followed by a table of matching Lua functions. The same conversion also happens when a Lua table is passed to a Java method expecting an interface. Java arguments are exposed as live Java proxies, and Lua return values are converted using the Java method's declared return type.", "JavaObject", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:Proxy(interface1, ..., implementationTable)", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions.",
+            "One or more interfaces followed by a table containing a function for every required abstract method. The same conversion also happens when a Lua table is passed to a Java method expecting an interface. Java arguments are exposed as live Java proxies, and Lua return values are converted using the Java method's declared return type.", "JavaObject", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:IsInstance(value, classNameOrClass)", "Checks whether a Java object matches a class or interface.",
             "value: JavaObject; classNameOrClass: class name or JavaClass", "boolean", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:Cast(value, classNameOrClass)", "Checks a Java object's type and returns its live proxy.",
             "value: JavaObject; classNameOrClass: class name or JavaClass", "JavaObject", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:TypeOf(value)", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.",
-            "value: JavaObject or JavaClass", "string or nil", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:TypeOf(value)", "Returns the runtime Java class name of a Java value, object proxy, or class proxy. Returns nil for nil.",
+            "value: Java value, JavaObject, or JavaClass", "string or nil", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetMethods(classOrObject)", "Lists Java methods with declaring class, abstract, default, static and varargs status, structured parameter and return types, and a readable descriptor. Parameter names fall back to arg1, arg2, etc. when Java debug names are unavailable.",
             "classOrObject: JavaClass or JavaObject", "Array of records with Name, DeclaringClass, Static, Abstract, Default, VarArgs, ParameterCount, Parameters, ReturnType, GenericReturnType, and Descriptor. Each Parameters entry contains Name, NamePresent, Type, and GenericType.", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetFields(classOrObject)", "Lists Java fields, raw and generic types, declaring classes, and whether they are static or final.",
