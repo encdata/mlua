@@ -94,6 +94,7 @@ public final class MLuaItemFactory {
       }
       this.definition(properties);
       validateFoodProperty(properties);
+      validateStackProperties(properties);
    }
 
    public Item createNamed(Map<String, Object> properties, String registryName) {
@@ -735,25 +736,18 @@ public final class MLuaItemFactory {
    public Item.Properties makeProperties(Map<String, Object> properties) {
       validateCopyDefinition(properties);
       validateFoodProperty(properties);
+      validateStackProperties(properties);
       Item.Properties item;
-      label40: {
-         item = this.copyProperties(properties);
-         Object durability = properties.get("durability");
-         Object maxStack = properties.get("maxStackSize");
-         if (durability instanceof Number number) {
-            if (number.intValue() > 0) {
-               if (maxStack instanceof Number stack && stack.intValue() > 1) {
-                  throw new IllegalArgumentException("[MLua] Item property 'durability' cannot be combined with maxStackSize > 1");
-               }
-
-               item.durability(number.intValue());
-               break label40;
-            }
+      item = this.copyProperties(properties);
+      Object durability = properties.get("durability");
+      Object maxStack = properties.get("maxStackSize");
+      if (durability instanceof Number number) {
+         if (maxStack instanceof Number stack && stack.intValue() > 1) {
+            throw new IllegalArgumentException("[MLua] Item property 'durability' cannot be combined with maxStackSize > 1");
          }
-
-         if (maxStack instanceof Number number) {
-            item.stacksTo(Math.max(1, Math.min(64, number.intValue())));
-         }
+         item.durability(number.intValue());
+      } else if (maxStack instanceof Number number) {
+         item.stacksTo(number.intValue());
       }
 
       if (Boolean.TRUE.equals(properties.get("fireResistant"))) {
@@ -997,6 +991,30 @@ public final class MLuaItemFactory {
             throw new IllegalArgumentException("[MLua] food." + property + " must be a boolean");
          }
       }
+   }
+
+   private static void validateStackProperties(Map<String, Object> properties) {
+      Object rawDurability = properties.get("durability");
+      Object rawStack = properties.get("maxStackSize");
+      int maxStack = rawStack == null ? -1 : wholePositiveInteger(rawStack, "maxStackSize", 64);
+      if (rawDurability != null) {
+         wholePositiveInteger(rawDurability, "durability", Integer.MAX_VALUE);
+         if (maxStack > 1) {
+            throw new IllegalArgumentException("[MLua] Item property 'durability' cannot be combined with maxStackSize > 1");
+         }
+      }
+   }
+
+   private static int wholePositiveInteger(Object value, String property, int maximum) {
+      if (!(value instanceof Number number)) {
+         throw new IllegalArgumentException("[MLua] Item property '" + property + "' must be a whole number from 1 to " + maximum);
+      }
+      double numericValue = number.doubleValue();
+      if (!Double.isFinite(numericValue) || numericValue != Math.rint(numericValue)
+         || numericValue < 1 || numericValue > maximum) {
+         throw new IllegalArgumentException("[MLua] Item property '" + property + "' must be a whole number from 1 to " + maximum);
+      }
+      return (int)numericValue;
    }
 
    private static float defaultAttackDamage(ItemKind kind) {

@@ -279,6 +279,8 @@ public class RegistryModule implements MLuaModule {
             "onCrafted?", "fun(context: ItemCraftedContext)", "Runs when the item is crafted.",
             "onConsume?", "fun(context: ItemConsumeContext)", "Runs once on the server when eating finishes.",
             "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean", "Runs when the item attacks an entity.",
+            "durability?", "number", "Positive whole-number durability; requires maxStackSize to be 1 when that property is supplied.",
+            "maxStackSize?", "number", "Whole number from 1 to 64; must be 1 for a durable item.",
             "model?", "string", "Model resource identifier.", "texture?", "string", "Item texture resource identifier.",
             "copy?", "string", "Registered item whose properties are copied; unknown identifiers fail during item creation.",
             "copyModel?", "string", "Whether to copy the source item's model.",
