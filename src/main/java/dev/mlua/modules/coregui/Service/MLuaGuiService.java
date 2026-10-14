@@ -1761,6 +1761,13 @@ public final class MLuaGuiService implements MLuaService {
             if (this.luaInstance == null) return;
             LuaValue method = this.luaInstance.get(methodName);
             if (!method.isfunction()) return;
+            if (parameters.length == 0) {
+                try { method.invoke(this.luaInstance); }
+                catch (RuntimeException failure) {
+                    MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
+                }
+                return;
+            }
             LuaValue[] arguments = new LuaValue[parameters.length + 1];
             arguments[0] = this.luaInstance;
             System.arraycopy(parameters, 0, arguments, 1, parameters.length);
