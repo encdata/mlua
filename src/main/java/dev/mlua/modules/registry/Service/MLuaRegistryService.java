@@ -172,13 +172,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("RegisterCategory", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
-            String category = args.checkjstring(2).trim();
+            String category = MLuaRegistryService.registryCategory(args.checkjstring(2));
             String key = category.toLowerCase(java.util.Locale.ROOT);
             String description = args.checkjstring(3);
             LuaValue register = args.checkfunction(4);
-            if (category.isEmpty() || category.startsWith(":") || category.endsWith(":") || !category.contains(":")) {
-               throw new LuaError("[MLua] Registry category names must use a namespace, such as 'addon:weapons'");
-            }
             if (description.isBlank()) throw new LuaError("[MLua] Registry category description must not be empty");
             if (MLuaRegistryService.this.registryEndpoints.containsKey(key)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
@@ -1074,6 +1071,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       DynamicRegistryCategory registered = this.dynamicRegistry.category(category);
       if (registered == null) throw new LuaError("[MLua] Registry category '" + category + "' is not addon-owned");
       return registered;
+   }
+
+   private static String registryCategory(String value) {
+      String candidate = value == null ? "" : value.trim();
+      net.minecraft.resources.ResourceLocation id = candidate.contains(":")
+         ? MLuaResourceLocations.tryParseOrNull(candidate) : null;
+      if (id == null || !id.toString().equals(candidate)) {
+         throw new LuaError("[MLua] Registry category must be a valid lowercase namespaced identifier, such as 'addon:weapons'");
+      }
+      return id.toString();
    }
 
    private static LuaTable copyLuaTable(LuaTable source, Map<LuaTable, LuaTable> copies) {
