@@ -357,12 +357,22 @@ public final class MLuaContainer {
 
    private static void validateInventoryLayout(int containerSize, InventoryLayout layout) {
       if (layout == null) throw new NullPointerException("layout");
+      if (containerSize < 0) throw new IllegalArgumentException("Container size cannot be negative.");
       long armorEnd = (long) layout.armorStartIndex() + layout.armorSize() - 1;
       if (layout.hotbarSize() > containerSize
           || (layout.armorSize() > 0 && armorEnd > containerSize)
           || (containerSize > 0 && layout.offhandIndex() > containerSize)) {
          throw new IllegalArgumentException("Inventory layout indexes exceed the container size of "
             + containerSize + ".");
+      }
+      if (layout.hotbarSize() > 0 && layout.armorSize() > 0
+          && layout.armorStartIndex() <= layout.hotbarSize()) {
+         throw new IllegalArgumentException("Inventory hotbar and armor slots cannot overlap.");
+      }
+      if (layout.offhandIndex() <= layout.hotbarSize()
+          || (layout.armorSize() > 0 && layout.offhandIndex() >= layout.armorStartIndex()
+              && layout.offhandIndex() <= armorEnd)) {
+         throw new IllegalArgumentException("Inventory offhand slot cannot overlap hotbar or armor slots.");
       }
    }
 
