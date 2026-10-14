@@ -319,7 +319,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetAbsorption", luaFn(() -> LuaValue.valueOf(entity.getAbsorptionAmount())));
       MLuaClassMethods.setInstanceMethod(table, "SetAbsorption", varArg((args) -> {
-         entity.setAbsorptionAmount(Math.max(0.0F, (float)args.checkdouble(2)));
+         setAbsorption(entity, (float)args.checkdouble(2));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GiveEffect", varArg((args) -> {
@@ -986,6 +986,13 @@ public final class MLuaEntityWrapper {
          throw new LuaError("[MLua] LivingEntity:SetHealth requires a finite, non-negative health value.");
       }
       entity.setHealth(value);
+   }
+
+   public static void setAbsorption(net.minecraft.world.entity.LivingEntity entity, float value) {
+      if (!Float.isFinite(value) || value < 0.0F) {
+         throw new LuaError("[MLua] LivingEntity:SetAbsorption requires a finite, non-negative value.");
+      }
+      entity.setAbsorptionAmount(value);
    }
 
    public static float maxHealth(MCLivingEntity entity) {

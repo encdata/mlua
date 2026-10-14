@@ -187,7 +187,7 @@ public class PlayersModule implements MLuaModule {
                 case "GetIsJumping" -> "Returns whether this entity is moving upward while airborne.";
                 case "GetIsSwimming" -> "Returns whether this entity is swimming.";
                 case "GetAbsorption" -> "Returns this entity's current absorption health.";
-                case "SetAbsorption" -> "Sets this entity's current absorption health.";
+                case "SetAbsorption" -> "Sets this entity's absorption health to a finite, non-negative value.";
                 case "GiveEffect" -> "Applies a potion effect to this living entity.";
                 case "RemoveEffect" -> "Removes a potion effect from this living entity.";
                 case "HasEffect" -> "Checks whether this living entity has a potion effect.";
