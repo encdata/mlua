@@ -216,19 +216,7 @@ final class MLuaScriptRegistration implements MLuaRegistration {
 
    @Override
    public void applyBehaviorMixin(String className, String mixinName) {
-      LuaTable type = delegate.classTable(className);
-      LuaValue documented = type == null ? LuaValue.NIL : type.rawget("__mlua_doc_mixins");
-      boolean alreadyApplied = false;
-      if (documented.istable()) {
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            org.luaj.vm2.Varargs entry = documented.checktable().next(key);
-            key = entry.arg1();
-            if (key.isnil()) break;
-            if (mixinName.equals(entry.arg(2).optjstring(""))) alreadyApplied = true;
-         }
-      }
-      if (alreadyApplied) return;
+      if (delegate.hasBehaviorMixin(className, mixinName)) return;
       delegate.applyBehaviorMixin(className, mixinName);
       applications.add(new MixinApplication(className, mixinName));
    }

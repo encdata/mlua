@@ -351,19 +351,7 @@ final class MLuaModuleRegistrations {
 
             @Override
             public void applyBehaviorMixin(String className, String mixinName) {
-                LuaTable classTable = registration.classTable(className);
-                LuaValue mixinsValue = classTable == null ? LuaValue.NIL : classTable.rawget("__mlua_doc_mixins");
-                boolean alreadyApplied = false;
-                if (mixinsValue.istable()) {
-                    LuaValue key = LuaValue.NIL;
-                    while (true) {
-                        org.luaj.vm2.Varargs next = mixinsValue.checktable().next(key);
-                        key = next.arg1();
-                        if (key.isnil()) break;
-                        if (mixinName.equals(next.arg(2).optjstring(""))) alreadyApplied = true;
-                    }
-                }
-                if (alreadyApplied) return;
+                if (registration.hasBehaviorMixin(className, mixinName)) return;
                 snapshotClass(registration, className, snapshots);
                 registration.applyBehaviorMixin(className, mixinName);
                 ownedMixinApplications.add(className + "\u0000" + mixinName);

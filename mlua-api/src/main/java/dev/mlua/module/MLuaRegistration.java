@@ -245,6 +245,32 @@ public interface MLuaRegistration {
         throw new UnsupportedOperationException("Behavior mixin lookup is not supported by this runtime");
     }
 
+    default boolean hasBehaviorMixin(String className, String mixinName) {
+        if (className == null || className.isBlank() || mixinName == null || mixinName.isBlank()) return false;
+        return hasBehaviorMixinInHierarchy(className, mixinName, new HashSet<>());
+    }
+
+    private boolean hasBehaviorMixinInHierarchy(String className, String mixinName, Set<String> visited) {
+        if (!visited.add(className)) return false;
+        LuaTable type = classTable(className);
+        if (type == null) return false;
+        LuaValue mixinsValue = type.rawget("__mlua_doc_mixins");
+        if (mixinsValue.istable()) {
+            LuaTable mixins = mixinsValue.checktable();
+            for (int index = 1; index <= mixins.length(); index++) {
+                if (mixinName.equals(mixins.rawget(index).optjstring(""))) return true;
+            }
+        }
+        LuaValue parentsValue = type.rawget("__mlua_doc_parents");
+        if (!parentsValue.istable()) return false;
+        LuaTable parents = parentsValue.checktable();
+        for (int index = 1; index <= parents.length(); index++) {
+            String parentName = parents.rawget(index).optjstring("");
+            if (!parentName.isBlank() && hasBehaviorMixinInHierarchy(parentName, mixinName, visited)) return true;
+        }
+        return false;
+    }
+
     default boolean unregisterBehaviorMixin(String mixinName) {
         throw new UnsupportedOperationException("Behavior mixin unregistration is not supported by this runtime");
     }
