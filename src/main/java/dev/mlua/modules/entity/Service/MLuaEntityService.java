@@ -6,7 +6,6 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.math.MLuaCFrame;
-import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
@@ -131,58 +130,51 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes an entity from its world.")
     public void Remove(LuaValue value) {
-        requireEntity(value).remove(Entity.RemovalReason.DISCARDED);
+        invokeEntityMethod(requireEntity(value), "Remove");
     }
 
-    @MLuaDescription("Kills a living entity.")
+    @MLuaDescription("Kills an entity using the same behavior as Entity:Kill.")
     public void Kill(LuaValue value) {
-        Entity entity = requireEntity(value);
-        //--version 26.1
-        if (!(entity.level() instanceof ServerLevel serverLevel)) {
-            throw new LuaError("[MLua] Kill requires a server-side entity.");
-        }
-        entity.kill(serverLevel);
-        //--endversion
-        //--version 1.20.1,1.21.1
-        entity.kill();
-        //--endversion
+        invokeEntityMethod(requireEntity(value), "Kill");
     }
 
-    @MLuaDescription("Moves an entity to a position.")
+    @MLuaDescription("Moves an entity using the same position conversion as Entity:Teleport.")
     public void Teleport(LuaValue entityValue, LuaValue positionValue) {
         Entity entity = requireEntity(entityValue);
-        double[] pos = MLuaCFrame.vector(positionValue);
-        entity.teleportTo(pos[0], pos[1], pos[2]);
-        entity.hurtMarked = true;
+        invokeEntityMethod(entity, "Teleport", positionValue);
     }
 
-    @MLuaDescription("Sets an entity's motion vector.")
+    @MLuaDescription("Sets an entity's motion using the same validation as Entity:SetVelocity.")
     public void SetVelocity(LuaValue entityValue, LuaValue vectorValue) {
         Entity entity = requireEntity(entityValue);
-        if (!MLuaVector.isVector3(vectorValue)) {
-            throw new LuaError("[MLua] EntityService:SetVelocity expects a native Vector3 value.");
-        }
-        double[] velocity = MLuaVector.components3(vectorValue);
-        entity.setDeltaMovement(velocity[0], velocity[1], velocity[2]);
-        entity.hurtMarked = true;
+        invokeEntityMethod(entity, "SetVelocity", vectorValue);
     }
 
-    @MLuaDescription("Applies generic damage to a living entity. Returns false when the target is not living or Minecraft rejects the damage.")
-    public boolean Damage(LuaValue entityValue, double amount) {
-        if (!Double.isFinite(amount) || amount < 0.0 || amount > Float.MAX_VALUE) {
-            throw new LuaError("[MLua] EntityService:Damage amount must be a finite, non-negative number within Minecraft's damage range.");
-        }
+    @MLuaDescription("Applies damage to a living entity using LivingEntity:Damage, with an optional damage type and attacker. Returns false for non-living targets or rejected damage.")
+    public boolean Damage(LuaValue entityValue, double amount, Optional<String> damageType, Optional<LuaValue> attacker) {
         Entity entity = requireEntity(entityValue);
-        if (!(entity instanceof LivingEntity living)) return false;
-        //--version 26.1
-        float healthBefore = living.getHealth();
-        float absorptionBefore = living.getAbsorptionAmount();
-        living.hurt(living.level().damageSources().generic(), (float) amount);
-        return living.getHealth() < healthBefore || living.getAbsorptionAmount() < absorptionBefore;
-        //--endversion
-        //--version 1.20.1,1.21.1
-        return living.hurt(living.level().damageSources().generic(), (float) amount);
-        //--endversion
+        LuaTable instance = (LuaTable) wrap(entity);
+        LuaValue damage = instance.get("Damage");
+        if (!(entity instanceof LivingEntity) || !damage.isfunction()) return false;
+        return damage.invoke(LuaValue.varargsOf(new LuaValue[]{
+            instance,
+            LuaValue.valueOf(amount),
+            LuaValue.valueOf(damageType.orElse("generic")),
+            attacker.orElse(LuaValue.NIL)
+        })).arg1().toboolean();
+    }
+
+    private LuaValue invokeEntityMethod(Entity entity, String methodName, LuaValue... arguments) {
+        LuaTable instance = (LuaTable) wrap(entity);
+        LuaValue method = instance.get(methodName);
+        if (!method.isfunction()) {
+            throw new LuaError("[MLua] Entity method '" + methodName + "' is not registered for "
+                + entity.getType() + ".");
+        }
+        LuaValue[] callArguments = new LuaValue[arguments.length + 1];
+        callArguments[0] = instance;
+        System.arraycopy(arguments, 0, callArguments, 1, arguments.length);
+        return method.invoke(LuaValue.varargsOf(callArguments)).arg1();
     }
 
     private LuaTable allEntities() {

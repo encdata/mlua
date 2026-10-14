@@ -131,7 +131,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Spawn(typeId: string, position: Entity|Vector3|CFrame, world: World|string?)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Teleport(entity: Entity, position: Vector3|CFrame)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:SetVelocity(entity: Entity, velocity: Vector3)", "void"));
-        docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Damage(entity: Entity, amount: number)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Damage(entity: Entity, amount: number, damageType: string?, attacker: Entity?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Kill(entity: Entity)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Remove(entity: Entity)", "void"));
         docs.register(MLuaDocBuilder.Registration.clazz("EntityBounds", "PlayersModule", "An axis-aligned entity bounding box with Vector3 corners and spatial queries.", "classes/entity-bounds.html", "Instance"));
