@@ -75,6 +75,8 @@ public class PlayersModule implements MLuaModule {
             entityMethod(entity -> LuaValue.valueOf(entity.getName().getString())), "Returns this entity's current name.");
         registration.registerClassFunction("Entity", "GetUUID",
             entityMethod(entity -> LuaValue.valueOf(entity.getUUID().toString())), "Returns this entity's UUID.");
+        registration.registerClassFunction("Entity", "GetIsRemoved",
+            entityMethod(entity -> LuaValue.valueOf(entity.isRemoved())), "Returns whether this entity has been removed from its world.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLevel", "Returns the live world containing this entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetDimension", "Returns the dimension identifier containing this entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPosition", "Returns this entity's current position.");
@@ -592,6 +594,7 @@ public class PlayersModule implements MLuaModule {
             {"EntityType", "GetEntityType", null, "string", "shared:Shared", "This entity's registered type."},
             {"Name", "GetName", null, "string", "shared:Shared", "This entity's current name."},
             {"UUID", "GetUUID", null, "string", "shared:Shared", "This entity's UUID."},
+            {"IsRemoved", "GetIsRemoved", null, "boolean", "shared:Shared", "Whether this entity has been removed from its world."},
             {"Level", "GetLevel", null, "Level", "shared:Shared", "The live world containing this entity."},
             {"Dimension", "GetDimension", null, "string", "shared:Shared", "The dimension identifier containing this entity."},
             {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "server:Server", "The entity's persistent data; assign a table or Nbt value to replace it."},
