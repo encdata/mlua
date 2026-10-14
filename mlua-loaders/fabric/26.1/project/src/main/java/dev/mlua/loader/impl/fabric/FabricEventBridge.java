@@ -4,6 +4,7 @@ import dev.mlua.loaderapi.EventBridge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -29,6 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 public final class FabricEventBridge implements EventBridge {
+    private static final List<ProjectileCallback> projectileHitCallbacks = new CopyOnWriteArrayList<>();
     private final List<BlockPlaceCallback> blockPlaceCallbacks = new ArrayList<>();
     @Override public void onClientTickEnd(Runnable callback) { ClientTickEvents.END_CLIENT_TICK.register(client -> callback.run()); }
     @Override public void onServerTickEnd(Consumer<Object> callback) { ServerTickEvents.END_SERVER_TICK.register(server -> callback.accept(server)); }
@@ -52,5 +54,7 @@ public final class FabricEventBridge implements EventBridge {
     @Override public void onBlockBreakEvent(CancellableBlockCallback callback) { PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> { CancellableResult result = callback.handle(player, world, pos); return result == null || !result.cancel(); }); }
     @Override public void onItemUseEvent(CancellableItemUseCallback callback) { UseItemCallback.EVENT.register((player, world, hand) -> { CancellableResult result = callback.handle(player, hand, player.getItemInHand(hand)); return result != null && result.cancel() ? InteractionResult.FAIL : InteractionResult.PASS; }); }
     @Override public void onEntityInteractEvent(CancellableEntityInteractCallback callback) { UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> { CancellableResult result = callback.handle(player, hand, entity); return result != null && result.cancel() ? InteractionResult.FAIL : InteractionResult.PASS; }); }
+    @Override public void onProjectileHit(ProjectileCallback callback) { projectileHitCallbacks.add(callback); }
+    public static void fireProjectileHit(Object projectile, Object hitResult) { projectileHitCallbacks.forEach(callback -> callback.handle(projectile, hitResult)); }
     public void fireBlockPlace(Entity entity, Level level, BlockPos pos) { blockPlaceCallbacks.forEach(callback -> callback.handle(entity, level, pos)); }
 }

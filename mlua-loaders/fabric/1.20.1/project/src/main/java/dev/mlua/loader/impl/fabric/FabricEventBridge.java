@@ -4,6 +4,7 @@ import dev.mlua.loaderapi.EventBridge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -30,6 +31,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 public final class FabricEventBridge implements EventBridge {
+    private static final List<ProjectileCallback> projectileHitCallbacks = new CopyOnWriteArrayList<>();
     private final List<BlockPlaceCallback> blockPlaceCallbacks = new ArrayList<>();
 
     @Override
@@ -196,6 +198,17 @@ public final class FabricEventBridge implements EventBridge {
     public void fireBlockPlace(Entity entity, Level level, BlockPos pos) {
         for (BlockPlaceCallback callback : blockPlaceCallbacks) {
             callback.handle(entity, level, pos);
+        }
+    }
+
+    @Override
+    public void onProjectileHit(ProjectileCallback callback) {
+        projectileHitCallbacks.add(callback);
+    }
+
+    public static void fireProjectileHit(Object projectile, Object hitResult) {
+        for (ProjectileCallback callback : projectileHitCallbacks) {
+            callback.handle(projectile, hitResult);
         }
     }
 }
