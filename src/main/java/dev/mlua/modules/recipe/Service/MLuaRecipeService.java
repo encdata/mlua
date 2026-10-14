@@ -44,7 +44,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
 
             final String[] pattern = new String[rows];
             final int[] nextRow = {0};
-            final Map<String, String> keyMap = new LinkedHashMap<>();
+            final Map<String, JsonObject> keyMap = new LinkedHashMap<>();
 
             LuaTable builder = new LuaTable();
             attachBuilder(builder, "ShapedRecipeBuilder");
@@ -82,7 +82,19 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                     MLuaResourceLocations.parse(itemId);
                     if (ch.length() != 1) throw new LuaError("[MLua] Shaped recipe key must be a single character");
                     if (" ".equals(ch)) throw new LuaError("[MLua] Space is reserved for an empty Shaped slot");
-                    keyMap.put(ch, itemId);
+                    keyMap.put(ch, recipeIngredient("item", itemId));
+                    return builder;
+                }
+            });
+
+            MLuaClassMethods.setInstanceMethod(builder, "WithTagKey", new VarArgFunction() {
+                public Varargs invoke(Varargs args) {
+                    String ch = args.checkjstring(2);
+                    String tagId = args.checkjstring(3);
+                    MLuaResourceLocations.parse(tagId);
+                    if (ch.length() != 1) throw new LuaError("[MLua] Shaped recipe key must be a single character");
+                    if (" ".equals(ch)) throw new LuaError("[MLua] Space is reserved for an empty Shaped slot");
+                    keyMap.put(ch, recipeIngredient("tag", tagId));
                     return builder;
                 }
             });
@@ -113,10 +125,8 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                         }
                     }
                     JsonObject keys = new JsonObject();
-                    for (Map.Entry<String, String> entry : keyMap.entrySet()) {
-                        JsonObject ingredient = new JsonObject();
-                        ingredient.addProperty("item", entry.getValue());
-                        keys.add(entry.getKey(), ingredient);
+                    for (Map.Entry<String, JsonObject> entry : keyMap.entrySet()) {
+                        keys.add(entry.getKey(), entry.getValue());
                     }
                     JsonObject recipe = new JsonObject();
                     recipe.addProperty("type", "minecraft:crafting_shaped");
@@ -136,7 +146,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
             MLuaResourceLocations.parse(output);
             if (count < 1) throw new LuaError("[MLua] Shapeless recipe count must be at least 1");
 
-            final List<String> ingredients = new ArrayList<>();
+            final List<JsonObject> ingredients = new ArrayList<>();
 
             LuaTable builder = new LuaTable();
             attachBuilder(builder, "ShapelessRecipeBuilder");
@@ -146,7 +156,17 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                     String itemId = args.checkjstring(2);
                     MLuaResourceLocations.parse(itemId);
                     if (ingredients.size() >= 9) throw new LuaError("[MLua] Shapeless recipes allow at most 9 ingredients");
-                    ingredients.add(itemId);
+                    ingredients.add(recipeIngredient("item", itemId));
+                    return builder;
+                }
+            });
+
+            MLuaClassMethods.setInstanceMethod(builder, "AddTagIngredient", new VarArgFunction() {
+                public Varargs invoke(Varargs args) {
+                    String tagId = args.checkjstring(2);
+                    MLuaResourceLocations.parse(tagId);
+                    if (ingredients.size() >= 9) throw new LuaError("[MLua] Shapeless recipes allow at most 9 ingredients");
+                    ingredients.add(recipeIngredient("tag", tagId));
                     return builder;
                 }
             });
@@ -157,11 +177,7 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
                         throw new LuaError("[MLua] Shapeless recipe must have at least one ingredient");
                     }
                     JsonArray entries = new JsonArray();
-                    for (String itemId : ingredients) {
-                        JsonObject ingredient = new JsonObject();
-                        ingredient.addProperty("item", itemId);
-                        entries.add(ingredient);
-                    }
+                    for (JsonObject ingredient : ingredients) entries.add(ingredient);
                     JsonObject recipe = new JsonObject();
                     recipe.addProperty("type", "minecraft:crafting_shapeless");
                     recipe.add("ingredients", entries);
@@ -243,6 +259,12 @@ public final class MLuaRecipeService extends MLuaReflectiveService {
         //--endversion
         result.addProperty("count", count);
         return result;
+    }
+
+    private static JsonObject recipeIngredient(String key, String id) {
+        JsonObject ingredient = new JsonObject();
+        ingredient.addProperty(key, id);
+        return ingredient;
     }
 
     private static String cookingRecipe(String type, String input, String output,

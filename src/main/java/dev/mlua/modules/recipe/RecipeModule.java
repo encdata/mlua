@@ -38,11 +38,15 @@ public class RecipeModule implements MLuaModule {
             "Adds one or more rows to the shaped recipe pattern.");
         MLuaClassMethods.registerInstanceMethod(registration, "ShapedRecipeBuilder", "WithKey",
             "Maps one pattern character to an item identifier.");
+        MLuaClassMethods.registerInstanceMethod(registration, "ShapedRecipeBuilder", "WithTagKey",
+            "Maps one pattern character to an item tag identifier.");
 
         registration.registerClass("ShapelessRecipeBuilder", "RecipeBuilder",
             "A builder for a shapeless crafting recipe with up to nine ingredients.");
         MLuaClassMethods.registerInstanceMethod(registration, "ShapelessRecipeBuilder", "AddIngredient",
             "Adds an item identifier as a recipe ingredient.");
+        MLuaClassMethods.registerInstanceMethod(registration, "ShapelessRecipeBuilder", "AddTagIngredient",
+            "Adds an item tag identifier as a recipe ingredient.");
     }
 
     @Override
@@ -53,8 +57,10 @@ public class RecipeModule implements MLuaModule {
         docs.clazz("ShapedRecipeBuilder", "MLuaRecipeService", "A builder for a shaped crafting recipe with a pattern and ingredient keys.", "classes/shaped-recipe-builder.html", "RecipeBuilder");
         docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:Row(row: string, ...): ShapedRecipeBuilder", "Adds one or more rows to the shaped recipe pattern.", "one or more equally sized pattern rows", "ShapedRecipeBuilder", "Shared", null);
         docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:WithKey(symbol: string, itemId: string): ShapedRecipeBuilder", "Maps one pattern character to an item identifier.", "a single pattern character and an item identifier", "ShapedRecipeBuilder", "Shared", null);
+        docs.method("ShapedRecipeBuilder", "ShapedRecipeBuilder:WithTagKey(symbol: string, tagId: string): ShapedRecipeBuilder", "Maps one pattern character to an item tag identifier.", "a single pattern character and an item tag identifier without a leading #", "ShapedRecipeBuilder", "Shared", null);
         docs.clazz("ShapelessRecipeBuilder", "MLuaRecipeService", "A builder for a shapeless crafting recipe with up to nine ingredients.", "classes/shapeless-recipe-builder.html", "RecipeBuilder");
         docs.method("ShapelessRecipeBuilder", "ShapelessRecipeBuilder:AddIngredient(itemId: string): ShapelessRecipeBuilder", "Adds an item identifier as a recipe ingredient.", "an item identifier", "ShapelessRecipeBuilder", "Shared", null);
+        docs.method("ShapelessRecipeBuilder", "ShapelessRecipeBuilder:AddTagIngredient(tagId: string): ShapelessRecipeBuilder", "Adds an item tag identifier as a recipe ingredient.", "an item tag identifier without a leading #", "ShapelessRecipeBuilder", "Shared", null);
         docs.signature("Recipe", "Recipe:Shaped(rows: number, result: string, count?: number)", "ShapedRecipeBuilder");
         docs.signature("Recipe", "Recipe:Shapeless(result: string, count?: number)", "ShapelessRecipeBuilder");
         docs.signature("Recipe", "Recipe:Smelting(input: string, output: string, experience?: number, cookTime?: number)", "string");
@@ -64,7 +70,7 @@ public class RecipeModule implements MLuaModule {
         docs.signature("Recipe", "Recipe:Stonecutting(input: string, output: string, count?: number)", "string");
         docs.guideStep("Recipe", "Build and register a shaped recipe",
             "Recipe builders validate their pattern and ingredient keys, then Build returns a JSON definition accepted by Registry.Recipes:Register. Put both calls in a .registry.lua script so the recipe is available when the generated data pack loads.",
-            "local Recipe = Minecraft:GetService(\"Recipe\")\nlocal Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nlocal definition = Recipe:Shaped(2, \"myaddon:signal_flare\")\n    :Row(\" I \", \"ISI\")\n    :WithKey(\"I\", \"minecraft:iron_ingot\")\n    :WithKey(\"S\", \"minecraft:stick\")\n    :Build()\n\nRecipes:Register(\"signal_flare\", definition)");
+            "local Recipe = Minecraft:GetService(\"Recipe\")\nlocal Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nlocal definition = Recipe:Shaped(2, \"myaddon:signal_flare\")\n    :Row(\" I \", \"ISI\")\n    :WithTagKey(\"I\", \"minecraft:ingots/iron\")\n    :WithKey(\"S\", \"minecraft:stick\")\n    :Build()\n\nRecipes:Register(\"signal_flare\", definition)");
         docs.guideStep("Recipe", "Create cooking and stonecutting recipes",
             "Smelting, blasting, smoking, and campfire cooking share the same arguments. Their default cook times match the vanilla station. Each method returns a version-shaped JSON definition for Registry.Recipes:Register.",
             "local Recipe = Minecraft:GetService(\"Recipe\")\nlocal Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nRecipes:Register(\"iron_from_ore\", Recipe:Smelting(\"minecraft:raw_iron\", \"minecraft:iron_ingot\"))\nRecipes:Register(\"gold_from_ore\", Recipe:Blasting(\"minecraft:raw_gold\", \"minecraft:gold_ingot\"))\nRecipes:Register(\"cooked_beef\", Recipe:Smoking(\"minecraft:beef\", \"minecraft:cooked_beef\"))\nRecipes:Register(\"charcoal\", Recipe:CampfireCooking(\"minecraft:oak_log\", \"minecraft:charcoal\"))\nRecipes:Register(\"stone_slab\", Recipe:Stonecutting(\"minecraft:stone\", \"minecraft:stone_slab\", 2))");
