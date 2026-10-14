@@ -341,7 +341,7 @@ public class RegistryModule implements MLuaModule {
             "model?", "string", "Entity model resource.", "className?", "string", "Registered Lua class inheriting from ScriptedEntity.");
         schema(docs, "WorldGenerationFeatureDefinition", "Adds one registered placed feature to selected biomes.",
             "feature", "string", "Placed feature identifier.", "biomes", "string|string[]", "Biome identifiers or #tag selectors.",
-            "step", "Enum.GenerationStep.Decoration|string", "Minecraft decoration step: raw generation, lakes, local modifications, underground structures, surface structures, strongholds, underground ores, underground decoration, fluid springs, vegetal decoration, or top layer modification.");
+            "step", "Enum.GenerationStep.Decoration|string", "Native Minecraft decoration step enum or its name as a string.");
         schema(docs, "SpawnEggDefinition", "Appearance and item callbacks for a registered entity spawn egg.",
             "entity?", "string", "Entity type identifier spawned by the egg.", "primaryColor?", "number", "Primary egg color.",
             "secondaryColor?", "number", "Secondary egg color.", "description?", "string|string[]", "Tooltip description lines.",
