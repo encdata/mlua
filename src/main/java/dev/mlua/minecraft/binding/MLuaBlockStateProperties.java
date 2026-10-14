@@ -35,6 +35,18 @@ public final class MLuaBlockStateProperties {
         return state;
     }
 
+    public static LuaTable read(BlockState state) {
+        LuaTable values = new LuaTable();
+        for (Property<?> property : state.getProperties()) {
+            addValue(values, state, property);
+        }
+        return values;
+    }
+
+    private static <T extends Comparable<T>> void addValue(LuaTable values, BlockState state, Property<T> property) {
+        values.set(property.getName(), property.getName(state.getValue(property)));
+    }
+
     private static <T extends Comparable<T>> BlockState withProperty(BlockState state, Property<T> property, String value) {
         Optional<T> parsed = property.getValue(value);
         if (parsed.isEmpty()) {

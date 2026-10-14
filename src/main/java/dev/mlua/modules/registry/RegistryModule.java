@@ -121,6 +121,7 @@ public class RegistryModule implements MLuaModule {
         contributeDefinitionSchemas(docs);
         contributeSignatures(docs);
         docs.signature("Block", "Block:GetInventory()", "Container");
+        docs.signature("Block", "Block:GetStateProperties()", "BlockStateProperties");
         docs.signature("Block", "Block:Set(blockId: string, properties: BlockStateProperties?)", "boolean");
         docs.service("Registry", "MLuaRegistryService",
                 "Registers addon content, generated data pack resources, Minecraft registry entries, and reusable inherited content types.",

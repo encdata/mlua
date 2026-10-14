@@ -281,19 +281,26 @@ public final class MLuaBlockWrapper {
          }), "Returns this block's position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsAir", selfBlock((self, ignored) -> LuaValue.valueOf(level(self).getBlockState(pos(self)).isAir())), "Returns whether this block position contains air.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsSolid", selfBlock((self, ignored) -> LuaValue.valueOf(level(self).getBlockState(pos(self)).isSolid())), "Returns whether this block state is solid.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetStateProperties", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return MLuaBlockStateProperties.read(rawLevel.getBlockState(rawPos));
+         }), "Returns the current values of this block's Minecraft state properties.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Break", selfBlock((self, ignored) -> {
             level(self).destroyBlock(pos(self), true);
             return LuaValue.TRUE;
          }), "Breaks this block and drops its resources.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Set", selfBlock((self, args) -> {
             String blockId = args.checkjstring(2);
-            MCBlock newBlock = MCBlockImpl.fromReal((net.minecraft.world.level.block.Block) MCApiRuntime.lookupRegistry("block", blockId));
+            net.minecraft.world.level.block.Block newBlock =
+               (net.minecraft.world.level.block.Block)MCApiRuntime.lookupRegistry("block", blockId);
             if (newBlock == null) {
                throw new LuaError("[MLua] Unknown block: " + blockId);
             }
-            net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(
-               newBlock.defaultBlockState(), args.arg(3));
-            level(self).setBlock(pos(self), state, 3);
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(newBlock.defaultBlockState(), args.arg(3));
+            rawLevel.setBlock(rawPos, state, 3);
             return LuaValue.TRUE;
          }), "Replaces this block with a registered block identifier and optional state properties.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "ScheduleTick", selfBlock((self, args) -> {
@@ -342,6 +349,7 @@ public final class MLuaBlockWrapper {
             {"Position", "GetPosition", null, "Vector3", "This block's position."},
             {"IsAir", "GetIsAir", null, "boolean", "Whether this block position contains air."},
             {"IsSolid", "GetIsSolid", null, "boolean", "Whether this block state is solid."},
+            {"StateProperties", "GetStateProperties", null, "BlockStateProperties", "Current Minecraft state values, such as facing, half, age, or waterlogged."},
             {"BlockEntity", "GetBlockEntity", null, "BlockEntity|nil", "The block entity at this position, or nil when none exists."},
             {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This block entity's live NBT view; assign a table to replace its data."},
             {"DoorOpen", "IsDoorOpen", null, "boolean", "Whether the door at this block position is open."},

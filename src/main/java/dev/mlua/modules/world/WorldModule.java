@@ -30,7 +30,7 @@ public class WorldModule implements MLuaModule {
         Map.entry("Unload", "Removes this chunk's server force-load ticket; Minecraft decides when it unloads."),
         Map.entry("SetForced", "Sets this chunk's server force-load ticket."),
         Map.entry("ForceLoad", "Adds a persistent server force-load ticket for this chunk."),
-        Map.entry("GetBlockAt", "Loads this chunk if needed and returns a block at a world position inside it."),
+        Map.entry("GetBlockAt", "Loads this chunk if needed and returns the live Block instance at a world position inside it, including its registered addon subclass."),
         Map.entry("GetBlockEntityAt", "Loads this chunk if needed and returns its block entity at a world position."),
         Map.entry("GetBiomeAt", "Loads this chunk if needed and returns the biome identifier at a world position inside it."),
         Map.entry("GetFluidAt", "Loads this chunk if needed and returns the fluid identifier at a world position inside it, or nil."),
