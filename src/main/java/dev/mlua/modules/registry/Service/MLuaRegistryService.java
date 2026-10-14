@@ -314,6 +314,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String step = MLuaRegistryService.stringProperty(definition, "step", "Step");
             if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a placed feature id");
             if (step == null || step.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a generation step");
+            try {
+               step = dev.mlua.loaderapi.WorldGenerationBridge.normalizeStep(step);
+            } catch (IllegalArgumentException error) {
+               throw new LuaError("[MLua] " + error.getMessage());
+            }
             LuaValue biomes = definition.get("biomes");
             if (biomes.isnil()) biomes = definition.get("Biomes");
             String featureId = MLuaRegistryService.qualifiedDataId(owner, feature, false);
