@@ -258,8 +258,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         player.setYRot((float)args.checkdouble(2));
-         player.setXRot((float)args.checkdouble(3));
+         MLuaEntityWrapper.setRotation(player, args.checkdouble(2), args.checkdouble(3));
          return LuaValue.NONE;
       }));
       addCFrameMethods(table, player, registration);
@@ -662,7 +661,11 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         MLuaEntityWrapper.applyRotation(player, args.arg(2));
+         if (args.arg(3).isnumber()) {
+            MLuaEntityWrapper.setRotation(player, args.checkdouble(2), args.checkdouble(3));
+         } else {
+            MLuaEntityWrapper.applyRotation(player, args.arg(2));
+         }
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {

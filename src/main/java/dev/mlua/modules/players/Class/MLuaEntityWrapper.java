@@ -188,7 +188,8 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         applyRotation(wrapped, args.arg(2));
+         if (args.arg(3).isnumber()) setRotation(wrapped, args.checkdouble(2), args.checkdouble(3));
+         else applyRotation(wrapped, args.arg(2));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
@@ -424,7 +425,8 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         applyRotation(wrapped, args.arg(2));
+         if (args.arg(3).isnumber()) setRotation(wrapped, args.checkdouble(2), args.checkdouble(3));
+         else applyRotation(wrapped, args.arg(2));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
@@ -1027,12 +1029,21 @@ public final class MLuaEntityWrapper {
    }
 
    public static void applyCFrame(MCEntity entity, MLuaCFrame cf) {
+      double yaw = cf.minecraftYaw();
+      double pitch = cf.minecraftPitch();
+      requireFiniteTransform(cf.x(), cf.y(), cf.z(), yaw, pitch);
       net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
       raw.teleportTo(cf.x(), cf.y(), cf.z());
-      entity.setYRot(cf.minecraftYaw());
-      entity.setXRot(cf.minecraftPitch());
-      raw.setYHeadRot(cf.minecraftYaw());
-      raw.setYBodyRot(cf.minecraftYaw());
+      setRotation(entity, pitch, yaw);
+   }
+
+   public static void setRotation(MCEntity entity, double pitch, double yaw) {
+      requireFiniteTransform(0.0, 0.0, 0.0, yaw, pitch);
+      entity.setYRot((float)yaw);
+      entity.setXRot((float)pitch);
+      net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
+      raw.setYHeadRot((float)yaw);
+      raw.setYBodyRot((float)yaw);
       raw.hurtMarked = true;
    }
 
@@ -1057,12 +1068,15 @@ public final class MLuaEntityWrapper {
          if (Double.isNaN(pitch)) {
             pitch = (double)entity.getXRot();
          }
-         entity.setYRot((float)yaw);
-         entity.setXRot((float)pitch);
-         net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
-         raw.setYHeadRot((float)yaw);
-         raw.setYBodyRot((float)yaw);
-         raw.hurtMarked = true;
+         setRotation(entity, pitch, yaw);
+      }
+   }
+
+   private static void requireFiniteTransform(double x, double y, double z, double yaw, double pitch) {
+      if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+         || !Double.isFinite(yaw) || !Double.isFinite(pitch)
+         || Math.abs(yaw) > Float.MAX_VALUE || Math.abs(pitch) > Float.MAX_VALUE) {
+         throw new LuaError("[MLua] Entity transform values must be finite and representable by Minecraft.");
       }
    }
 

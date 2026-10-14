@@ -86,10 +86,10 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetPosition", "Moves this entity to a position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Teleport", "Teleports this entity to a position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetVelocity", "Returns this entity's current velocity.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Sets this entity's velocity from a Vector3 with finite components.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetVelocity", "Sets this entity's velocity from a Vector3 with finite components.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetRotation", "Returns this entity's pitch and yaw in degrees.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetRotationRadians", "Returns this entity's pitch and yaw in radians.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetRotation", "Sets this entity's pitch and yaw in degrees.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetRotation", "Sets this entity's pitch and yaw in degrees, either as separate numbers or from a rotation table.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetRotationRadians", "Sets this entity's pitch and yaw in radians.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetCFrame", "Returns this entity's position and rotation as a CFrame.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetCFrame", "Sets this entity's position and rotation from a CFrame.");
