@@ -8,8 +8,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.classes.MLuaClassMethods;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import java.util.ArrayList;
@@ -17,10 +18,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 
-public final class MLuaRecipeService extends MLuaServiceBase {
+@MLuaDescription("Service for creating recipe builders.")
+public final class MLuaRecipeService extends MLuaReflectiveService {
     private final MLuaRegistration registration;
 
     public MLuaRecipeService(MLuaService.Context context) {
@@ -33,15 +35,9 @@ public final class MLuaRecipeService extends MLuaServiceBase {
         return "Recipe";
     }
 
-    @Override
-    public LuaTable toLua() {
-        LuaTable table = new LuaTable();
-        table.set("__side", "Both");
-
-        table.set("Shaped", fn(args -> {
-            int rows = args.checkint(2);
-            String output = args.checkjstring(3);
-            int count = args.optint(4, 1);
+    @MLuaDescription("Creates a builder for a shaped crafting recipe.")
+    public LuaTable Shaped(int rows, String output, Optional<Integer> requestedCount) {
+            int count = requestedCount.orElse(1);
             MLuaResourceLocations.parse(output);
             if (rows < 1 || rows > 3) throw new LuaError("[MLua] Shaped recipe row count must be 1-3");
             if (count < 1) throw new LuaError("[MLua] Shaped recipe count must be at least 1");
@@ -132,11 +128,11 @@ public final class MLuaRecipeService extends MLuaServiceBase {
             });
 
             return builder;
-        }));
+    }
 
-        table.set("Shapeless", fn(args -> {
-            String output = args.checkjstring(2);
-            int count = args.optint(3, 1);
+    @MLuaDescription("Creates a builder for a shapeless crafting recipe.")
+    public LuaTable Shapeless(String output, Optional<Integer> requestedCount) {
+            int count = requestedCount.orElse(1);
             MLuaResourceLocations.parse(output);
             if (count < 1) throw new LuaError("[MLua] Shapeless recipe count must be at least 1");
 
@@ -175,13 +171,13 @@ public final class MLuaRecipeService extends MLuaServiceBase {
             });
 
             return builder;
-        }));
+    }
 
-        table.set("Smelting", fn(args -> {
-            String input = args.checkjstring(2);
-            String output = args.checkjstring(3);
-            double xp = args.optdouble(4, 0.35);
-            int cookTime = args.optint(5, 200);
+    @MLuaDescription("Creates a furnace recipe definition.")
+    public String Smelting(String input, String output, Optional<Double> requestedExperience,
+                           Optional<Integer> requestedCookTime) {
+            double xp = requestedExperience.orElse(0.35);
+            int cookTime = requestedCookTime.orElse(200);
             MLuaResourceLocations.parse(input);
             MLuaResourceLocations.parse(output);
             if (!Double.isFinite(xp) || xp < 0) throw new LuaError("[MLua] Smelting experience must be finite and non-negative");
@@ -205,13 +201,12 @@ public final class MLuaRecipeService extends MLuaServiceBase {
             //--endversion
             recipe.addProperty("experience", xp);
             recipe.addProperty("cookingtime", cookTime);
-            return LuaValue.valueOf(recipe.toString());
-        }));
+            return recipe.toString();
+    }
 
-        table.set("Stonecutting", fn(args -> {
-            String input = args.checkjstring(2);
-            String output = args.checkjstring(3);
-            int count = args.optint(4, 1);
+    @MLuaDescription("Creates a stonecutting recipe definition.")
+    public String Stonecutting(String input, String output, Optional<Integer> requestedCount) {
+            int count = requestedCount.orElse(1);
             MLuaResourceLocations.parse(input);
             MLuaResourceLocations.parse(output);
             if (count < 1) throw new LuaError("[MLua] Stonecutting count must be at least 1");
@@ -231,10 +226,7 @@ public final class MLuaRecipeService extends MLuaServiceBase {
             //--version 26.1
             recipe.add("result", itemStackResult(output, count));
             //--endversion
-            return LuaValue.valueOf(recipe.toString());
-        }));
-
-        return table;
+            return recipe.toString();
     }
 
     private void attachBuilder(LuaTable builder, String className) {
@@ -258,20 +250,6 @@ public final class MLuaRecipeService extends MLuaServiceBase {
         //--endversion
         result.addProperty("count", count);
         return result;
-    }
-
-    private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError error) {
-                    throw error;
-                } catch (Exception error) {
-                    throw new LuaError("[MLua] " + error.getMessage());
-                }
-            }
-        };
     }
 
 }

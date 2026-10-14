@@ -21,11 +21,7 @@ public class RecipeModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder recipe = ServiceEntry.builder("Recipe", MLuaRecipeService::new)
-            .description("Service for creating recipe builders.");
-        recipe.function("Shaped", "Creates a builder for a shaped crafting recipe.")
-            .function("Shapeless", "Creates a builder for a shapeless crafting recipe.")
-            .function("Smelting", "Creates a builder for a furnace recipe.")
-            .function("Stonecutting", "Creates a builder for a stonecutting recipe.");
+            .reflective(MLuaRecipeService.class);
         return List.of(recipe.build());
     }
 
