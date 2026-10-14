@@ -377,15 +377,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
                MLuaScriptedEntity.this.level(), nearest, MLuaRuntime.registrationForLevel(MLuaScriptedEntity.this.level()));
          }
       });
-      methods.set("NavigateTo", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            double x = args.arg(2).checkdouble();
-            double y = args.arg(3).checkdouble();
-            double z = args.arg(4).checkdouble();
-            double speed = args.arg(5).optdouble(1.0);
-            return LuaValue.valueOf(MLuaScriptedEntity.this.navigation.moveTo(x, y, z, speed));
-         }
-      });
+      methods.set("NavigateTo", methods.get("MoveTo"));
       methods.set("OpenDoor", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             BlockPos pos = MLuaScriptedEntity.this.blockArg(args, 2);
@@ -740,10 +732,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (fromBlock != null) {
          return fromBlock;
       }
-      if (args.narg() >= index + 2) {
-         return new BlockPos(args.arg(index).checkint(), args.arg(index + 1).checkint(), args.arg(index + 2).checkint());
-      }
-      throw new org.luaj.vm2.LuaError("[MLua] Expected Block instance, Vector3, or x, y, z coordinates");
+      throw new org.luaj.vm2.LuaError("[MLua] Expected a Block instance or native Vector3 position");
    }
 
    private LivingEntity resolveLivingEntity(LuaValue value) {
