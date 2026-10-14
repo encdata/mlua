@@ -25,6 +25,24 @@ public final class CoreClassesModule implements MLuaModule {
         registration.registerClass("Object", null, "Root class in MLua's Lua class hierarchy.");
         registration.registerInstanceBaseClass("Instance", "Object", "Base class for live wrappers around Minecraft objects.");
         registerInstanceMethods(registration);
+        registration.registerClass("Signal", registration.requireInstanceBaseClassName(),
+            "A live event source that connects callbacks, fires values, and resumes waiters.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Signal", "Connect",
+            "Connects a callback that runs whenever the signal fires.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Signal", "Once",
+            "Connects a callback that disconnects after its first call.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Signal", "Fire",
+            "Calls connected callbacks and resumes waiters with these arguments.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Signal", "Wait",
+            "Yields the current coroutine until the signal fires, then returns the arguments passed to Fire.");
+        registration.registerClass("Connection", registration.requireInstanceBaseClassName(),
+            "A live handle for one callback connected to a signal.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Connection", "Disconnect",
+            "Stops a connected callback from receiving future fires.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Connection", "GetConnected",
+            "Returns whether this callback is still connected to its signal.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Connection", "Connected", "GetConnected", null,
+            "boolean", "shared:Shared", "Whether this callback is still connected to its signal.");
         registration.registerServiceBaseClass("Service", registration.requireInstanceBaseClassName(), "Base class for live Lua service instances.");
         registration.registerClassFunction("Service", "GetName", new VarArgFunction() {
             @Override
@@ -96,6 +114,9 @@ public final class CoreClassesModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.clazz("Signal", "MLuaSignal", "A live event source that connects callbacks, fires values, and resumes waiters.", "classes/signal.html", "Instance");
+        docs.clazz("Connection", "MLuaConnection", "A live handle for one callback connected to a signal.", "classes/connection.html", "Instance");
+        docs.property("Connection", "Connection.Connected", "boolean", "Whether this callback is still connected to its signal.", "shared:Shared");
         docs.property("Instance", "ClassName", "string",
             "The registered MLua class name for this live instance.", "read:Read");
         docs.property("Service", "Name", "string", "This service's registered name.", "read:Read");

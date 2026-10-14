@@ -1,9 +1,10 @@
 package dev.mlua.modules.events.Service;
 
+import dev.mlua.api.MLuaDescription;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.modules.players.Service.MLuaPlayersService;
 import dev.mlua.core.signal.MLuaSignal;
@@ -15,8 +16,10 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-public final class MLuaEventsService extends MLuaServiceBase {
+@MLuaDescription("Provides lifecycle and gameplay signals. Each signal receives one event table containing the values available for that event.")
+public final class MLuaEventsService extends MLuaReflectiveService {
    private static volatile Set<String> unavailableSignals = Set.of();
+   private LuaTable liveServiceTable;
    public static final MLuaSignal SERVER_TICK = new MLuaSignal();
    public static final MLuaSignal CLIENT_TICK = new MLuaSignal();
    public static final MLuaSignal RENDER_STEPPED = new MLuaSignal();
@@ -79,7 +82,6 @@ public final class MLuaEventsService extends MLuaServiceBase {
       BUILT_IN_SIGNALS.add(name);
    }
 
-   /** Adds an addon-defined signal to the shared Events service. */
    public static synchronized void registerSignal(String name, MLuaSignal signal, String description) {
       validateSignalRegistration(name, signal, description);
       if (SIGNALS.putIfAbsent(name, new SignalEntry(signal, description, null)) != null) {
@@ -106,7 +108,6 @@ public final class MLuaEventsService extends MLuaServiceBase {
       }
    }
 
-   /** Removes an addon signal only when the expected signal still owns that name. */
    public static synchronized boolean unregisterSignal(String name, MLuaSignal expected) {
       if (name == null || expected == null || BUILT_IN_SIGNALS.contains(name)) return false;
       SignalEntry entry = SIGNALS.get(name);
@@ -162,7 +163,7 @@ public final class MLuaEventsService extends MLuaServiceBase {
 
    @Override
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Both");
       String ownerModId = this.context.mlua().ownerModId();
       for (Map.Entry<String, SignalEntry> registered : signalSnapshot().entrySet()) {
@@ -171,67 +172,65 @@ public final class MLuaEventsService extends MLuaServiceBase {
       table.set("PlayerAdded", MLuaLuaBindings.signalInstance(MLuaPlayersService.PLAYER_ADDED, this.context.mlua().globals(), this.context.mlua().scheduler(), ownerModId, this.context.mlua().side()));
       table.set("PlayerRemoving", MLuaLuaBindings.signalInstance(MLuaPlayersService.PLAYER_REMOVING, this.context.mlua().globals(), this.context.mlua().scheduler(), ownerModId, this.context.mlua().side()));
       for (String name : unavailableSignals) table.rawset(name, org.luaj.vm2.LuaValue.NIL);
-      table.set("GetUnavailableSignals", new org.luaj.vm2.lib.ZeroArgFunction() {
-         @Override
-         public org.luaj.vm2.LuaValue call() {
-            org.luaj.vm2.LuaTable names = new org.luaj.vm2.LuaTable();
-            int index = 1;
-            for (String name : new java.util.TreeSet<>(unavailableSignals)) {
-               names.rawset(index++, org.luaj.vm2.LuaValue.valueOf(name));
-            }
-            return names;
-         }
-      });
-      table.set("GetSignalNames", new org.luaj.vm2.lib.ZeroArgFunction() {
-         @Override public org.luaj.vm2.LuaValue call() {
-            org.luaj.vm2.LuaTable names = new org.luaj.vm2.LuaTable();
-            int index = 1;
-            Set<String> registered = new java.util.TreeSet<>(signalNames());
-            registered.add("PlayerAdded");
-            registered.add("PlayerRemoving");
-            for (String name : registered) names.rawset(index++, org.luaj.vm2.LuaValue.valueOf(name));
-            return names;
-         }
-      });
-      table.set("RegisterSignal", new org.luaj.vm2.lib.VarArgFunction() {
-         @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
-            requireRegistryPhase();
-            String name = args.arg(2).checkjstring();
-            LuaValue value = args.arg(3);
-            LuaValue backing = value.istable() ? value.checktable().rawget("__mlua_signal") : LuaValue.NIL;
-            Object raw = backing.isuserdata() ? backing.touserdata() : null;
-            if (!(raw instanceof MLuaSignal signal)) {
-               throw new org.luaj.vm2.LuaError("[MLua] Events:RegisterSignal expects a Signal.new() value.");
-            }
-            String description = args.arg(4).checkjstring();
-            boolean didRegister = false;
-            try {
-               MLuaEventsService.registerSignal(name, signal, description, ownerModId);
-               didRegister = true;
-               thisOwnerRegistration().onRegistrationRollback(() -> unregisterOwnedSignal(name, ownerModId, signal));
-            } catch (RuntimeException | Error failure) {
-               if (didRegister) unregisterSignal(name, signal);
-               throw failure;
-            }
-            SignalEntry entry = signalSnapshot().get(name);
-            table.set(name, signalValue(entry, ownerModId));
-            return LuaValue.NONE;
-         }
-      });
-      table.set("UnregisterSignal", new org.luaj.vm2.lib.VarArgFunction() {
-         @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
-            requireRegistryPhase();
-            String name = args.arg(2).checkjstring();
-            SignalEntry entry = signalSnapshot().get(name);
-            if (entry == null || !ownsSignal(name, ownerModId)) {
-               throw new org.luaj.vm2.LuaError("[MLua] This addon does not own event signal '" + name + "'.");
-            }
-            boolean removed = unregisterOwnedSignal(name, ownerModId, entry.signal());
-            if (removed) table.rawset(name, LuaValue.NIL);
-            return LuaValue.valueOf(removed);
-         }
-      });
+      this.liveServiceTable = table;
       return table;
+   }
+
+   @MLuaDescription("Returns event signal names that the active loader does not support.")
+   public LuaTable GetUnavailableSignals() {
+      LuaTable names = new LuaTable();
+      int index = 1;
+      for (String name : new java.util.TreeSet<>(unavailableSignals)) {
+         names.rawset(index++, LuaValue.valueOf(name));
+      }
+      return names;
+   }
+
+   @MLuaDescription("Returns registered event signal names, including signals added by addon modules.")
+   public LuaTable GetSignalNames() {
+      LuaTable names = new LuaTable();
+      int index = 1;
+      Set<String> registered = new java.util.TreeSet<>(signalNames());
+      registered.add("PlayerAdded");
+      registered.add("PlayerRemoving");
+      for (String name : registered) names.rawset(index++, LuaValue.valueOf(name));
+      return names;
+   }
+
+   @MLuaDescription("Registers a described addon signal from a registry script.")
+   public LuaValue RegisterSignal(String name, LuaValue value, String description) {
+      requireRegistryPhase();
+      LuaValue backing = value.istable() ? value.checktable().rawget("__mlua_signal") : LuaValue.NIL;
+      Object raw = backing.isuserdata() ? backing.touserdata() : null;
+      if (!(raw instanceof MLuaSignal signal)) {
+         throw new org.luaj.vm2.LuaError("[MLua] Events:RegisterSignal expects a Signal.new() value.");
+      }
+      String ownerModId = this.context.mlua().ownerModId();
+      boolean didRegister = false;
+      try {
+         registerSignal(name, signal, description, ownerModId);
+         didRegister = true;
+         this.thisOwnerRegistration().onRegistrationRollback(() -> unregisterOwnedSignal(name, ownerModId, signal));
+      } catch (RuntimeException | Error failure) {
+         if (didRegister) unregisterSignal(name, signal);
+         throw failure;
+      }
+      SignalEntry entry = signalSnapshot().get(name);
+      this.liveServiceTable.set(name, signalValue(entry, ownerModId));
+      return LuaValue.NONE;
+   }
+
+   @MLuaDescription("Removes an event signal owned by the current addon.")
+   public boolean UnregisterSignal(String name) {
+      requireRegistryPhase();
+      String ownerModId = this.context.mlua().ownerModId();
+      SignalEntry entry = signalSnapshot().get(name);
+      if (entry == null || !ownsSignal(name, ownerModId)) {
+         throw new org.luaj.vm2.LuaError("[MLua] This addon does not own event signal '" + name + "'.");
+      }
+      boolean removed = unregisterOwnedSignal(name, ownerModId, entry.signal());
+      if (removed) this.liveServiceTable.rawset(name, LuaValue.NIL);
+      return removed;
    }
 
    private LuaTable signalValue(SignalEntry entry, String ownerModId) {

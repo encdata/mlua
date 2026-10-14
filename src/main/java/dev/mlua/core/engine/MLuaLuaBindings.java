@@ -985,28 +985,29 @@ public final class MLuaLuaBindings {
 
    public static LuaTable signalInstance(final MLuaSignal signal, final Globals globals, final MLuaTaskSchedulerView scheduler, final String ownerKey, final Side side) {
       MLuaContext ownerContext = boundContext(globals);
+      MLuaRegistration registration = ownerContext == null ? null : ownerContext.registration();
       String resolvedOwner = ownerKey != null ? ownerKey : ownerContext != null ? ownerContext.ownerModId() : null;
       Side resolvedSide = side != null ? side : ownerContext != null ? ownerContext.side() : null;
       signal.bind(globals, scheduler);
-      LuaTable table = new LuaTable();
+      LuaTable table = nativeInstance(new LuaTable(), registration, "Signal");
       table.rawset("__mlua_signal", LuaValue.userdataOf(signal));
-      table.set("Connect", new TwoArgFunction() {
+      bindNativeInstanceMethod(table, registration, "Signal", "Connect", new TwoArgFunction() {
          public LuaValue call(LuaValue self, LuaValue fn) {
-            return MLuaLuaBindings.connection(signal.connectOwned(fn, resolvedOwner, resolvedSide, globals, scheduler, ownerContext));
+            return MLuaLuaBindings.connection(signal.connectOwned(fn, resolvedOwner, resolvedSide, globals, scheduler, ownerContext), registration);
          }
       });
-      table.set("Once", new TwoArgFunction() {
+      bindNativeInstanceMethod(table, registration, "Signal", "Once", new TwoArgFunction() {
          public LuaValue call(LuaValue self, LuaValue fn) {
-            return MLuaLuaBindings.connection(signal.onceOwned(fn, resolvedOwner, resolvedSide, globals, scheduler, ownerContext));
+            return MLuaLuaBindings.connection(signal.onceOwned(fn, resolvedOwner, resolvedSide, globals, scheduler, ownerContext), registration);
          }
       });
-      table.set("Fire", new VarArgFunction() {
+      bindNativeInstanceMethod(table, registration, "Signal", "Fire", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             signal.fire(args.subargs(2));
             return LuaValue.NONE;
          }
       });
-      table.set("Wait", new VarArgFunction() {
+      bindNativeInstanceMethod(table, registration, "Signal", "Wait", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             if (globals == null) {
                throw new LuaError("Signal:Wait is not supported on this signal");
@@ -1017,15 +1018,36 @@ public final class MLuaLuaBindings {
       return table;
    }
 
-   private static LuaTable connection(final MLuaConnection connection) {
-      LuaTable table = new LuaTable();
-      table.set("Disconnect", new ZeroArgFunction() {
-         public LuaValue call() {
+   private static LuaTable connection(final MLuaConnection connection, MLuaRegistration registration) {
+      LuaTable table = nativeInstance(new LuaTable(), registration, "Connection");
+      table.rawset("__mlua_connection", LuaValue.userdataOf(connection));
+      bindNativeInstanceMethod(table, registration, "Connection", "Disconnect", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
             connection.disconnect();
             return LuaValue.NIL;
          }
       });
+      bindNativeInstanceMethod(table, registration, "Connection", "GetConnected", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return LuaValue.valueOf(connection.connected());
+         }
+      });
       return table;
+   }
+
+   private static LuaTable nativeInstance(LuaTable instance, MLuaRegistration registration, String className) {
+      return registration != null && registration.classTable(className) != null
+         ? registration.attachClassInstance(instance, className, null) : instance;
+   }
+
+   private static void bindNativeInstanceMethod(LuaTable instance, MLuaRegistration registration,
+                                                String className, String methodName, LuaValue implementation) {
+      if (registration != null && registration.classTable(className) != null
+         && registration.isInstanceOf(instance, className)) {
+         MLuaClassMethods.setInstanceMethod(instance, methodName, implementation);
+      } else {
+         instance.set(methodName, implementation);
+      }
    }
 
    public static Map<String, Object> mapFromLua(LuaTable table) {

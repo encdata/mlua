@@ -54,7 +54,6 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
       table.set("__side", "Both");
       table.set("PlayerAdded", MLuaLuaBindings.signalInstance(PLAYER_ADDED, this.context.mlua().globals(), this.context.mlua().scheduler(), ownerModId, this.context.mlua().side()));
       table.set("PlayerRemoving", MLuaLuaBindings.signalInstance(PLAYER_REMOVING, this.context.mlua().globals(), this.context.mlua().scheduler(), ownerModId, this.context.mlua().side()));
-      table.set("LocalPlayer", this.localPlayer());
       return table;
    }
 
