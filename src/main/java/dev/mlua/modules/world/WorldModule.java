@@ -66,6 +66,12 @@ public class WorldModule implements MLuaModule {
             Map.entry("IsServer", "Returns whether this is a server world."),
             Map.entry("IsChunkLoaded", "Returns whether the chunk at a position is loaded."),
             Map.entry("IsBlockLoaded", "Returns whether the chunk containing a position is loaded."),
+            Map.entry("LoadChunk", "Loads or generates the chunk containing a position in this dimension."),
+            Map.entry("UnloadChunk", "Removes this dimension's force-load ticket; Minecraft unloads it when no other tickets need it."),
+            Map.entry("SetChunkForced", "Sets whether this dimension keeps a chunk force-loaded."),
+            Map.entry("ForceLoadChunk", "Keeps a chunk force-loaded in this dimension until its force-load ticket is removed."),
+            Map.entry("IsChunkForced", "Returns whether this dimension has a force-load ticket for the chunk."),
+            Map.entry("GetEntitiesInChunk", "Returns entities in a chunk, optionally loading it first."),
             Map.entry("GetTime", "Returns this world's day time in ticks."),
             Map.entry("GetDayTime", "Returns the current day cycle time in ticks."),
             Map.entry("GetGameTime", "Returns the total number of ticks this world has been running."),
@@ -105,7 +111,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("FindNearestPlayer", "Returns the nearest player to a position, or nil."),
             Map.entry("GetNearestPlayer", "Returns the nearest player to a position, or nil."),
             Map.entry("FindNearestEntity", "Returns the nearest matching entity to a position, or nil."),
-            Map.entry("SetBlock", "Sets the block at a position. This method is server-side only."),
+            Map.entry("SetBlock", "Sets the block at a position, loading its chunk by default. This method is server-side only."),
             Map.entry("BreakBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("DestroyBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("PlaySound", "Plays a sound at a position. This method is server-side only."),
@@ -153,8 +159,8 @@ public class WorldModule implements MLuaModule {
 
     private static Map<String, String> createWorldServiceMethods() {
         Map<String, String> methods = new LinkedHashMap<>();
-        methods.put("Current", "Returns the current live world instance.");
-        methods.put("Get", "Returns the live world instance for a dimension identifier.");
+        methods.put("Current", "Returns the client world on the client or the overworld on the server.");
+        methods.put("Get", "Returns the live World instance for a loaded dimension identifier.");
         methods.put("GetAll", "Returns all currently loaded live world instances.");
         methods.put("GetSide", "Returns whether this service belongs to a client or server context.");
         methods.put("GetWeather", "Returns the current world's weather.");
@@ -173,6 +179,22 @@ public class WorldModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.signature("World", "World:IsChunkLoaded(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:LoadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:UnloadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:SetChunkForced(position: Vector3|CFrame, forced: boolean)", "boolean");
+        docs.signature("World", "World:ForceLoadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:IsChunkForced(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:GetEntitiesInChunk(position: Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
+        docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, loadChunk: boolean?)", "boolean");
+        docs.signature("WorldService", "WorldService:Get(dimensionId: string)", "World?");
+        docs.signature("WorldService", "WorldService:GetAll()", "World[]");
+        docs.signature("WorldService", "WorldService:LoadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:UnloadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:SetChunkForced(position: Vector3|CFrame, forced: boolean)", "boolean");
+        docs.signature("WorldService", "WorldService:ForceLoadChunk(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:IsChunkForced(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:GetEntitiesInChunk(position: Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:GetBlockEntity(position: Vector3|CFrame)", "BlockEntity?");
         docs.signature("World", "World:CanSeeSky(position: Vector3|CFrame)", "boolean");
         docs.signature("World", "World:IsRaining()", "boolean");
@@ -192,7 +214,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:GetSkyLight(position: Vector3|CFrame)", "number");
         docs.signature("WorldService", "WorldService:GetBlockLight(position: Vector3|CFrame)", "number");
         docs.signature("WorldService", "WorldService:GetBlockInventory(position: Vector3|CFrame)", "Container?");
-        docs.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, blockId: string)", "boolean");
+        docs.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, blockId: string, loadChunk: boolean?)", "boolean");
         docs.signature("WorldService", "WorldService:BreakBlock(position: Vector3|CFrame, dropItems: boolean?)", "boolean");
         docs.signature("WorldService", "WorldService:PlaySound(position: Vector3|CFrame, sound: string, volume: number?, pitch: number?)", "void");
         docs.signature("WorldService", "WorldService:SpawnParticle(position: Vector3|CFrame, particle: string, count: number?)", "void");
@@ -217,13 +239,24 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed saved MLua tag.");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance with dimension, time, block, entity, and weather APIs.", "classes/world.html", "Level");
+        docs.property("World", "world.Raining", "boolean", "Whether it is raining in this world.", "shared:Shared");
+        docs.property("World", "world.Thundering", "boolean", "Whether a thunderstorm is active in this world.", "shared:Shared");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");
-        docs.guideStep("WorldService", "Use the current world service and live world instance",
-            "The World service forwards the World class methods to the current dimension. Use Current or Get when you need to keep a specific live world instance, such as when working across dimensions.",
+        docs.guideStep("World", "Load and edit chunks in a dimension",
+            "Each World instance is one dimension. LoadChunk loads or generates that dimension's chunk for immediate work. SetBlock loads the target chunk by default; pass false to avoid loading and get false when it is not already loaded. ForceLoadChunk adds a persistent force-load ticket. UnloadChunk removes that ticket, but Minecraft unloads the chunk only after all other tickets are gone.",
+            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal position = Vector3.new(32, 70, -16)\n\nnether:LoadChunk(position)\nnether:SetBlock(position, \"minecraft:lantern\")\n\nnether:ForceLoadChunk(position)\nprint(nether:IsChunkLoaded(position), nether:IsChunkForced(position))\nnether:UnloadChunk(position)");
+        docs.guideStep("World", "Find and remove entities in a chunk",
+            "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances, so use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
+            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = world:SpawnEntity(\"minecraft:zombie\", position)");
+        docs.guideStep("WorldService", "Select the dimension for world operations",
+            "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");
         docs.guideStep("World", "Query surface, sky, and weather around a position",
             "GetSurfaceY reads the motion-blocking height for the X/Z column and returns nil when that chunk is not loaded. CanSeeSky and IsRainingAt use the exact block position.",
-            "local position = Vector3.new(player.Position.X, player.Position.Y, player.Position.Z)\nlocal surfaceY = world:GetSurfaceY(position)\nif surfaceY and world:CanSeeSky(position) and world:IsRainingAt(position) then\n    player:SendMessage(\"The surface is exposed to rain.\")\nend");
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(0, 64, 0)\nlocal surfaceY = world:GetSurfaceY(position)\nif surfaceY then\n    print(\"Surface Y:\", surfaceY)\n    print(\"Sky visible:\", world:CanSeeSky(position))\n    print(\"Rain reaches position:\", world:IsRainingAt(position))\nend");
+        docs.guideStep("World", "Reach a block entity and its container",
+            "GetBlockEntity returns the live registered BlockEntity subclass at a position. Scripted block entities can expose their own methods and a shared Container instance.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal blockEntity = world:GetBlockEntity(Vector3.new(0, 64, 0))\nif blockEntity and blockEntity:HasContainer() then\n    local container = blockEntity:GetContainer()\n    print(\"Slots:\", container:GetSize())\n    for _, slot in ipairs(container:GetAll()) do\n        if not slot:IsEmpty() then\n            print(slot:GetItem():GetId(), slot:GetCount())\n        end\n    end\nend");
     }
 
     @Override

@@ -30,6 +30,7 @@ import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -142,6 +143,36 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.valueOf(level.hasChunkAt(BlockPos.containing(pos[0], pos[1], pos[2])));
       }));
       table.set("IsBlockLoaded", table.get("IsChunkLoaded"));
+      table.set("LoadChunk", serverLevelFn(supplier, (level, args) -> {
+         ChunkPos chunk = chunkPosition(args, 2);
+         level.getChunk(chunk.x, chunk.z);
+         return LuaValue.TRUE;
+      }));
+      table.set("UnloadChunk", serverLevelFn(supplier, (level, args) -> {
+         ChunkPos chunk = chunkPosition(args, 2);
+         return LuaValue.valueOf(level.setChunkForced(chunk.x, chunk.z, false));
+      }));
+      table.set("SetChunkForced", serverLevelFn(supplier, (level, args) -> {
+         ChunkPos chunk = chunkPosition(args, 2);
+         return LuaValue.valueOf(level.setChunkForced(chunk.x, chunk.z, args.checkboolean(2 + coordinateWidth(args, 2))));
+      }));
+      table.set("ForceLoadChunk", serverLevelFn(supplier, (level, args) -> {
+         ChunkPos chunk = chunkPosition(args, 2);
+         return LuaValue.valueOf(level.setChunkForced(chunk.x, chunk.z, true));
+      }));
+      table.set("IsChunkForced", serverLevelFn(supplier, (level, args) -> {
+         ChunkPos chunk = chunkPosition(args, 2);
+         return LuaValue.valueOf(level.getForcedChunks().contains(ChunkPos.asLong(chunk.x, chunk.z)));
+      }));
+      table.set("GetEntitiesInChunk", serverLevelFn(supplier, (level, args) -> {
+         ChunkPos chunk = chunkPosition(args, 2);
+         boolean load = args.optboolean(2 + coordinateWidth(args, 2), true);
+         BlockPos chunkOrigin = new BlockPos(chunk.getMinBlockX(), level.getMinBuildHeight(), chunk.getMinBlockZ());
+         if (!ensureChunkLoaded(level, chunkOrigin, load)) return new LuaTable();
+         AABB bounds = new AABB(chunk.getMinBlockX(), level.getMinBuildHeight(), chunk.getMinBlockZ(),
+            chunk.getMinBlockX() + 16, level.getMaxBuildHeight(), chunk.getMinBlockZ() + 16);
+         return entitiesTable(level, bounds, LuaValue.NIL);
+      }));
 
       table.set("GetTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)level.getDayTime())));
       table.set("GetDayTime", levelFn(supplier, (level, args) -> LuaValue.valueOf((double)(level.getDayTime() % 24000L))));
@@ -344,12 +375,15 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       table.set("SetBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         String blockId = args.checkjstring(2 + coordinateWidth(args, 2));
+         int blockIndex = 2 + coordinateWidth(args, 2);
+         String blockId = args.checkjstring(blockIndex);
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
          Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(blockId)).orElse(null);
          if (block == null) {
             throw new LuaError("[MLua] Unknown block: " + blockId);
          }
-         level.setBlock(BlockPos.containing(pos[0], pos[1], pos[2]), block.defaultBlockState(), 3);
+         if (!ensureChunkLoaded(level, blockPos, args.optboolean(blockIndex + 1, true))) return LuaValue.FALSE;
+         level.setBlock(blockPos, block.defaultBlockState(), 3);
          return LuaValue.TRUE;
       }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
@@ -413,12 +447,14 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (entity == null) {
             throw new LuaError("[MLua] Failed to spawn entity: " + entityId);
          }
+         BlockPos spawnPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!ensureChunkLoaded(level, spawnPosition, true)) return LuaValue.NIL;
          entity.setPos(pos[0], pos[1], pos[2]);
          entity.setYRot((float)yaw);
          entity.setXRot((float)pitch);
          entity.setYHeadRot((float)yaw);
          entity.setYBodyRot((float)yaw);
-         level.addFreshEntity(entity);
+         if (!level.addFreshEntity(entity)) return LuaValue.NIL;
          return wrapEntity(entity);
       }));
       table.set("DropItem", serverLevelFn(supplier, (level, args) -> {
@@ -426,12 +462,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int itemIndex = 2 + coordinateWidth(args, 2);
          String itemId = args.checkjstring(itemIndex);
          int count = args.optint(itemIndex + 1, 1);
+         if (!ensureChunkLoaded(level, BlockPos.containing(pos[0], pos[1], pos[2]), true)) return LuaValue.NIL;
          net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(itemId));
          if (item == null) {
             throw new LuaError("[MLua] Unknown item: " + itemId);
          }
          ItemEntity entity = new ItemEntity(level, pos[0], pos[1], pos[2], new ItemStack(item, Math.max(1, count)));
-         level.addFreshEntity(entity);
+         if (!level.addFreshEntity(entity)) return LuaValue.NIL;
          return wrapEntity(entity);
       }));
       table.set("Explode", serverLevelFn(supplier, (level, args) -> {
@@ -444,12 +481,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       table.set("SpawnLightning", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
+         if (!ensureChunkLoaded(level, BlockPos.containing(pos[0], pos[1], pos[2]), true)) return LuaValue.NIL;
          Entity lightning = EntityType.LIGHTNING_BOLT.create(level);
          if (lightning == null) {
             throw new LuaError("[MLua] Failed to create lightning entity");
          }
          lightning.setPos(pos[0], pos[1], pos[2]);
-         level.addFreshEntity(lightning);
+         if (!level.addFreshEntity(lightning)) return LuaValue.NIL;
          return wrapEntity(lightning);
       }));
 
@@ -721,6 +759,19 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private static int coordinateWidth(Varargs args, int index) {
       return args.arg(index).istable() ? 1 : 3;
+   }
+
+   private static ChunkPos chunkPosition(Varargs args, int index) {
+      double[] position = positionArgs(args, index);
+      return new ChunkPos(BlockPos.containing(position[0], position[1], position[2]));
+   }
+
+   private static boolean ensureChunkLoaded(ServerLevel level, BlockPos position, boolean load) {
+      if (level.hasChunkAt(position)) return true;
+      if (!load) return false;
+      ChunkPos chunk = new ChunkPos(position);
+      level.getChunk(chunk.x, chunk.z);
+      return level.hasChunkAt(position);
    }
 
    private LuaValue levelFn(Supplier<Level> supplier, LevelFunction fn) {
