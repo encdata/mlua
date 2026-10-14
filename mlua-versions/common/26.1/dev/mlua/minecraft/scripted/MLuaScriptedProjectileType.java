@@ -7,11 +7,11 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
-/** 26.1 registry adapter for the Lua projectile shell. */
 public final class MLuaScriptedProjectileType {
     public static final String MOD_ID = "mlua";
     public static final String ENTITY_NAME = "scripted_projectile";
-    private static RegistryHandle<EntityType<MLuaScriptedProjectile>> projectileRegistryObject;
+
+    private static RegistryHandle<EntityType<MLuaScriptedProjectile>> registryHandle;
 
     private MLuaScriptedProjectileType() {}
 
@@ -26,10 +26,10 @@ public final class MLuaScriptedProjectileType {
     }
 
     public static void setRegistryHandle(RegistryHandle<EntityType<MLuaScriptedProjectile>> handle) {
-        projectileRegistryObject = handle;
+        registryHandle = handle;
     }
 
     public static EntityType<MLuaScriptedProjectile> get() {
-        return projectileRegistryObject != null ? projectileRegistryObject.get() : null;
+        return registryHandle == null ? null : registryHandle.get();
     }
 }
