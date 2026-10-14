@@ -164,57 +164,55 @@ public final class MLuaForgeRegistry {
    }
 
    public void setItemVisuals(String modId, String name, MLuaTextureDescriptor texture, String model) {
-      String key = this.key(modId, name);
-      if (texture != null && !texture.isEmpty()) {
-         this.itemTextures.put(key, texture);
-      }
+      this.setItemTexture(modId, name, texture);
+      this.setItemModel(modId, name, model);
+   }
 
-      if (model != null && !model.isBlank()) {
-         this.itemModels.put(key, model);
-      }
+   public void setItemTexture(String modId, String name, MLuaTextureDescriptor texture) {
+      this.setMetadata(this.itemTextures, this.key(modId, name), texture == null || texture.isEmpty() ? null : texture);
+   }
 
+   public void setItemModel(String modId, String name, String model) {
+      this.setMetadata(this.itemModels, this.key(modId, name), model == null || model.isBlank() ? null : model);
    }
 
    public void setItemCopy(String modId, String name, String copy) {
-      String key = this.key(modId, name);
-      if (copy != null && !copy.isBlank()) {
-         this.itemCopies.put(key, copy);
-      }
-
+      this.setMetadata(this.itemCopies, this.key(modId, name), copy == null || copy.isBlank() ? null : copy);
    }
 
    public void setItemCopyModel(String modId, String name, boolean copyModel) {
       String key = this.key(modId, name);
       if (copyModel) {
          this.itemCopyModels.put(key, true);
+      } else {
+         this.itemCopyModels.remove(key);
       }
 
    }
 
    public void setBlockVisuals(String modId, String name, MLuaTextureDescriptor texture, String model) {
-      String key = this.key(modId, name);
-      if (texture != null && !texture.isEmpty()) {
-         this.blockTextures.put(key, texture);
-      }
+      this.setBlockTexture(modId, name, texture);
+      this.setBlockModel(modId, name, model);
+   }
 
-      if (model != null && !model.isBlank()) {
-         this.blockModels.put(key, model);
-      }
+   public void setBlockTexture(String modId, String name, MLuaTextureDescriptor texture) {
+      this.setMetadata(this.blockTextures, this.key(modId, name), texture == null || texture.isEmpty() ? null : texture);
+   }
 
+   public void setBlockModel(String modId, String name, String model) {
+      this.setMetadata(this.blockModels, this.key(modId, name), model == null || model.isBlank() ? null : model);
    }
 
    public void setBlockCopy(String modId, String name, String copy) {
-      String key = this.key(modId, name);
-      if (copy != null && !copy.isBlank()) {
-         this.blockCopies.put(key, copy);
-      }
-
+      this.setMetadata(this.blockCopies, this.key(modId, name), copy == null || copy.isBlank() ? null : copy);
    }
 
    public void setBlockCopyModel(String modId, String name, boolean copyModel) {
       String key = this.key(modId, name);
       if (copyModel) {
          this.blockCopyModels.put(key, true);
+      } else {
+         this.blockCopyModels.remove(key);
       }
 
    }
@@ -740,6 +738,14 @@ public final class MLuaForgeRegistry {
       MLuaResourceNameValidator.validate(modId);
       MLuaResourceNameValidator.validate(name);
       return modId + ":" + name;
+   }
+
+   private <T> void setMetadata(Map<String, T> metadata, String key, T value) {
+      if (value == null) {
+         metadata.remove(key);
+      } else {
+         metadata.put(key, value);
+      }
    }
 
    private <T> T getVisual(Map<String, T> visuals, String namespace, String path, T fallback) {

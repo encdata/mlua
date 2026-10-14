@@ -79,8 +79,8 @@ public class ForgeRegistryBridge implements RegistryBridge {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         MLuaTextureDescriptor texture = new MLuaTextureDescriptor(textures == null ? Map.of() : textures);
         switch (registryKind) {
-            case ITEM -> forgeRegistry.setItemVisuals(modId, name, texture, null);
-            case BLOCK -> forgeRegistry.setBlockVisuals(modId, name, texture, null);
+            case ITEM -> forgeRegistry.setItemTexture(modId, name, texture);
+            case BLOCK -> forgeRegistry.setBlockTexture(modId, name, texture);
         }
     }
 
@@ -98,8 +98,8 @@ public class ForgeRegistryBridge implements RegistryBridge {
     public void setModel(RegistryKind registryKind, String modId, String name, String model) {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         switch (registryKind) {
-            case ITEM -> forgeRegistry.setItemVisuals(modId, name, MLuaTextureDescriptor.empty(), model);
-            case BLOCK -> forgeRegistry.setBlockVisuals(modId, name, MLuaTextureDescriptor.empty(), model);
+            case ITEM -> forgeRegistry.setItemModel(modId, name, model);
+            case BLOCK -> forgeRegistry.setBlockModel(modId, name, model);
         }
     }
 
