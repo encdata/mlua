@@ -23,7 +23,8 @@
     "HumanoidModelMixin",
     "PlayerModelMixin",
     "ScreenLayoutMixin",
-    "ChatLineMixin"
+    "ChatLineMixin",
+    "GuiHudMixin"
   ],
   "injectors": {
     "defaultRequire": 1

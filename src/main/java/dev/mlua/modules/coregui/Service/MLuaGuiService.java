@@ -1022,6 +1022,7 @@ public final class MLuaGuiService implements MLuaService {
             }
         });
         LuaTable vanillaHudElements = new LuaTable();
+        vanillaHudElements.set("Hud", LuaValue.valueOf("Hud"));
         vanillaHudElements.set("Chat", LuaValue.valueOf("Chat"));
         table.set("VanillaHudElements", vanillaHudElements);
         table.set("AttachElementBefore", new VarArgFunction() {
@@ -1376,13 +1377,15 @@ public final class MLuaGuiService implements MLuaService {
     private String attachHudElement(String anchor, String id, boolean before, LuaValue callback) {
         if (this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
         if (id == null || id.isBlank()) throw new LuaError("[MLua] HUD element id must not be empty.");
-        if (!"Chat".equalsIgnoreCase(anchor)) {
-            throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor + "'. The available anchor is 'Chat'.");
-        }
+        String normalizedAnchor = anchor == null ? "" : anchor.trim();
+        String positionAnchor;
+        if ("Hud".equalsIgnoreCase(normalizedAnchor)) positionAnchor = "Hud";
+        else if ("Chat".equalsIgnoreCase(normalizedAnchor)) positionAnchor = "Chat";
+        else throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor + "'. Available anchors: Hud, Chat.");
         if (!callback.isfunction()) throw new LuaError("[MLua] HUD element callback must be a function.");
         String owner = this.context.mlua().ownerModId();
         String key = owner + ":" + id;
-        String position = before ? "BeforeChat" : "AfterChat";
+        String position = (before ? "Before" : "After") + positionAnchor;
         HudElement element = new HudElement(key, owner, position, callback, NEXT_HUD_ELEMENT_ID.getAndIncrement());
         this.state.hudElements.put(key, element);
         return id;
