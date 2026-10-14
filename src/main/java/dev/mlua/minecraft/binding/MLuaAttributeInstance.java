@@ -21,13 +21,13 @@ public final class MLuaAttributeInstance {
         register(registration, "GetId", "Returns this attribute's namespaced identifier.", args -> LuaValue.valueOf(id(args.arg1().checktable())));
         register(registration, "GetValue", "Returns this attribute's effective value after modifiers.", args -> LuaValue.valueOf(attribute(args.arg1().checktable()).getValue()));
         register(registration, "GetBaseValue", "Returns this attribute's base value before modifiers.", args -> LuaValue.valueOf(attribute(args.arg1().checktable()).getBaseValue()));
-        register(registration, "SetBaseValue", "Sets this attribute's base value.", args -> {
-            attribute(args.arg1().checktable()).setBaseValue(args.checkdouble(2));
+        register(registration, "SetBaseValue", "Sets this attribute's base value to a finite number.", args -> {
+            attribute(args.arg1().checktable()).setBaseValue(finiteValue(args.arg(2), "base value"));
             return LuaValue.NONE;
         });
         register(registration, "GetDefaultValue", "Returns this attribute's registered default value.", args -> LuaValue.valueOf(defaultValue(args.arg1().checktable())));
         register(registration, "GetModifiers", "Returns the modifiers currently applied to this attribute.", args -> modifiers(args.arg1().checktable()));
-        register(registration, "AddModifier", "Adds or replaces a transient modifier on this attribute.", args -> addModifier(args.arg1().checktable(), args));
+        register(registration, "AddModifier", "Adds or replaces a transient modifier with a finite amount and operation 0, 1, or 2.", args -> addModifier(args.arg1().checktable(), args));
         register(registration, "RemoveModifier", "Removes a transient modifier by its identifier.", args -> removeModifier(args.arg1().checktable(), args.checkjstring(2)));
         MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Id", "GetId", null,
             "string", "shared:Shared", "This attribute's namespaced identifier.");
@@ -133,8 +133,8 @@ public final class MLuaAttributeInstance {
     private static LuaValue addModifier(LuaTable instance, Varargs args) {
         AttributeInstance attribute = attribute(instance);
         String name = args.checkjstring(2);
-        double amount = args.checkdouble(3);
-        int operation = args.optint(4, 0);
+        double amount = finiteValue(args.arg(3), "modifier amount");
+        int operation = operation(args);
         //--version 1.20.1
         java.util.UUID uuid = MLuaAttributeModifierIds.legacy(name);
         attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
@@ -151,6 +151,24 @@ public final class MLuaAttributeInstance {
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(operation)));
         //--endversion
         return LuaValue.TRUE;
+    }
+
+    public static double finiteValue(LuaValue value, String name) {
+        if (!value.isnumber() || !Double.isFinite(value.todouble())) {
+            throw new LuaError("[MLua] Attribute " + name + " must be a finite number.");
+        }
+        return value.todouble();
+    }
+
+    private static int operation(Varargs args) {
+        LuaValue value = args.arg(4);
+        if (value.isnil()) return 0;
+        if (!value.isnumber()) throw new LuaError("[MLua] Attribute modifier operation must be a whole number from 0 to 2.");
+        double number = value.todouble();
+        if (!Double.isFinite(number) || number != Math.rint(number) || number < 0 || number > 2) {
+            throw new LuaError("[MLua] Attribute modifier operation must be a whole number from 0 to 2.");
+        }
+        return (int)number;
     }
 
     private static LuaValue removeModifier(LuaTable instance, String name) {

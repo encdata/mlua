@@ -508,7 +508,7 @@ public final class MLuaEntityWrapper {
        }));
        MLuaClassMethods.setInstanceMethod(table, "SetAttribute", varArg((args) -> {
           String attrName = args.checkjstring(2);
-          double value = args.checkdouble(3);
+          double value = dev.mlua.minecraft.binding.MLuaAttributeInstance.finiteValue(args.arg(3), "base value");
           //--version 1.21.1
           Holder<net.minecraft.world.entity.ai.attributes.Attribute> attr = BuiltInRegistries.ATTRIBUTE.getHolder(MLuaResourceLocations.parse(attrName)).orElse(null);
           //--endversion

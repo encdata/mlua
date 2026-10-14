@@ -197,7 +197,7 @@ public class PlayersModule implements MLuaModule {
                 case "Heal" -> "Restores health through Minecraft's server-side healing path.";
                 case "GetAttribute" -> "Returns the value of a registered living entity attribute.";
                 case "GetAttributeInstance" -> "Returns a live AttributeInstance for a registered attribute.";
-                case "SetAttribute" -> "Sets the base value of a registered living entity attribute.";
+                case "SetAttribute" -> "Sets a registered living entity attribute to a finite base value.";
                 case "GetEquipment" -> "Returns the item equipped in the given equipment slot.";
                 default -> "Sets the item equipped in the given equipment slot.";
             };
