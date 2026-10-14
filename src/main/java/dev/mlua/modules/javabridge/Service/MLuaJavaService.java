@@ -1567,12 +1567,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return rawValue == null ? Optional.empty() : Optional.ofNullable(
                 convertTypedValue(rawValue, typeArgument(targetType, 0)));
         }
-        if (rawValue == null) {
-            if (rawType.isPrimitive()) {
-                throw new LuaError("[MLua] Cannot assign nil to Java primitive type " + rawType.getName());
-            }
-            return null;
-        }
+        if (rawValue == null) return convertValue(null, rawType);
         if (rawType.isArray() && !(rawValue.getClass().isArray() || rawValue instanceof Iterable<?>)) {
             throw new LuaError("[MLua] Java array parameters require a dense Lua array table, Java array, or Java collection; got "
                 + rawValue.getClass().getName());
@@ -1648,6 +1643,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     private Object convertValue(Object rawValue, Class<?> targetType) {
         if (rawValue == null) {
+            if (targetType.isPrimitive()) {
+                throw new LuaError("[MLua] Cannot assign nil to Java primitive type " + targetType.getName());
+            }
             return null;
         }
         if (targetType.isInstance(rawValue)) {
