@@ -237,6 +237,7 @@ public final class MLuaRuntime implements MLuaRegistration {
                this.execute(script, Side.CLIENT, RegistrationPhase.RUNTIME, this.session.server());
             }
          } catch (Throwable throwable) {
+            if (script.type().isMixin()) this.unregisterMixinScope(script.path());
             this.reportRuntimeFailure("Resource-pack script '" + script.displayName() + "' failed during reload", throwable);
          }
       }
@@ -602,6 +603,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          }
          this.registryScriptRegistrations.put(key, registration);
       } catch (RuntimeException | Error failure) {
+         this.unregisterMixinScope(key);
          registration.rollback();
          throw failure;
       }
@@ -643,6 +645,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          try {
             this.execute(script, mixinSide, RegistrationPhase.MIXIN, null);
          } catch (LuaError error) {
+            this.unregisterMixinScope(script.path());
             MLuaLogger.LOGGER.error("{} mixin script '{}' failed and was skipped: {}",
                mixinSide == Side.CLIENT ? "Client" : "Server", script.displayName(), error.getMessage());
             this.reportRuntimeFailure("Mixin script '" + script.displayName() + "' failed", error);
@@ -654,6 +657,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          try {
             this.executeEntrypoint(script, Side.SERVER, RegistrationPhase.MIXIN, (MinecraftServer)null);
          } catch (LuaError var3) {
+            this.unregisterMixinScope(script.path());
             MLuaLogger.LOGGER.error("Mixin entrypoint script '{}' failed and was skipped: {}", script.displayName(), var3.getMessage());
             this.reportRuntimeFailure("Mixin entrypoint script '" + script.displayName() + "' failed", var3);
          }
