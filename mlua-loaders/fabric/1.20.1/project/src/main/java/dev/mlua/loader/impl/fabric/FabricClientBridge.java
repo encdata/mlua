@@ -12,6 +12,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.model.geom.ModelLayerLocation;
+import net.minecraft.client.model.geom.builders.LayerDefinition;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWMouseButtonCallbackI;
 import org.lwjgl.glfw.GLFWScrollCallbackI;
@@ -43,11 +46,17 @@ public final class FabricClientBridge implements ClientBridge {
 
     @Override
     public void registerKeyBinding(Object keyMapping) {
+        if (!(keyMapping instanceof KeyMapping)) {
+            throw new IllegalArgumentException("Fabric key binding must be a Minecraft KeyMapping");
+        }
         keyBindings.add(keyMapping);
     }
 
     @Override
     public void registerModelLayer(Object layerLocation, Object modelPart) {
+        if (!(layerLocation instanceof ModelLayerLocation) || !(modelPart instanceof LayerDefinition)) {
+            throw new IllegalArgumentException("Fabric model layers require a ModelLayerLocation and LayerDefinition");
+        }
         modelLayers.add(new Object[]{layerLocation, modelPart});
     }
 
