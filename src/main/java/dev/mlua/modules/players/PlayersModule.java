@@ -57,15 +57,7 @@ public class PlayersModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder players = ServiceEntry.builder("Players", MLuaPlayersService::new)
-            .description("Manages player connections and provides player instances.");
-        players.function("GetLocalPlayer", "Returns the local player on the client, or nil on the server.")
-            .function("GetPlayers", "Returns the live player instances currently connected.")
-            .function("GetPlayerByName", "Finds a connected player by exact name, or returns nil.")
-            .function("GetPlayerByUUID", "Finds a connected player by UUID, or returns nil.")
-            .function("GetPlayerById", "Finds a connected player by numeric entity id, or returns nil.")
-            .function("GetPlayerCount", "Returns the number of connected players.")
-            .function("GetMaxPlayers", "Returns the server's maximum player count; returns zero on the client.")
-            .function("Broadcast", "Sends a system chat message to every player; server-side only.");
+            .reflective(MLuaPlayersService.class);
         return List.of(players.build());
     }
 

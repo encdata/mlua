@@ -114,16 +114,7 @@ public class InputModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder input = ServiceEntry.builder("InputService", MLuaInputService::new)
-            .description("Provides client input state and input change events.");
-        input.function("RegisterKeybind", "Registers one keybind for the calling mod.")
-            .function("RegisterKeybinds", "Registers several keybinds from a keyed definition table.")
-            .function("ListenForKeybind", "Returns the change signal for a keybind registered by this mod.")
-            .function("IsKeyDown", "Returns whether a registered or Minecraft keybind is currently pressed.")
-            .function("SetKeybind", "Changes the key assigned to a registered keybind.")
-            .function("GetKeybind", "Returns the live keybind record for a registered or Minecraft keybind.")
-            .function("GetKeybinds", "Returns keybinds registered by the calling mod and available Minecraft keybinds.")
-            .function("GetMinecraftKeybind", "Returns a Minecraft keybind by name, or nil when missing.")
-            .function("GetMinecraftKeybinds", "Returns the available Minecraft keybinds.");
+            .reflective(MLuaInputService.class);
         return List.of(input.build());
     }
 

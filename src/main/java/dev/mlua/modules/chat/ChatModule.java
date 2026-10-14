@@ -45,17 +45,7 @@ public class ChatModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder chat = ServiceEntry.builder("Chat", MLuaChatService::new)
-            .description("Server chat messaging, moderation, history, and message events.");
-        chat.function("Broadcast", "Sends a chat message to every online player.")
-            .function("SendMessage", "Sends a chat message to one online player by name.")
-            .function("MutePlayer", "Prevents a player from sending chat; duration is in seconds, or omitted for a permanent mute.")
-            .function("UnmutePlayer", "Allows a muted player to send chat again.")
-            .function("IsMuted", "Returns whether a player is currently muted.")
-            .function("GetMutedPlayers", "Returns the names of currently muted players.")
-            .function("GetMessageHistory", "Returns recent recorded chat messages for a player.")
-            .function("ClearChat", "Clears a player's visible chat by sending blank lines.")
-            .function("GetOnlinePlayers", "Returns the names of online players.")
-            .function("BroadcastToPermission", "Sends a message to server operators, or to everyone when permission is empty.");
+            .reflective(MLuaChatService.class);
         return List.of(chat.build());
     }
 

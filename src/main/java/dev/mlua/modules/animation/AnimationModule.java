@@ -37,15 +37,7 @@ public class AnimationModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder animation = ServiceEntry.builder("Animation", MLuaAnimationService::new)
-            .description("Service for creating and managing animations.");
-        animation.function("Create", "Creates an animation from an ordered keyframe table.")
-            .function("RegisterAnimation", "Stores an animation under an identifier for later retrieval.")
-            .function("GetAnimation", "Returns a registered animation by identifier, or nil when missing.")
-            .function("GetRegisteredAnimations", "Returns all animations registered in this service instance.")
-            .function("GetPose", "Returns the current custom pose for an entity.")
-            .function("SetPose", "Sets a custom transform for one entity bone.")
-            .function("ClearPose", "Clears custom pose overrides for an entity.")
-            .function("GetAnimationPriority", "Returns the available animation priorities.");
+            .reflective(MLuaAnimationService.class);
         return List.of(animation.build());
     }
 

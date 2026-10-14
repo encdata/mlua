@@ -35,29 +35,7 @@ public class CameraModule implements MLuaModule {
     public List<ServiceEntry> services() {
         if (!LoaderApi.platform().isClient()) return List.of();
         ServiceEntry.Builder camera = ServiceEntry.builder("Camera", MLuaCameraService::new)
-            .description("Client-side camera service.");
-        camera.function("GetCFrame", "Returns the current camera transform.")
-            .function("SetCFrame", "Sets the scriptable camera transform.")
-            .function("GetPosition", "Returns the current camera position.")
-            .function("SetPosition", "Sets the scriptable camera position while keeping its current look direction.")
-            .function("GetLookVector", "Returns the current camera forward direction.")
-            .function("LookAt", "Turns the camera toward a position or entity.")
-            .function("GetFOV", "Returns the camera field of view.")
-            .function("SetFOV", "Sets the camera field of view.")
-            .function("GetFOVMultiplier", "Returns the current field-of-view multiplier.")
-            .function("SetFOVMultiplier", "Sets the field-of-view multiplier.")
-            .function("MultiplyFOV", "Multiplies the current field of view by a value.")
-            .function("GetSubject", "Returns the camera subject, if one is set.")
-            .function("SetSubject", "Sets the camera subject to an entity or player, or resets it to the local player when nil.")
-            .function("GetMode", "Returns the current camera control mode.")
-            .function("SetMode", "Sets the camera control mode.")
-            .function("GetViewMode", "Returns the current first-person or third-person view mode.")
-            .function("SetViewMode", "Sets the first-person or third-person view mode.")
-            .function("SetRightHandOffset", "Sets the first-person right-hand camera offset.")
-            .function("GetRightHandOffset", "Returns the first-person right-hand camera offset.")
-            .function("SetLeftHandOffset", "Sets the first-person left-hand camera offset.")
-            .function("GetLeftHandOffset", "Returns the first-person left-hand camera offset.")
-            .function("Reset", "Clears scriptable camera overrides.");
+            .reflective(MLuaCameraService.class);
         return List.of(camera.build());
     }
 }
