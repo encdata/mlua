@@ -5,7 +5,9 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.Map;
 
@@ -883,11 +885,6 @@ public interface MLuaRegistration {
         if (instance.rawget("__mlua_instance_initializing").toboolean()) {
             throw new IllegalStateException("Lua class instance '" + className + "' is already initializing");
         }
-        LuaValue initializer = type.get("Init");
-        if (initializer.isfunction() && classMethodDescription(className, "Init") == null) {
-            throw new IllegalStateException("Lua class '" + className
-                + "' defines Init without registering its description");
-        }
         if (initialFields != null) {
             LuaValue key = LuaValue.NIL;
             while (true) {
@@ -919,15 +916,61 @@ public interface MLuaRegistration {
                     instance.set(key, next.arg(2));
                 }
             }
-            if (initializer.isfunction()) {
-                LuaTable fields = initialFields == null ? new LuaTable() : initialFields;
-                initializer.invoke(LuaValue.varargsOf(new LuaValue[]{instance, fields}));
-            }
+            LuaTable fields = initialFields == null ? new LuaTable() : initialFields;
+            initializeClassInitializers(instance, className, fields);
             instance.rawset("__mlua_instance_initialized", LuaValue.TRUE);
             return instance;
         } finally {
             instance.rawset("__mlua_instance_initializing", LuaValue.NIL);
         }
+    }
+
+    default void initializeClassInitializers(LuaTable instance, String className, LuaTable fields) {
+        List<LuaValue> initializers = new ArrayList<>();
+        collectClassInitializers(this, className, new HashSet<>(), initializers);
+        for (LuaValue initializer : initializers) {
+            initializer.invoke(LuaValue.varargsOf(new LuaValue[]{instance, fields}));
+        }
+    }
+
+    private static void collectClassInitializers(MLuaRegistration registration, String className,
+                                                 Set<String> visited, List<LuaValue> initializers) {
+        if (!visited.add(className)) return;
+        LuaTable type = registration.classTable(className);
+        if (type == null) return;
+        LuaValue parentsValue = type.rawget("__mlua_doc_parents");
+        if (parentsValue.istable()) {
+            LuaTable parents = parentsValue.checktable();
+            for (int index = 1; index <= parents.length(); index++) {
+                collectClassInitializers(registration, parents.get(index).optjstring(""), visited, initializers);
+            }
+        }
+        LuaValue initializer = type.rawget("Init");
+        LuaTable descriptionOwner = type;
+        if (!initializer.isfunction()) {
+            LuaValue mixinsValue = type.rawget("__mlua_doc_mixins");
+            if (mixinsValue.istable()) {
+                LuaTable mixins = mixinsValue.checktable();
+                for (int index = 1; index <= mixins.length(); index++) {
+                    LuaTable mixin = registration.behaviorMixinTable(mixins.get(index).optjstring(""));
+                    LuaValue candidate = mixin == null ? LuaValue.NIL : mixin.get("Init");
+                    if (candidate.isfunction()) {
+                        initializer = candidate;
+                        descriptionOwner = mixin;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!initializer.isfunction()) return;
+        LuaValue descriptionsValue = descriptionOwner.rawget("__mlua_doc_methods");
+        LuaValue description = descriptionsValue.istable()
+            ? descriptionsValue.checktable().rawget("Init") : LuaValue.NIL;
+        if (!description.isstring() || description.tojstring().isBlank()) {
+            throw new IllegalStateException("Lua class '" + className
+                + "' defines Init without registering its description");
+        }
+        initializers.add(initializer);
     }
 
     default LuaTable createClassInstance(String className) {

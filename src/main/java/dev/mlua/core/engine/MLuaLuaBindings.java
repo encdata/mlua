@@ -734,19 +734,11 @@ public final class MLuaLuaBindings {
                      if (description.isstring()) instance.rawset("__mlua_doc_description", description);
                      registration.attachClassInstance(instance, className, registration.serviceBaseClassName());
                      context.recordMaterializedService(serviceName, instance);
-                     LuaValue initializer = serviceClass.get("Init");
-                     if (initializer.isfunction()) {
-                        if (registration.classMethodDescription(className, "Init") == null) {
-                           context.forgetMaterializedService(serviceName, instance);
-                           throw new LuaError("[MLua] Lua-backed service '" + serviceName
-                               + "' defines Init without registering its description.");
-                        }
-                        try {
-                           initializer.invoke(LuaValue.varargsOf(new LuaValue[]{instance, new LuaTable()}));
-                        } catch (RuntimeException | Error failure) {
-                           context.forgetMaterializedService(serviceName, instance);
-                           throw failure;
-                        }
+                     try {
+                        registration.initializeClassInitializers(instance, className, new LuaTable());
+                     } catch (RuntimeException | Error failure) {
+                        context.forgetMaterializedService(serviceName, instance);
+                        throw failure;
                      }
                      return instance;
                   };
