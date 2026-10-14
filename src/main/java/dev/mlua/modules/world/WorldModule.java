@@ -297,6 +297,7 @@ public class WorldModule implements MLuaModule {
     public void contributeGlobals(Globals globals, MLuaContextView context) {
         globals.set("Level", context.registration().classTable("Level"));
         globals.set("World", context.registration().classTable("World"));
+        globals.set("BlockState", context.registration().classTable("BlockState"));
         globals.set("Chunk", context.registration().classTable("Chunk"));
     }
 
