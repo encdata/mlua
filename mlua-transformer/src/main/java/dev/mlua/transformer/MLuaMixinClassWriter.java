@@ -162,7 +162,8 @@ public final class MLuaMixinClassWriter {
 
    private static void injectBeforeInvocation(MethodNode method, MLuaMixinRule rule) {
       if (hasBridgeCallback(method, rule.callbackId())) return;
-      InvocationTarget target = InvocationTarget.parse(rule.redirectTarget());
+      InvocationTarget target = parseInvocationTarget(rule.redirectTarget());
+      if (target == null) throw new IllegalArgumentException("Invoke injection requires an exact invocation target");
       List<AbstractInsnNode> calls = new ArrayList<>();
       for (AbstractInsnNode instruction = method.instructions.getFirst(); instruction != null; instruction = instruction.getNext()) {
          if (instruction instanceof MethodInsnNode invocation
@@ -374,7 +375,7 @@ public final class MLuaMixinClassWriter {
 
       if (count > 0) {
          LOGGER.info("[MLua] Applied Redirect in {}#{} for {}#{}{} ({} call(s))",
-            rule.targetClassName(), method.name, target.owner(), target.method(), target.descriptor(), count);
+            rule.targetClassName(), method.name, target.owner(), target.name(), target.descriptor(), count);
       } else {
          throw new IllegalStateException("[MLua] Redirect target " + rule.redirectTarget()
             + (matchingCalls == 0 ? " did not match a call" : " matched only constructor calls that cannot be redirected")
@@ -495,7 +496,7 @@ public final class MLuaMixinClassWriter {
 
       if (count > 0) {
          LOGGER.info("[MLua] Applied ModifyArg in {}#{} for {}#{}{} argument {} ({} call(s))",
-            rule.targetClassName(), method.name, target.owner(), target.method(), target.descriptor(), targetArgIndex, count);
+            rule.targetClassName(), method.name, target.owner(), target.name(), target.descriptor(), targetArgIndex, count);
       } else {
          String reason = matchingCalls == 0 ? "did not match a call"
             : matchingArguments == 0 ? "has no argument at index " + targetArgIndex
@@ -507,7 +508,7 @@ public final class MLuaMixinClassWriter {
 
    private static boolean matchesTarget(MethodInsnNode invocation, InvocationTarget target) {
       return target != null && invocation.owner.equals(target.owner())
-         && invocation.name.equals(target.method()) && invocation.desc.equals(target.descriptor());
+         && invocation.name.equals(target.name()) && invocation.desc.equals(target.descriptor());
    }
 
    private static InvocationTarget parseInvocationTarget(String target) {
@@ -520,8 +521,6 @@ public final class MLuaMixinClassWriter {
       return new InvocationTarget(target.substring(1, ownerEnd),
          target.substring(ownerEnd + 1, descriptorStart), descriptor);
    }
-
-   private record InvocationTarget(String owner, String method, String descriptor) { }
 
    private static InsnList modifyArgumentInvoke(String callbackId, MethodNode method,
                                                 MethodInsnNode invocation, int argumentIndex) {
