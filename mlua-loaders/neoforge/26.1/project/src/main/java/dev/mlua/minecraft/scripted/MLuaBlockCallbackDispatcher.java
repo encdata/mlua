@@ -13,7 +13,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -79,13 +78,34 @@ public final class MLuaBlockCallbackDispatcher {
         }
         try {
             LuaTable ctx = baseContext(level, pos, entity instanceof Player player ? player : null);
-            if (entity instanceof LivingEntity living) {
-                ctx.set("Entity", MLuaEntityWrapper.entityTable(living, MLuaRuntime.registrationForLevel(level)));
-            }
+            ctx.set("Entity", MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(level)));
             onStepOn.invoke(ctx);
         } catch (Exception ex) {
             MLuaLogger.LOGGER.error("MLua block onStepOn callback failed for '{}': {}", behaviorKey, ex.getMessage());
         }
+    }
+
+    public static void fireCallback(String callbackName, Level level, BlockPos pos, LuaTable context) {
+        if (level.isClientSide()) return;
+        String behaviorKey = behaviorKey(level, pos);
+        if (behaviorKey == null) return;
+        LuaValue callback = MLuaBehaviorRegistry.getBehavior("block", behaviorKey, callbackName);
+        if (callback.isnil()) return;
+        try {
+            callback.invoke(context);
+        } catch (Exception exception) {
+            MLuaLogger.LOGGER.error("MLua block {} callback failed for '{}': {}", callbackName, behaviorKey, exception.getMessage());
+        }
+    }
+
+    public static LuaTable eventContext(Level level, BlockPos pos) {
+        return baseContext(level, pos, null);
+    }
+
+    public static LuaTable entityContext(Level level, BlockPos pos, Entity entity) {
+        LuaTable context = baseContext(level, pos, entity instanceof Player player ? player : null);
+        context.set("Entity", MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(level)));
+        return context;
     }
 
     private static LuaTable baseContext(Level level, BlockPos pos, Player player) {
