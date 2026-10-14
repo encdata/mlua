@@ -242,6 +242,16 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxStackSize", getMaxStackSize, "Returns the maximum stack size for this item.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxCount", getMaxStackSize, "Compatibility alias for GetMaxStackSize.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getMaxDamage())), "Returns the maximum durability damage for this item.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetRemainingDurability", selfItem((self, ignored) -> {
+            MCItemStack item = stack(self);
+            return LuaValue.valueOf(item.isDamageableItem() ? Math.max(0, item.getMaxDamage() - item.getDamageValue()) : 0);
+         }), "Returns remaining durability, or zero for items without durability.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamagePercent", selfItem((self, ignored) -> {
+            MCItemStack item = stack(self);
+            return LuaValue.valueOf(item.isDamageableItem() ? (double)item.getDamageValue() / item.getMaxDamage() : 0.0);
+         }), "Returns durability damage as a fraction from zero to one.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEnchantable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isEnchantable())), "Returns whether this stack can receive enchantments.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsStackable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isStackable())), "Returns whether this stack can be stacked with another matching stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getDamageValue())), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", selfItem((self, args) -> {
             stack(self).setDamageValue(args.checkint(2));
@@ -362,9 +372,13 @@ public final class MLuaItemWrapper {
               {"Count", "GetCount", "SetCount", "number", "The number of items in this stack."},
               {"MaxStackSize", "GetMaxStackSize", null, "number", "The maximum stack size for this item."},
               {"MaxDamage", "GetMaxDamage", null, "number", "The maximum durability damage for this item."},
+              {"RemainingDurability", "GetRemainingDurability", null, "number", "Remaining durability, or zero for an item without durability."},
+              {"DamagePercent", "GetDamagePercent", null, "number", "Durability damage as a fraction from zero to one."},
               {"Damage", "GetDamage", "SetDamage", "number", "This item's current durability damage."},
               {"Empty", "IsEmpty", null, "boolean", "Whether this stack contains no items."},
               {"Damageable", "IsDamageable", null, "boolean", "Whether this item has durability."},
+              {"Enchantable", "IsEnchantable", null, "boolean", "Whether this item stack can receive enchantments."},
+              {"Stackable", "IsStackable", null, "boolean", "Whether this stack can be stacked with a matching stack."},
               {"HasTag", "GetHasTag", null, "boolean", "Whether this item has NBT data."},
               {"DisplayName", "GetDisplayName", "SetDisplayName", "string", "This item's display name."},
               {"Lore", "GetLore", "SetLore", "table", "This item's lore lines."},

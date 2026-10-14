@@ -43,7 +43,9 @@ public class WorldModule implements MLuaModule {
             {"GameTime", "GetGameTime", null, "number", "The total number of ticks this world has been running."},
             {"SpawnPosition", "GetSpawnPosition", null, "Vector3", "This world's shared spawn position."},
             {"Weather", "GetWeather", "SetWeather", "Weather", "This world's current weather."},
-            {"Difficulty", "GetDifficulty", "SetDifficulty", "Difficulty", "This world's difficulty."}
+            {"Difficulty", "GetDifficulty", "SetDifficulty", "Difficulty", "This world's difficulty."},
+            {"Raining", "IsRaining", null, "boolean", "Whether it is raining in this world."},
+            {"Thundering", "IsThundering", null, "boolean", "Whether a thunderstorm is active in this world."}
         };
         for (String[] property : properties) {
             MLuaClassMethods.registerInstanceProperty(registration, "World", property[0], property[1], property[2],
@@ -79,12 +81,18 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetDifficulty", "Returns this world's difficulty."),
             Map.entry("SetDifficulty", "Sets the server difficulty."),
             Map.entry("GetBlock", "Returns the live block instance at a position."),
+            Map.entry("GetBlockEntity", "Returns the live block entity at a position, or nil."),
             Map.entry("GetBlockState", "Returns the live block instance at a position."),
             Map.entry("GetFluid", "Returns the fluid identifier at a position, or nil when empty."),
             Map.entry("GetBiome", "Returns the biome identifier at a position."),
             Map.entry("GetLightLevel", "Returns the maximum local light level at a position."),
             Map.entry("GetSkyLight", "Returns the sky light level at a position."),
             Map.entry("GetBlockLight", "Returns the block light level at a position."),
+            Map.entry("CanSeeSky", "Returns whether the sky is visible from a position."),
+            Map.entry("IsRaining", "Returns whether it is raining in this world."),
+            Map.entry("IsThundering", "Returns whether a thunderstorm is active in this world."),
+            Map.entry("IsRainingAt", "Returns whether rain reaches a position."),
+            Map.entry("GetSurfaceY", "Returns the motion-blocking surface height at an X/Z column, or nil when its chunk is not loaded."),
             Map.entry("Raycast", "Returns the first block hit by a ray from the given origin."),
             Map.entry("GetPlayers", "Returns the players currently in this world."),
             Map.entry("GetEntities", "Returns the entities currently in this world."),
@@ -165,6 +173,18 @@ public class WorldModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.signature("World", "World:GetBlockEntity(position: Vector3|CFrame)", "BlockEntity?");
+        docs.signature("World", "World:CanSeeSky(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:IsRaining()", "boolean");
+        docs.signature("World", "World:IsThundering()", "boolean");
+        docs.signature("World", "World:IsRainingAt(position: Vector3|CFrame)", "boolean");
+        docs.signature("World", "World:GetSurfaceY(position: Vector3|CFrame)", "number?");
+        docs.signature("WorldService", "WorldService:GetBlockEntity(position: Vector3|CFrame)", "BlockEntity?");
+        docs.signature("WorldService", "WorldService:CanSeeSky(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:IsRaining()", "boolean");
+        docs.signature("WorldService", "WorldService:IsThundering()", "boolean");
+        docs.signature("WorldService", "WorldService:IsRainingAt(position: Vector3|CFrame)", "boolean");
+        docs.signature("WorldService", "WorldService:GetSurfaceY(position: Vector3|CFrame)", "number?");
         docs.signature("WorldService", "WorldService:GetBlock(position: Vector3|CFrame)", "Block");
         docs.signature("WorldService", "WorldService:GetFluid(position: Vector3|CFrame)", "string?");
         docs.signature("WorldService", "WorldService:GetBiome(position: Vector3|CFrame)", "string");
@@ -192,15 +212,18 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "exclude_players", "boolean", "Exclude player entities when true.");
         docs.field("EntityQuery", "alive", "boolean", "Require the entity's alive state to match.");
         docs.field("EntityQuery", "name", "string", "Require an exact entity name.");
-        docs.field("EntityQuery", "tag", "string", "Require this Minecraft entity tag.");
-        docs.field("EntityQuery", "tags", "string[]", "Require every listed Minecraft entity tag.");
-        docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed tag.");
+        docs.field("EntityQuery", "tag", "string", "Require this saved MLua entity tag.");
+        docs.field("EntityQuery", "tags", "string[]", "Require every listed saved MLua entity tag.");
+        docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed saved MLua tag.");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance with dimension, time, block, entity, and weather APIs.", "classes/world.html", "Level");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");
         docs.guideStep("WorldService", "Use the current world service and live world instance",
             "The World service forwards the World class methods to the current dimension. Use Current or Get when you need to keep a specific live world instance, such as when working across dimensions.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");
+        docs.guideStep("World", "Query surface, sky, and weather around a position",
+            "GetSurfaceY reads the motion-blocking height for the X/Z column and returns nil when that chunk is not loaded. CanSeeSky and IsRainingAt use the exact block position.",
+            "local position = Vector3.new(player.Position.X, player.Position.Y, player.Position.Z)\nlocal surfaceY = world:GetSurfaceY(position)\nif surfaceY and world:CanSeeSky(position) and world:IsRainingAt(position) then\n    player:SendMessage(\"The surface is exposed to rain.\")\nend");
     }
 
     @Override

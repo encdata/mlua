@@ -331,7 +331,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetAbsorption", luaFn(() -> LuaValue.valueOf(entity.getAbsorptionAmount())));
       MLuaClassMethods.setInstanceMethod(table, "SetAbsorption", varArg((args) -> {
-         entity.setAbsorptionAmount(Math.max(0.0F, args.checkfloat(2)));
+         entity.setAbsorptionAmount(Math.max(0.0F, (float)args.checkdouble(2)));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GiveEffect", varArg((args) -> {

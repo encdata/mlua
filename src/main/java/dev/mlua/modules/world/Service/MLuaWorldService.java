@@ -55,6 +55,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -202,6 +203,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
          double[] pos = positionArgs(args, 2);
          return MLuaBlockWrapper.blockTable(level, BlockPos.containing(pos[0], pos[1], pos[2]), context.mlua().registration());
       }));
+      table.set("GetBlockEntity", levelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         LuaTable block = MLuaBlockWrapper.blockTable(level, BlockPos.containing(pos[0], pos[1], pos[2]), context.mlua().registration());
+         return block.get("BlockEntity");
+      }));
       table.set("GetBlockState", table.get("GetBlock"));
       table.set("GetFluid", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
@@ -230,6 +236,22 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetBlockLight", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          return LuaValue.valueOf(level.getBrightness(LightLayer.BLOCK, BlockPos.containing(pos[0], pos[1], pos[2])));
+      }));
+      table.set("CanSeeSky", levelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         return LuaValue.valueOf(level.canSeeSky(BlockPos.containing(pos[0], pos[1], pos[2])));
+      }));
+      table.set("IsRaining", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isRaining())));
+      table.set("IsThundering", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isThundering())));
+      table.set("IsRainingAt", levelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         return LuaValue.valueOf(level.isRainingAt(BlockPos.containing(pos[0], pos[1], pos[2])));
+      }));
+      table.set("GetSurfaceY", levelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         BlockPos column = BlockPos.containing(pos[0], level.getMinBuildHeight(), pos[2]);
+         if (!level.hasChunkAt(column)) return LuaValue.NIL;
+         return LuaValue.valueOf(level.getHeight(Heightmap.Types.MOTION_BLOCKING, column.getX(), column.getZ()));
       }));
       table.set("Raycast", levelFn(supplier, (level, args) -> {
          double[] origin = positionArgs(args, 2);
