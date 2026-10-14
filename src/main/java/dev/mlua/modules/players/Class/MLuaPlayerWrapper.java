@@ -861,7 +861,7 @@ public final class MLuaPlayerWrapper {
       return MLuaMinecraftEnums.gameModeOf(raw.gameMode.getGameModeForPlayer());
    }
 
-   private static LuaValue clientGameMode(AbstractClientPlayer player) {
+   private static LuaValue clientGameMode(net.minecraft.world.entity.player.Player player) {
       net.minecraft.client.Minecraft minecraft = MLuaMinecraftClient.instance();
       if (minecraft.getConnection() == null) return LuaValue.valueOf("unknown");
       var playerInfo = minecraft.getConnection().getPlayerInfo(player.getUUID());
