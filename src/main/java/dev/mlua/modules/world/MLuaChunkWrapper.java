@@ -27,12 +27,33 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.lang.ref.WeakReference;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class MLuaChunkWrapper {
+    private static final Map<MLuaRegistration, Map<Level, Map<Long, WeakReference<LuaTable>>>> CHUNK_INSTANCES = new WeakHashMap<>();
+
     private MLuaChunkWrapper() {
     }
 
     public static LuaTable chunkTable(Level level, ChunkPos position, MLuaRegistration registration) {
+        long key = ((long)chunkX(position) << 32) | (chunkZ(position) & 0xffffffffL);
+        synchronized (CHUNK_INSTANCES) {
+            Map<Level, Map<Long, WeakReference<LuaTable>>> worlds = CHUNK_INSTANCES.computeIfAbsent(registration, ignored -> new WeakHashMap<>());
+            Map<Long, WeakReference<LuaTable>> chunks = worlds.computeIfAbsent(level, ignored -> new HashMap<>());
+            WeakReference<LuaTable> reference = chunks.get(key);
+            LuaTable cached = reference == null ? null : reference.get();
+            if (cached != null && registration.isInstanceOf(cached, "Chunk")) return cached;
+            chunks.entrySet().removeIf(entry -> entry.getValue().get() == null);
+            LuaTable chunk = createChunkTable(level, position, registration);
+            chunks.put(key, new WeakReference<>(chunk));
+            return chunk;
+        }
+    }
+
+    private static LuaTable createChunkTable(Level level, ChunkPos position, MLuaRegistration registration) {
         LuaTable fields = new LuaTable();
         fields.set("__level", LuaValue.userdataOf(level));
         fields.set("__chunkX", LuaValue.valueOf(chunkX(position)));
