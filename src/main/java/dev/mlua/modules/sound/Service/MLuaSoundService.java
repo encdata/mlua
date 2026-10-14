@@ -157,14 +157,14 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         double followOffsetY = 0.0;
         double followOffsetZ = 0.0;
         LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
-        if (position.istable()) {
+        if (!position.isnil()) {
             LuaTable pos = position.checktable();
             x = component(pos, "X");
             y = component(pos, "Y");
             z = component(pos, "Z");
         }
         LuaValue followOffset = firstNonNil(props.get("FollowOffset"), props.get("followOffset"));
-        if (followOffset.istable()) {
+        if (!followOffset.isnil()) {
             LuaTable offset = followOffset.checktable();
             followOffsetX = component(offset, "X");
             followOffsetY = component(offset, "Y");
@@ -267,6 +267,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     }
 
     private static double component(LuaTable table, String key) {
+        if (!MLuaVector.isVector3(table)) throw new LuaError("[MLua] Sound positions and offsets require Vector3 values");
         LuaValue value = table.get(key);
         if (value.isnil()) {
             value = table.get(key.toLowerCase());

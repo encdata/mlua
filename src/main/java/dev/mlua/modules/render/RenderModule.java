@@ -51,8 +51,15 @@ public final class RenderModule implements MLuaModule {
             "classes/render-object.html", "Instance");
         docs.signature("RenderService", "RenderService:CreateRect(properties: RenderObjectProperties?)", "RenderObject");
         docs.signature("RenderService", "RenderService:CreateText(text: string, properties: RenderObjectProperties?)", "RenderObject");
-        docs.signature("RenderService", "RenderService:CreateWorldText(text: string, position: Vector3, properties: RenderObjectProperties?)", "RenderObject");
-        docs.signature("RenderService", "RenderService:CreateWorldLine(start: Vector3, finish: Vector3, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldRect(position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldText(text: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldImage(resource: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldItem(itemId: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldBlock(blockId: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldBillboard(resource: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldLine(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldBeam(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderService", "RenderService:CreateWorldBox(center: Vector3|CFrame, size: Vector3, properties: RenderObjectProperties?)", "RenderObject");
         docs.type("RenderObjectProperties", null, "Initial properties accepted when a render object is created.");
         docs.field("RenderObjectProperties", "Position", "Vector2", "Initial screen position.");
         docs.field("RenderObjectProperties", "Size", "Vector2", "Initial screen width and height.");

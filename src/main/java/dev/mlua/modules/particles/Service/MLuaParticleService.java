@@ -155,9 +155,9 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         double spreadZ = firstNonNil(props.get("SpreadZ"), props.get("spreadZ"))
             .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
         LuaValue velocity = firstNonNil(props.get("Velocity"), props.get("velocity"));
-        double velocityX = velocity.istable() ? component(velocity.checktable(), "X") : 0.0;
-        double velocityY = velocity.istable() ? component(velocity.checktable(), "Y") : 0.0;
-        double velocityZ = velocity.istable() ? component(velocity.checktable(), "Z") : 0.0;
+        double velocityX = velocity.isnil() ? 0.0 : component(velocity.checktable(), "X");
+        double velocityY = velocity.isnil() ? 0.0 : component(velocity.checktable(), "Y");
+        double velocityZ = velocity.isnil() ? 0.0 : component(velocity.checktable(), "Z");
         MLuaClientParticleManager.spawnBurst(spec, component(position, "X"), component(position, "Y"),
             component(position, "Z"), count, spreadX, spreadY, spreadZ, velocityX, velocityY, velocityZ);
     }
@@ -185,10 +185,13 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Creates a persistent emitter using a particle identifier.")
-    public LuaTable CreateEmitter(String particleId, double x, double y, double z, Optional<Double> requestedRate,
+    public LuaTable CreateEmitter(String particleId, LuaValue position, Optional<Double> requestedRate,
                                   Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
         ensureClient();
-        int id = MLuaClientParticleManager.createEmitter(particleId, x, y, z, requestedRate.orElse(8.0),
+        if (!MLuaVector.isVector3(position)) throw new LuaError("[MLua] Particle emitter position requires a Vector3 value");
+        LuaTable vector = position.checktable();
+        int id = MLuaClientParticleManager.createEmitter(particleId, component(vector, "X"), component(vector, "Y"),
+            component(vector, "Z"), requestedRate.orElse(8.0),
             requestedSpread.orElse(0.2), requestedSpeed.orElse(0.0), owner());
         return emitterTable(id, owner());
     }
@@ -375,6 +378,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     }
 
     private static double component(LuaTable table, String key) {
+        if (!MLuaVector.isVector3(table)) throw new LuaError("[MLua] Particle positions, directions, and motion values require Vector3 values");
         LuaValue value = table.get(key);
         if (value.isnil()) {
             value = table.get(key.toLowerCase());

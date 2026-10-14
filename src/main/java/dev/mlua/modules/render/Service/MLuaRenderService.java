@@ -7,6 +7,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.math.MLuaVector;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
@@ -181,68 +182,74 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Creates a rectangle at a world position.")
-    public LuaValue CreateWorldRect(LuaTable position, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldRect(LuaValue position, Optional<LuaValue> properties) {
         return createWorldObject(MLuaClientRenderManager.RenderType.RECT, null, position, optionalTable(properties));
     }
 
     @MLuaDescription("Creates text at a world position.")
-    public LuaValue CreateWorldText(String text, LuaTable position, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldText(String text, LuaValue position, Optional<LuaValue> properties) {
         return createWorldObject(MLuaClientRenderManager.RenderType.TEXT, text, position, optionalTable(properties));
     }
 
     @MLuaDescription("Creates an image at a world position.")
-    public LuaValue CreateWorldImage(String resource, LuaTable position, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldImage(String resource, LuaValue position, Optional<LuaValue> properties) {
         return createWorldObject(MLuaClientRenderManager.RenderType.IMAGE, resource, position, optionalTable(properties));
     }
 
     @MLuaDescription("Creates an item render object at a world position.")
-    public LuaValue CreateWorldItem(String itemId, LuaTable position, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldItem(String itemId, LuaValue position, Optional<LuaValue> properties) {
         return createWorldObject(MLuaClientRenderManager.RenderType.ITEM, itemId, position, optionalTable(properties));
     }
 
     @MLuaDescription("Creates a block render object at a world position.")
-    public LuaValue CreateWorldBlock(String blockId, LuaTable position, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldBlock(String blockId, LuaValue position, Optional<LuaValue> properties) {
         return createWorldObject(MLuaClientRenderManager.RenderType.BLOCK, blockId, position, optionalTable(properties));
     }
 
     @MLuaDescription("Creates a camera-facing image at a world position.")
-    public LuaValue CreateWorldBillboard(String resource, LuaTable position, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldBillboard(String resource, LuaValue position, Optional<LuaValue> properties) {
         return createWorldObject(MLuaClientRenderManager.RenderType.IMAGE, resource, position, optionalTable(properties));
     }
 
     @MLuaDescription("Creates a line between two world positions.")
-    public LuaValue CreateWorldLine(LuaTable start, LuaTable end, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldLine(LuaValue start, LuaValue end, Optional<LuaValue> properties) {
         ensureClient();
+        double[] startPosition = worldVector(start);
+        double[] endPosition = worldVector(end);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.LINE, null, owner());
         var object = requireObject(id);
         object.setWorldSpace(true);
-        object.setWorldPosition(component(start, "X"), component(start, "Y"), component(start, "Z"));
-        object.setEndWorldPosition(component(end, "X"), component(end, "Y"), component(end, "Z"));
+        object.setWorldPosition(startPosition[0], startPosition[1], startPosition[2]);
+        object.setEndWorldPosition(endPosition[0], endPosition[1], endPosition[2]);
         applyProps(object, optionalTable(properties));
         return objectTable(id);
     }
 
     @MLuaDescription("Creates a beam between two world positions.")
-    public LuaValue CreateWorldBeam(LuaTable start, LuaTable end, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldBeam(LuaValue start, LuaValue end, Optional<LuaValue> properties) {
         ensureClient();
+        double[] startPosition = worldVector(start);
+        double[] endPosition = worldVector(end);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BEAM, null, owner());
         var object = requireObject(id);
         object.setWorldSpace(true);
-        object.setWorldPosition(component(start, "X"), component(start, "Y"), component(start, "Z"));
-        object.setEndWorldPosition(component(end, "X"), component(end, "Y"), component(end, "Z"));
+        object.setWorldPosition(startPosition[0], startPosition[1], startPosition[2]);
+        object.setEndWorldPosition(endPosition[0], endPosition[1], endPosition[2]);
         applyProps(object, optionalTable(properties));
         return objectTable(id);
     }
 
     @MLuaDescription("Creates a box render object at a world position.")
-    public LuaValue CreateWorldBox(LuaTable center, LuaTable size, Optional<LuaValue> properties) {
+    public LuaValue CreateWorldBox(LuaValue center, LuaValue size, Optional<LuaValue> properties) {
         ensureClient();
+        double[] centerPosition = worldVector(center);
+        double[] dimensions = worldVector(size);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BOX, null, owner());
         var object = requireObject(id);
         object.setWorldSpace(true);
-        object.setWorldPosition(component(center, "X"), component(center, "Y"), component(center, "Z"));
-        object.setSize(component(size, "X"), component(size, "Y"));
-        object.setDepth(component(size, "Z"));
+        object.setWorldPosition(centerPosition[0], centerPosition[1], centerPosition[2]);
+        object.setSize(dimensions[0], dimensions[1]);
+        object.setDepth(dimensions[2]);
         applyProps(object, optionalTable(properties));
         return objectTable(id);
     }
@@ -281,11 +288,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         LuaTable rawVertices = definition.get("Vertices").checktable();
         for (int i = 1; !rawVertices.get(i).isnil(); i++) {
             LuaTable vertex = rawVertices.get(i).checktable();
-            LuaTable position = vertex.get("Position").checktable();
-            LuaTable uv = vertex.get("UV").opttable(new LuaTable());
+            double[] position = worldVector(vertex.get("Position"));
+            LuaValue uvValue = vertex.get("UV");
+            double[] uv = uvValue.isnil() ? new double[]{0.0, 0.0} : screenVector(uvValue);
             int color = vertex.get("Color").isnil() ? 0xFFFFFFFF : vertex.get("Color").toint();
-            vertices.add(new MLuaMeshVertex((float)component(position, "X"), (float)component(position, "Y"),
-                (float)component(position, "Z"), (float)component(uv, "X"), (float)component(uv, "Y"), color));
+            vertices.add(new MLuaMeshVertex((float)position[0], (float)position[1], (float)position[2],
+                (float)uv[0], (float)uv[1], color));
         }
         List<Integer> indices = new ArrayList<>();
         LuaTable rawIndices = definition.get("Indices").checktable();
@@ -332,12 +340,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }
     }
 
-    private LuaValue createWorldObject(MLuaClientRenderManager.RenderType type, String resource, LuaTable worldPosition, LuaTable props) {
+    private LuaValue createWorldObject(MLuaClientRenderManager.RenderType type, String resource, LuaValue worldPosition, LuaTable props) {
         ensureClient();
+        double[] position = worldVector(worldPosition);
         int id = MLuaClientRenderManager.create(type, resource, owner());
         var object = requireObject(id);
         object.setWorldSpace(true);
-        object.setWorldPosition(component(worldPosition, "X"), component(worldPosition, "Y"), component(worldPosition, "Z"));
+        object.setWorldPosition(position[0], position[1], position[2]);
         applyProps(object, props);
         return objectTable(id);
     }
@@ -356,8 +365,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("SetPosition", fn(args -> {
             var object = requireObject(id);
-            LuaTable value = args.checktable(2);
-            object.setPosition(component(value, "X"), component(value, "Y"));
+            double[] value = screenVector(args.arg(2));
+            object.setPosition(value[0], value[1]);
             return LuaValue.NONE;
         }));
         operations.set("GetEndPosition", fn(args -> {
@@ -365,8 +374,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             return MLuaVector.vector2(object.endX(), object.endY());
         }));
         operations.set("SetEndPosition", fn(args -> {
-            LuaTable value = args.checktable(2);
-            requireObject(id).setEndPosition(component(value, "X"), component(value, "Y"));
+            double[] value = screenVector(args.arg(2));
+            requireObject(id).setEndPosition(value[0], value[1]);
             return LuaValue.NONE;
         }));
         operations.set("GetWorldPosition", fn(args -> {
@@ -375,8 +384,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("SetWorldPosition", fn(args -> {
             var object = requireObject(id);
-            LuaTable value = args.checktable(2);
-            object.setWorldPosition(component(value, "X"), component(value, "Y"), component(value, "Z"));
+            double[] value = worldVector(args.arg(2));
+            object.setWorldPosition(value[0], value[1], value[2]);
             object.setWorldSpace(true);
             return LuaValue.NONE;
         }));
@@ -386,8 +395,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("SetEndWorldPosition", fn(args -> {
             var object = requireObject(id);
-            LuaTable value = args.checktable(2);
-            object.setEndWorldPosition(component(value, "X"), component(value, "Y"), component(value, "Z"));
+            double[] value = worldVector(args.arg(2));
+            object.setEndWorldPosition(value[0], value[1], value[2]);
             return LuaValue.NONE;
         }));
         operations.set("GetDepth", fn(args -> LuaValue.valueOf(requireObject(id).depth())));
@@ -401,8 +410,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("SetSize", fn(args -> {
             var object = requireObject(id);
-            LuaTable value = args.checktable(2);
-            object.setSize(component(value, "X"), component(value, "Y"));
+            double[] value = screenVector(args.arg(2));
+            object.setSize(value[0], value[1]);
             return LuaValue.NONE;
         }));
         operations.set("GetRotation", fn(args -> LuaValue.valueOf(requireObject(id).rotation())));
@@ -491,12 +500,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     private void applyProps(MLuaClientRenderManager.RenderObject object, LuaTable props) {
         LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
-        if (position.istable()) {
-            object.setPosition(component(position.checktable(), "X"), component(position.checktable(), "Y"));
+        if (!position.isnil()) {
+            double[] value = screenVector(position);
+            object.setPosition(value[0], value[1]);
         }
         LuaValue size = firstNonNil(props.get("Size"), props.get("size"));
-        if (size.istable()) {
-            object.setSize(component(size.checktable(), "X"), component(size.checktable(), "Y"));
+        if (!size.isnil()) {
+            double[] value = screenVector(size);
+            object.setSize(value[0], value[1]);
         }
         if (!props.get("Rotation").isnil()) {
             object.setRotation(props.get("Rotation").todouble());
@@ -524,13 +535,15 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             object.setZIndex(props.get("zIndex").toint());
         }
         LuaValue worldPosition = firstNonNil(props.get("WorldPosition"), props.get("worldPosition"));
-        if (worldPosition.istable()) {
+        if (!worldPosition.isnil()) {
+            double[] value = worldVector(worldPosition);
             object.setWorldSpace(true);
-            object.setWorldPosition(component(worldPosition.checktable(), "X"), component(worldPosition.checktable(), "Y"), component(worldPosition.checktable(), "Z"));
+            object.setWorldPosition(value[0], value[1], value[2]);
         }
         LuaValue endWorldPosition = firstNonNil(props.get("EndWorldPosition"), props.get("endWorldPosition"));
-        if (endWorldPosition.istable()) {
-            object.setEndWorldPosition(component(endWorldPosition.checktable(), "X"), component(endWorldPosition.checktable(), "Y"), component(endWorldPosition.checktable(), "Z"));
+        if (!endWorldPosition.isnil()) {
+            double[] value = worldVector(endWorldPosition);
+            object.setEndWorldPosition(value[0], value[1], value[2]);
         }
         if (!props.get("ScaleWithDistance").isnil()) {
             object.setScaleWithDistance(props.get("ScaleWithDistance").toboolean());
@@ -573,12 +586,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return !a.isnil() ? a : b;
     }
 
-    private static double component(LuaTable table, String key) {
-        LuaValue value = table.get(key);
-        if (value.isnil()) {
-            value = table.get(key.toLowerCase());
-        }
-        return value.optdouble(0.0);
+    private static double[] worldVector(LuaValue value) {
+        return MLuaCFrame.vector(value);
+    }
+
+    private static double[] screenVector(LuaValue value) {
+        if (!MLuaVector.isVector2(value)) throw new LuaError("[MLua] Render screen coordinates require Vector2 values");
+        LuaTable vector = value.checktable();
+        return new double[]{vector.get("X").todouble(), vector.get("Y").todouble()};
     }
 
     private MLuaEntityScope resolveOptionalEntityScope(LuaValue value) {

@@ -49,11 +49,11 @@ public final class ParticleModule implements MLuaModule {
         docs.clazz("ParticleEmitter", "MLuaParticleService",
             "A live client-side particle emitter with mutable position, rate, spread, velocity, and particle settings.",
             "classes/particle-emitter.html", "Instance");
-        docs.signature("ParticleService", "ParticleService:CreateEmitter(particleId: string, x: number, y: number, z: number, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
+        docs.signature("ParticleService", "ParticleService:CreateEmitter(particleId: string, position: Vector3, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
         docs.signature("ParticleService", "ParticleService:CreateTypedEmitter(spec: ParticleSpec, position: Vector3, rate: number?, spread: number?, speed: number?)", "ParticleEmitter");
         docs.guideStep("ParticleService", "Keep an emitter and update it",
             "CreateEmitter returns a live ParticleEmitter instance. Its properties stay connected to the running emitter, and inherited Instance methods expose its registered class.",
-            "local Particles = Minecraft:GetService(\"ParticleService\")\nlocal emitter = Particles:CreateEmitter(\"minecraft:smoke\", 0, 65, 0)\n\nemitter.Position = Vector3.new(2, 65, 0)\nemitter.Rate = 12\nemitter.Enabled = true\nprint(emitter:IsA(\"ParticleEmitter\"), emitter.Id)\n\nemitter:Destroy()");
+            "local Particles = Minecraft:GetService(\"ParticleService\")\nlocal emitter = Particles:CreateEmitter(\"minecraft:smoke\", Vector3.new(0, 65, 0))\n\nemitter.Position = Vector3.new(2, 65, 0)\nemitter.Rate = 12\nemitter.Enabled = true\nprint(emitter:IsA(\"ParticleEmitter\"), emitter.Id)\n\nemitter:Destroy()");
         docs.type("ParticleDefinition", null, "Options for registering an addon particle texture.");
         docs.field("ParticleDefinition", "texture", "string", "Resource identifier of the particle texture.");
     }
