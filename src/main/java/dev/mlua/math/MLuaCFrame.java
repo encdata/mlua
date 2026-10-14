@@ -167,73 +167,6 @@ public final class MLuaCFrame {
       table.set("Yaw", (double)this.minecraftYaw());
       table.set("Pitch", (double)this.minecraftPitch());
       table.set("Roll", 0);
-      table.set("Inverse", new OneArgFunction() {
-         public LuaValue call(LuaValue self) {
-            return MLuaCFrame.fromLua(self).inverse().toLua();
-         }
-      });
-      table.set("Lerp", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaCFrame.fromLua(args.arg(1)).lerp(MLuaCFrame.fromLua(args.arg(2)), args.checkdouble(3)).toLua();
-         }
-      });
-      table.set("ToWorldSpace", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            return MLuaCFrame.fromLua(self).mul(MLuaCFrame.fromLua(other)).toLua();
-         }
-      });
-      table.set("ToObjectSpace", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            return MLuaCFrame.fromLua(self).inverse().mul(MLuaCFrame.fromLua(other)).toLua();
-         }
-      });
-      table.set("PointToWorldSpace", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue point) {
-            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).pointToWorld(MLuaCFrame.vector(point)));
-         }
-      });
-      table.set("PointToObjectSpace", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue point) {
-            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).pointToObject(MLuaCFrame.vector(point)));
-         }
-      });
-      table.set("VectorToWorldSpace", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue vector) {
-            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).vectorToWorld(MLuaCFrame.vector(vector)));
-         }
-      });
-      table.set("VectorToObjectSpace", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue vector) {
-            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).vectorToObject(MLuaCFrame.vector(vector)));
-         }
-      });
-      table.set("Mul", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue other) {
-            if (!MLuaCFrame.isCFrame(other)) {
-               throw new LuaError("[MLua] CFrame:Mul expects another CFrame. Use cf + Vector3 to offset position, or cf:PointToWorldSpace(vector) to transform a point.");
-            } else {
-               return MLuaCFrame.fromLua(self).mul(MLuaCFrame.fromLua(other)).toLua();
-            }
-         }
-      });
-      table.set("Add", new TwoArgFunction() {
-         public LuaValue call(LuaValue self, LuaValue offset) {
-            return MLuaCFrame.fromLua(self).add(MLuaCFrame.vector(offset)).toLua();
-         }
-      });
-      table.set("TransformPoint", table.get("PointToWorldSpace"));
-      table.set("GetComponents", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            MLuaCFrame cf = MLuaCFrame.fromLua(args.arg(1));
-            return LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(cf.x), LuaValue.valueOf(cf.y), LuaValue.valueOf(cf.z), LuaValue.valueOf(cf.r00), LuaValue.valueOf(cf.r01), LuaValue.valueOf(cf.r02), LuaValue.valueOf(cf.r10), LuaValue.valueOf(cf.r11), LuaValue.valueOf(cf.r12), LuaValue.valueOf(cf.r20), LuaValue.valueOf(cf.r21), LuaValue.valueOf(cf.r22)});
-         }
-      });
-      table.set("ToEulerAnglesXYZ", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            double[] angles = MLuaCFrame.fromLua(args.arg(1)).toEulerAnglesXYZ();
-            return LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(angles[0]), LuaValue.valueOf(angles[1]), LuaValue.valueOf(angles[2])});
-         }
-      });
       table.setmetatable(SHARED_METATABLE);
       return table.freeze();
    }
@@ -403,6 +336,75 @@ public final class MLuaCFrame {
 
    private static LuaTable metatable() {
       LuaTable metatable = new LuaTable();
+      LuaTable methods = new LuaTable();
+      methods.set("Inverse", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            return MLuaCFrame.fromLua(self).inverse().toLua();
+         }
+      });
+      methods.set("Lerp", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaCFrame.fromLua(args.arg(1)).lerp(MLuaCFrame.fromLua(args.arg(2)), args.checkdouble(3)).toLua();
+         }
+      });
+      methods.set("ToWorldSpace", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            return MLuaCFrame.fromLua(self).mul(MLuaCFrame.fromLua(other)).toLua();
+         }
+      });
+      methods.set("ToObjectSpace", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            return MLuaCFrame.fromLua(self).inverse().mul(MLuaCFrame.fromLua(other)).toLua();
+         }
+      });
+      methods.set("PointToWorldSpace", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue point) {
+            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).pointToWorld(MLuaCFrame.vector(point)));
+         }
+      });
+      methods.set("PointToObjectSpace", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue point) {
+            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).pointToObject(MLuaCFrame.vector(point)));
+         }
+      });
+      methods.set("VectorToWorldSpace", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue vector) {
+            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).vectorToWorld(MLuaCFrame.vector(vector)));
+         }
+      });
+      methods.set("VectorToObjectSpace", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue vector) {
+            return MLuaCFrame.vectorTable(MLuaCFrame.fromLua(self).vectorToObject(MLuaCFrame.vector(vector)));
+         }
+      });
+      methods.set("Mul", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            if (!MLuaCFrame.isCFrame(other)) {
+               throw new LuaError("[MLua] CFrame:Mul expects another CFrame. Use cf + Vector3 to offset position, or cf:PointToWorldSpace(vector) to transform a point.");
+            } else {
+               return MLuaCFrame.fromLua(self).mul(MLuaCFrame.fromLua(other)).toLua();
+            }
+         }
+      });
+      methods.set("Add", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue offset) {
+            return MLuaCFrame.fromLua(self).add(MLuaCFrame.vector(offset)).toLua();
+         }
+      });
+      methods.set("TransformPoint", methods.get("PointToWorldSpace"));
+      methods.set("GetComponents", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            MLuaCFrame cf = MLuaCFrame.fromLua(args.arg(1));
+            return LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(cf.x), LuaValue.valueOf(cf.y), LuaValue.valueOf(cf.z), LuaValue.valueOf(cf.r00), LuaValue.valueOf(cf.r01), LuaValue.valueOf(cf.r02), LuaValue.valueOf(cf.r10), LuaValue.valueOf(cf.r11), LuaValue.valueOf(cf.r12), LuaValue.valueOf(cf.r20), LuaValue.valueOf(cf.r21), LuaValue.valueOf(cf.r22)});
+         }
+      });
+      methods.set("ToEulerAnglesXYZ", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            double[] angles = MLuaCFrame.fromLua(args.arg(1)).toEulerAnglesXYZ();
+            return LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(angles[0]), LuaValue.valueOf(angles[1]), LuaValue.valueOf(angles[2])});
+         }
+      });
+      metatable.set("__index", methods.freeze());
       metatable.set(LuaValue.MUL, new TwoArgFunction() {
          public LuaValue call(LuaValue left, LuaValue right) {
             if (!MLuaCFrame.isCFrame(right)) {
