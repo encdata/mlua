@@ -108,6 +108,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
       descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
+      descriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
+      descriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       return java.util.Collections.unmodifiableMap(descriptions);
    }
 
@@ -124,8 +126,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       addEndpoint(endpoints, "Projectiles", "Register", "projectile", "Projectiles", null, List.of("projectile", "projectiles"), "Register:3");
       addEndpoint(endpoints, "DataPack", "Register", "datapack", "DataPack", null, List.of("data", "datapack", "data_pack"), "Register:4");
       addEndpoint(endpoints, "Assets", "register", "assets", "Assets", null, List.of("asset", "assets"));
-      addEndpoint(endpoints, "WorldGeneration", "AddFeature", "worldgen", "WorldGeneration", null,
-         List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"), "AddFeature:3");
+      addEndpoint(endpoints, "WorldGeneration", "addFeature", "worldgen", "WorldGeneration", null,
+         List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"), "addFeature:3", "register:4");
       addEndpoint(endpoints, "Tabs", "Register", "tab", "Tabs", RegistryKind.CREATIVE_TAB, List.of("tab", "tabs", "creative_tab", "creative_tabs"), "Register:3");
       addEndpoint(endpoints, "Recipes", "Register", "recipe", "Recipes", null, List.of("recipe", "recipes"), "Register:3", "RegisterShaped:3", "RegisterShapeless:3", "RegisterSmelting:3", "RegisterStonecutting:3");
       addEndpoint(endpoints, "Loot", "Register", "loot", "Loot", null, List.of("loot"), "Register:3", "RegisterEntity:3", "RegisterSimpleBlock:3", "RegisterSelfBlock:3", "RegisterSilkTouchBlock:3", "RegisterOreBlock:3");
@@ -251,6 +253,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "data pack resource");
             try {
                MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
+               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                  MLuaLoaderRegistry.unregisterGeneratedDataResource(owner, resourceType, id));
             } catch (IllegalArgumentException | IllegalStateException error) {
                throw new LuaError("[MLua] " + error.getMessage());
             }
@@ -275,7 +279,30 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          "Generates JSON files under the addon's assets namespace, including shared manifests such as sounds.json."));
       MLuaServiceMetadata.attachMethodDescriptions(assets, Map.of(
          "register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json."));
-      worldGeneration.set("AddFeature", new VarArgFunction() {
+      worldGeneration.set("register", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            String resourceType = args.checkjstring(2);
+            if (!resourceType.equals("dimension")
+               && !resourceType.equals("dimension_type") && !resourceType.startsWith("worldgen/")) {
+               throw new LuaError("[MLua] WorldGeneration.register accepts dimension, dimension_type, or worldgen/* resources such as worldgen/biome");
+            }
+            String id = args.checkjstring(3);
+            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
+               "worldgen", owner, args.checktable(4));
+            JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "world generation resource");
+            try {
+               MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
+               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                  MLuaLoaderRegistry.unregisterGeneratedDataResource(owner, resourceType, id));
+            } catch (IllegalArgumentException | IllegalStateException error) {
+               throw new LuaError("[MLua] " + error.getMessage());
+            }
+            return LuaValue.NONE;
+         }
+      });
+      worldGeneration.set("addFeature", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
@@ -284,8 +311,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                "worldgen", owner, args.checktable(3));
             String feature = MLuaRegistryService.stringProperty(definition, "feature", "Feature", "placedFeature", "PlacedFeature");
             String step = MLuaRegistryService.stringProperty(definition, "step", "Step");
-            if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.AddFeature requires a placed feature id");
-            if (step == null || step.isBlank()) throw new LuaError("[MLua] WorldGeneration.AddFeature requires a generation step");
+            if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a placed feature id");
+            if (step == null || step.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a generation step");
             LuaValue biomes = definition.get("biomes");
             if (biomes.isnil()) biomes = definition.get("Biomes");
             String featureId = MLuaRegistryService.qualifiedDataId(owner, feature, false);

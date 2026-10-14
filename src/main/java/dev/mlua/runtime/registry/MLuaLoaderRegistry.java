@@ -147,6 +147,10 @@ public final class MLuaLoaderRegistry {
         GeneratedDataResources.register(owner, resourceType, id, definition);
     }
 
+    public static boolean unregisterGeneratedDataResource(String owner, String resourceType, String id) {
+        return GeneratedDataResources.unregister(owner, resourceType, id);
+    }
+
     public static Map<String, JsonObject> getGeneratedDataResources() {
         return GeneratedDataResources.snapshot();
     }
