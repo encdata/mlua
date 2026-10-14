@@ -290,9 +290,9 @@ public final class MLuaUIBindings {
                                 throw new LuaError("[MLua] BackgroundTransparency animation target must be between zero and one.");
                             }
                         }
-                        case "BackgroundColor3" -> backgroundColor = value.checkint();
-                        case "TextColor3" -> textColor = value.checkint();
-                        case "ImageColor3" -> imageColor = value.checkint();
+                        case "BackgroundColor3" -> backgroundColor = parseColor3(value);
+                        case "TextColor3" -> textColor = parseColor3(value);
+                        case "ImageColor3" -> imageColor = parseColor3(value);
                         case "ImageTransparency" -> {
                             imageTransparency = finiteFloat(value, "ImageTransparency");
                             if (imageTransparency < 0.0f || imageTransparency > 1.0f) {
@@ -354,6 +354,12 @@ public final class MLuaUIBindings {
         }
         LuaTable table = value.checktable();
         return new dev.mlua.minecraft.ui.UDim(table.get("Scale").checkdouble(), table.get("Offset").checkint());
+    }
+
+    private static int parseColor3(LuaValue value) {
+        if (dev.mlua.core.engine.MLuaLuauTypes.isColor3(value)) return dev.mlua.core.engine.MLuaLuauTypes.color3Argb(value);
+        if (value.isnumber()) return value.checkint();
+        throw new LuaError("[MLua] UI color animation targets require a native Color3 value or packed color integer.");
     }
 
     private static float finiteFloat(LuaValue value, String property) {
@@ -568,7 +574,8 @@ public final class MLuaUIBindings {
             descriptor.set("readable", LuaValue.valueOf(metadata.readable));
             descriptor.set("writable", LuaValue.valueOf(metadata.writable));
             descriptor.set("signal", LuaValue.valueOf(metadata.signal));
-            if (metadata.valueType != null) descriptor.set("type", LuaValue.valueOf(luaTypeName(metadata.valueType)));
+            if (metadata.valueType != null) descriptor.set("type", LuaValue.valueOf(name.endsWith("Color3")
+                ? "Color3" : luaTypeName(metadata.valueType)));
             descriptor.set("side", LuaValue.valueOf("client:Client"));
             documented.set(name, descriptor);
         });

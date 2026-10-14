@@ -400,7 +400,12 @@ public abstract class GuiBase {
             if (value instanceof dev.mlua.core.signal.MLuaSignal) return LuaValue.NIL;
             if (value instanceof String string) return LuaValue.valueOf(string);
             if (value instanceof Boolean bool) return LuaValue.valueOf(bool);
-            if (value instanceof Number number) return LuaValue.valueOf(number.doubleValue());
+            if (value instanceof Number number) {
+                if (property.endsWith("Color3") && number instanceof Integer color) {
+                    return dev.mlua.core.engine.MLuaLuauTypes.color3FromArgb(color);
+                }
+                return LuaValue.valueOf(number.doubleValue());
+            }
             if (value instanceof dev.mlua.minecraft.ui.UDim2 udim) return toLuaUDim2(udim);
             if (value instanceof dev.mlua.minecraft.ui.data.Vector2 vector) return toLuaVector2(vector);
             if (value instanceof dev.mlua.minecraft.ui.data.Rect rect) return toLuaRect(rect);
@@ -436,7 +441,9 @@ public abstract class GuiBase {
         try {
             if (type == String.class) converted = luaString(value);
             else if (type == boolean.class || type == Boolean.class) converted = value.toboolean();
-            else if (type == int.class || type == Integer.class) converted = value.checkint();
+            else if (type == int.class || type == Integer.class) {
+                converted = property.endsWith("Color3") ? parseColor3Property(value) : value.checkint();
+            }
             else if (type == long.class || type == Long.class) converted = value.checklong();
             else if (type == float.class || type == Float.class) converted = (float)value.checkdouble();
             else if (type == double.class || type == Double.class) converted = value.checkdouble();
@@ -459,6 +466,14 @@ public abstract class GuiBase {
         } catch (ReflectiveOperationException | IllegalArgumentException error) {
             throw new org.luaj.vm2.LuaError("[MLua] Invalid value for UI property '" + property + "': " + error.getMessage());
         }
+    }
+
+    private static int parseColor3Property(LuaValue value) {
+        if (dev.mlua.core.engine.MLuaLuauTypes.isColor3(value)) {
+            return dev.mlua.core.engine.MLuaLuauTypes.color3Argb(value);
+        }
+        if (value.isnumber()) return value.checkint();
+        throw new org.luaj.vm2.LuaError("[MLua] UI color properties require a native Color3 value or packed color integer.");
     }
 
     private static String luaString(LuaValue value) {

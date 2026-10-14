@@ -26,8 +26,10 @@ public final class MLuaLuauTypes {
    private static final Random SHARED_RNG = new Random();
    private static final LuaTable UDIM_METATABLE = valueMetatable("UDim");
    private static final LuaTable UDIM2_METATABLE = valueMetatable("UDim2");
+   private static final LuaTable COLOR3_METATABLE = valueMetatable("Color3");
    private static final Set<LuaTable> UDIM_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
    private static final Set<LuaTable> UDIM2_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
+   private static final Set<LuaTable> COLOR3_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
 
    private MLuaLuauTypes() {
    }
@@ -293,14 +295,14 @@ public final class MLuaLuauTypes {
       value.set("B", clamp01(b));
       value.set("ToHSV", new VarArgFunction() {
          public Varargs invoke(Varargs self) {
-            LuaTable c = self.checktable(1);
+            LuaTable c = MLuaLuauTypes.requireColor3(self.arg1());
             double[] hsv = MLuaLuauTypes.rgbToHsv(c.get("R").todouble(), c.get("G").todouble(), c.get("B").todouble());
             return LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(hsv[0]), LuaValue.valueOf(hsv[1]), LuaValue.valueOf(hsv[2])});
          }
       });
       value.set("ToHex", new VarArgFunction() {
          public Varargs invoke(Varargs self) {
-            LuaTable c = self.checktable(1);
+            LuaTable c = MLuaLuauTypes.requireColor3(self.arg1());
             int rv = (int)Math.round(MLuaLuauTypes.clamp01(c.get("R").todouble()) * 255.0);
             int gv = (int)Math.round(MLuaLuauTypes.clamp01(c.get("G").todouble()) * 255.0);
             int bv = (int)Math.round(MLuaLuauTypes.clamp01(c.get("B").todouble()) * 255.0);
@@ -309,13 +311,15 @@ public final class MLuaLuauTypes {
       });
       value.set("Lerp", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            LuaTable a = args.checktable(1);
-            LuaTable b = args.checktable(2);
+            LuaTable a = MLuaLuauTypes.requireColor3(args.arg(1));
+            LuaTable b = MLuaLuauTypes.requireColor3(args.arg(2));
             double t = args.checkdouble(3);
             return MLuaLuauTypes.color3(MLuaLuauTypes.lerp(a.get("R").todouble(), b.get("R").todouble(), t), MLuaLuauTypes.lerp(a.get("G").todouble(), b.get("G").todouble(), t), MLuaLuauTypes.lerp(a.get("B").todouble(), b.get("B").todouble(), t));
          }
       });
-      return value;
+      value.setmetatable(COLOR3_METATABLE);
+      COLOR3_VALUES.add(value);
+      return value.freeze();
    }
 
    private static LuaTable colorFromHSV(double h, double s, double v) {
@@ -416,6 +420,30 @@ public final class MLuaLuauTypes {
    public static boolean isUDim2(LuaValue value) {
       return value.istable() && value.checktable().isfrozen()
          && UDIM2_VALUES.contains(value.checktable());
+   }
+
+   public static boolean isColor3(LuaValue value) {
+      return value.istable() && value.checktable().isfrozen()
+         && COLOR3_VALUES.contains(value.checktable());
+   }
+
+   private static LuaTable requireColor3(LuaValue value) {
+      if (!isColor3(value)) throw new LuaError("Expected a native Color3 value");
+      return value.checktable();
+   }
+
+   public static int color3Argb(LuaValue value) {
+      if (!isColor3(value)) throw new LuaError("Expected a native Color3 value");
+      LuaTable color = value.checktable();
+      int red = (int)Math.round(color.get("R").checkdouble() * 255.0);
+      int green = (int)Math.round(color.get("G").checkdouble() * 255.0);
+      int blue = (int)Math.round(color.get("B").checkdouble() * 255.0);
+      return 0xFF000000 | red << 16 | green << 8 | blue;
+   }
+
+   public static LuaTable color3FromArgb(int color) {
+      return color3((double)(color >> 16 & 255) / 255.0,
+         (double)(color >> 8 & 255) / 255.0, (double)(color & 255) / 255.0);
    }
 
    private static LuaTable valueMetatable(String type) {
