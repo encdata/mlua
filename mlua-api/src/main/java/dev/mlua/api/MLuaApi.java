@@ -44,6 +44,19 @@ public final class MLuaApi {
       return new ServiceBuilder(name, className, factory);
    }
 
+   public static <T extends MLuaReflectiveService> ServiceBuilder reflectiveService(
+      String name, Class<T> serviceType, Function<MLuaService.Context, T> factory) {
+      return reflectiveService(name, null, serviceType, factory);
+   }
+
+   public static <T extends MLuaReflectiveService> ServiceBuilder reflectiveService(
+      String name, String className, Class<T> serviceType, Function<MLuaService.Context, T> factory) {
+      Objects.requireNonNull(serviceType, "serviceType");
+      Objects.requireNonNull(factory, "factory");
+      ServiceBuilder builder = new ServiceBuilder(name, className, context -> factory.apply(context));
+      return builder.reflective(serviceType);
+   }
+
    public static final class ServiceBuilder {
       private final String name;
       private final MLuaModule.ServiceEntry.Builder declaration;
