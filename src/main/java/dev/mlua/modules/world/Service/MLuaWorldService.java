@@ -532,8 +532,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int itemIndex = 2 + coordinateWidth(args, 2);
          String itemId = args.checkjstring(itemIndex);
          int count = checkedIntArgument(args, itemIndex + 1, 1, 1, Integer.MAX_VALUE, "item count");
-         if (!ensureChunkLoaded(level, BlockPos.containing(pos[0], pos[1], pos[2]), true)) return LuaValue.NIL;
-         net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(MLuaResourceLocations.parse(itemId));
+         net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.getOptional(MLuaResourceLocations.parse(itemId)).orElse(null);
          if (item == null) {
             throw new LuaError("[MLua] Unknown item: " + itemId);
          }
@@ -542,6 +541,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
             throw new LuaError("[MLua] Item count " + count + " exceeds " + itemId
                + " stack limit " + maxStackSize);
          }
+         if (!ensureChunkLoaded(level, BlockPos.containing(pos[0], pos[1], pos[2]), true)) return LuaValue.NIL;
          ItemEntity entity = new ItemEntity(level, pos[0], pos[1], pos[2], new ItemStack(item, count));
          if (!level.addFreshEntity(entity)) return LuaValue.NIL;
          return wrapEntity(entity);
