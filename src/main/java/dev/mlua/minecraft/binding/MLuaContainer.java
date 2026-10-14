@@ -72,73 +72,7 @@ public final class MLuaContainer {
       Map<Integer, LuaTable> slotInstances = new HashMap<>();
       LuaTable table = createClassInstance(registration, className, fields);
       table.set("__side", "Shared");
-
-      MLuaClassMethods.setInstanceMethod(table, "GetSize", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            return LuaValue.valueOf(inv.getContainerSize());
-         }
-      });
-      MLuaClassMethods.setInstanceMethod(table, "IsEmpty", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            for (MCItemStack item : inv.getItems()) {
-               if (item != null && !item.isEmpty()) return LuaValue.FALSE;
-            }
-            return LuaValue.TRUE;
-         }
-      });
-      MLuaClassMethods.setInstanceMethod(table, "Clear", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            ensureWritable(writable);
-            inv.clearContent();
-            return LuaValue.NONE;
-         }
-      });
-      MLuaClassMethods.setInstanceMethod(table, "GetSlot", new VarArgFunction() {
-         @Override
-         public Varargs invoke(Varargs args) {
-            int index = args.checkint(2);
-            int rawIndex = toRawIndex(index, inv.getContainerSize());
-            if (rawIndex < 0) {
-               return LuaValue.NIL;
-            }
-            return slotInstance(slotInstances, rawIndex, () -> inv.getItem(rawIndex), () -> rawIndex,
-               stack -> inv.setItem(rawIndex, stack), index, writable, registration);
-         }
-      });
-      MLuaClassMethods.setInstanceMethod(table, "SetSlot", new VarArgFunction() {
-         @Override
-         public Varargs invoke(Varargs args) {
-            ensureWritable(writable);
-            int index = args.checkint(2);
-            int rawIndex = requireRawIndex(index, inv.getContainerSize());
-            LuaValue itemValue = args.arg(3);
-            inv.setItem(rawIndex, itemValue.isnil() ? MCItemStack.EMPTY : new MCItemStackImpl(MLuaItemWrapper.toItemStack(itemValue)));
-            return LuaValue.NONE;
-         }
-      });
-      MLuaClassMethods.setInstanceMethod(table, "GetTitle", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            return title == null ? LuaValue.NIL : LuaValue.valueOf(title);
-         }
-      });
-      MLuaClassMethods.setInstanceMethod(table, "GetAll", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            LuaTable slots = new LuaTable();
-            for (int rawIndex = 0; rawIndex < inv.getContainerSize(); rawIndex++) {
-               final int resolvedRawIndex = rawIndex;
-               int index = resolvedRawIndex + 1;
-               slots.set(index, slotInstance(slotInstances, resolvedRawIndex,
-                  () -> inv.getItem(resolvedRawIndex), () -> resolvedRawIndex,
-                  stack -> inv.setItem(resolvedRawIndex, stack), index, writable, registration));
-            }
-            return slots;
-         }
-      });
+      bindContainerMethods(table, containerAccess(inv), title, slotInstances, writable, registration);
 
       if ("Inventory".equals(className)) {
          InventoryLayout layout = inventoryLayout == null
@@ -241,33 +175,26 @@ public final class MLuaContainer {
       Map<Integer, LuaTable> slotInstances = new HashMap<>();
       LuaTable table = createClassInstance(registration, "Container", fields);
       table.set("__side", "Shared");
+      bindContainerMethods(table, menuAccess(menu), title == null ? null : title.getString(),
+         slotInstances, writable, registration);
 
-      String titleStr = title != null ? title.getString() : "";
+      return table;
+   }
+
+   private static void bindContainerMethods(LuaTable table, ContainerAccess access, String title,
+                                           Map<Integer, LuaTable> slotInstances, boolean writable,
+                                           MLuaRegistration registration) {
       MLuaClassMethods.setInstanceMethod(table, "GetSize", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            return LuaValue.valueOf(menu.slots().size());
-         }
+         @Override public LuaValue call() { return LuaValue.valueOf(access.size()); }
       });
       MLuaClassMethods.setInstanceMethod(table, "IsEmpty", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            for (MCSlot slot : menu.slots()) {
-               if (slot.hasItem()) {
-                  return LuaValue.FALSE;
-               }
-            }
-            return LuaValue.TRUE;
-         }
+         @Override public LuaValue call() { return LuaValue.valueOf(access.isEmpty()); }
       });
       MLuaClassMethods.setInstanceMethod(table, "Clear", new ZeroArgFunction() {
          @Override
          public LuaValue call() {
             ensureWritable(writable);
-            for (MCSlot slot : menu.slots()) {
-               slot.set(MCItemStack.EMPTY);
-               ((MCSlotImpl)slot).inner().setChanged();
-            }
+            access.clear();
             return LuaValue.NONE;
          }
       });
@@ -275,54 +202,89 @@ public final class MLuaContainer {
          @Override
          public Varargs invoke(Varargs args) {
             int index = args.checkint(2);
-            int rawIndex = toRawIndex(index, menu.slots().size());
-            if (rawIndex < 0) {
-               return LuaValue.NIL;
-            }
-            MCSlot slot = menu.slots().get(rawIndex);
-            return slotInstance(slotInstances, rawIndex, slot::getItem, () -> rawIndex, (stack) -> {
-               slot.set(stack);
-               ((MCSlotImpl)slot).inner().setChanged();
-            }, index, writable, registration);
+            int rawIndex = toRawIndex(index, access.size());
+            if (rawIndex < 0) return LuaValue.NIL;
+            return slotInstance(slotInstances, rawIndex, () -> access.getItem(rawIndex), () -> rawIndex,
+               stack -> access.setItem(rawIndex, stack), index, writable, registration);
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "SetSlot", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             ensureWritable(writable);
-            int index = args.checkint(2);
-            int rawIndex = requireRawIndex(index, menu.slots().size());
-            MCSlot slot = menu.slots().get(rawIndex);
+            int rawIndex = requireRawIndex(args.checkint(2), access.size());
             LuaValue itemValue = args.arg(3);
-            slot.set(itemValue.isnil() ? MCItemStack.EMPTY : new MCItemStackImpl(MLuaItemWrapper.toItemStack(itemValue)));
-            ((MCSlotImpl)slot).inner().setChanged();
+            access.setItem(rawIndex, itemValue.isnil() ? MCItemStack.EMPTY
+               : new MCItemStackImpl(MLuaItemWrapper.toItemStack(itemValue)));
             return LuaValue.NONE;
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetTitle", new ZeroArgFunction() {
          @Override
          public LuaValue call() {
-            return titleStr == null ? LuaValue.NIL : LuaValue.valueOf(titleStr);
+            return title == null ? LuaValue.NIL : LuaValue.valueOf(title);
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetAll", new ZeroArgFunction() {
          @Override
          public LuaValue call() {
             LuaTable slots = new LuaTable();
-            for (int rawIndex = 0; rawIndex < menu.slots().size(); rawIndex++) {
-               final int resolvedRawIndex = rawIndex;
-               MCSlot slot = menu.slots().get(resolvedRawIndex);
+            for (int rawIndex = 0; rawIndex < access.size(); rawIndex++) {
+               int resolvedRawIndex = rawIndex;
                int index = resolvedRawIndex + 1;
-               slots.set(index, slotInstance(slotInstances, resolvedRawIndex, slot::getItem, () -> resolvedRawIndex, (stack) -> {
-                  slot.set(stack);
-                  ((MCSlotImpl)slot).inner().setChanged();
-               }, index, writable, registration));
+               slots.set(index, slotInstance(slotInstances, resolvedRawIndex,
+                  () -> access.getItem(resolvedRawIndex), () -> resolvedRawIndex,
+                  stack -> access.setItem(resolvedRawIndex, stack), index, writable, registration));
             }
             return slots;
          }
       });
+   }
 
-      return table;
+   private static ContainerAccess containerAccess(MCContainer container) {
+      return new ContainerAccess() {
+         @Override public int size() { return container.getContainerSize(); }
+         @Override public MCItemStack getItem(int index) { return container.getItem(index); }
+         @Override public void setItem(int index, MCItemStack stack) { container.setItem(index, stack); }
+         @Override public void clear() { container.clearContent(); }
+         @Override
+         public boolean isEmpty() {
+            for (MCItemStack stack : container.getItems()) {
+               if (stack != null && !stack.isEmpty()) return false;
+            }
+            return true;
+         }
+      };
+   }
+
+   private static ContainerAccess menuAccess(MCAbstractContainerMenu menu) {
+      return new ContainerAccess() {
+         @Override public int size() { return menu.slots().size(); }
+         @Override public MCItemStack getItem(int index) { return menu.slots().get(index).getItem(); }
+         @Override public void setItem(int index, MCItemStack stack) {
+            MCSlot slot = menu.slots().get(index);
+            slot.set(stack);
+            ((MCSlotImpl) slot).inner().setChanged();
+         }
+         @Override public void clear() {
+            for (int index = 0; index < menu.slots().size(); index++) setItem(index, MCItemStack.EMPTY);
+         }
+         @Override
+         public boolean isEmpty() {
+            for (MCSlot slot : menu.slots()) {
+               if (slot.hasItem()) return false;
+            }
+            return true;
+         }
+      };
+   }
+
+   private interface ContainerAccess {
+      int size();
+      MCItemStack getItem(int index);
+      void setItem(int index, MCItemStack stack);
+      void clear();
+      boolean isEmpty();
    }
 
    private static LuaTable createClassInstance(MLuaRegistration registration, String className, LuaTable fields) {
