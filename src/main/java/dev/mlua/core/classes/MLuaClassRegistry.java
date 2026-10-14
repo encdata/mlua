@@ -64,7 +64,7 @@ public final class MLuaClassRegistry {
       return classTable;
    }
 
-   @Deprecated
+   @Deprecated(forRemoval = false)
    public synchronized LuaTable register(String name, LuaTable classTable, String... parentNames) {
       List<String> normalized = normalizedParents(parentNames);
       return this.register(name, classTable, normalized.isEmpty() ? null : normalized.get(0));

@@ -75,7 +75,7 @@ public final class MLuaUIBindings {
         return registerClass(registration, name, instanceType, factory, description, parent);
     }
 
-    @Deprecated
+    @Deprecated(forRemoval = false)
     public static LuaTable registerNativeClass(MLuaRegistration registration, String name,
                                                Class<? extends GuiBase> instanceType,
                                                Supplier<? extends GuiBase> factory,

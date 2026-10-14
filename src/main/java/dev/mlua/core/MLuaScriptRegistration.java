@@ -45,6 +45,7 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    @Override
+   @Deprecated(forRemoval = false)
    public LuaTable registerClass(String name, String parentName) {
       boolean added = delegate.classTable(name) == null;
       LuaTable type = delegate.registerClass(name, parentName);
@@ -59,6 +60,7 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    @Override
+   @Deprecated(forRemoval = false)
    public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
       boolean added = delegate.classTable(name) == null;
       LuaTable type = delegate.registerClass(name, classTable, parentNames);
@@ -82,6 +84,7 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    @Override
+   @Deprecated(forRemoval = false)
    public LuaTable registerClass(String name, LuaTable classTable, List<String> parentNames,
                                  String description) {
       this.snapshotClassDescription(name);
