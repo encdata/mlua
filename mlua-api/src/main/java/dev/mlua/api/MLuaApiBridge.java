@@ -23,10 +23,11 @@ public interface MLuaApiBridge {
 
    void registerService(String name, Function<MLuaService.Context, MLuaService> factory);
 
-   default void registerService(Side side, MLuaModule.ServiceEntry service) {
+   default void registerService(Side side, String className, MLuaModule.ServiceEntry service) {
       Side selectedSide = java.util.Objects.requireNonNull(side, "side");
       MLuaModule.ServiceEntry declaration = java.util.Objects.requireNonNull(service, "service");
-      registerService(declaration.name(), declaration.className(), selectedSide, declaration.factory(),
+      String selectedClassName = className == null ? declaration.className() : className;
+      registerService(declaration.name(), selectedClassName, selectedSide, declaration.factory(),
          declaration.description(), declaration.functionDescriptions());
    }
 

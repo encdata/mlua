@@ -219,7 +219,7 @@ public final class MLuaApi {
       Objects.requireNonNull(side, "side");
       MLuaModule.ServiceEntry declaration = new MLuaModule.ServiceEntry(
          name, factory, description, functionDescriptions);
-      requireBridge().registerService(side, declaration);
+      requireBridge().registerService(side, null, declaration);
    }
 
    @Deprecated(forRemoval = false)
@@ -260,7 +260,7 @@ public final class MLuaApi {
       Objects.requireNonNull(side, "side");
       MLuaModule.ServiceEntry declaration = new MLuaModule.ServiceEntry(
          name, className, factory, description, functionDescriptions);
-      requireBridge().registerService(side, declaration);
+      requireBridge().registerService(side, className, declaration);
    }
 
    public static RegistryHandle<Item> registerItem(String modId, String name, Supplier<Item> supplier) {

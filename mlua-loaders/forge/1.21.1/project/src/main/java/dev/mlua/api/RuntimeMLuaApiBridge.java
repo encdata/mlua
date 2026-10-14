@@ -35,8 +35,8 @@ public final class RuntimeMLuaApiBridge implements MLuaApiBridge {
    }
 
    @Override
-   public void registerService(Side side, MLuaModule.ServiceEntry service) {
-      MLuaRuntime.get().registerService(service.name(), service.className(), side,
+   public void registerService(Side side, String className, MLuaModule.ServiceEntry service) {
+      MLuaRuntime.get().registerService(service.name(), className, side,
          service.factory(), service.description(), service.functionDescriptions());
    }
 
