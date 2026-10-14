@@ -434,12 +434,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("GetTransparency", fn(args -> LuaValue.valueOf(requireObject(id).transparency())));
         operations.set("SetTransparency", fn(args -> {
-            requireObject(id).setTransparency(args.checkdouble(2));
+            requireObject(id).setTransparency(opacity(args.arg(2), "Transparency"));
             return LuaValue.NONE;
         }));
         operations.set("GetAlpha", fn(args -> LuaValue.valueOf(1.0 - requireObject(id).transparency())));
         operations.set("SetAlpha", fn(args -> {
-            requireObject(id).setTransparency(1.0 - Math.max(0.0, Math.min(1.0, args.checkdouble(2))));
+            requireObject(id).setTransparency(1.0 - opacity(args.arg(2), "Alpha"));
             return LuaValue.NONE;
         }));
         operations.set("GetColor", fn(args -> LuaValue.valueOf(requireObject(id).color())));
@@ -579,8 +579,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (!transparency.isnil() && !alpha.isnil()) {
             throw new LuaError("[MLua] RenderObject properties Alpha and Transparency describe the same value; provide only one.");
         }
-        if (!transparency.isnil()) object.setTransparency(transparency.checkdouble());
-        else if (!alpha.isnil()) object.setTransparency(1.0 - Math.max(0.0, Math.min(1.0, alpha.checkdouble())));
+        if (!transparency.isnil()) object.setTransparency(opacity(transparency, "Transparency"));
+        else if (!alpha.isnil()) object.setTransparency(1.0 - opacity(alpha, "Alpha"));
         LuaValue color = property(props, "Color");
         if (!color.isnil()) object.setColor(color.checkint());
         LuaValue depth = property(props, "Depth");
@@ -624,6 +624,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (!value.isnil() || name.isEmpty()) return value;
         String lowerCamel = Character.toLowerCase(name.charAt(0)) + name.substring(1);
         return props.get(lowerCamel);
+    }
+
+    private static double opacity(LuaValue value, String propertyName) {
+        double opacity = value.checkdouble();
+        if (!Double.isFinite(opacity) || opacity < 0.0 || opacity > 1.0) {
+            throw new LuaError("[MLua] RenderObject " + propertyName + " must be between 0 and 1.");
+        }
+        return opacity;
     }
 
     private MLuaClientRenderManager.RenderObject requireObject(int id) {
