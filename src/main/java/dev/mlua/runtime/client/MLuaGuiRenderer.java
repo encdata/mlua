@@ -103,9 +103,9 @@ public final class MLuaGuiRenderer {
         }
 
         if (obj instanceof TextLabel label) {
-            drawText(graphics, label.getText(), label.getTextColor3(), label.getTextTransparency(), absW, absH, label.getTextSize(), label.getTextXAlignment(), label.getTextYAlignment(), label.getTextScaled(), label.getTextWrapped(), label::setTextFits);
+            drawText(graphics, label.getText(), label.getTextColor3(), label.getTextTransparency(), label.getTextShadow(), absW, absH, label.getTextSize(), label.getTextXAlignment(), label.getTextYAlignment(), label.getTextScaled(), label.getTextWrapped(), label::setTextFits);
         } else if (obj instanceof TextButton button) {
-            drawText(graphics, button.getText(), button.getTextColor3(), button.getTextTransparency(), absW, absH, button.getTextSize(), button.getTextXAlignment(), button.getTextYAlignment(), button.getTextScaled(), button.getTextWrapped(), button::setTextFits);
+            drawText(graphics, button.getText(), button.getTextColor3(), button.getTextTransparency(), button.getTextShadow(), absW, absH, button.getTextSize(), button.getTextXAlignment(), button.getTextYAlignment(), button.getTextScaled(), button.getTextWrapped(), button::setTextFits);
         } else if (obj instanceof ImageLabel label) {
             drawImage(graphics, label.getImage(), label.getImageColor3(), label.getImageTransparency(), absW, absH);
         } else if (obj instanceof ImageButton button) {
@@ -222,7 +222,7 @@ public final class MLuaGuiRenderer {
         graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
-    private static void drawText(GuiGraphics graphics, String text, int color, float textTransparency, int boxW, int boxH, int textSize, String xAlign, String yAlign, boolean textScaled, boolean textWrapped, java.util.function.Consumer<Boolean> textFitsSink) {
+    private static void drawText(GuiGraphics graphics, String text, int color, float textTransparency, boolean textShadow, int boxW, int boxH, int textSize, String xAlign, String yAlign, boolean textScaled, boolean textWrapped, java.util.function.Consumer<Boolean> textFitsSink) {
         int alpha = (int)Math.round(((color >>> 24) & 0xFF) * (1.0f - Math.max(0.0f, Math.min(1.0f, textTransparency))));
         color = (alpha << 24) | (color & 0x00FFFFFF);
         var font = Minecraft.getInstance().font;
@@ -270,7 +270,7 @@ public final class MLuaGuiRenderer {
                 case "Center" -> (localContentW - font.width(line)) / 2.0f;
                 default -> 0.0f;
             };
-            graphics.drawString(font, line, Math.round(x), Math.round(startY + i * lineHeight), color, false);
+            graphics.drawString(font, line, Math.round(x), Math.round(startY + i * lineHeight), color, textShadow);
         }
         graphics.pose().popPose();
         textFitsSink.accept(maxLineWidth * scale <= contentW && totalLineHeight * scale <= contentH);

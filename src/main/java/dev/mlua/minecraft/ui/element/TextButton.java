@@ -7,6 +7,7 @@ public class TextButton extends GuiButton {
     protected String text = "";
     protected int textColor3 = 0xFF000000;
     protected float textTransparency = 0.0f;
+    protected boolean textShadow = false;
     protected int textSize = 14;
     protected String textXAlignment = "Center";
     protected String textYAlignment = "Center";
@@ -24,6 +25,8 @@ public class TextButton extends GuiButton {
     public int getTextColor3() { return textColor3; }
     public void setTextTransparency(float transparency) { this.textTransparency = transparency; syncLuaProperty("TextTransparency", LuaValue.valueOf(transparency)); }
     public float getTextTransparency() { return textTransparency; }
+    public void setTextShadow(boolean shadow) { this.textShadow = shadow; syncLuaProperty("TextShadow", LuaValue.valueOf(shadow)); }
+    public boolean getTextShadow() { return textShadow; }
     public void setTextSize(int size) { this.textSize = size; syncLuaProperty("TextSize", LuaValue.valueOf(size)); }
     public int getTextSize() { return textSize; }
     public void setTextXAlignment(String align) { this.textXAlignment = align; syncLuaProperty("TextXAlignment", LuaValue.valueOf(align)); }
