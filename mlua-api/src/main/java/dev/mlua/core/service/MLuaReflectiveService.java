@@ -2,6 +2,7 @@ package dev.mlua.core.service;
 
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.api.MLuaLuaCoercions;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.module.MLuaRegistration;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -84,7 +85,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          }
          table.set("__mlua_doc_description", LuaValue.valueOf(serviceDescription.value()));
       }
-      LuaTable methodDescriptions = new LuaTable();
+      Map<String, String> methodDescriptions = new LinkedHashMap<>();
       LuaTable accessorParameterCounts = new LuaTable();
 
       Method[] methods = this.getClass().getMethods();
@@ -125,7 +126,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
             throw new IllegalStateException("Reflective service '" + this.name() + "' cannot access public method '"
                + name + "' declared by " + declaring.getName());
          }
-         methodDescriptions.set(name, LuaValue.valueOf(methodDescription.value()));
+         methodDescriptions.put(name, methodDescription.value());
          table.set(name, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
@@ -148,7 +149,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          });
       }
 
-      table.set("__mlua_doc_methods", methodDescriptions);
+      MLuaServiceMetadata.attachMethodDescriptions(table, methodDescriptions);
       table.set("__mlua_accessor_parameter_counts", accessorParameterCounts);
 
       return table;
