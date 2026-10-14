@@ -60,9 +60,9 @@ public final class SoundModule implements MLuaModule {
         docs.field("SoundPlayOptions", "Volume", "number", "Playback volume. Defaults to 1.");
         docs.field("SoundPlayOptions", "Pitch", "number", "Playback pitch. Defaults to 1.");
         docs.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat.");
-        docs.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position for the sound.");
+        docs.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position used when FollowEntity is not set.");
         docs.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow.");
-        docs.field("SoundPlayOptions", "FollowOffset", "Vector3", "Offset from the followed entity.");
+        docs.field("SoundPlayOptions", "FollowOffset", "Vector3", "Offset from the followed entity; used with FollowEntity.");
         docs.field("SoundPlayOptions", "Category", "string", "Minecraft sound category. Defaults to players.");
         docs.guideStep("SoundService", "Control a sound after starting it",
             "Playback functions return a SoundHandle instance. Its positions accept Vector3 or CFrame; follow offsets use native Vector3 values. Coordinate tables are rejected. Setting Position clears an entity-follow target. Its properties read and update the live sound, and Destroy stops playback.",
