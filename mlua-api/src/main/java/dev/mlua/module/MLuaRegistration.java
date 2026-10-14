@@ -51,6 +51,11 @@ public interface MLuaRegistration {
         return table;
     }
 
+    default LuaTable registerClass(String name, LuaTable classTable, String parentName,
+                                   String description) {
+        return registerClassWithParent(name, classTable, parentName, description);
+    }
+
     @Deprecated(forRemoval = false)
     default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
         java.util.Objects.requireNonNull(parentNames, "parentNames");
@@ -97,7 +102,7 @@ public interface MLuaRegistration {
             throw new IllegalStateException("Lua class '" + name
                 + "' defines 'new' as a non-function; constructors must be callable class functions");
         }
-        LuaTable type = registerClassWithParent(name, existing == null ? new LuaTable() : existing,
+        LuaTable type = registerClass(name, existing == null ? new LuaTable() : existing,
             parent, description);
         if (type.rawget("__mlua_service_class").toboolean()
             || type.get("__mlua_ui_java_type").isuserdata()) return type;
