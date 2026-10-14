@@ -492,6 +492,7 @@ public class WorldModule implements MLuaModule {
             "Use types to include a set of registered entity identifiers and exclude_types to remove specific ones. Radius searches use a spherical distance from the center.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal hostiles = world:FindEntitiesInRadius(player.Position, 24, {\n    types = { \"minecraft:zombie\", \"minecraft:skeleton\", \"minecraft:creeper\" },\n    exclude_entities = { player, projectile }\n})\n\nfor _, entity in ipairs(hostiles) do\n    print(entity.Name, entity.Position)\nend");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
+        docs.method("Level", "Level:GetBlock(position: Vector3|CFrame): Block", "Returns the live block instance at the supplied native position.", "Vector3 or CFrame position; coordinate tables are rejected", "Block", "shared:Shared", null);
         docs.clazz("World", null, "A live world instance for one dimension, with time, block, entity, and chunk APIs.", "classes/world.html", "Level");
         docs.clazz("BlockState", "MLuaBlockStateWrapper", "An immutable Minecraft block state at a world position, with typed state queries.", "classes/block-state.html", "Instance");
         docs.clazz("FluidState", "MLuaFluidStateWrapper", "An immutable Minecraft fluid state at a world position.", "classes/fluid-state.html", "Instance");

@@ -70,9 +70,8 @@ public final class MLuaLevelWrapper {
                 return LuaValue.NONE;
             }), "Sets the day time on a server world.");
             registration.registerClassFunction("Level", "GetBlock", self((self, args) -> {
-                if (!args.arg(2).istable()) throw new LuaError("Level:GetBlock expects a position table");
                 net.minecraft.core.BlockPos pos = MLuaBlockWrapper.vectorToBlockPos(args.arg(2));
-                if (pos == null) throw new LuaError("Level:GetBlock expects X, Y, and Z coordinates");
+                if (pos == null) throw new LuaError("[MLua] Level:GetBlock expects a native Vector3 or CFrame position");
                 return MLuaBlockWrapper.blockTable(level(self), pos, registration);
             }), "Returns the live block instance at a position in this world.");
         }

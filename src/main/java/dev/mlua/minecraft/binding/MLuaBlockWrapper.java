@@ -5,6 +5,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.core.service.MLuaServiceProperties;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.mc.impl.block.MCBlockImpl;
@@ -155,14 +156,9 @@ public final class MLuaBlockWrapper {
    }
 
    public static net.minecraft.core.BlockPos vectorToBlockPos(LuaValue value) {
-      if (!value.istable()) {
-         return null;
-      }
-      LuaTable table = value.checktable();
-      LuaValue x = firstNonNil(table.get("X"), table.get("x"), table.get(1));
-      LuaValue y = firstNonNil(table.get("Y"), table.get("y"), table.get(2));
-      LuaValue z = firstNonNil(table.get("Z"), table.get("z"), table.get(3));
-      return x.isnumber() && y.isnumber() && z.isnumber() ? net.minecraft.core.BlockPos.containing(x.todouble(), y.todouble(), z.todouble()) : null;
+      if (!MLuaVector.isVector3(value) && !MLuaCFrame.isCFrame(value)) return null;
+      double[] position = MLuaCFrame.vector(value);
+      return net.minecraft.core.BlockPos.containing(position[0], position[1], position[2]);
    }
 
    public static boolean toggleDoor(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, boolean open, boolean toggle) {
