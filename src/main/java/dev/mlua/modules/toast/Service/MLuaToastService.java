@@ -11,7 +11,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-@MLuaDescription("Displays native Minecraft client toasts.")
+@MLuaDescription("Displays native Minecraft client toasts, including multiline messages.")
 public final class MLuaToastService extends MLuaReflectiveService {
     public MLuaToastService(Context context) {
         super(context);
@@ -29,7 +29,7 @@ public final class MLuaToastService extends MLuaReflectiveService {
         return table;
     }
 
-    @MLuaDescription("Adds a native Minecraft system toast; title and message accept strings or Java Components.")
+    @MLuaDescription("Adds a native Minecraft system toast and wraps long messages to fit; title and message accept strings or Java Components.")
     public void Show(LuaValue title, LuaValue message) {
         if (context.side() != Side.CLIENT) {
             throw new LuaError("[MLua] Toast:Show is client-side only.");
@@ -41,16 +41,16 @@ public final class MLuaToastService extends MLuaReflectiveService {
         Component toastTitle = component(title, "title");
         Component toastMessage = component(message, "message");
         //--version 26.1
-        minecraft.getToastManager().addToast(new SystemToast(
-            SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
+        minecraft.getToastManager().addToast(SystemToast.multiline(
+            minecraft, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
         //--endversion
         //--version 1.21.1
-        minecraft.getToasts().addToast(new SystemToast(
-            SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
+        minecraft.getToasts().addToast(SystemToast.multiline(
+            minecraft, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
         //--endversion
         //--version 1.20.1
-        minecraft.getToasts().addToast(new SystemToast(
-            SystemToast.SystemToastIds.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
+        minecraft.getToasts().addToast(SystemToast.multiline(
+            minecraft, SystemToast.SystemToastIds.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
         //--endversion
     }
 
