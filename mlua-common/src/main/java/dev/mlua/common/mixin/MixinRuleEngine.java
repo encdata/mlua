@@ -15,7 +15,6 @@ public final class MixinRuleEngine {
     private static volatile Runnable retransformTask;
 
     private final List<MLuaMixinRule> rules = new ArrayList<>();
-    private final Map<String, LuaValue> callbacks = new ConcurrentHashMap<>();
     private final Map<String, String> applicationFailures = new ConcurrentHashMap<>();
 
     private MixinRuleEngine() {
@@ -63,7 +62,6 @@ public final class MixinRuleEngine {
         }
     }
 
-    /** Registers a rule and its callback together, rejecting callback ID collisions. */
     public void registerRule(MLuaMixinRule rule, LuaValue callback) {
         validateRule(rule);
         if (callback == null || !callback.isfunction()) {
@@ -80,7 +78,6 @@ public final class MixinRuleEngine {
             if (this.rules.stream().noneMatch(existing -> existing.callbackId().equals(rule.callbackId()))) {
                 this.rules.add(rule);
             }
-            this.callbacks.put(rule.callbackId(), callback);
             MLuaMixinCallbackRegistry.register(rule.callbackId(), callback);
         }
     }
@@ -95,20 +92,18 @@ public final class MixinRuleEngine {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("Mixin callback ID must be non-empty");
         if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Mixin callback must be a function");
         synchronized (this.rules) {
-            this.callbacks.put(id, callback);
             MLuaMixinCallbackRegistry.register(id, callback);
         }
     }
 
     public LuaValue getCallback(String id) {
-        return this.callbacks.get(id);
+        return MLuaMixinCallbackRegistry.get(id);
     }
 
     public Map<String, LuaValue> getCallbacks() {
-        return Map.copyOf(this.callbacks);
+        return MLuaMixinCallbackRegistry.snapshot();
     }
 
-    /** Records loader-independent failures encountered while applying rules to a target class. */
     public void recordApplicationFailure(String className, Throwable failure) {
         if (className == null || className.isBlank() || failure == null) return;
         String message = failure.getMessage();
@@ -131,7 +126,6 @@ public final class MixinRuleEngine {
         return Map.copyOf(this.applicationFailures);
     }
 
-    /** Removes all rules and callbacks contributed by one script scope. */
     public int unregisterScope(String scope) {
         if (scope == null || scope.isBlank()) return 0;
         String prefix = scope + ":";
@@ -144,7 +138,6 @@ public final class MixinRuleEngine {
             int before = this.rules.size();
             this.rules.removeIf(rule -> rule.callbackId().startsWith(prefix));
             removed = before - this.rules.size();
-            this.callbacks.keySet().removeIf(id -> id.startsWith(prefix));
             for (String target : affectedTargets) {
                 if (this.rules.stream().noneMatch(rule -> rule.targetsClass(target))) this.applicationFailures.remove(target);
             }
@@ -156,7 +149,6 @@ public final class MixinRuleEngine {
     public void clear() {
         synchronized (this.rules) {
             this.rules.clear();
-            this.callbacks.clear();
             this.applicationFailures.clear();
             MLuaMixinCallbackRegistry.clear();
         }

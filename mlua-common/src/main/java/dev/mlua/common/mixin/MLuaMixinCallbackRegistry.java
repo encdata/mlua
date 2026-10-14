@@ -20,7 +20,6 @@ public final class MLuaMixinCallbackRegistry {
    private MLuaMixinCallbackRegistry() {
    }
 
-   /** Stable per-script scope shared by early bootstrap and runtime mixin registration. */
    public static String scriptScope(String scriptPath) {
       if (scriptPath == null || scriptPath.isBlank()) return "unscoped";
       String normalizedPath = scriptPath.replace('\\', '/');
@@ -55,6 +54,14 @@ public final class MLuaMixinCallbackRegistry {
       CALLBACKS.put(id, callback);
    }
 
+   public static LuaValue get(String id) {
+      return CALLBACKS.get(id);
+   }
+
+   public static Map<String, LuaValue> snapshot() {
+      return Map.copyOf(CALLBACKS);
+   }
+
    public static void registerOriginal(String id, String owner, String method, String descriptor) {
       ORIGINALS.put(id, new OriginalMethod(owner, method, descriptor));
    }
@@ -63,7 +70,6 @@ public final class MLuaMixinCallbackRegistry {
       if (id != null) ORIGINALS.remove(id);
    }
 
-   /** Removes callbacks and original-method metadata contributed by one script scope. */
    public static int unregisterScope(String scope) {
       if (scope == null || scope.isBlank()) return 0;
       String prefix = scope + ":";
