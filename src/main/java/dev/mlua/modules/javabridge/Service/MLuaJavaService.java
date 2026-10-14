@@ -1241,19 +1241,35 @@ public final class MLuaJavaService extends MLuaServiceBase {
             java.util.Collections.addAll(pending, current.getInterfaces());
         }
 
-        Map<String, Field> matches = new LinkedHashMap<>();
+        List<Field> matches = new ArrayList<>();
         for (int index = 0; index < pending.size(); index++) {
             Class<?> iface = pending.get(index);
             if (!visited.add(iface)) continue;
             for (Field field : iface.getDeclaredFields()) {
                 String candidate = normalized ? normalizeMemberName(field.getName()) : field.getName();
                 if (Modifier.isStatic(field.getModifiers()) && candidate.equals(expected) && prepareAccessible(field)) {
-                    matches.putIfAbsent(field.getDeclaringClass().getName() + "#" + field.getName(), field);
+                    addInterfaceField(matches, field);
                 }
             }
             java.util.Collections.addAll(pending, iface.getInterfaces());
         }
-        return List.copyOf(matches.values());
+        return List.copyOf(matches);
+    }
+
+    private void addInterfaceField(List<Field> fields, Field candidate) {
+        for (int index = fields.size() - 1; index >= 0; index--) {
+            Field existing = fields.get(index);
+            Class<?> existingOwner = existing.getDeclaringClass();
+            Class<?> candidateOwner = candidate.getDeclaringClass();
+            if (existingOwner == candidateOwner && existing.getName().equals(candidate.getName())) return;
+            if (!existing.getName().equals(candidate.getName())) continue;
+            if (existingOwner.isAssignableFrom(candidateOwner)) {
+                fields.remove(index);
+            } else if (candidateOwner.isAssignableFrom(existingOwner)) {
+                return;
+            }
+        }
+        fields.add(candidate);
     }
 
     private LuaError ambiguousInterfaceField(String fieldName, Class<?> clazz, List<Field> fields) {
