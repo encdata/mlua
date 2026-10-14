@@ -93,7 +93,8 @@ public final class FabricEventBridge implements EventBridge {
             }
             String updated = result.message();
             if (updated != null && !updated.equals(message.signedBody().content())) {
-                sender.getServer().getPlayerList().broadcastSystemMessage(Component.literal(updated), false);
+                Component replacement = Component.translatable("chat.type.text", sender.getDisplayName(), Component.literal(updated));
+                sender.getServer().getPlayerList().broadcastSystemMessage(replacement, false);
                 return false;
             }
             return true;
