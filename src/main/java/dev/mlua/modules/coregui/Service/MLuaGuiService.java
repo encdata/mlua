@@ -1715,6 +1715,13 @@ public final class MLuaGuiService implements MLuaService {
             if (!this.disposed) this.invokeClassMethod("Tick");
         }
 
+        @Override public void resize(Minecraft minecraft, int width, int height) {
+            super.resize(minecraft, width, height);
+            if (!this.disposed) {
+                this.invokeClassMethod("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
+            }
+        }
+
         @Override public boolean isPauseScreen() {
             if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains("IsPauseScreen")) return true;
             LuaValue method = this.luaInstance.get("IsPauseScreen");
@@ -1750,11 +1757,14 @@ public final class MLuaGuiService implements MLuaService {
             super.onFilesDrop(paths);
         }
 
-        private void invokeClassMethod(String methodName) {
+        private void invokeClassMethod(String methodName, LuaValue... parameters) {
             if (this.luaInstance == null) return;
             LuaValue method = this.luaInstance.get(methodName);
             if (!method.isfunction()) return;
-            try { method.invoke(this.luaInstance); }
+            LuaValue[] arguments = new LuaValue[parameters.length + 1];
+            arguments[0] = this.luaInstance;
+            System.arraycopy(parameters, 0, arguments, 1, parameters.length);
+            try { method.invoke(LuaValue.varargsOf(arguments)); }
             catch (RuntimeException failure) {
                 MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
             }
