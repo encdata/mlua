@@ -43,6 +43,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 //--version 26.1
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 //--endversion
@@ -968,7 +969,7 @@ public final class MLuaGuiService implements MLuaService {
                 LuaValue fieldsValue = args.arg(4);
                 if (!fieldsValue.isnil() && !fieldsValue.istable()) throw new LuaError("[MLua] Gui:OpenScreen fields must be a table.");
                 if (fieldsValue.istable()) {
-                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "SetOnClose", "SetOnRender");
+                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "AddEditBox", "SetOnClose", "SetOnRender");
                     for (LuaValue key : fieldsValue.checktable().keys()) {
                         if (key.isstring() && reserved.contains(key.tojstring())) {
                             throw new LuaError("[MLua] Gui:OpenScreen fields cannot replace the native screen member '" + key.tojstring() + "'.");
@@ -1339,7 +1340,7 @@ public final class MLuaGuiService implements MLuaService {
         private boolean classInitialized;
         private boolean disposed;
         private boolean renderFailed;
-        private int nextNativeButtonIndex = 1;
+        private int nextNativeControlIndex = 1;
 
         private MLuaScriptScreen(String title, LuaValue initialize, MLuaRegistration registration,
                                  GuiState state, String ownerModId) {
@@ -1369,7 +1370,7 @@ public final class MLuaGuiService implements MLuaService {
             super.init();
             this.textLines.clear();
             this.renderFailed = false;
-            this.nextNativeButtonIndex = 1;
+            this.nextNativeControlIndex = 1;
             LuaTable builder = new LuaTable();
             builder.set("SetOnClose", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
@@ -1408,12 +1409,25 @@ public final class MLuaGuiService implements MLuaService {
                     return MLuaScriptScreen.this.addNativeButton(label, position, size, callback);
                 }
             });
+            builder.set("AddEditBox", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) {
+                    LuaTable position = requireScreenUDim2(args.arg(2), "Position");
+                    LuaTable size = requireScreenUDim2(args.arg(3), "Size");
+                    String initialText = args.arg(4).optjstring("");
+                    LuaValue changed = args.arg(5);
+                    if (!changed.isnil() && !changed.isfunction()) {
+                        throw new LuaError("[MLua] Screen:AddEditBox onChanged must be a callback function.");
+                    }
+                    return MLuaScriptScreen.this.addNativeEditBox(position, size, initialText, changed);
+                }
+            });
             try {
                 if (this.luaInstance == null) {
                     this.initialize.invoke(builder);
                 } else {
                     this.luaInstance.rawset("AddText", builder.get("AddText"));
                     this.luaInstance.rawset("AddButton", builder.get("AddButton"));
+                    this.luaInstance.rawset("AddEditBox", builder.get("AddEditBox"));
                     this.luaInstance.rawset("SetOnClose", builder.get("SetOnClose"));
                     this.luaInstance.rawset("SetOnRender", builder.get("SetOnRender"));
                     if (!this.classInitialized) {
@@ -1436,7 +1450,7 @@ public final class MLuaGuiService implements MLuaService {
             int width = screenCoordinate(size, "X", this.width);
             int height = screenCoordinate(size, "Y", this.height);
             if (width < 1 || height < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
-            int buttonIndex = this.nextNativeButtonIndex++;
+            int buttonIndex = this.nextNativeControlIndex++;
             LuaTable[] controlRef = new LuaTable[1];
             Button button = Button.builder(Component.literal(label), clicked -> {
                 try {
@@ -1448,6 +1462,27 @@ public final class MLuaGuiService implements MLuaService {
             controlRef[0] = MLuaNativeControl.instance(this.registration,
                 new MLuaNativeControl.Backing(button, this, this.getClass().getName(), buttonIndex));
             return controlRef[0];
+        }
+
+        private LuaTable addNativeEditBox(LuaTable position, LuaTable size, String initialText, LuaValue changed) {
+            int x = screenCoordinate(position, "X", this.width);
+            int y = screenCoordinate(position, "Y", this.height);
+            int width = screenCoordinate(size, "X", this.width);
+            int height = screenCoordinate(size, "Y", this.height);
+            if (width < 1 || height < 1) throw new LuaError("[MLua] Screen edit box dimensions must be positive.");
+            int controlIndex = this.nextNativeControlIndex++;
+            EditBox field = new EditBox(this.font, x, y, width, height, Component.literal(""));
+            field.setValue(initialText);
+            LuaTable control = MLuaNativeControl.instance(this.registration,
+                new MLuaNativeControl.Backing(field, this, this.getClass().getName(), controlIndex));
+            if (changed.isfunction()) {
+                field.setResponder(value -> {
+                    try { changed.invoke(LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(value), control})); }
+                    catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen edit box callback failed", failure); }
+                });
+            }
+            this.addRenderableWidget(field);
+            return control;
         }
 
         @Override public void onClose() {
