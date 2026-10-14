@@ -31,6 +31,8 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y + z * z);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
+      table.set("MagnitudeSquared", x * x + y * y + z * z);
+      table.set("magnitudeSquared", x * x + y * y + z * z);
       if (mag == 0.0) {
          table.set("Unit", vector3Bare(0.0, 0.0, 0.0));
       } else {
@@ -53,6 +55,8 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
+      table.set("MagnitudeSquared", x * x + y * y);
+      table.set("magnitudeSquared", x * x + y * y);
       if (mag == 0.0) {
          table.set("Unit", vector2Bare(0.0, 0.0));
       } else {
@@ -77,6 +81,8 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y + z * z);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
+      table.set("MagnitudeSquared", x * x + y * y + z * z);
+      table.set("magnitudeSquared", x * x + y * y + z * z);
       table.setmetatable(VECTOR3_METATABLE);
       VECTOR3_VALUES.add(table);
       return table.freeze();
@@ -126,6 +132,8 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
+      table.set("MagnitudeSquared", x * x + y * y);
+      table.set("magnitudeSquared", x * x + y * y);
       table.setmetatable(VECTOR2_METATABLE);
       VECTOR2_VALUES.add(table);
       return table.freeze();
@@ -176,6 +184,66 @@ public final class MLuaVector {
          }
       });
       methods.set("distance", methods.get("Distance"));
+      methods.set("distanceTo", methods.get("Distance"));
+      methods.set("DistanceSquared", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector3(self);
+            LuaTable b = checkVector3(other);
+            double dx = a.get("X").todouble() - b.get("X").todouble();
+            double dy = a.get("Y").todouble() - b.get("Y").todouble();
+            double dz = a.get("Z").todouble() - b.get("Z").todouble();
+            return LuaValue.valueOf(dx * dx + dy * dy + dz * dz);
+         }
+      });
+      methods.set("distanceSquared", methods.get("DistanceSquared"));
+      methods.set("distanceToSqr", methods.get("DistanceSquared"));
+      methods.set("LengthSquared", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable a = checkVector3(self);
+            double x = a.get("X").todouble();
+            double y = a.get("Y").todouble();
+            double z = a.get("Z").todouble();
+            return LuaValue.valueOf(x * x + y * y + z * z);
+         }
+      });
+      methods.set("lengthSquared", methods.get("LengthSquared"));
+      methods.set("lengthSqr", methods.get("LengthSquared"));
+      methods.set("Length", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            return LuaValue.valueOf(checkVector3(self).get("Magnitude").todouble());
+         }
+      });
+      methods.set("length", methods.get("Length"));
+      methods.set("horizontalDistanceSqr", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable vector = checkVector3(self);
+            double x = vector.get("X").todouble();
+            double z = vector.get("Z").todouble();
+            return LuaValue.valueOf(x * x + z * z);
+         }
+      });
+      methods.set("horizontalDistance", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable vector = checkVector3(self);
+            double x = vector.get("X").todouble();
+            double z = vector.get("Z").todouble();
+            return LuaValue.valueOf(Math.sqrt(x * x + z * z));
+         }
+      });
+      methods.set("scale", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue scalar) {
+            LuaTable vector = checkVector3(self);
+            double amount = scalar.checkdouble();
+            return MLuaVector.vector3(vector.get("X").todouble() * amount, vector.get("Y").todouble() * amount, vector.get("Z").todouble() * amount);
+         }
+      });
+      methods.set("Normalize", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable vector = checkVector3(self);
+            return vector.get("Unit");
+         }
+      });
+      methods.set("normalize", methods.get("Normalize"));
       methods.set("Floor", new OneArgFunction() {
          public LuaValue call(LuaValue self) {
             LuaTable a = checkVector3(self);
@@ -257,6 +325,58 @@ public final class MLuaVector {
             return LuaValue.valueOf(a.get("X").todouble() * b.get("X").todouble() + a.get("Y").todouble() * b.get("Y").todouble());
          }
       });
+      methods.set("DistanceSquared", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            double dx = a.get("X").todouble() - b.get("X").todouble();
+            double dy = a.get("Y").todouble() - b.get("Y").todouble();
+            return LuaValue.valueOf(dx * dx + dy * dy);
+         }
+      });
+      methods.set("distanceSquared", methods.get("DistanceSquared"));
+      methods.set("distanceToSqr", methods.get("DistanceSquared"));
+      methods.set("LengthSquared", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable a = checkVector2(self);
+            double x = a.get("X").todouble();
+            double y = a.get("Y").todouble();
+            return LuaValue.valueOf(x * x + y * y);
+         }
+      });
+      methods.set("lengthSquared", methods.get("LengthSquared"));
+      methods.set("lengthSqr", methods.get("LengthSquared"));
+      methods.set("Distance", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue other) {
+            LuaTable a = checkVector2(self);
+            LuaTable b = checkVector2(other);
+            double dx = a.get("X").todouble() - b.get("X").todouble();
+            double dy = a.get("Y").todouble() - b.get("Y").todouble();
+            return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy));
+         }
+      });
+      methods.set("distance", methods.get("Distance"));
+      methods.set("distanceTo", methods.get("Distance"));
+      methods.set("Length", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            return LuaValue.valueOf(checkVector2(self).get("Magnitude").todouble());
+         }
+      });
+      methods.set("length", methods.get("Length"));
+      methods.set("scale", new TwoArgFunction() {
+         public LuaValue call(LuaValue self, LuaValue scalar) {
+            LuaTable vector = checkVector2(self);
+            double amount = scalar.checkdouble();
+            return MLuaVector.vector2(vector.get("X").todouble() * amount, vector.get("Y").todouble() * amount);
+         }
+      });
+      methods.set("Normalize", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable vector = checkVector2(self);
+            return vector.get("Unit");
+         }
+      });
+      methods.set("normalize", methods.get("Normalize"));
       methods.set("Lerp", new ThreeArgFunction() {
          public LuaValue call(LuaValue self, LuaValue goal, LuaValue alpha) {
             LuaTable a = checkVector2(self);
