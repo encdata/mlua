@@ -83,8 +83,8 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionX", "Returns this entity's X position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionY", "Returns this entity's Y position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionZ", "Returns this entity's Z position.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetPosition", "Moves this entity to a position.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Teleport", "Teleports this entity to a position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetPosition", "Moves this entity to finite Vector3 or CFrame coordinates.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Teleport", "Teleports this entity to finite Vector3 or CFrame coordinates.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetVelocity", "Returns this entity's current velocity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetVelocity", "Sets this entity's velocity from a Vector3 with finite components.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetRotation", "Returns this entity's pitch and yaw in degrees.");
@@ -94,8 +94,8 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetCFrame", "Returns this entity's position and rotation as a CFrame.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "SetCFrame", "Sets this entity's position and rotation from a CFrame.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLookVector", "Returns the direction this entity is facing.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "LookAt", "Turns this entity toward a position.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a Vector3, CFrame, or live entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "LookAt", "Turns this entity toward a finite Vector3, CFrame, or live entity position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a finite Vector3, CFrame, or live entity position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsAlive", "Returns whether this entity is alive.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnGround", "Returns whether this entity is on the ground.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsInWater", "Returns whether this entity is in water.");

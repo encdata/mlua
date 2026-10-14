@@ -89,7 +89,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetArmor()", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAbsorption()", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:SetAbsorption(value: number)", "void"));
-        docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:Damage(amount: number, sourceName: string?, attacker: Entity?)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:Damage(amount: number, sourceName: string?, attacker: Entity?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAttribute(name: string)", "number?"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:SetAttribute(name: string, value: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAttributeInstance(name: string)", "AttributeInstance?"));

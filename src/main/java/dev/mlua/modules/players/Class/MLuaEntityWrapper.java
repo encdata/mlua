@@ -12,6 +12,7 @@ import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.binding.MLuaAnimationBindings;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
 import dev.mlua.modules.combat.Service.MLuaCombatService;
 import dev.mlua.math.MLuaCFrame;
@@ -451,7 +452,11 @@ public final class MLuaEntityWrapper {
           if (((MCEntityImpl)wrapped).inner().level().isClientSide) {
              throw new LuaError("[MLua] LivingEntity:Damage is server-side only.");
           }
-          String sourceStr = args.optjstring(3, "generic");
+          LuaValue sourceValue = args.arg(3);
+          if (!sourceValue.isnil() && !sourceValue.isstring()) {
+             throw new LuaError("[MLua] LivingEntity:Damage sourceName must be a string when provided.");
+          }
+          String sourceStr = sourceValue.isnil() ? "generic" : sourceValue.checkjstring();
           net.minecraft.world.entity.Entity attacker = entityFromLua(args.arg(4));
           Object runtimeOwner = registration instanceof MLuaRuntime runtime ? runtime.session() : null;
           String damageOwner = "";
@@ -1082,7 +1087,7 @@ public final class MLuaEntityWrapper {
 
    public static double[] targetPosition(LuaValue value) {
       if (MLuaCFrame.isCFrame(value) || MLuaVector.isVector3(value)) {
-         return MLuaCFrame.vector(value);
+         return MLuaLuaArguments.finiteVector3(value, "Entity target position");
       }
       net.minecraft.world.entity.Entity entity = entityFromLua(value);
       if (entity != null) {

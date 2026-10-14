@@ -15,6 +15,7 @@ import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaContainer;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
@@ -769,7 +770,7 @@ public final class MLuaPlayerWrapper {
    }
 
     public static double[] positionArgs(Varargs args, int index) {
-      return MLuaCFrame.vector(args.arg(index));
+      return MLuaLuaArguments.finiteVector3(args.arg(index), "Entity position");
    }
 
    private static GameProfile gameProfile(MCPlayer player) {
