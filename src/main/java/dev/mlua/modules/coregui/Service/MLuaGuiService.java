@@ -43,7 +43,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
+//--version 26.1
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+//--endversion
+//--version 1.20.1,1.21.1
 import net.minecraft.client.gui.GuiGraphics;
+//--endversion
 
 public final class MLuaGuiService implements MLuaService {
     private static final Map<MLuaTaskSchedulerView, GuiState> STATES = new WeakHashMap<>();
@@ -835,6 +840,12 @@ public final class MLuaGuiService implements MLuaService {
         if (ownerId == null || ownerId.isBlank()) return 0;
         int removed = 0;
         synchronized (this.state) {
+            for (MLuaScriptScreen screen : List.copyOf(this.state.scriptScreens)) {
+                if (ownerId.equals(screen.ownerModId)) {
+                    screen.dispose();
+                    removed++;
+                }
+            }
             boolean removedScreenTarget = false;
             for (Map.Entry<String, ScreenTarget> entry : List.copyOf(this.state.screenTargets.entrySet())) {
                 if (ownerId.equals(entry.getValue().owner())
@@ -935,9 +946,52 @@ public final class MLuaGuiService implements MLuaService {
                 if (!initialize.isfunction()) throw new LuaError("[MLua] Gui:OpenNativeScreen expects an initialization function.");
                 Minecraft minecraft = Minecraft.getInstance();
                 if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
-                Screen screen = new MLuaScriptScreen(title, initialize);
+                MLuaScriptScreen screen = new MLuaScriptScreen(title, initialize, MLuaGuiService.this.state,
+                    MLuaGuiService.this.context.mlua().ownerModId());
+                MLuaGuiService.this.state.scriptScreens.add(screen);
                 minecraft.setScreen(screen);
                 return MLuaNativeScreen.instance(MLuaRuntime.get(), screen);
+            }
+        });
+
+        table.set("OpenScreen", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                if (MLuaGuiService.this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
+                String className = args.arg(2).checkjstring();
+                String title = args.arg(3).checkjstring();
+                LuaValue fieldsValue = args.arg(4);
+                if (!fieldsValue.isnil() && !fieldsValue.istable()) throw new LuaError("[MLua] Gui:OpenScreen fields must be a table.");
+                if (fieldsValue.istable()) {
+                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "SetOnClose");
+                    for (LuaValue key : fieldsValue.checktable().keys()) {
+                        if (key.isstring() && reserved.contains(key.tojstring())) {
+                            throw new LuaError("[MLua] Gui:OpenScreen fields cannot replace the native screen member '" + key.tojstring() + "'.");
+                        }
+                    }
+                }
+                MLuaRegistration registration = MLuaGuiService.this.context.mlua().registration();
+                if (!registration.isSubclassOf(className, "Screen")) {
+                    throw new LuaError("[MLua] Gui:OpenScreen requires a registered class that extends Screen.");
+                }
+                LuaTable instance;
+                try { instance = registration.attachClassInstance(new LuaTable(), className, null); }
+                catch (RuntimeException failure) { throw new LuaError("[MLua] Could not create screen class '" + className + "': " + failure.getMessage()); }
+                MLuaScriptScreen screen = new MLuaScriptScreen(title, instance, registration, className,
+                    fieldsValue.istable() ? fieldsValue.checktable() : null, MLuaGuiService.this.state,
+                    MLuaGuiService.this.context.mlua().ownerModId());
+                MLuaGuiService.this.state.scriptScreens.add(screen);
+                instance.set("NativeScreen", MLuaNativeScreen.instance(MLuaRuntime.get(), screen));
+                instance.rawset("Close", new VarArgFunction() {
+                    @Override public Varargs invoke(Varargs closeArgs) {
+                        if (MLuaGuiService.currentScreen() == screen) {
+                            Minecraft.getInstance().setScreen(null);
+                            return LuaValue.TRUE;
+                        }
+                        return LuaValue.FALSE;
+                    }
+                });
+                Minecraft.getInstance().setScreen(screen);
+                return instance;
             }
         });
 
@@ -1267,16 +1321,43 @@ public final class MLuaGuiService implements MLuaService {
 
     private static final class MLuaScriptScreen extends Screen {
         private final LuaValue initialize;
+        private final LuaTable luaInstance;
+        private final MLuaRegistration registration;
+        private final String className;
+        private final LuaTable fields;
+        private final GuiState state;
+        private final String ownerModId;
         private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
         private LuaValue closed = LuaValue.NIL;
+        private boolean classInitialized;
+        private boolean disposed;
 
-        private MLuaScriptScreen(String title, LuaValue initialize) {
+        private MLuaScriptScreen(String title, LuaValue initialize, GuiState state, String ownerModId) {
             super(Component.literal(title));
             this.initialize = initialize;
+            this.luaInstance = null;
+            this.registration = null;
+            this.className = null;
+            this.fields = null;
+            this.state = state;
+            this.ownerModId = ownerModId;
+        }
+
+        private MLuaScriptScreen(String title, LuaTable luaInstance, MLuaRegistration registration,
+                                 String className, LuaTable fields, GuiState state, String ownerModId) {
+            super(Component.literal(title));
+            this.initialize = LuaValue.NIL;
+            this.luaInstance = luaInstance;
+            this.registration = registration;
+            this.className = className;
+            this.fields = fields;
+            this.state = state;
+            this.ownerModId = ownerModId;
         }
 
         @Override protected void init() {
             super.init();
+            this.textLines.clear();
             LuaTable builder = new LuaTable();
             builder.set("SetOnClose", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
@@ -1308,8 +1389,25 @@ public final class MLuaGuiService implements MLuaService {
                     return LuaValue.NONE;
                 }
             });
-            try { this.initialize.invoke(builder); }
-            catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure); }
+            try {
+                if (this.luaInstance == null) {
+                    this.initialize.invoke(builder);
+                } else {
+                    this.luaInstance.rawset("AddText", builder.get("AddText"));
+                    this.luaInstance.rawset("AddButton", builder.get("AddButton"));
+                    this.luaInstance.rawset("SetOnClose", builder.get("SetOnClose"));
+                    if (!this.classInitialized) {
+                        this.registration.initializeClassInstance(this.luaInstance, this.className, this.fields);
+                        this.classInitialized = true;
+                    } else {
+                        LuaValue init = this.luaInstance.get("Init");
+                        if (init.isfunction()) init.invoke(LuaValue.varargsOf(new LuaValue[]{this.luaInstance,
+                            this.fields == null ? LuaValue.NIL : this.fields}));
+                    }
+                }
+            } catch (RuntimeException failure) {
+                MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure);
+            }
         }
 
         private void addNativeButton(String label, LuaTable position, LuaTable size, LuaValue callback) {
@@ -1325,16 +1423,42 @@ public final class MLuaGuiService implements MLuaService {
         }
 
         @Override public void onClose() {
-            if (this.closed.isfunction()) {
-                try { this.closed.invoke(LuaValue.NONE); }
-                catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen close callback failed", failure); }
+            this.state.scriptScreens.remove(this);
+            if (!this.disposed) {
+                if (this.closed.isfunction()) {
+                    try { this.closed.invoke(LuaValue.NONE); }
+                    catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen close callback failed", failure); }
+                }
+                this.invokeClassMethod("OnClose");
             }
             super.onClose();
         }
 
+        @Override public void tick() {
+            super.tick();
+            if (!this.disposed) this.invokeClassMethod("Tick");
+        }
+
+        private void invokeClassMethod(String methodName) {
+            if (this.luaInstance == null) return;
+            LuaValue method = this.luaInstance.get(methodName);
+            if (!method.isfunction()) return;
+            try { method.invoke(this.luaInstance); }
+            catch (RuntimeException failure) {
+                MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
+            }
+        }
+
+        private void dispose() {
+            this.disposed = true;
+            this.textLines.clear();
+            this.state.scriptScreens.remove(this);
+            if (MLuaGuiService.currentScreen() == this) Minecraft.getInstance().setScreen(null);
+        }
+
         @Override
         //--version 26.1
-        public void extractRenderState(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
             this.extractBackground(graphics, mouseX, mouseY, delta);
             super.extractRenderState(graphics, mouseX, mouseY, delta);
             for (ScreenText line : this.textLines) graphics.text(this.font, line.text(), line.x(), line.y(), line.color(), true);
@@ -1358,10 +1482,9 @@ public final class MLuaGuiService implements MLuaService {
         //--endversion
     }
 
-    private record ScreenText(String text, int x, int y, int color) { }
-
     private static final class GuiState {
         private final List<ScreenGui> screens = new CopyOnWriteArrayList<>();
+        private final List<MLuaScriptScreen> scriptScreens = new CopyOnWriteArrayList<>();
         private final Set<CoreGuiType> disabledTypes = EnumSet.noneOf(CoreGuiType.class);
         private final List<NativeLayout> nativeLayouts = new CopyOnWriteArrayList<>();
         private final Map<String, ScreenTarget> screenTargets = new ConcurrentHashMap<>();
@@ -1370,6 +1493,7 @@ public final class MLuaGuiService implements MLuaService {
         private volatile boolean enabled = true;
 
         private void clear() {
+            for (MLuaScriptScreen screen : List.copyOf(this.scriptScreens)) screen.dispose();
             List<NativeLayout> layouts = List.copyOf(this.nativeLayouts);
             for (int index = layouts.size() - 1; index >= 0; index--) {
                 NativeLayout layout = layouts.get(index);

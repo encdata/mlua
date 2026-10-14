@@ -28,6 +28,8 @@ public class UIModule implements MLuaModule {
         MLuaNativeControl.registerClass(registration);
         MLuaNativeScreen.registerClass(registration);
         MLuaChatLine.registerClass(registration);
+        registration.registerInstantiableClass("Screen", registration.requireInstanceBaseClassName(),
+            "Base class for Lua-defined Minecraft screens opened through the Gui service.");
     }
 
     @Override
@@ -43,6 +45,14 @@ public class UIModule implements MLuaModule {
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.clazz("NativeControl", "MLuaNativeControl", "A live handle to a native Minecraft screen widget. Properties update the original widget.", "classes.ui/native-control.html", "Instance");
         docs.clazz("NativeScreen", "MLuaNativeScreen", "A live handle to a native Minecraft screen and its native widget controls.", "classes.ui/native-screen.html", "Instance");
+        docs.clazz("Screen", "MLuaScriptScreen", "Base class for Lua-defined native Minecraft screens. Init builds native widgets during Minecraft's screen initialization; Tick and OnClose follow the native screen lifecycle.", "classes.ui/screen.html", "Instance");
+        docs.property("Screen", "Screen.NativeScreen", "NativeScreen", "The underlying live Minecraft screen handle.", "read:Read");
+        docs.method("Screen", "Screen:AddText(text, position, color)", "Draws native screen text from the screen initialization callback.", "Text, UDim2 position, and optional RGB color integer", "void", "client:Client", null);
+        docs.method("Screen", "Screen:AddButton(text, position, size, callback)", "Adds a native Minecraft button to this screen.", "Label, UDim2 position, UDim2 size, and click callback", "void", "client:Client", null);
+        docs.method("Screen", "Screen:SetOnClose(callback)", "Registers a callback for Minecraft's screen close lifecycle.", "Close callback", "void", "client:Client", null);
+        docs.method("Screen", "Screen:Tick()", "Runs once for each native Minecraft screen tick when defined on a Screen subclass.", "No arguments", "void", "client:Client", null);
+        docs.method("Screen", "Screen:OnClose()", "Runs when Minecraft closes this screen, unless its owner is being unloaded.", "No arguments", "void", "client:Client", null);
+        docs.method("Screen", "Screen:Close()", "Closes this screen if it is active.", "No arguments", "boolean", "client:Client", null);
         docs.method("NativeScreen", "NativeScreen:Close()", "Closes this screen if it is the active Minecraft screen.", "No arguments", "boolean", "client:Client", null);
         docs.clazz("ChatLine", "MLuaChatLine", "A live chat message while Minecraft is adding it to the chat HUD.", "classes.ui/chat-line.html", "Instance");
         docs.contribution(MLuaDocBuilder.Contribution.builder(id(), "ui:extend-gui-classes")
