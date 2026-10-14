@@ -225,11 +225,23 @@ public final class MLuaChunkWrapper {
         LuaValue value = args.arg(index);
         if (MLuaVector.isVector2(value)) {
             LuaTable vector = value.checktable();
-            return new ChunkPos(vector.get("X").checkint(), vector.get("Y").checkint());
+            return new ChunkPos(
+                chunkCoordinate(vector.get("X"), "X"),
+                chunkCoordinate(vector.get("Y"), "Y"));
         }
         double[] position = MLuaCFrame.vector(value);
         BlockPos blockPosition = BlockPos.containing(position[0], position[1], position[2]);
         return new ChunkPos(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
+    }
+
+    private static int chunkCoordinate(LuaValue value, String axis) {
+        double coordinate = value.checkdouble();
+        if (!Double.isFinite(coordinate) || coordinate != Math.rint(coordinate)
+            || coordinate < Integer.MIN_VALUE || coordinate > Integer.MAX_VALUE) {
+            throw new LuaError("[MLua] Chunk Vector2 " + axis
+                + " coordinate must be a whole number within the 32-bit integer range");
+        }
+        return (int)coordinate;
     }
 
     public static double[] positionArgs(Varargs args, int index) {
