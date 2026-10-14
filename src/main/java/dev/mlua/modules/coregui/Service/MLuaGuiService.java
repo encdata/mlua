@@ -57,6 +57,7 @@ public final class MLuaGuiService implements MLuaService {
     private final MLuaService.Context context;
     private final GuiState state;
     private static final AtomicLong NEXT_LAYOUT_ID = new AtomicLong(1);
+    private static final AtomicLong NEXT_HUD_ELEMENT_ID = new AtomicLong(1);
     private static final Map<GuiButton, Object> REPLACEMENT_ACTIONS = new WeakHashMap<>();
 
     public MLuaGuiService(MLuaService.Context context) {
@@ -99,39 +100,57 @@ public final class MLuaGuiService implements MLuaService {
 
     public static void renderHudElements(String position, Object graphics) {
         if (position == null || graphics == null) return;
-        List<GuiState> states;
-        synchronized (STATES) { states = List.copyOf(STATES.values()); }
-        for (GuiState state : states) {
-            for (HudElement element : List.copyOf(state.hudElements.values())) {
-                if (element.position.equals(position) && !element.failed) renderHudElement(element, graphics);
+        List<HudElement> elements = new java.util.ArrayList<>();
+        synchronized (STATES) {
+            for (GuiState state : STATES.values()) {
+                if (state.enabled) elements.addAll(state.hudElements.values());
             }
+        }
+        elements.sort(java.util.Comparator.comparingLong(element -> element.order));
+        for (HudElement element : elements) {
+            if (element.position.equals(position) && !element.failed) renderHudElement(element, graphics);
         }
     }
 
     private static void renderHudElement(HudElement element, Object graphics) {
-        LuaTable canvas = new LuaTable();
         Object window = Minecraft.getInstance() == null ? null : Minecraft.getInstance().getWindow();
-        canvas.set("Width", LuaValue.valueOf(readNumber(window, "getGuiScaledWidth", "guiScaledWidth")));
-        canvas.set("Height", LuaValue.valueOf(readNumber(window, "getGuiScaledHeight", "guiScaledHeight")));
+        element.graphics = graphics;
+        element.canvas.set("Width", LuaValue.valueOf(readNumber(window, "getGuiScaledWidth", "guiScaledWidth")));
+        element.canvas.set("Height", LuaValue.valueOf(readNumber(window, "getGuiScaledHeight", "guiScaledHeight")));
+        try { element.callback.invoke(element.canvas); }
+        catch (RuntimeException failure) {
+            element.failed = true;
+            MLuaLogger.LOGGER.error("Lua HUD element '{}' failed; rendering is paused until it is registered again", element.id, failure);
+        } finally {
+            element.graphics = null;
+        }
+    }
+
+    private static LuaTable createHudCanvas(HudElement element) {
+        LuaTable canvas = new LuaTable();
+        canvas.set("Width", LuaValue.ZERO);
+        canvas.set("Height", LuaValue.ZERO);
         canvas.set("Fill", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawHudFill(graphics, args.arg(2).checkint(), args.arg(3).checkint(), args.arg(4).checkint(),
-                    args.arg(5).checkint(), args.arg(6).checkint());
+                drawHudFill(requireHudGraphics(element), args.arg(2).checkint(), args.arg(3).checkint(),
+                    args.arg(4).checkint(), args.arg(5).checkint(), args.arg(6).checkint());
                 return LuaValue.NONE;
             }
         });
         canvas.set("DrawText", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawHudText(graphics, args.arg(2).checkjstring(), args.arg(3).checkint(), args.arg(4).checkint(),
-                    args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
+                drawHudText(requireHudGraphics(element), args.arg(2).checkjstring(), args.arg(3).checkint(),
+                    args.arg(4).checkint(), args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
                 return LuaValue.NONE;
             }
         });
-        try { element.callback.invoke(canvas); }
-        catch (RuntimeException failure) {
-            element.failed = true;
-            MLuaLogger.LOGGER.error("Lua HUD element '{}' failed; rendering is paused until it is registered again", element.id, failure);
-        }
+        return canvas;
+    }
+
+    private static Object requireHudGraphics(HudElement element) {
+        Object graphics = element.graphics;
+        if (graphics == null) throw new LuaError("[MLua] HUD canvas drawing methods are only available during the render callback.");
+        return graphics;
     }
 
     private static int readNumber(Object target, String... methodNames) {
@@ -987,16 +1006,19 @@ public final class MLuaGuiService implements MLuaService {
                 return LuaValue.valueOf(MLuaGuiService.this.unregisterScreenTarget(args.arg(2).checkjstring()));
             }
         });
-        table.set("AttachHudElementBeforeChat", new VarArgFunction() {
+        LuaTable vanillaHudElements = new LuaTable();
+        vanillaHudElements.set("Chat", LuaValue.valueOf("Chat"));
+        table.set("VanillaHudElements", vanillaHudElements);
+        table.set("AttachElementBefore", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
-                    args.arg(2).checkjstring(), "BeforeChat", args.arg(3)));
+                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), true, args.arg(4)));
             }
         });
-        table.set("AttachHudElementAfterChat", new VarArgFunction() {
+        table.set("AttachElementAfter", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
-                    args.arg(2).checkjstring(), "AfterChat", args.arg(3)));
+                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), false, args.arg(4)));
             }
         });
         table.set("RemoveHudElement", new VarArgFunction() {
@@ -1336,13 +1358,17 @@ public final class MLuaGuiService implements MLuaService {
         root.setOwnerContext(this.context.mlua().ownerModId(), this.context.mlua().side(), this.context.mlua().globals());
     }
 
-    private String attachHudElement(String id, String position, LuaValue callback) {
+    private String attachHudElement(String anchor, String id, boolean before, LuaValue callback) {
         if (this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
         if (id == null || id.isBlank()) throw new LuaError("[MLua] HUD element id must not be empty.");
+        if (!"Chat".equalsIgnoreCase(anchor)) {
+            throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor + "'. The available anchor is 'Chat'.");
+        }
         if (!callback.isfunction()) throw new LuaError("[MLua] HUD element callback must be a function.");
         String owner = this.context.mlua().ownerModId();
         String key = owner + ":" + id;
-        HudElement element = new HudElement(key, owner, position, callback);
+        String position = before ? "BeforeChat" : "AfterChat";
+        HudElement element = new HudElement(key, owner, position, callback, NEXT_HUD_ELEMENT_ID.getAndIncrement());
         this.state.hudElements.put(key, element);
         return id;
     }
@@ -1733,13 +1759,18 @@ public final class MLuaGuiService implements MLuaService {
         private final String owner;
         private final String position;
         private final LuaValue callback;
+        private final long order;
+        private final LuaTable canvas;
+        private volatile Object graphics;
         private volatile boolean failed;
 
-        private HudElement(String id, String owner, String position, LuaValue callback) {
+        private HudElement(String id, String owner, String position, LuaValue callback, long order) {
             this.id = id;
             this.owner = owner;
             this.position = position;
             this.callback = callback;
+            this.order = order;
+            this.canvas = createHudCanvas(this);
         }
     }
 
