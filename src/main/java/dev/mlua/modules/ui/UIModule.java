@@ -47,6 +47,7 @@ public class UIModule implements MLuaModule {
         docs.clazz("NativeScreen", "MLuaNativeScreen", "A live handle to a native Minecraft screen and its native widget controls.", "classes.ui/native-screen.html", "Instance");
         docs.clazz("Screen", "MLuaScriptScreen", "Base class for Lua-defined native Minecraft screens. Init builds native widgets during Minecraft's screen initialization; Tick and OnClose follow the native screen lifecycle.", "classes.ui/screen.html", "Instance");
         docs.property("Screen", "Screen.NativeScreen", "NativeScreen", "The underlying live Minecraft screen handle.", "read:Read");
+        docs.method("Screen", "Screen:Init(fields)", "Runs when Minecraft initializes the native screen and should add its native widgets here.", "Optional fields passed to Gui:OpenScreen", "void", "client:Client", null);
         docs.method("Screen", "Screen:AddText(text, position, color)", "Draws native screen text from the screen initialization callback.", "Text, UDim2 position, and optional RGB color integer", "void", "client:Client", null);
         docs.method("Screen", "Screen:AddButton(text, position, size, callback)", "Adds a native Minecraft button to this screen.", "Label, UDim2 position, UDim2 size, and click callback", "void", "client:Client", null);
         docs.method("Screen", "Screen:SetOnClose(callback)", "Registers a callback for Minecraft's screen close lifecycle.", "Close callback", "void", "client:Client", null);

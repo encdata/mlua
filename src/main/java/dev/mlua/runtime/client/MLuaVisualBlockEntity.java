@@ -88,9 +88,18 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
 
    @Override public void setItem(int slot, ItemStack stack) {
       if (slot < 0 || slot >= this.items.size()) return;
+      if (!stack.isEmpty() && !this.canPlaceItem(slot, stack)) return;
       this.items.set(slot, stack);
       if (stack.getCount() > this.getMaxStackSize()) stack.setCount(this.getMaxStackSize());
       this.setChanged();
+   }
+
+   @Override public boolean canPlaceItem(int slot, ItemStack stack) {
+      if (slot < 0 || slot >= this.items.size()) return false;
+      Block block = this.getBlockState().getBlock();
+      if (!(block instanceof MLuaScriptedBlock scripted)) return true;
+      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
+      return definition == null || definition.allows(stack);
    }
 
    @Override public void setChanged() { super.setChanged(); }

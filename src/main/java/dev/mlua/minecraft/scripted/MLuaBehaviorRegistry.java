@@ -130,6 +130,11 @@ public final class MLuaBehaviorRegistry {
       CONTAINER_TYPES.put(key, validateContainerDefinition(new ContainerDefinition(rows, title)));
    }
 
+   public static void registerContainerType(String key, ContainerDefinition definition) {
+      if (key == null || key.isBlank()) throw new IllegalArgumentException("Scripted container type key must be non-empty");
+      CONTAINER_TYPES.put(key, validateContainerDefinition(definition));
+   }
+
    public static ContainerDefinition getContainerType(String key) { return CONTAINER_TYPES.get(key); }
 
    private static ContainerDefinition validateContainerDefinition(ContainerDefinition definition) {
@@ -141,7 +146,17 @@ public final class MLuaBehaviorRegistry {
 
    public static ContainerDefinition getBlockContainer(String key) { return BLOCK_CONTAINERS.get(key); }
 
-   public record ContainerDefinition(int rows, String title) { }
+   public record ContainerDefinition(int rows, String title, java.util.Set<String> allowedItems) {
+      public ContainerDefinition(int rows, String title) { this(rows, title, java.util.Set.of()); }
+      public ContainerDefinition {
+         allowedItems = allowedItems == null ? java.util.Set.of() : java.util.Set.copyOf(allowedItems);
+      }
+      public boolean allows(net.minecraft.world.item.ItemStack stack) {
+         if (stack == null || stack.isEmpty() || allowedItems.isEmpty()) return true;
+         net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+         return id != null && allowedItems.contains(id.toString());
+      }
+   }
 
    public static void clearEntityCallbacks(String key) {
       clearBehaviors("entity", key);

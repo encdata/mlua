@@ -336,7 +336,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             int rows = definition.get("Rows").optint(3);
             String title = definition.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
-            MLuaBehaviorRegistry.registerContainerType(owner + ":" + name, rows, title);
+            MLuaBehaviorRegistry.registerContainerType(owner + ":" + name,
+               new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
+                  MLuaRegistryService.containerAllowedItems(owner, definition)));
             return LuaValue.NONE;
          }
       });
@@ -409,7 +411,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                      LuaTable containerTable = containerValue.checktable();
                      int rows = containerTable.get("Rows").optint(3);
                      String title = containerTable.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
-                     MLuaBehaviorRegistry.registerBlockContainer(key, rows, title);
+                     MLuaBehaviorRegistry.registerBlockContainer(key,
+                        new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
+                           MLuaRegistryService.containerAllowedItems(owner, containerTable)));
                   } else if (containerValue.isstring()) {
                      String typeName = containerValue.checkjstring();
                      String typeKey = typeName.contains(":") ? typeName : owner + ":" + typeName;
@@ -1954,6 +1958,20 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          throw new LuaError("[MLua] " + label + " must contain at least one non-empty id");
       }
       return List.copyOf(values);
+   }
+
+   private static java.util.Set<String> containerAllowedItems(String owner, LuaTable definition) {
+      LuaValue items = definition.get("AllowedItems");
+      if (items.isnil()) items = definition.get("allowedItems");
+      if (items.isnil()) return java.util.Set.of();
+      java.util.LinkedHashSet<String> resolved = new java.util.LinkedHashSet<>();
+      for (String item : stringValues(items, "Container AllowedItems")) {
+         String candidate = item.trim();
+         var parsed = MLuaResourceLocations.tryParseOrNull(candidate.contains(":") ? candidate : owner + ":" + candidate);
+         if (parsed == null) throw new LuaError("[MLua] Invalid container allowed item id: " + item);
+         resolved.add(parsed.toString());
+      }
+      return java.util.Set.copyOf(resolved);
    }
 
    private static String qualifiedDataId(String owner, String value, boolean tag) {

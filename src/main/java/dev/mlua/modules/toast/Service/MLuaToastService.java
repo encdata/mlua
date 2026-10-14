@@ -39,11 +39,11 @@ public final class MLuaToastService extends MLuaReflectiveService {
         Component toastTitle = Component.literal(title);
         Component toastMessage = Component.literal(message);
         //--version 26.1
-        minecraft.getToasts().addToast(new SystemToast(
+        minecraft.getToastManager().addToast(new SystemToast(
             SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
         //--endversion
         //--version 1.21.1
-        minecraft.gui.getToastManager().addToast(new SystemToast(
+        minecraft.getToasts().addToast(new SystemToast(
             SystemToast.SystemToastId.PERIODIC_NOTIFICATION, toastTitle, toastMessage));
         //--endversion
         //--version 1.20.1
