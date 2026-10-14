@@ -26,6 +26,13 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
    private record DescribedMethod(Method method, String description) {
    }
 
+   private static final ClassValue<List<DescribedMethod>> DESCRIBED_METHODS = new ClassValue<>() {
+      @Override
+      protected List<DescribedMethod> computeValue(Class<?> serviceType) {
+         return scanDescribedMethods(serviceType);
+      }
+   };
+
    public record ApiMetadata(String description, Map<String, String> functionDescriptions) {
       public ApiMetadata {
          functionDescriptions = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(functionDescriptions));
@@ -54,6 +61,10 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
    }
 
    private static List<DescribedMethod> describedMethods(Class<?> serviceType) {
+      return DESCRIBED_METHODS.get(serviceType);
+   }
+
+   private static List<DescribedMethod> scanDescribedMethods(Class<?> serviceType) {
       Method[] methods = serviceType.getMethods();
       Arrays.sort(methods, java.util.Comparator.comparing(Method::getName)
          .thenComparing(method -> Arrays.toString(method.getParameterTypes())));

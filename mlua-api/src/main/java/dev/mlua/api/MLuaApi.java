@@ -58,7 +58,6 @@ public final class MLuaApi {
    }
 
    public static final class ServiceBuilder {
-      private final String name;
       private final MLuaModule.ServiceEntry.Builder declaration;
       private boolean explicitClassName;
       private Side side = Side.BOTH;
@@ -66,8 +65,8 @@ public final class MLuaApi {
 
       private ServiceBuilder(String name, String className,
                              Function<MLuaService.Context, MLuaService> factory) {
-         this.name = Objects.requireNonNull(name, "name");
-         this.declaration = MLuaModule.ServiceEntry.builder(name, Objects.requireNonNull(factory, "factory"));
+         this.declaration = MLuaModule.ServiceEntry.builder(Objects.requireNonNull(name, "name"),
+            Objects.requireNonNull(factory, "factory"));
          if (className != null) {
             this.declaration.className(className);
             this.explicitClassName = true;
