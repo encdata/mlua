@@ -438,6 +438,108 @@ public class PlayersModule implements MLuaModule {
                     && firstMin.get("Z").todouble() <= secondMax.get("Z").todouble());
             }
         }, "Returns whether this box overlaps another EntityBounds instance.");
+        registration.registerClassFunction("EntityBounds", "Inflate", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                double amount = args.checkdouble(2);
+                if (!Double.isFinite(amount) || amount < 0) {
+                    throw new LuaError("[MLua] EntityBounds:Inflate expects a finite, non-negative amount.");
+                }
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                return entityBounds(registration,
+                    min.get("X").todouble() - amount, min.get("Y").todouble() - amount, min.get("Z").todouble() - amount,
+                    max.get("X").todouble() + amount, max.get("Y").todouble() + amount, max.get("Z").todouble() + amount);
+            }
+        }, "Returns a new bounds instance expanded equally on each side.");
+        registration.registerClassFunction("EntityBounds", "Deflate", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                double amount = args.checkdouble(2);
+                if (!Double.isFinite(amount) || amount < 0) {
+                    throw new LuaError("[MLua] EntityBounds:Deflate expects a finite, non-negative amount.");
+                }
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                return entityBounds(registration,
+                    min.get("X").todouble() + amount, min.get("Y").todouble() + amount, min.get("Z").todouble() + amount,
+                    max.get("X").todouble() - amount, max.get("Y").todouble() - amount, max.get("Z").todouble() - amount);
+            }
+        }, "Returns a new bounds instance contracted equally on each side.");
+        registration.registerClassFunction("EntityBounds", "Move", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue offset = args.arg(2);
+                if (!dev.mlua.math.MLuaVector.isVector3(offset)) {
+                    throw new LuaError("[MLua] EntityBounds:Move expects a Vector3 offset.");
+                }
+                LuaTable delta = offset.checktable();
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                double x = delta.get("X").todouble();
+                double y = delta.get("Y").todouble();
+                double z = delta.get("Z").todouble();
+                return entityBounds(registration,
+                    min.get("X").todouble() + x, min.get("Y").todouble() + y, min.get("Z").todouble() + z,
+                    max.get("X").todouble() + x, max.get("Y").todouble() + y, max.get("Z").todouble() + z);
+            }
+        }, "Returns a new bounds instance translated by a Vector3 offset.");
+        registration.registerClassFunction("EntityBounds", "Union", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue other = args.arg(2);
+                if (!other.istable()) throw new LuaError("[MLua] EntityBounds:Union expects an EntityBounds instance.");
+                LuaTable otherBounds = other.checktable();
+                LuaValue type = otherBounds.get("__type");
+                if (!type.isstring() || !type.checkjstring().equals("EntityBounds")) {
+                    throw new LuaError("[MLua] EntityBounds:Union expects an EntityBounds instance.");
+                }
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                LuaTable otherMin = otherBounds.get("Minimum").checktable();
+                LuaTable otherMax = otherBounds.get("Maximum").checktable();
+                return entityBounds(registration,
+                    Math.min(min.get("X").todouble(), otherMin.get("X").todouble()),
+                    Math.min(min.get("Y").todouble(), otherMin.get("Y").todouble()),
+                    Math.min(min.get("Z").todouble(), otherMin.get("Z").todouble()),
+                    Math.max(max.get("X").todouble(), otherMax.get("X").todouble()),
+                    Math.max(max.get("Y").todouble(), otherMax.get("Y").todouble()),
+                    Math.max(max.get("Z").todouble(), otherMax.get("Z").todouble()));
+            }
+        }, "Returns a new bounds instance enclosing both boxes.");
+        registration.registerClassFunction("EntityBounds", "DistanceTo", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue point = args.arg(2);
+                if (!dev.mlua.math.MLuaVector.isVector3(point)) {
+                    throw new LuaError("[MLua] EntityBounds:DistanceTo expects a Vector3.");
+                }
+                LuaTable position = point.checktable();
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                double dx = Math.max(Math.max(min.get("X").todouble() - position.get("X").todouble(), 0),
+                    position.get("X").todouble() - max.get("X").todouble());
+                double dy = Math.max(Math.max(min.get("Y").todouble() - position.get("Y").todouble(), 0),
+                    position.get("Y").todouble() - max.get("Y").todouble());
+                double dz = Math.max(Math.max(min.get("Z").todouble() - position.get("Z").todouble(), 0),
+                    position.get("Z").todouble() - max.get("Z").todouble());
+                return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
+            }
+        }, "Returns the shortest distance from a Vector3 point to this box.");
+    }
+
+    private static LuaTable entityBounds(MLuaRegistration registration,
+                                         double minX, double minY, double minZ,
+                                         double maxX, double maxY, double maxZ) {
+        if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(minZ)
+                || !Double.isFinite(maxX) || !Double.isFinite(maxY) || !Double.isFinite(maxZ)
+                || minX > maxX || minY > maxY || minZ > maxZ) {
+            throw new LuaError("[MLua] EntityBounds corners must be finite and ordered from minimum to maximum.");
+        }
+        LuaTable result = registration.createClassInstance("EntityBounds");
+        result.set("Minimum", dev.mlua.math.MLuaVector.vector3(minX, minY, minZ));
+        result.set("Maximum", dev.mlua.math.MLuaVector.vector3(maxX, maxY, maxZ));
+        return result;
     }
 
     private static void registerEntityProperties(MLuaRegistration registration) {
@@ -462,6 +564,7 @@ public class PlayersModule implements MLuaModule {
             {"IsMoving", "GetIsMoving", null, "boolean", "shared:Shared", "Whether this entity is moving."},
             {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is falling."},
             {"EyePosition", "GetEyePosition", null, "Vector3", "shared:Shared", "This entity's eye position."},
+            {"BoundingBox", "GetBoundingBox", null, "EntityBounds", "shared:Shared", "This entity's axis-aligned bounds."},
             {"Width", "GetWidth", null, "number", "shared:Shared", "This entity's bounding-box width."},
             {"Height", "GetHeight", null, "number", "shared:Shared", "This entity's bounding-box height."},
             {"EyeHeight", "GetEyeHeight", null, "number", "shared:Shared", "This entity's eye height above its position."},

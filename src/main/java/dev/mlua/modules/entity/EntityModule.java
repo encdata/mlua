@@ -56,6 +56,7 @@ public final class EntityModule implements MLuaModule {
         docs.signature("Entity", "Entity:SetFireTicks(ticks: number)", "void");
         docs.signature("Entity", "Entity:GetEyePosition()", "Vector3");
         docs.signature("Entity", "Entity:GetBoundingBox()", "EntityBounds");
+        docs.property("Entity", "Entity.BoundingBox", "EntityBounds", "This entity's axis-aligned bounds.", "read:Read");
         docs.signature("Entity", "Entity:GetWidth()", "number");
         docs.signature("Entity", "Entity:GetHeight()", "number");
         docs.signature("Entity", "Entity:GetEyeHeight()", "number");
@@ -142,6 +143,11 @@ public final class EntityModule implements MLuaModule {
         docs.method("EntityBounds", "EntityBounds:GetSize(): Vector3", "Returns the dimensions of the box.", null, "Vector3", "shared:Shared", null);
         docs.method("EntityBounds", "EntityBounds:Contains(point: Vector3): boolean", "Checks whether a point lies inside or on the box.", "point", "boolean", "shared:Shared", null);
         docs.method("EntityBounds", "EntityBounds:Intersects(other: EntityBounds): boolean", "Checks whether this box overlaps another box.", "other", "boolean", "shared:Shared", null);
+        docs.method("EntityBounds", "EntityBounds:Inflate(amount: number): EntityBounds", "Returns a new box expanded by the given amount.", "amount", "EntityBounds", "shared:Shared", null);
+        docs.method("EntityBounds", "EntityBounds:Deflate(amount: number): EntityBounds", "Returns a new box contracted by the given amount.", "amount", "EntityBounds", "shared:Shared", null);
+        docs.method("EntityBounds", "EntityBounds:Move(offset: Vector3): EntityBounds", "Returns a new box translated by the given offset.", "offset", "EntityBounds", "shared:Shared", null);
+        docs.method("EntityBounds", "EntityBounds:Union(other: EntityBounds): EntityBounds", "Returns a new box that encloses both boxes.", "other", "EntityBounds", "shared:Shared", null);
+        docs.method("EntityBounds", "EntityBounds:DistanceTo(point: Vector3): number", "Returns the shortest distance from a point to the box.", "point", "number", "shared:Shared", null);
         docs.guideStep("Entity", "Tag entities and query them in the world",
             "Use saved MLua entity tags to mark targets, then pass an entity query to a world's spatial search method.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal target = world:FindNearestEntity(Vector3.new(0, 64, 0), 16, { type = \"minecraft:zombie\" })\n\nif target then\n    target:AddTag(\"encounter_target\")\n    local bounds = target:GetBoundingBox()\n    print(bounds:IsA(\"EntityBounds\"), bounds:GetCenter(), bounds:Contains(target.Position))\nend\n\nlocal targets = world:FindEntitiesInRadius(Vector3.new(0, 64, 0), 24, { tags = { \"encounter_target\" }, alive = true })\nfor _, entity in ipairs(targets) do\n    entity:SetGlowing(true)\nend");
