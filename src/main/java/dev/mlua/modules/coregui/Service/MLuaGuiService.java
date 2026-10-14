@@ -39,6 +39,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.IdentityHashMap;
+import java.nio.file.Path;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -1672,6 +1673,17 @@ public final class MLuaGuiService implements MLuaService {
             if (!method.isfunction()) return super.shouldCloseOnEsc();
             boolean shouldClose = this.invokeClassInputMethod("ShouldCloseOnEsc");
             return this.failedInputMethods.contains("ShouldCloseOnEsc") ? super.shouldCloseOnEsc() : shouldClose;
+        }
+
+        @Override public void onFilesDrop(List<Path> paths) {
+            if (this.luaInstance != null && paths != null) {
+                LuaTable droppedPaths = new LuaTable();
+                for (int index = 0; index < paths.size(); index++) {
+                    droppedPaths.set(index + 1, LuaValue.valueOf(paths.get(index).toString()));
+                }
+                this.invokeClassInputMethod("OnFilesDrop", droppedPaths);
+            }
+            super.onFilesDrop(paths);
         }
 
         private void invokeClassMethod(String methodName) {
