@@ -14,13 +14,21 @@ public final class MLuaClassMethods {
 
    public static void registerInstanceMethod(MLuaRegistration registration, String className,
                                              String methodName, String description) {
+      if (className == null || className.isBlank()) throw new IllegalArgumentException("Class name must be non-empty");
+      if (methodName == null || methodName.isBlank()) throw new IllegalArgumentException("Function name must be non-empty");
+      if (description == null || description.isBlank()) throw new IllegalArgumentException("Function description must be non-empty");
       LuaTable classTable = registration.classTable(className);
       if (classTable == null) throw new IllegalStateException("Lua class is not registered: " + className);
+      LuaValue dispatchersValue = classTable.rawget("__mlua_instance_dispatchers");
+      if (!dispatchersValue.isnil() && !dispatchersValue.istable()) {
+         throw new IllegalStateException("Lua class '" + className + "' has invalid instance dispatcher metadata");
+      }
+      LuaTable dispatchers = dispatchersValue.istable() ? dispatchersValue.checktable() : new LuaTable();
       LuaValue existing = classTable.rawget(methodName);
       if (existing.isfunction()) {
-         LuaTable dispatchers = instanceDispatchers(classTable);
-         if (dispatchers.rawget(methodName).isnil()) dispatchers.rawset(methodName, LuaValue.FALSE);
          registration.registerClassFunction(className, methodName, existing, description);
+         if (dispatchersValue.isnil()) classTable.rawset("__mlua_instance_dispatchers", dispatchers);
+         if (dispatchers.rawget(methodName).isnil()) dispatchers.rawset(methodName, LuaValue.FALSE);
          return;
       }
       if (!existing.isnil()) {
@@ -37,8 +45,9 @@ public final class MLuaClassMethods {
             return method.invoke(args);
          }
       };
-      instanceDispatchers(classTable).rawset(methodName, LuaValue.TRUE);
       registration.registerClassFunction(className, methodName, dispatcher, description);
+      if (dispatchersValue.isnil()) classTable.rawset("__mlua_instance_dispatchers", dispatchers);
+      dispatchers.rawset(methodName, LuaValue.TRUE);
    }
 
    public static void registerInstanceProperty(MLuaRegistration registration, String className,
@@ -362,11 +371,4 @@ public final class MLuaClassMethods {
       return receiver.get(key);
    }
 
-   private static LuaTable instanceDispatchers(LuaTable classTable) {
-      LuaValue dispatchers = classTable.rawget("__mlua_instance_dispatchers");
-      if (dispatchers.istable()) return dispatchers.checktable();
-      LuaTable result = new LuaTable();
-      classTable.rawset("__mlua_instance_dispatchers", result);
-      return result;
-   }
 }
