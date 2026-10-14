@@ -10,7 +10,7 @@ import java.util.List;
 public class MixinModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Mixin", "Mixin:Inject(targetClass: string, method: string, options: table)", "Use options.at = HEAD, RETURN, TAIL, or INVOKE. For INVOKE, set options.target to the exact invocation descriptor. Set options.descriptor when the target class has overloaded methods.");
+        docs.signature("Mixin", "Mixin:Inject(targetClass: string, method: string, options: table)", "Use options.at = HEAD, RETURN, TAIL, or INVOKE. For INVOKE, set options.target to the exact invocation descriptor; the callback then receives invocation receiver and arguments after the enclosing method arguments. Set options.descriptor when the target class has overloaded methods.");
         docs.signature("Mixin", "Mixin:Target(targetClass: string):Inject(method: string, options: table)", "Bind a Java target class once, then declare its method mixins with Inject, Overwrite, Redirect, or ModifyArg. at accepts HEAD, RETURN, TAIL, or INVOKE; INVOKE requires an exact options.target descriptor.");
         docs.signature("Mixin", "Mixin:Target(targetClass: string):Overwrite(method: string, options: table)", "Set options.descriptor when the target class has multiple methods with this name.");
         docs.signature("Mixin", "Mixin:Target(targetClass: string):Redirect(method: string, options: table)", "Set options.target to the exact invocation descriptor to replace.");

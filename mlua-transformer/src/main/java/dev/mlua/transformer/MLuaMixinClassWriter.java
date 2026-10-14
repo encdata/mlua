@@ -173,8 +173,66 @@ public final class MLuaMixinClassWriter {
          }
       }
       for (AbstractInsnNode call : calls) {
-         method.instructions.insertBefore(call, notifyInvoke(rule.callbackId(), method, null, -1));
+         MethodInsnNode invocation = (MethodInsnNode) call;
+         method.instructions.insertBefore(call, notifyInvocation(rule.callbackId(), method, invocation));
       }
+   }
+
+   private static InsnList notifyInvocation(String callbackId, MethodNode enclosing, MethodInsnNode invocation) {
+      Type[] invokedTypes = Type.getArgumentTypes(invocation.desc);
+      boolean isStatic = invocation.getOpcode() == Opcodes.INVOKESTATIC;
+      int[] invokedLocals = new int[invokedTypes.length];
+      for (int index = invokedTypes.length - 1; index >= 0; index--) {
+         invokedLocals[index] = allocateLocal(enclosing, invokedTypes[index]);
+      }
+      int receiverLocal = isStatic ? -1 : allocateLocal(enclosing, Type.getObjectType(invocation.owner));
+      InsnList injected = new InsnList();
+      for (int index = invokedTypes.length - 1; index >= 0; index--) {
+         injected.add(new VarInsnNode(storeOpcode(invokedTypes[index]), invokedLocals[index]));
+      }
+      if (!isStatic) injected.add(new VarInsnNode(Opcodes.ASTORE, receiverLocal));
+      pushInvocationContext(injected, callbackId, enclosing, isStatic, receiverLocal, invokedTypes, invokedLocals);
+      if (!isStatic) injected.add(new VarInsnNode(Opcodes.ALOAD, receiverLocal));
+      for (int index = 0; index < invokedTypes.length; index++) {
+         loadLocal(injected, invokedTypes[index], invokedLocals[index]);
+      }
+      return injected;
+   }
+
+   private static void pushInvocationContext(InsnList insns, String callbackId, MethodNode enclosing,
+                                            boolean isStatic, int receiverLocal,
+                                            Type[] invokedTypes, int[] invokedLocals) {
+      Type[] enclosingTypes = Type.getArgumentTypes(enclosing.desc);
+      int argumentCount = enclosingTypes.length + 1 + invokedTypes.length;
+      insns.add(new LdcInsnNode(callbackId));
+      pushSelf(insns, enclosing);
+      pushInt(insns, argumentCount);
+      insns.add(new TypeInsnNode(Opcodes.ANEWARRAY, "java/lang/Object"));
+      int arrayIndex = 0;
+      boolean enclosingStatic = (enclosing.access & Opcodes.ACC_STATIC) != 0;
+      int localIndex = enclosingStatic ? 0 : 1;
+      for (Type type : enclosingTypes) {
+         insns.add(new InsnNode(Opcodes.DUP));
+         pushInt(insns, arrayIndex++);
+         loadLocal(insns, type, localIndex);
+         boxValue(insns, type);
+         insns.add(new InsnNode(Opcodes.AASTORE));
+         localIndex += type.getSize();
+      }
+      insns.add(new InsnNode(Opcodes.DUP));
+      pushInt(insns, arrayIndex++);
+      if (isStatic) insns.add(new InsnNode(Opcodes.ACONST_NULL));
+      else insns.add(new VarInsnNode(Opcodes.ALOAD, receiverLocal));
+      insns.add(new InsnNode(Opcodes.AASTORE));
+      for (int index = 0; index < invokedTypes.length; index++) {
+         insns.add(new InsnNode(Opcodes.DUP));
+         pushInt(insns, arrayIndex++);
+         loadLocal(insns, invokedTypes[index], invokedLocals[index]);
+         boxValue(insns, invokedTypes[index]);
+         insns.add(new InsnNode(Opcodes.AASTORE));
+      }
+      insns.add(new MethodInsnNode(Opcodes.INVOKESTATIC, BRIDGE, "notify",
+         "(Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)V", false));
    }
 
    private record InvocationTarget(String owner, String name, String descriptor) {
@@ -184,6 +242,9 @@ public final class MLuaMixinClassWriter {
          int descriptorStart = value.indexOf('(', ownerEnd + 1);
          if (!value.startsWith("L") || ownerEnd < 2 || descriptorStart <= ownerEnd + 1) {
             throw new IllegalArgumentException("Invalid exact invocation target: " + value);
+         }
+         if ("<init>".equals(value.substring(ownerEnd + 1, descriptorStart))) {
+            throw new IllegalArgumentException("Invoke injection cannot target a constructor invocation");
          }
          return new InvocationTarget(value.substring(1, ownerEnd), value.substring(ownerEnd + 1, descriptorStart), value.substring(descriptorStart));
       }
