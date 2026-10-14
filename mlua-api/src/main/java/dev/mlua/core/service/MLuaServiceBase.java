@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
 
 public abstract class MLuaServiceBase implements MLuaService {
    protected final Context context;
