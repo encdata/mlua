@@ -89,10 +89,6 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
     private Player player(LuaValue value) {
         if (value.istable()) {
             return (Player) MLuaEntityWrapper.requireLuaInstance(value, this.context.registration(), "Player", "Player");
-            if (raw.isuserdata(net.minecraft.world.entity.Entity.class)) {
-                Object entity = raw.touserdata(net.minecraft.world.entity.Entity.class);
-                if (entity instanceof Player player) return player;
-            }
         }
         if (value.isstring() && this.context.server() != null) {
             String text = value.tojstring();
