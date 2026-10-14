@@ -253,10 +253,29 @@ public final class MLuaWorldService extends MLuaServiceBase {
          double[] direction = positionArgs(args, directionIndex);
          int distanceIndex = directionIndex + coordinateWidth(args, directionIndex);
          double distance = args.optdouble(distanceIndex, 100.0);
-         boolean includeFluids = args.optboolean(distanceIndex + 1, false);
+         if (!Double.isFinite(distance) || distance < 0) {
+            throw new LuaError("[MLua] World:Raycast distance must be finite and non-negative.");
+         }
+         for (double component : origin) {
+            if (!Double.isFinite(component)) throw new LuaError("[MLua] World:Raycast origin must be finite.");
+         }
+         for (double component : direction) {
+            if (!Double.isFinite(component)) throw new LuaError("[MLua] World:Raycast direction must be finite.");
+         }
+         LuaValue fluidArgument = args.arg(distanceIndex + 1);
+         if (!fluidArgument.isnil() && !fluidArgument.isboolean()) {
+            throw new LuaError("[MLua] World:Raycast includeFluids must be a boolean.");
+         }
+         boolean includeFluids = fluidArgument.toboolean();
          Vec3 from = new Vec3(origin[0], origin[1], origin[2]);
-         Vec3 dir = new Vec3(direction[0], direction[1], direction[2]).normalize();
-         BlockHitResult hitResult = level.clip(new ClipContext(from, from.add(dir.scale(distance)), ClipContext.Block.COLLIDER, includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity)null));
+         double directionScale = Math.max(Math.abs(direction[0]), Math.max(Math.abs(direction[1]), Math.abs(direction[2])));
+         if (directionScale == 0) return LuaValue.NIL;
+         Vec3 dir = new Vec3(direction[0] / directionScale, direction[1] / directionScale, direction[2] / directionScale).normalize();
+         Vec3 to = from.add(dir.scale(distance));
+         if (!Double.isFinite(to.x) || !Double.isFinite(to.y) || !Double.isFinite(to.z)) {
+            throw new LuaError("[MLua] World:Raycast endpoint must be finite.");
+         }
+         BlockHitResult hitResult = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity)null));
          if (hitResult.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
             return LuaValue.NIL;
          }
@@ -332,11 +351,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetPlayers", levelFn(supplier, (level, args) -> this.playersTable(level)));
       table.set("GetEntities", levelFn(supplier, (level, args) -> this.entitiesTable(level, null, LuaValue.NIL)));
       table.set("FindEntitiesInRadius", levelFn(supplier, (level, args) -> {
-         double[] center = positionArgs(args, 2);
+         double[] center = checkedQueryPosition(positionArgs(args, 2));
          int radiusIndex = 2 + coordinateWidth(args, 2);
-         double radius = args.checkdouble(radiusIndex);
-         AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
-         return this.entitiesTable(level, box, args.arg(radiusIndex + 1));
+         double radius = checkedQueryRadius(args.checkdouble(radiusIndex));
+         return this.entitiesInRadius(level, center, radius, args.arg(radiusIndex + 1));
       }));
       table.set("GetEntitiesInRadius", table.get("FindEntitiesInRadius"));
       table.set("GetEntitiesNearby", table.get("FindEntitiesInRadius"));
@@ -352,10 +370,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("FindPlayersInBounds", levelFn(supplier, (level, args) ->
          this.playersTable(level, entityBounds(args.arg(2)))));
       table.set("FindPlayersInRadius", levelFn(supplier, (level, args) -> {
-         double[] center = positionArgs(args, 2);
-         double radius = args.checkdouble(2 + coordinateWidth(args, 2));
-         AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
-         return this.playersTable(level, box);
+         double[] center = checkedQueryPosition(positionArgs(args, 2));
+         double radius = checkedQueryRadius(args.checkdouble(2 + coordinateWidth(args, 2)));
+         return this.playersInRadius(level, center, radius);
       }));
       table.set("GetPlayersNearby", table.get("FindPlayersInRadius"));
       table.set("FindNearestPlayer", levelFn(supplier, (level, args) -> {
@@ -363,8 +380,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
             return LuaValue.NIL;
          }
 
-         double[] pos = positionArgs(args, 2);
+         double[] pos = checkedQueryPosition(positionArgs(args, 2));
          double maxDistance = args.optdouble(2 + coordinateWidth(args, 2), Double.MAX_VALUE);
+         maxDistance = checkedQueryRadius(maxDistance);
          ServerPlayer nearest = null;
          double nearestDistance = maxDistance * maxDistance;
          for (ServerPlayer player : serverLevel.players()) {
@@ -379,9 +397,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       table.set("GetNearestPlayer", table.get("FindNearestPlayer"));
       table.set("FindNearestEntity", levelFn(supplier, (level, args) -> {
-         double[] pos = positionArgs(args, 2);
+         double[] pos = checkedQueryPosition(positionArgs(args, 2));
          int distanceIndex = 2 + coordinateWidth(args, 2);
-         double maxDistance = args.optdouble(distanceIndex, Double.MAX_VALUE);
+         double maxDistance = checkedQueryRadius(args.optdouble(distanceIndex, Double.MAX_VALUE));
          LuaValue filter = args.arg(distanceIndex + 1);
          AABB box = new AABB(pos[0] - maxDistance, pos[1] - maxDistance, pos[2] - maxDistance, pos[0] + maxDistance, pos[1] + maxDistance, pos[2] + maxDistance);
          Entity nearest = null;
@@ -643,6 +661,42 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return list;
    }
 
+   private LuaTable entitiesInRadius(Level level, double[] center, double radius, LuaValue filter) {
+      LuaTable list = new LuaTable();
+      double radiusSquared = radius * radius;
+      double minX = center[0] - radius;
+      double minY = center[1] - radius;
+      double minZ = center[2] - radius;
+      double maxX = center[0] + radius;
+      double maxY = center[1] + radius;
+      double maxZ = center[2] + radius;
+      boolean bounded = Double.isFinite(minX) && Double.isFinite(minY) && Double.isFinite(minZ)
+         && Double.isFinite(maxX) && Double.isFinite(maxY) && Double.isFinite(maxZ);
+      Iterable<Entity> entities = bounded
+         ? level.getEntities((Entity)null, new AABB(minX, minY, minZ, maxX, maxY, maxZ))
+         : this.allEntities(level);
+      int index = 1;
+      for (Entity entity : entities) {
+         if (matchesFilter(entity, filter) && entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
+            list.set(index++, wrapEntity(entity));
+         }
+      }
+      return list;
+   }
+
+   private LuaTable playersInRadius(Level level, double[] center, double radius) {
+      LuaTable list = new LuaTable();
+      if (!(level instanceof ServerLevel serverLevel)) return list;
+      int index = 1;
+      double radiusSquared = radius * radius;
+      for (ServerPlayer player : serverLevel.players()) {
+         if (player.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
+            list.set(index++, MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), context.mlua().registration()));
+         }
+      }
+      return list;
+   }
+
    private static AABB entityBounds(LuaValue value) {
       if (!value.istable() || !value.get("__type").isstring()
             || !value.get("__type").checkjstring().equals("EntityBounds")) {
@@ -870,6 +924,22 @@ public final class MLuaWorldService extends MLuaServiceBase {
    private static String entityTypeId(Entity entity) {
       ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
       return id == null ? "unknown" : id.toString();
+   }
+
+   private static double checkedQueryRadius(double radius) {
+      if (!Double.isFinite(radius) || radius < 0) {
+         throw new LuaError("[MLua] Entity query radius must be finite and non-negative.");
+      }
+      return radius;
+   }
+
+   private static double[] checkedQueryPosition(double[] position) {
+      for (double component : position) {
+         if (!Double.isFinite(component)) {
+            throw new LuaError("[MLua] Entity query position must contain only finite coordinates.");
+         }
+      }
+      return position;
    }
 
    private static double[] positionArgs(Varargs args, int index) {
