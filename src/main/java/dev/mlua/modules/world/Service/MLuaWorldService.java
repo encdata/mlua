@@ -973,8 +973,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return false;
    }
 
-   private static Entity entityReference(LuaValue value, String field) {
+   private Entity entityReference(LuaValue value, String field) {
       if (!value.istable()) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
+      if (!context.mlua().registration().isInstanceOf(value, "Entity")) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
       LuaValue rawEntity = value.checktable().rawget("__entity");
       if (!rawEntity.isuserdata(Entity.class)) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
       return (Entity)rawEntity.touserdata(Entity.class);

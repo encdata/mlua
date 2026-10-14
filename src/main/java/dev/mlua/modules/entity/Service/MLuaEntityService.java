@@ -251,16 +251,12 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     private Entity requireEntity(LuaValue value) {
         if (value.istable()) {
+            if (!context.mlua().registration().isInstanceOf(value, "Entity")) {
+                throw new LuaError("[MLua] Expected an Entity instance or entity id.");
+            }
             LuaValue raw = value.checktable().rawget("__entity");
             if (raw.isuserdata(Entity.class)) {
                 return (Entity) raw.touserdata(Entity.class);
-            }
-            LuaValue id = value.get("Id");
-            if (id.isint()) {
-                Entity entity = resolveEntity(id.toint());
-                if (entity != null) {
-                    return entity;
-                }
             }
         }
         if (value.isint()) {
@@ -277,18 +273,23 @@ public final class MLuaEntityService extends MLuaReflectiveService {
             throw new LuaError("[MLua] Server is not available.");
         }
         if (value.istable()) {
+            boolean entityInstance = context.mlua().registration().isInstanceOf(value, "Entity");
+            boolean worldInstance = context.mlua().registration().isInstanceOf(value, "World");
+            if (!entityInstance && !worldInstance) {
+                throw new LuaError("[MLua] Expected a World instance, Entity instance, dimension id, or nil.");
+            }
             LuaValue raw = value.checktable().rawget("__entity");
-            if (raw.isuserdata(Entity.class)) {
+            if (entityInstance && raw.isuserdata(Entity.class)) {
                 Entity entity = (Entity) raw.touserdata(Entity.class);
                 if (entity.level() instanceof ServerLevel serverLevel) {
                     return serverLevel;
                 }
             }
-            LuaValue world = value.checktable().rawget("__world");
-            if (!world.isuserdata()) world = value.checktable().rawget("__level");
-            if (world.isuserdata(Level.class) && world.touserdata(Level.class) instanceof ServerLevel serverLevel) {
+            LuaValue world = value.checktable().rawget("__level");
+            if (worldInstance && world.isuserdata(Level.class) && world.touserdata(Level.class) instanceof ServerLevel serverLevel) {
                 return serverLevel;
             }
+            throw new LuaError("[MLua] The supplied World or Entity is not backed by a loaded server world.");
         }
         if (value.isstring()) {
             net.minecraft.resources.ResourceLocation dimension = dev.mlua.minecraft.MLuaResourceLocations.tryParseOrNull(value.tojstring());
@@ -340,13 +341,14 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return MLuaEntityWrapper.entityTable(entity, context.mlua().registration());
     }
 
-    private static Entity entityValue(LuaValue value) {
+    private Entity entityValue(LuaValue value) {
         if (!value.istable()) return null;
+        if (!context.mlua().registration().isInstanceOf(value, "Entity")) return null;
         LuaValue raw = value.checktable().rawget("__entity");
         return raw.isuserdata(Entity.class) ? (Entity)raw.touserdata(Entity.class) : null;
     }
 
-    private static double[] position(LuaValue value) {
+    private double[] position(LuaValue value) {
         Entity entity = entityValue(value);
         if (entity != null) return new double[]{entity.getX(), entity.getY(), entity.getZ()};
         return MLuaCFrame.vector(value);

@@ -87,6 +87,9 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     private Player player(LuaValue value) {
         if (value.istable()) {
+            if (!this.context.registration().isInstanceOf(value, "Player")) {
+                throw new LuaError("[MLua] Expected a Player instance, player name, or player UUID.");
+            }
             LuaValue raw = value.checktable().rawget("__entity");
             if (raw.isuserdata(Player.class)) {
                 return (Player) raw.touserdata(Player.class);
@@ -110,7 +113,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
             Player local = localPlayer();
             if (local != null) return local;
         }
-        throw new LuaError("[MLua] Expected player table, player name, or player UUID.");
+        throw new LuaError("[MLua] Expected a Player instance, player name, or player UUID.");
     }
 
     private static Player localPlayer() {

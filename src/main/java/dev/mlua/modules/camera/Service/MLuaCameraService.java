@@ -100,6 +100,9 @@ public final class MLuaCameraService extends MLuaReflectiveService {
          if (minecraft != null && minecraft.player != null) MLuaCameraController.setSubject(minecraft.player);
          return;
       }
+      if (!context.mlua().registration().isInstanceOf(value, "Entity")) {
+         throw new LuaError("[MLua] Camera:SetSubject expects a Player or Entity from the client world");
+      }
       LuaValue entityValue = value.istable() ? value.checktable().rawget("__entity") : LuaValue.NIL;
       if (!entityValue.isuserdata(Entity.class)) {
          throw new LuaError("[MLua] Camera:SetSubject expects a Player or Entity from the client world");
