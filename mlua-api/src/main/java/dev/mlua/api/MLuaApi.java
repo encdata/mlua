@@ -46,23 +46,25 @@ public final class MLuaApi {
 
    public static final class ServiceBuilder {
       private final String name;
-      private final Function<MLuaService.Context, MLuaService> factory;
-      private String className;
+      private final MLuaModule.ServiceEntry.Builder declaration;
+      private boolean explicitClassName;
       private Side side = Side.BOTH;
-      private String description;
-      private final Map<String, String> functions = new LinkedHashMap<>();
       private boolean registered;
 
       private ServiceBuilder(String name, String className,
                              Function<MLuaService.Context, MLuaService> factory) {
          this.name = Objects.requireNonNull(name, "name");
-         this.className = className;
-         this.factory = Objects.requireNonNull(factory, "factory");
+         this.declaration = MLuaModule.ServiceEntry.builder(name, Objects.requireNonNull(factory, "factory"));
+         if (className != null) {
+            this.declaration.className(className);
+            this.explicitClassName = true;
+         }
       }
 
       public ServiceBuilder className(String className) {
          ensureOpen();
-         this.className = Objects.requireNonNull(className, "className");
+         this.declaration.className(Objects.requireNonNull(className, "className"));
+         this.explicitClassName = true;
          return this;
       }
 
@@ -74,50 +76,30 @@ public final class MLuaApi {
 
       public ServiceBuilder description(String description) {
          ensureOpen();
-         this.description = Objects.requireNonNull(description, "description");
+         this.declaration.description(Objects.requireNonNull(description, "description"));
          return this;
       }
 
       public ServiceBuilder reflective(Class<? extends MLuaReflectiveService> serviceType) {
          ensureOpen();
-         MLuaReflectiveService.ApiMetadata metadata = MLuaReflectiveService.apiMetadata(serviceType);
-         if (this.description != null && !this.description.equals(metadata.description())) {
-            throw new IllegalArgumentException("Reflective service '" + this.name
-               + "' has conflicting descriptions");
-         }
-         this.description = metadata.description();
-         metadata.functionDescriptions().forEach((method, description) -> {
-            String existing = this.functions.putIfAbsent(method, description);
-            if (existing != null && !existing.equals(description)) {
-               throw new IllegalArgumentException("Reflective service '" + this.name
-                  + "' method '" + method + "' has conflicting descriptions");
-            }
-         });
+         this.declaration.reflective(serviceType);
          return this;
       }
 
       public ServiceBuilder function(String name, String description) {
          ensureOpen();
-         if (name == null || name.isBlank()) throw new IllegalArgumentException("Service function name must be non-empty");
-         if (description == null || description.isBlank()) throw new IllegalArgumentException("Service function description must be non-empty");
-         if (MLuaRegistration.isReservedFunctionName(name)) {
-            throw new IllegalArgumentException("Service function name is reserved for MLua metadata: " + name);
-         }
-         if (this.functions.putIfAbsent(name, description) != null) {
-            throw new IllegalArgumentException("Service function '" + name + "' is already declared");
-         }
+         this.declaration.function(name, description);
          return this;
       }
 
       public void register() {
          ensureOpen();
-         if (this.description == null || this.description.isBlank()) {
-            throw new IllegalStateException("Service '" + this.name + "' must have a description before registration");
-         }
-         if (this.className == null) {
-            MLuaApi.registerService(this.name, this.side, this.factory, this.description, this.functions);
+         MLuaModule.ServiceEntry entry = this.declaration.build();
+         if (!this.explicitClassName) {
+            MLuaApi.registerService(entry.name(), this.side, entry.factory(), entry.description(), entry.functionDescriptions());
          } else {
-            MLuaApi.registerService(this.name, this.className, this.side, this.factory, this.description, this.functions);
+            MLuaApi.registerService(entry.name(), entry.className(), this.side, entry.factory(),
+               entry.description(), entry.functionDescriptions());
          }
          this.registered = true;
       }
