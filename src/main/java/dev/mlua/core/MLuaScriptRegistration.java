@@ -55,7 +55,10 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    @Override
    public LuaTable registerClass(String name, String parentName, String description) {
       this.snapshotClassDescription(name);
-      return MLuaRegistration.super.registerClass(name, parentName, description);
+      boolean added = delegate.classTable(name) == null;
+      LuaTable type = delegate.registerClass(name, parentName, description);
+      if (added) classes.add(name);
+      return type;
    }
 
    @Override
@@ -70,7 +73,10 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    public LuaTable registerClassTable(String name, LuaTable classTable, String parentName,
                                       String description) {
       this.snapshotClassDescription(name);
-      return MLuaRegistration.super.registerClassTable(name, classTable, parentName, description);
+      boolean added = delegate.classTable(name) == null;
+      LuaTable type = delegate.registerClassTable(name, classTable, parentName, description);
+      if (added) classes.add(name);
+      return type;
    }
 
    @Override

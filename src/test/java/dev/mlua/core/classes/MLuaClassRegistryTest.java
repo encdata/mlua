@@ -82,7 +82,9 @@ final class MLuaClassRegistryTest {
         serviceClass.set("__mlua_service_class", true);
         MLuaRegistration registration = new MLuaRegistration() {
             @Override public LuaTable registerClass(String name, String parentName) { throw new UnsupportedOperationException(); }
+            @Override public LuaTable registerClass(String name, String parentName, String description) { throw new UnsupportedOperationException(); }
             @Override public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) { throw new UnsupportedOperationException(); }
+            @Override public LuaTable registerClassTable(String name, LuaTable classTable, String parentName, String description) { throw new UnsupportedOperationException(); }
             @Override public LuaTable classTable(String name) { return "Alerts".equals(name) ? serviceClass : null; }
         };
 

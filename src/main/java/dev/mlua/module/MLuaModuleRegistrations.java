@@ -260,10 +260,29 @@ final class MLuaModuleRegistrations {
             }
 
             @Override
+            public LuaTable registerClass(String name, String parentName, String description) {
+                boolean isNew = registration.classTable(name) == null;
+                if (!isNew) snapshotClass(registration, name, snapshots);
+                LuaTable table = registration.registerClass(name, parentName, description);
+                if (isNew) added.add(name);
+                return table;
+            }
+
+            @Override
             public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
                 boolean isNew = registration.classTable(name) == null;
                 if (!isNew) snapshotClass(registration, name, snapshots);
                 LuaTable table = registration.registerClassTable(name, classTable, parentName);
+                if (isNew) added.add(name);
+                return table;
+            }
+
+            @Override
+            public LuaTable registerClassTable(String name, LuaTable classTable, String parentName,
+                                               String description) {
+                boolean isNew = registration.classTable(name) == null;
+                if (!isNew) snapshotClass(registration, name, snapshots);
+                LuaTable table = registration.registerClassTable(name, classTable, parentName, description);
                 if (isNew) added.add(name);
                 return table;
             }

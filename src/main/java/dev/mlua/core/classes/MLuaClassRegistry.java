@@ -64,6 +64,14 @@ public final class MLuaClassRegistry {
       return classTable;
    }
 
+   public synchronized LuaTable register(String name, String parentName, String description) {
+      validateClassDescription(this.classes.get(name), name, description);
+      LuaTable type = this.register(name, parentName);
+      recordClassDescription(type, name, description);
+      this.refreshMetadata(name);
+      return type;
+   }
+
    @Deprecated(forRemoval = false)
    public synchronized LuaTable register(String name, LuaTable classTable, String... parentNames) {
       List<String> normalized = normalizedParents(parentNames);
@@ -114,6 +122,41 @@ public final class MLuaClassRegistry {
       this.refreshParentLookup(classTable, name);
       this.refreshInheritedMethodDescriptions();
       return classTable;
+   }
+
+   public synchronized LuaTable register(String name, LuaTable classTable, String parentName,
+                                         String description) {
+      validateClassDescription(this.classes.get(name), name, description);
+      validateClassDescription(classTable, name, description);
+      LuaTable type = this.register(name, classTable, parentName);
+      recordClassDescription(type, name, description);
+      this.refreshMetadata(name);
+      return type;
+   }
+
+   private static void validateClassDescription(LuaTable type, String name, String description) {
+      if (description == null || description.isBlank()) {
+         throw new IllegalArgumentException("Lua class '" + name + "' must have a non-empty description");
+      }
+      if (type == null) return;
+      LuaValue existing = type.rawget("__mlua_doc_description");
+      if (!existing.isnil() && !existing.isstring()) {
+         throw new IllegalStateException("Lua class '" + name + "' has invalid description metadata");
+      }
+      if (existing.isstring() && !description.equals(existing.tojstring())) {
+         throw new IllegalStateException("Lua class '" + name + "' is already registered with a different description");
+      }
+   }
+
+   private static void recordClassDescription(LuaTable type, String name, String description) {
+      LuaValue existing = type.rawget("__mlua_doc_description");
+      if (!existing.isnil() && !existing.isstring()) {
+         throw new IllegalStateException("Lua class '" + name + "' has invalid description metadata");
+      }
+      if (existing.isstring() && !description.equals(existing.tojstring())) {
+         throw new IllegalStateException("Lua class '" + name + "' is already registered with a different description");
+      }
+      type.rawset("__mlua_doc_description", LuaValue.valueOf(description));
    }
 
    private void validateDeclaredClassMethods(String className, LuaTable classTable) {

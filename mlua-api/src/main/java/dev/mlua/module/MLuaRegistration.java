@@ -25,33 +25,24 @@ public interface MLuaRegistration {
     }
 
     @Deprecated(forRemoval = false)
-    LuaTable registerClass(String name, String parentName);
-
-    default LuaTable registerClass(String name, String parentName, String description) {
-        validateClassDescription(classTable(name), name, description);
-        LuaTable table = registerClass(name, parentName);
-        recordClassDescription(table, name, description);
-        refreshClassMetadata(name);
-        return table;
+    default LuaTable registerClass(String name, String parentName) {
+        throw new UnsupportedOperationException("Use class registration with a description");
     }
 
-    LuaTable registerClassTable(String name, LuaTable classTable, String parentName);
+    LuaTable registerClass(String name, String parentName, String description);
+
+    @Deprecated(forRemoval = false)
+    default LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
+        throw new UnsupportedOperationException("Use class table registration with a description");
+    }
+
+    LuaTable registerClassTable(String name, LuaTable classTable, String parentName, String description);
 
     @Deprecated(forRemoval = false)
     default LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
         java.util.List<String> parents = normalizeParentNames(parentNames == null
             ? java.util.List.of() : java.util.Arrays.asList(parentNames));
         return registerClassTable(name, classTable, parents.isEmpty() ? null : parents.get(0));
-    }
-
-    default LuaTable registerClassTable(String name, LuaTable classTable, String parentName,
-                                        String description) {
-        validateClassDescription(this.classTable(name), name, description);
-        validateClassDescription(classTable, name, description);
-        LuaTable table = registerClassTable(name, classTable, parentName);
-        recordClassDescription(table, name, description);
-        refreshClassMetadata(name);
-        return table;
     }
 
     @Deprecated(forRemoval = false)
