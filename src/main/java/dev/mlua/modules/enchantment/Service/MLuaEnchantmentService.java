@@ -55,7 +55,7 @@ public final class MLuaEnchantmentService extends MLuaServiceBase {
                 if (key != null) {
                     LuaTable entry = new LuaTable();
                     entry.set("Id", LuaValue.valueOf(key.toString()));
-                    entry.set("Name", LuaValue.valueOf(ench.getDescriptionId()));
+                    entry.set("Name", LuaValue.valueOf(net.minecraft.network.chat.Component.translatable(ench.getDescriptionId()).getString()));
                     list.set(index++, entry);
                 }
             }
@@ -222,7 +222,7 @@ public final class MLuaEnchantmentService extends MLuaServiceBase {
         ResourceLocation key = BuiltInRegistries.ENCHANTMENT.getKey(ench);
         LuaTable table = new LuaTable();
         table.set("Id", LuaValue.valueOf(key != null ? key.toString() : id));
-        table.set("Name", LuaValue.valueOf(ench.getDescriptionId()));
+        table.set("Name", LuaValue.valueOf(net.minecraft.network.chat.Component.translatable(ench.getDescriptionId()).getString()));
         table.set("MinLevel", LuaValue.valueOf(ench.getMinLevel()));
         table.set("MaxLevel", LuaValue.valueOf(ench.getMaxLevel()));
         table.set("Rarity", LuaValue.valueOf(ench.getRarity().name()));

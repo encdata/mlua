@@ -50,6 +50,7 @@ public final class MLuaContainer {
 
    public static LuaTable inventoryTable(MCContainer inv, boolean writable, MLuaRegistration registration,
                                          InventoryLayout layout) {
+      validateInventoryLayout(inv.getContainerSize(), layout);
       return containerTable(inv, writable, registration, "Inventory", "Inventory", layout);
    }
 
@@ -199,7 +200,7 @@ public final class MLuaContainer {
          MLuaClassMethods.setInstanceMethod(table, "SetOffhandSlot", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-               setSlot(inv, writable, inv.getContainerSize(), args.arg(2));
+               setSlot(inv, writable, layout.offhandIndex(), args.arg(2));
                return LuaValue.NONE;
             }
          });
@@ -358,7 +359,7 @@ public final class MLuaContainer {
       MLuaClassMethods.registerInstanceProperty(registration, "Container", "Slots", "GetAll", null,
          "Slot[]", "shared:Shared", "Returns the live slot instances in this container.");
       MLuaClassMethods.registerInstanceProperty(registration, "Container", "Title", "GetTitle", null,
-         "string", "shared:Shared", "Returns this container's title when the backing container exposes one.");
+         "string|nil", "shared:Shared", "Returns this container's title when the backing container exposes one.");
    }
 
    private static LuaTable cachedInstance(MLuaRegistration registration, Object backing, String className,
@@ -389,6 +390,17 @@ public final class MLuaContainer {
          if (hotbarSize < 0 || armorStartIndex < 1 || armorSize < 0 || offhandIndex < 1) {
             throw new IllegalArgumentException("Inventory layout indexes and sizes must be non-negative and one-based where applicable.");
          }
+      }
+   }
+
+   private static void validateInventoryLayout(int containerSize, InventoryLayout layout) {
+      if (layout == null) throw new NullPointerException("layout");
+      long armorEnd = (long) layout.armorStartIndex() + layout.armorSize() - 1;
+      if (layout.hotbarSize() > containerSize
+          || (layout.armorSize() > 0 && armorEnd > containerSize)
+          || (containerSize > 0 && layout.offhandIndex() > containerSize)) {
+         throw new IllegalArgumentException("Inventory layout indexes exceed the container size of "
+            + containerSize + ".");
       }
    }
 

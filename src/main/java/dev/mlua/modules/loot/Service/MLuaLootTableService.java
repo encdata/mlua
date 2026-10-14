@@ -2,18 +2,20 @@ package dev.mlua.modules.loot.Service;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.module.MLuaRegistration;
-import java.util.function.Function;
+import java.util.Optional;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-public final class MLuaLootTableService extends MLuaServiceBase {
+@MLuaDescription("Service for creating loot table builders.")
+public final class MLuaLootTableService extends MLuaReflectiveService {
     private static final String BUILDER_STATE = "__loot_builder_state";
     private final MLuaRegistration registration;
 
@@ -89,19 +91,23 @@ public final class MLuaLootTableService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Both");
-        table.set("Create", fn(args -> {
-            int poolCount = args.optint(2, 1);
-            if (poolCount < 1) throw new LuaError("[MLua] LootTable:Create poolCount must be at least 1");
-            return createBuilder(poolCount);
-        }));
-        table.set("Empty", fn(args -> {
-            JsonObject root = new JsonObject();
-            root.add("pools", new JsonArray());
-            return LuaValue.valueOf(root.toString());
-        }));
         return table;
+    }
+
+    @MLuaDescription("Creates a live LootTableBuilder with the requested number of pools.")
+    public LuaTable Create(Optional<Integer> requestedPoolCount) {
+        int poolCount = requestedPoolCount.orElse(1);
+        if (poolCount < 1) throw new LuaError("[MLua] LootTable:Create poolCount must be at least 1");
+        return createBuilder(poolCount);
+    }
+
+    @MLuaDescription("Returns the serialized JSON for an empty loot table.")
+    public String Empty() {
+        JsonObject root = new JsonObject();
+        root.add("pools", new JsonArray());
+        return root.toString();
     }
 
     private LuaTable createBuilder(int poolCount) {
@@ -138,20 +144,6 @@ public final class MLuaLootTableService extends MLuaServiceBase {
         } else {
             pool.addProperty(key, minimum);
         }
-    }
-
-    private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError error) {
-                    throw error;
-                } catch (Exception error) {
-                    throw new LuaError("[MLua] " + error.getMessage());
-                }
-            }
-        };
     }
 
     private static final class BuilderState {

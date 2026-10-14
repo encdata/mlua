@@ -11,10 +11,10 @@ public class EffectsModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder effects = ServiceEntry.builder("PotionEffects", MLuaPotionEffectsService::new)
-            .description("Queries potion effects applied to entities.");
-        effects.function("Get", "Returns details for a named potion effect.")
-            .function("Exists", "Returns whether a named potion effect exists.")
-            .function("GetAll", "Returns the available potion effect identifiers.");
+            .description("Queries registered potion effects and exposes effect metadata to Lua.");
+        effects.function("Get", "Returns metadata for a potion effect identifier.")
+            .function("Exists", "Returns whether a potion effect identifier exists.")
+            .function("GetAll", "Returns metadata for all registered potion effects.");
         return List.of(effects.build());
     }
 }

@@ -9,7 +9,6 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-/** Builds HTML references from raw LuaJ tables without invoking Lua code. */
 public final class MLuaLuaApiCrawler {
     private static final int MAX_DEPTH = 12;
     private static final int MAX_ENTRIES = 20_000;
@@ -286,7 +285,6 @@ public final class MLuaLuaApiCrawler {
     private record CrawlData(List<Entry> entries, Map<String, String> categories) { }
     private record Entry(String path, String kind, String value) { }
 
-    /** Identity-based set without importing a general-purpose mutable collection type into the crawler. */
     private static final class IdentitySet {
         private final java.util.IdentityHashMap<LuaValue, Boolean> values = new java.util.IdentityHashMap<>();
         boolean add(LuaValue value) { return this.values.put(value, Boolean.TRUE) == null; }

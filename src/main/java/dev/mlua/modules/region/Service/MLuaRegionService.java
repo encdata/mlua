@@ -5,6 +5,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -35,30 +36,42 @@ public final class MLuaRegionService extends MLuaServiceBase {
    public static void registerRegionClass(MLuaRegistration registration) {
       registration.registerClass("Region", registration.requireInstanceBaseClassName(),
          "A live spatial region that tracks matching entities and exposes enter, exit, and within signals.");
-      registration.registerClassProperty("Region", "Name", regionProperty(handle -> LuaValue.valueOf(handle.key().name())), LuaValue.NIL,
-         "string", "shared:Shared", "The region's registered name.");
-      registration.registerClassProperty("Region", "IsActive", regionProperty(handle -> LuaValue.valueOf(handle.service().state.regions.containsKey(handle.key()))), LuaValue.NIL,
-         "boolean", "shared:Shared", "Whether this region is currently registered.");
-      registration.registerClassProperty("Region", "EntityCount", regionProperty(handle -> {
+      registration.registerClassFunction("Region", "GetName", regionProperty(handle -> LuaValue.valueOf(handle.key().name())),
+         "Returns this region's registered name.");
+      registration.registerClassFunction("Region", "GetIsActive", regionProperty(handle -> LuaValue.valueOf(handle.service().state.regions.containsKey(handle.key()))),
+         "Returns whether this region is currently registered.");
+      registration.registerClassFunction("Region", "GetEntityCount", regionProperty(handle -> {
          Set<MLuaEntityScope> entities = handle.service().state.entities.get(handle.key());
          return LuaValue.valueOf(entities == null ? 0 : entities.size());
-      }), LuaValue.NIL, "number", "shared:Shared", "The number of entities currently inside the region.");
-      registration.registerClassProperty("Region", "Center", regionProperty(handle -> {
+      }), "Returns the number of entities currently inside this region.");
+      registration.registerClassFunction("Region", "GetCenter", regionProperty(handle -> {
          RegionDef def = handle.service().state.regions.get(handle.key());
          return def == null || !def.spherical ? LuaValue.NIL : MLuaPlayerWrapper.positionTable(def.centerX, def.centerY, def.centerZ);
-      }), LuaValue.NIL, "Vector3?", "shared:Shared", "The center of a spherical region, or nil for a box region.");
-      registration.registerClassProperty("Region", "Radius", regionProperty(handle -> {
+      }), "Returns the center of a spherical region, or nil for a box region.");
+      registration.registerClassFunction("Region", "GetRadius", regionProperty(handle -> {
          RegionDef def = handle.service().state.regions.get(handle.key());
          return def == null || !def.spherical ? LuaValue.NIL : LuaValue.valueOf(def.radius);
-      }), LuaValue.NIL, "number?", "shared:Shared", "The radius of a spherical region, or nil for a box region.");
-      registration.registerClassProperty("Region", "Bounds", regionProperty(handle -> {
+      }), "Returns the radius of a spherical region, or nil for a box region.");
+      registration.registerClassFunction("Region", "GetBounds", regionProperty(handle -> {
          RegionDef def = handle.service().state.regions.get(handle.key());
          if (def == null || def.spherical) return LuaValue.NIL;
          LuaTable bounds = new LuaTable();
          bounds.set("Min", MLuaPlayerWrapper.positionTable(def.minX, def.minY, def.minZ));
          bounds.set("Max", MLuaPlayerWrapper.positionTable(def.maxX, def.maxY, def.maxZ));
          return bounds;
-      }), LuaValue.NIL, "RegionBounds?", "shared:Shared", "The minimum and maximum corners of a box region, or nil for a spherical region.");
+      }), "Returns the minimum and maximum corners of a box region, or nil for a spherical region.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Region", "Name", "GetName", null,
+         "string", "shared:Shared", "The region's registered name.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Region", "IsActive", "GetIsActive", null,
+         "boolean", "shared:Shared", "Whether this region is currently registered.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Region", "EntityCount", "GetEntityCount", null,
+         "number", "shared:Shared", "The number of entities currently inside the region.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Region", "Center", "GetCenter", null,
+         "Vector3|nil", "shared:Shared", "The center of a spherical region, or nil for a box region.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Region", "Radius", "GetRadius", null,
+         "number|nil", "shared:Shared", "The radius of a spherical region, or nil for a box region.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Region", "Bounds", "GetBounds", null,
+         "RegionBounds|nil", "shared:Shared", "The minimum and maximum corners of a box region, or nil for a spherical region.");
       registration.registerClassFunction("Region", "Remove", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             RegionHandle handle = regionHandle(args.arg1());
@@ -142,7 +155,6 @@ public final class MLuaRegionService extends MLuaServiceBase {
       }
    }
 
-   /** Region definitions and signals associated with one runtime scheduler/session. */
    static final class RegionState {
       final Map<RegionKey, RegionDef> regions = new ConcurrentHashMap<>();
       final Map<RegionKey, MLuaRegistration> registrations = new ConcurrentHashMap<>();
@@ -346,11 +358,7 @@ public final class MLuaRegionService extends MLuaServiceBase {
             double cy = args.checkdouble(4);
             double cz = args.checkdouble(5);
             double radius = args.checkdouble(6);
-            RegionKey key = MLuaRegionService.this.key(name);
-            MLuaRegionService.this.state.regions.put(key, new RegionDef(key, cx, cy, cz, radius));
-            MLuaRegionService.this.recordRegistration(key);
-            MLuaRegionService.this.state.entities.remove(key);
-            return MLuaRegionService.this.regionHandle(key);
+            return MLuaRegionService.this.createRegion(name, cx, cy, cz, radius);
          }
       });
 
@@ -363,11 +371,7 @@ public final class MLuaRegionService extends MLuaServiceBase {
             double maxX = args.checkdouble(6);
             double maxY = args.checkdouble(7);
             double maxZ = args.checkdouble(8);
-            RegionKey key = MLuaRegionService.this.key(name);
-            MLuaRegionService.this.state.regions.put(key, new RegionDef(key, minX, minY, minZ, maxX, maxY, maxZ));
-            MLuaRegionService.this.recordRegistration(key);
-            MLuaRegionService.this.state.entities.remove(key);
-            return MLuaRegionService.this.regionHandle(key);
+            return MLuaRegionService.this.createBoxRegion(name, minX, minY, minZ, maxX, maxY, maxZ);
          }
       });
 
@@ -426,6 +430,40 @@ public final class MLuaRegionService extends MLuaServiceBase {
       });
 
       return table;
+   }
+
+   private LuaValue createRegion(String name, double centerX, double centerY, double centerZ, double radius) {
+      requireRegionName(name);
+      requireFinite(centerX, centerY, centerZ, radius);
+      if (radius < 0) throw new org.luaj.vm2.LuaError("[MLua] Region radius must be zero or greater.");
+      RegionKey key = this.key(name);
+      this.state.regions.put(key, new RegionDef(key, centerX, centerY, centerZ, radius));
+      this.recordRegistration(key);
+      this.state.entities.remove(key);
+      return this.regionHandle(key);
+   }
+
+   private LuaValue createBoxRegion(String name, double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+      requireRegionName(name);
+      requireFinite(minX, minY, minZ, maxX, maxY, maxZ);
+      if (minX > maxX || minY > maxY || minZ > maxZ) {
+         throw new org.luaj.vm2.LuaError("[MLua] Box region minimum coordinates must not exceed maximum coordinates.");
+      }
+      RegionKey key = this.key(name);
+      this.state.regions.put(key, new RegionDef(key, minX, minY, minZ, maxX, maxY, maxZ));
+      this.recordRegistration(key);
+      this.state.entities.remove(key);
+      return this.regionHandle(key);
+   }
+
+   private static void requireRegionName(String name) {
+      if (name == null || name.isBlank()) throw new org.luaj.vm2.LuaError("[MLua] Region name must not be empty.");
+   }
+
+   private static void requireFinite(double... values) {
+      for (double value : values) {
+         if (!Double.isFinite(value)) throw new org.luaj.vm2.LuaError("[MLua] Region coordinates and dimensions must be finite numbers.");
+      }
    }
 
    private static MLuaSignal signal(Map<RegionKey, MLuaSignal> map, RegionKey key) {

@@ -82,6 +82,20 @@ public final class MLuaPlayerWrapper {
       return classTable;
    }
 
+   public static LuaTable playerEntityTable(net.minecraft.world.entity.player.Player player,
+                                            MLuaRegistration registration) {
+      if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+         return playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration);
+      }
+      if (player instanceof LocalPlayer localPlayer) {
+         return localPlayerTable(MCLocalPlayerImpl.fromReal(localPlayer), registration);
+      }
+      if (player instanceof AbstractClientPlayer clientPlayer) {
+         return clientPlayerTable(clientPlayer, registration);
+      }
+      return MLuaEntityWrapper.livingEntityTable(player, registration);
+   }
+
    public static LuaTable playerTable(MCServerPlayer player) {
       net.minecraft.world.entity.Entity raw = ((MCEntityImpl) player).inner();
       return playerTable(player, MLuaRuntime.registrationForLevel(raw.level()));
@@ -98,7 +112,7 @@ public final class MLuaPlayerWrapper {
             return cachedPlayer;
          }
       }
-      LuaTable table = MLuaEntityWrapper.entityTable(raw, registration);
+      LuaTable table = MLuaEntityWrapper.livingEntityTable((net.minecraft.world.entity.LivingEntity) raw, registration);
       registration.attachClassInstance(table, "Player", "LivingEntity");
       table.rawset("__entity", LuaValue.userdataOf(raw));
       MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", luaFn(() -> {
@@ -479,12 +493,29 @@ public final class MLuaPlayerWrapper {
             return cachedPlayer;
          }
       }
-      LuaTable table = MLuaEntityWrapper.entityTable(player, registration);
+      LuaTable table = MLuaEntityWrapper.livingEntityTable(player, registration);
       registration.attachClassInstance(table, "Player", "LivingEntity");
       table.rawset("__entity", LuaValue.userdataOf(player));
       MLuaClassMethods.setInstanceMethod(table, "GetIsLocalPlayer", luaFn(() -> LuaValue.FALSE));
       MLuaClassMethods.setInstanceMethod(table, "GetDisplayName", luaFn(() -> LuaValue.valueOf(player.getDisplayName().getString())));
       MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> LuaValue.TRUE));
+      MLuaClassMethods.setInstanceMethod(table, "IsCreative", luaFn(() -> LuaValue.valueOf(player.isCreative())));
+      MLuaClassMethods.setInstanceMethod(table, "IsSpectator", luaFn(() -> LuaValue.valueOf(player.isSpectator())));
+      MLuaClassMethods.setInstanceMethod(table, "GetGameMode", luaFn(() -> clientGameMode(player)));
+      MLuaClassMethods.setInstanceMethod(table, "GetFood", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg(args -> unavailableRemotePlayerState("food")));
+      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg(args -> unavailableRemotePlayerState("food")));
+      MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg(args -> unavailableRemotePlayerState("food")));
+      MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "GetExperienceProgress", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "GetSelectedSlot", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "SetSelectedSlot", varArg(args -> unavailableRemotePlayerState("inventory selection")));
+      MLuaClassMethods.setInstanceMethod(table, "GetViewMode", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "SetViewMode", varArg(args -> {
+         throw new LuaError("[MLua] ViewMode is only available on the local player.");
+      }));
       bindLevelMethods(table, player.level(), registration);
       MLuaClassMethods.setInstanceMethod(table, "IsSleeping", luaFn(() -> LuaValue.valueOf(player.isSleeping())));
       MLuaClassMethods.setInstanceMethod(table, "IsCrouching", luaFn(() -> LuaValue.valueOf(player.isCrouching())));
@@ -505,6 +536,10 @@ public final class MLuaPlayerWrapper {
          var stack = player.getOffhandItem();
          return stack.isEmpty() ? LuaValue.NIL : MLuaItemWrapper.itemTable(stack, registration);
       }));
+      attachInventoryMethods(table, MCPlayerImpl.fromReal(player), false, false, registration);
+      MLuaClassMethods.setInstanceMethod(table, "GetOpenContainer", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "GetOpenContainerTitle", luaFn(() -> LuaValue.NIL));
+      MLuaClassMethods.setInstanceMethod(table, "GetOpenContainerSize", luaFn(() -> LuaValue.valueOf(0)));
       MLuaEntityWrapper.attachEntityProperties(table);
       MLuaEntityWrapper.cachePlayerTable(player, registration, table);
       return table;
@@ -526,7 +561,7 @@ public final class MLuaPlayerWrapper {
             return cachedPlayer;
          }
       }
-      LuaTable table = MLuaEntityWrapper.entityTable(raw, registration);
+      LuaTable table = MLuaEntityWrapper.livingEntityTable(raw, registration);
       registration.attachClassInstance(table, "Player", "LivingEntity");
       table.rawset("__entity", LuaValue.userdataOf(raw));
       table.rawset("__is_local_player", LuaValue.TRUE);
@@ -584,9 +619,21 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", luaFn(() -> {
          return LuaValue.valueOf(player.getFoodData().getFoodLevel());
       }), "Returns this player's food level.");
+      MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg((args) -> {
+         player.getFoodData().setFoodLevel(args.checkint(2));
+         return LuaValue.NONE;
+      }), "Sets this player's food level.");
+      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg((args) -> {
+         player.getFoodData().setFoodLevel(args.checkint(2));
+         return LuaValue.NONE;
+      }), "Sets this player's food level.");
       MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> {
          return LuaValue.valueOf((double)player.getFoodData().getSaturationLevel());
       }), "Returns this player's food saturation.");
+      MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg((args) -> {
+         player.getFoodData().setSaturation((float)args.checkdouble(2));
+         return LuaValue.NONE;
+      }), "Sets this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.experienceLevel());
       }));
@@ -695,6 +742,14 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetSelectedSlot", luaFn(() -> {
          return LuaValue.valueOf(player.getInventory().getSelected() + 1);
       }));
+      MLuaClassMethods.setInstanceMethod(table, "SetSelectedSlot", varArg((args) -> {
+         int slot = args.checkint(2) - 1;
+         if (slot < 0 || slot >= 9) {
+            throw new LuaError("[MLua] Selected slot must be between 1 and 9.");
+         }
+         player.getInventory().setSelected(slot);
+         return LuaValue.NONE;
+      }));
       MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> {
          return MLuaPotionEffectsService.effectsTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner());
       }));
@@ -799,6 +854,18 @@ public final class MLuaPlayerWrapper {
    private static LuaValue getGameModeLua(MCServerPlayer player) {
       net.minecraft.server.level.ServerPlayer raw = (net.minecraft.server.level.ServerPlayer) ((MCEntityImpl) player).inner();
       return MLuaMinecraftEnums.gameModeOf(raw.gameMode.getGameModeForPlayer());
+   }
+
+   private static LuaValue clientGameMode(AbstractClientPlayer player) {
+      net.minecraft.client.Minecraft minecraft = MLuaMinecraftClient.instance();
+      if (minecraft.getConnection() == null) return LuaValue.valueOf("unknown");
+      var playerInfo = minecraft.getConnection().getPlayerInfo(player.getUUID());
+      if (playerInfo == null || playerInfo.getGameMode() == null) return LuaValue.valueOf("unknown");
+      return MLuaMinecraftEnums.gameModeOf(playerInfo.getGameMode());
+   }
+
+   private static LuaValue unavailableRemotePlayerState(String state) {
+      throw new LuaError("[MLua] " + state + " cannot be read or changed for a remote client player.");
    }
 
    private static LuaValue heldItem(MCItemStack stack, MLuaRegistration registration) {

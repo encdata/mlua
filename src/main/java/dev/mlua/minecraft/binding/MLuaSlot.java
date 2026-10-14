@@ -18,7 +18,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Live Slot instances share class methods and keep only their backing accessors per instance. */
 public final class MLuaSlot {
    private static final String SLOT_STATE = "__mlua_slot_state";
 
@@ -57,8 +56,10 @@ public final class MLuaSlot {
          args -> LuaValue.valueOf(currentStack(state(args.arg1()).stackSupplier).isEmpty()));
       register(registration, "GetCount", "Returns the number of items in this slot.",
          args -> LuaValue.valueOf(currentStack(state(args.arg1()).stackSupplier).getCount()));
-      register(registration, "GetMaxCount", "Returns the maximum stack size for this slot's item.",
-         args -> LuaValue.valueOf(currentStack(state(args.arg1()).stackSupplier).getMaxStackSize()));
+      Function<Varargs, Varargs> getMaxStackSize = args -> LuaValue.valueOf(
+         currentStack(state(args.arg1()).stackSupplier).getMaxStackSize());
+      register(registration, "GetMaxStackSize", "Returns the maximum stack size for this slot's item.", getMaxStackSize);
+      register(registration, "GetMaxCount", "Compatibility alias for GetMaxStackSize.", getMaxStackSize);
       register(registration, "GetDisplayName", "Returns this slot item's display name, or nil when empty.", args -> {
          MCItemStack stack = currentStack(state(args.arg1()).stackSupplier);
          return stack.isEmpty() ? LuaValue.NIL : LuaValue.valueOf(stack.getDisplayName().getString());
@@ -137,13 +138,29 @@ public final class MLuaSlot {
       });
 
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Item", "GetItem", "SetItem",
-         "Item", "shared:Shared", "Gets or sets the item in this writable slot; nil clears it.");
+         "Item|nil", "shared:Shared", "Gets or sets the item in this writable slot; nil clears it.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Index", "GetIndex", null,
          "number", "shared:Shared", "Returns this slot's one-based container index.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "RawIndex", "GetRawIndex", null,
          "number", "shared:Shared", "Returns this slot's zero-based Minecraft index.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Count", "GetCount", null,
          "number", "shared:Shared", "Returns the number of items in this slot.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "MaxStackSize", "GetMaxStackSize", null,
+         "number", "shared:Shared", "Returns the maximum stack size for this slot's item.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "DisplayName", "GetDisplayName", null,
+         "string|nil", "shared:Shared", "Returns this slot item's display name, or nil when empty.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "ItemId", "GetItemId", null,
+         "string|nil", "shared:Shared", "Returns this slot item's registered identifier, or nil when empty.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Damage", "GetDamage", null,
+         "number", "shared:Shared", "Returns this slot item's current durability damage.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "MaxDamage", "GetMaxDamage", null,
+         "number", "shared:Shared", "Returns this slot item's maximum durability damage.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Lore", "GetLore", null,
+         "string[]", "shared:Shared", "Returns this slot item's lore lines.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Enchantments", "GetEnchantments", null,
+         "table", "shared:Shared", "Returns this slot item's enchantments.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Slot", "HasDataTag", "HasTag", null,
+         "boolean", "shared:Shared", "Whether this slot's item has a data tag.");
       MLuaClassMethods.registerInstanceProperty(registration, "Slot", "Empty", "IsEmpty", null,
          "boolean", "shared:Shared", "Whether this slot has no item.");
    }

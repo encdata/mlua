@@ -1,27 +1,24 @@
 package dev.mlua.modules.itemstack.Service;
 
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
-import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaNbtWrapper;
-import java.util.function.Function;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import java.util.Optional;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
+import dev.mlua.api.MLuaDescription;
 //--version 1.21.1,26.1
 import net.minecraft.nbt.CompoundTag;
 import dev.mlua.mc.impl.item.MCItemStackImpl;
 import dev.mlua.mc.impl.nbt.MCCompoundTagImpl;
 //--endversion
 
-public final class MLuaItemStackService extends MLuaServiceBase {
+public final class MLuaItemStackService extends MLuaReflectiveService {
     public MLuaItemStackService(MLuaService.Context context) {
         super(context);
     }
@@ -33,55 +30,86 @@ public final class MLuaItemStackService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Both");
-        table.set("Create", fn(args -> create(args.checkjstring(2), args.optint(3, 1))));
-        table.set("Of", table.get("Create"));
-        table.set("Empty", fn(args -> MLuaItemWrapper.itemTable(ItemStack.EMPTY, context.mlua().registration())));
-        table.set("Clone", fn(args -> MLuaItemWrapper.itemTable(stack(args.arg(2)).copy(), context.mlua().registration())));
-        table.set("IsEmpty", fn(args -> LuaValue.valueOf(stack(args.arg(2)).isEmpty())));
-        table.set("GetId", fn(args -> LuaValue.valueOf(id(stack(args.arg(2))))));
-        table.set("GetCount", fn(args -> LuaValue.valueOf(stack(args.arg(2)).getCount())));
-        table.set("SetCount", fn(args -> {
-            stack(args.arg(2)).setCount(args.checkint(3));
-            return LuaValue.NONE;
-        }));
-        table.set("GetNbt", fn(args -> {
-            //--version 1.20.1
-            ItemStack stack = stack(args.arg(2));
-            if (args.narg() < 3 || args.arg(3).isnil()) {
-                return MLuaNbtWrapper.table(stack::getOrCreateTag, stack::setTag, this.context.registration());
-            }
-            return stack.hasTag() ? MLuaNbtWrapper.get(stack.getTag(), args.checkjstring(3)) : LuaValue.NIL;
-            //--endversion
-            //--version 1.21.1,26.1
-            MCItemStackImpl stack = new MCItemStackImpl(stack(args.arg(2)));
-            if (args.narg() < 3 || args.arg(3).isnil()) {
-                return MLuaNbtWrapper.table(
-                    () -> {
-                        var tag = stack.getOrCreateTag();
-                        return ((MCCompoundTagImpl) tag).inner();
-                    },
-                    tag -> stack.setTag(MCCompoundTagImpl.fromReal(tag)), this.context.registration()
-                );
-            }
-            return stack.hasTag() ? MLuaNbtWrapper.get(((MCCompoundTagImpl) stack.getTag()).inner(), args.checkjstring(3)) : LuaValue.NIL;
-            //--endversion
-        }));
-        table.set("SetNbt", fn(args -> {
-            //--version 1.20.1
-            MLuaNbtWrapper.set(stack(args.arg(2)).getOrCreateTag(), args.checkjstring(3), args.arg(4));
-            return LuaValue.NONE;
-            //--endversion
-            //--version 1.21.1,26.1
-            MCItemStackImpl stack = new MCItemStackImpl(stack(args.arg(2)));
-            CompoundTag tag = ((MCCompoundTagImpl) stack.getOrCreateTag()).inner();
-            MLuaNbtWrapper.set(tag, args.checkjstring(3), args.arg(4));
-            stack.setTag(MCCompoundTagImpl.fromReal(tag));
-            return LuaValue.NONE;
-            //--endversion
-        }));
         return table;
+    }
+
+    @MLuaDescription("Creates an item stack by registry identifier and optional count, defaulting to one.")
+    public LuaValue Create(String id, Optional<Integer> count) {
+        return create(id, count.orElse(1));
+    }
+
+    @MLuaDescription("Creates an item stack by registry identifier and optional count, defaulting to one.")
+    public LuaValue Of(String id, Optional<Integer> count) {
+        return create(id, count.orElse(1));
+    }
+
+    @MLuaDescription("Returns an empty item stack instance.")
+    public LuaValue Empty() {
+        return MLuaItemWrapper.itemTable(ItemStack.EMPTY, this.context.registration());
+    }
+
+    @MLuaDescription("Returns a copy of an item stack.")
+    public LuaValue Clone(LuaValue item) {
+        return MLuaItemWrapper.itemTable(stack(item).copy(), this.context.registration());
+    }
+
+    @MLuaDescription("Returns whether an item stack is empty.")
+    public boolean IsEmpty(LuaValue item) {
+        return stack(item).isEmpty();
+    }
+
+    @MLuaDescription("Returns an item stack's registered item identifier.")
+    public String GetId(LuaValue item) {
+        return id(stack(item));
+    }
+
+    @MLuaDescription("Returns the number of items in a stack.")
+    public int GetCount(LuaValue item) {
+        return stack(item).getCount();
+    }
+
+    @MLuaDescription("Sets the number of items in a stack.")
+    public void SetCount(LuaValue item, int count) {
+        stack(item).setCount(count);
+    }
+
+    @MLuaDescription("Returns an item stack's NBT data or one value by key.")
+    public LuaValue GetNbt(LuaValue item, Optional<String> key) {
+        //--version 1.20.1
+        ItemStack stack = stack(item);
+        if (key.isEmpty()) {
+            return MLuaNbtWrapper.table(stack::getOrCreateTag, stack::setTag, this.context.registration());
+        }
+        return stack.hasTag() ? MLuaNbtWrapper.get(stack.getTag(), key.get()) : LuaValue.NIL;
+        //--endversion
+        //--version 1.21.1,26.1
+        MCItemStackImpl stack = new MCItemStackImpl(stack(item));
+        if (key.isEmpty()) {
+            return MLuaNbtWrapper.table(
+                () -> {
+                    var tag = stack.getOrCreateTag();
+                    return ((MCCompoundTagImpl) tag).inner();
+                },
+                tag -> stack.setTag(MCCompoundTagImpl.fromReal(tag)), this.context.registration()
+            );
+        }
+        return stack.hasTag() ? MLuaNbtWrapper.get(((MCCompoundTagImpl) stack.getTag()).inner(), key.get()) : LuaValue.NIL;
+        //--endversion
+    }
+
+    @MLuaDescription("Sets one NBT value in an item stack's NBT data.")
+    public void SetNbt(LuaValue item, String key, LuaValue value) {
+        //--version 1.20.1
+        MLuaNbtWrapper.set(stack(item).getOrCreateTag(), key, value);
+        //--endversion
+        //--version 1.21.1,26.1
+        MCItemStackImpl stack = new MCItemStackImpl(stack(item));
+        CompoundTag tag = ((MCCompoundTagImpl) stack.getOrCreateTag()).inner();
+        MLuaNbtWrapper.set(tag, key, value);
+        stack.setTag(MCCompoundTagImpl.fromReal(tag));
+        //--endversion
     }
 
     private LuaValue create(String id, int count) {
@@ -89,7 +117,7 @@ public final class MLuaItemStackService extends MLuaServiceBase {
         if (item == null) {
             throw new LuaError("[MLua] Unknown item: " + id);
         }
-        return MLuaItemWrapper.itemTable(new ItemStack(item, Math.max(0, count)), context.mlua().registration());
+        return MLuaItemWrapper.itemTable(new ItemStack(item, Math.max(0, count)), context.registration());
     }
 
     private static ItemStack stack(LuaValue value) {
@@ -99,20 +127,5 @@ public final class MLuaItemStackService extends MLuaServiceBase {
     private static String id(ItemStack stack) {
         var id = MCApiRuntime.registryKey("item", stack.getItem());
         return id == null ? "minecraft:air" : id;
-    }
-
-    private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new LuaError("[MLua] " + e.getMessage());
-                }
-            }
-        };
     }
 }

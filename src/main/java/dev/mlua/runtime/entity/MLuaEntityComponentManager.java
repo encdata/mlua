@@ -4,7 +4,9 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaServiceProperties;
+import dev.mlua.module.MLuaRegistration;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
@@ -22,7 +24,6 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 public final class MLuaEntityComponentManager {
     private static final ConcurrentHashMap<EntityComponentsKey, EntityComponents> COMPONENTS = new ConcurrentHashMap<>();
@@ -147,7 +148,6 @@ public final class MLuaEntityComponentManager {
         COMPONENTS.clear();
     }
 
-    /** Remove components attached to this exact entity, regardless of runtime-side bucket. */
     public static void clearEntity(Entity entity) {
         if (entity == null) return;
         MLuaEntityScope scope = MLuaEntityScope.of(entity);
@@ -192,7 +192,6 @@ public final class MLuaEntityComponentManager {
         }
     }
 
-    /** Remove every component created by one runtime session, preserving other sessions. */
     public static void clearRuntime(Object runtimeOwner, Side side) {
         if (runtimeOwner == null) return;
         for (Map.Entry<EntityComponentsKey, EntityComponents> entry : COMPONENTS.entrySet()) {
@@ -438,56 +437,42 @@ public final class MLuaEntityComponentManager {
 
         private LuaTable createHandle() {
             LuaTable table = new LuaTable();
-            table.set("Name", LuaValue.valueOf(name));
-            table.set("GetName", new ZeroArgFunction() {
-                @Override
-                public LuaValue call() {
-                    return LuaValue.valueOf(name);
-                }
+            MLuaRegistration registration = context == null ? null : context.registration();
+            boolean typed = registration != null && registration.classTable("EntityComponent") != null;
+            table.rawset("__side", LuaValue.valueOf(side.name()));
+            table.rawset("__component_name", LuaValue.valueOf(name));
+            if (typed) registration.attachClassInstance(table, "EntityComponent", null);
+            else table.rawset("Name", LuaValue.valueOf(name));
+            bindHandleMethod(registration, typed, table, "GetName", args -> LuaValue.valueOf(name));
+            bindHandleMethod(registration, typed, table, "GetEntity", args -> entityTable(entity()));
+            bindHandleMethod(registration, typed, table, "GetState", args ->
+                args.narg() < 2 || args.arg(2).isnil() ? state : state.get(args.arg(2)));
+            bindHandleMethod(registration, typed, table, "SetState", args -> {
+                state.set(args.arg(2), args.arg(3));
+                return LuaValue.NONE;
             });
-            table.set("GetEntity", new ZeroArgFunction() {
-                @Override
-                public LuaValue call() {
-                    return entityTable(entity());
-                }
+            bindHandleMethod(registration, typed, table, "GetEnabled", args -> LuaValue.valueOf(enabled));
+            bindHandleMethod(registration, typed, table, "SetEnabled", args -> {
+                enabled = args.checkboolean(2);
+                return LuaValue.NONE;
             });
-            table.set("GetState", new VarArgFunction() {
-                @Override
-                public Varargs invoke(Varargs args) {
-                    if (args.narg() < 2 || args.arg(2).isnil()) {
-                        return state;
-                    }
-                    return state.get(args.arg(2));
-                }
+            bindHandleMethod(registration, typed, table, "Destroy", args -> {
+                remove(entity(), side, name, ownerModId, runtimeOwner);
+                return LuaValue.NONE;
             });
-            table.set("SetState", new VarArgFunction() {
-                @Override
-                public Varargs invoke(Varargs args) {
-                    state.set(args.arg(2), args.arg(3));
-                    return LuaValue.NONE;
-                }
-            });
-            table.set("GetEnabled", new ZeroArgFunction() {
-                @Override
-                public LuaValue call() {
-                    return LuaValue.valueOf(enabled);
-                }
-            });
-            table.set("SetEnabled", new VarArgFunction() {
-                @Override
-                public Varargs invoke(Varargs args) {
-                    enabled = args.checkboolean(2);
-                    return LuaValue.NONE;
-                }
-            });
-            table.set("Destroy", new ZeroArgFunction() {
-                @Override
-                public LuaValue call() {
-                    remove(entity(), side, name, ownerModId, runtimeOwner);
-                    return LuaValue.NONE;
-                }
-            });
+            if (typed) registration.initializeClassInstance(table, "EntityComponent", null);
             return MLuaServiceProperties.attach(table);
+        }
+
+        private static void bindHandleMethod(MLuaRegistration registration, boolean typed, LuaTable table,
+                                             String name,
+                                             java.util.function.Function<Varargs, Varargs> implementation) {
+            VarArgFunction function = new VarArgFunction() {
+                @Override
+                public Varargs invoke(Varargs args) { return implementation.apply(args); }
+            };
+            if (typed) MLuaClassMethods.bindInstanceMethod(registration, "EntityComponent", table, name, function);
+            else table.set(name, function);
         }
     }
 }

@@ -733,8 +733,6 @@ public final class MLuaLuaBindings {
                      LuaValue description = serviceClass.rawget("__mlua_doc_description");
                      if (description.isstring()) instance.rawset("__mlua_doc_description", description);
                      registration.attachClassInstance(instance, className, registration.serviceBaseClassName());
-                     // Publish before Init so recursive GetService calls observe the
-                     // same in-progress live instance instead of creating another one.
                      context.recordMaterializedService(serviceName, instance);
                      LuaValue initializer = serviceClass.get("Init");
                      if (initializer.isfunction()) {
@@ -790,7 +788,6 @@ public final class MLuaLuaBindings {
       registration.attachClassInstance(instance, className, registration.serviceBaseClassName());
    }
 
-   /** Builds a registered service table directly for the offline Lua API crawler. */
    public static LuaTable materializeServiceTable(MLuaContext context, String serviceName) {
       return resolveServiceTable(context, serviceName);
    }

@@ -27,8 +27,8 @@ public final class ItemStackModule implements MLuaModule {
     public List<ServiceEntry> services() {
         ServiceEntry.Builder itemStack = ServiceEntry.builder("ItemStackService", MLuaItemStackService::new)
             .description("Create, clone, inspect, and mutate Minecraft ItemStack values.");
-        itemStack.function("Create", "Creates an item stack by registry identifier and count.")
-            .function("Of", "Creates an item stack by registry identifier and count.")
+        itemStack.function("Create", "Creates an item stack by registry identifier and optional count, defaulting to one.")
+            .function("Of", "Creates an item stack by registry identifier and optional count, defaulting to one.")
             .function("Empty", "Returns an empty item stack instance.")
             .function("Clone", "Returns a copy of an item stack.")
             .function("IsEmpty", "Returns whether an item stack is empty.")
@@ -36,7 +36,7 @@ public final class ItemStackModule implements MLuaModule {
             .function("GetCount", "Returns the number of items in a stack.")
             .function("SetCount", "Sets the number of items in a stack.")
             .function("GetNbt", "Returns an item stack's NBT data or one value by key.")
-            .function("SetNbt", "Sets one NBT value or replaces an item stack's NBT data.");
+            .function("SetNbt", "Sets one NBT value in an item stack's NBT data.");
         return List.of(itemStack.build());
     }
 
@@ -46,8 +46,8 @@ public final class ItemStackModule implements MLuaModule {
             "Create, clone, inspect, and mutate Minecraft ItemStack values.",
             "services/item-stack.html");
         docs.clazz("Item", "MLuaItemWrapper", "A live item stack instance with count, durability, display name, tags, and enchantments.", "classes/item.html", "Instance");
-        docs.clazz("BlockItem", "MLuaItemWrapper", "An item instance that places its associated block and inherits the item stack API.", "classes/block-item.html", "Instance");
-        docs.clazz("Weapon", "MLuaItemWrapper", "A scriptable weapon base for melee, ranged, thrown, and other item actions.", "classes/weapon.html", "Instance");
+        docs.clazz("BlockItem", "MLuaItemWrapper", "An item instance that places its associated block and inherits the item stack API.", "classes/block-item.html", "Item");
+        docs.clazz("Weapon", "MLuaItemWrapper", "A scriptable weapon base for melee, ranged, thrown, and other item actions.", "classes/weapon.html", "Item");
         docs.guideStep("Item", "Read and change a live item stack",
             "Item values are live stack wrappers returned by player inventory and held-item methods. Use Item.Find to create a stack when you need one directly.",
             "local item = Item.Find(\"minecraft:torch\", 4)\nprint(item:GetId(), item:GetCount())\nitem:SetCount(8)");

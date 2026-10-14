@@ -2538,9 +2538,9 @@ function deactivate() {}
 
     private static String gettingStartedContent(List<MLuaDocBuilder.Contribution> contributions) {
       StringBuilder body = new StringBuilder();
+      body.append(builtInGettingStartedContent());
       body.append(renderGettingStartedContributions(contributions));
-      if (body.isEmpty()) body.append(builtInGettingStartedContent());
-      return content("Getting Started", "Setup steps and starter scripts contributed by MLua and installed addons.", null,
+      return content("Getting Started", "Install MLua, create a script, and make a first change in a world.", null,
          body.toString());
     }
 
@@ -2553,22 +2553,25 @@ function deactivate() {}
           .filter(example -> example.name().equals("02-custom-item.registry.lua"))
           .findFirst().orElse(null);
        StringBuilder html = new StringBuilder();
-       html.append("<section class=\"tutorial-step\"><h3>Step 1: Create a server script</h3>")
-          .append("<p>After launching Minecraft with MLua installed, create this file in the game directory. ")
-          .append("The <code>.server.lua</code> suffix runs it on the server when a world starts.</p>")
+       html.append("<div class=\"callout info\">These steps use the scripts folder inside your Minecraft game directory. A single player world still has a server side, so server scripts work there too.</div>")
+          .append("<section class=\"tutorial-step\"><h3>1. Create a server script</h3>")
+          .append("<p>Launch Minecraft once with MLua installed, then create this file. The <code>.server.lua</code> suffix tells MLua to run it on the server when a world starts.</p>")
           .append(codeBlock("<game directory>/mlua/scripts/hello.server.lua"))
           .append(codeBlock(server == null
              ? "local Players = Minecraft:GetService(\"Players\")\n\nPlayers.PlayerAdded:Connect(function(player)\n    player:SendMessage(\"Welcome to my world!\")\nend)"
              : server.source()))
-          .append("</section><section class=\"tutorial-step\"><h3>Step 2: Register an item</h3>")
-          .append("<p>Registry scripts run before Minecraft freezes content registries. Save this as ")
-          .append("<code>&lt;game directory&gt;/mlua/scripts/ruby.registry.lua</code>, then start a new world.</p>")
+          .append("<p>Start or rejoin a world and join with a player. The message is sent when the player connects. If you change the script, reload the world or restart the game so MLua loads it again.</p>")
+          .append("</section><section class=\"tutorial-step\"><h3>2. Register an item</h3>")
+          .append("<p>Content registration happens before a world loads. Save this as ")
+          .append("<code>&lt;game directory&gt;/mlua/scripts/example-item.registry.lua</code>, then restart Minecraft before checking the creative inventory.</p>")
           .append(codeBlock(registry == null
-             ? "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.Items:Register(\"ruby\", {\n    maxStackSize = 64\n})"
+             ? "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.Items:Register(\"example_item\", {\n    maxStackSize = 16,\n    creativeTab = \"misc\"\n})"
              : registry.source()))
-          .append("</section><section class=\"tutorial-step\"><h3>Step 3: Find the next API</h3>")
-          .append("<p>Use the API pages in this folder to explore services, classes, and registration options. ")
-          .append("The documentation site uses local HTML, CSS, and JavaScript files, so it can be opened without an internet connection.</p></section>");
+          .append("<p>The registry name becomes the item's namespaced id under your mod or script namespace. The <a href=\"../services/registry-items.html\">Items reference</a> lists the supported item properties and registration methods.</p>")
+          .append("</section><section class=\"tutorial-step\"><h3>3. Explore the API</h3>")
+          .append("<p>Scripts use <code>Minecraft:GetService(\"Name\")</code> to get a service, then use the service's methods and events. For example, <code>Players.PlayerAdded</code> is an event and <code>player:SendMessage(...)</code> is an instance method.</p>")
+          .append("<p>Continue with <a href=\"../services/players.html\">Players</a>, <a href=\"../services/world.html\">World</a>, <a href=\"../services/registry.html\">Registry</a>, or browse the <a href=\"../api/lua.html\">Lua API inventory</a>. The generated docs are local HTML and can be opened offline.</p>")
+          .append("</section>");
        return html.toString();
     }
 

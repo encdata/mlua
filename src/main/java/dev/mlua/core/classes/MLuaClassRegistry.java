@@ -5,7 +5,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -471,103 +470,19 @@ public final class MLuaClassRegistry {
    }
 
    public synchronized boolean unregister(String name) {
+      if (this.hasClassDependents(name)) return false;
       LuaTable removedClass = this.classes.remove(name);
       if (removedClass == null) return false;
       this.pendingClassRemovals.remove(name);
       this.registeredClassTables.remove(removedClass);
-      this.detachInstances(name, removedClass);
       List<String> affectedParents = new ArrayList<>(this.parents.getOrDefault(name, List.of()));
       List<String> removedMixins = List.copyOf(this.appliedMixins.getOrDefault(name, List.of()));
       this.parents.remove(name);
       this.appliedMixins.remove(name);
-      this.parents.forEach((childName, values) -> {
-         if (values.remove(name)) {
-            LuaTable child = this.classes.get(childName);
-            if (child != null) this.refreshParentLookup(child, childName);
-         }
-      });
       this.refreshInheritedMethodDescriptions();
       for (String parentName : affectedParents) this.removePendingClassIfUnused(parentName);
       for (String mixinName : removedMixins) this.removePendingMixinIfUnused(mixinName);
       return true;
-   }
-
-   private void detachInstances(String className, LuaTable classTable) {
-      String survivingParent = this.nearestRegisteredParent(className);
-      Iterator<Map.Entry<LuaTable, LuaTable>> iterator = this.instanceClasses.entrySet().iterator();
-      while (iterator.hasNext()) {
-         Map.Entry<LuaTable, LuaTable> entry = iterator.next();
-         if (entry.getValue() != classTable) continue;
-         LuaTable instance = entry.getKey();
-         iterator.remove();
-
-         InstanceDescription description = this.instanceDescriptions.remove(instance);
-         if (description != null && description.inherited()
-             && sameOptionalString(instance.rawget("__mlua_doc_description"), description.value())) {
-            instance.rawset("__mlua_doc_description", LuaValue.NIL);
-         }
-         if (className.equals(instance.rawget("__type").optjstring(null))) {
-            instance.rawset("__type", LuaValue.NIL);
-         }
-         instance.rawset("__mlua_doc_parents", LuaValue.NIL);
-         instance.rawset("__mlua_instance_dispatchers", LuaValue.NIL);
-         LuaValue descriptionsValue = instance.rawget("__mlua_doc_methods");
-         if (descriptionsValue.istable()) {
-            LuaTable instanceDescriptions = new LuaTable();
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-               Varargs next = descriptionsValue.checktable().next(key);
-               key = next.arg1();
-               if (key.isnil()) break;
-               if (hasInstanceImplementation(instance, key)) {
-                  instanceDescriptions.rawset(key, next.arg(2));
-               }
-            }
-            instance.rawset("__mlua_doc_methods", instanceDescriptions);
-         }
-         instance.rawset("__mlua_doc_properties", new LuaTable());
-
-         LuaValue metaValue = instance.getmetatable();
-         if (metaValue.istable()) this.composeDetachedInstanceLookup(instance, metaValue.checktable());
-         if (survivingParent != null) this.attachInstance(instance, survivingParent, null);
-      }
-   }
-
-   private String nearestRegisteredParent(String className) {
-      ArrayDeque<String> pending = new ArrayDeque<>(this.parents.getOrDefault(className, List.of()));
-      Set<String> visited = new HashSet<>();
-      while (!pending.isEmpty()) {
-         String candidate = pending.removeFirst();
-         if (!visited.add(candidate)) continue;
-         if (this.classes.containsKey(candidate)) return candidate;
-         pending.addAll(this.parents.getOrDefault(candidate, List.of()));
-      }
-      return null;
-   }
-
-   private void composeDetachedInstanceLookup(LuaTable instance, LuaTable meta) {
-      LuaValue fallback = meta.rawget("__mlua_instance_fallback");
-      meta.rawset("__index", new VarArgFunction() {
-         @Override
-         public Varargs invoke(Varargs args) {
-            LuaValue key = args.arg(2);
-            LuaValue methods = meta.rawget("__mlua_instance_methods");
-            if (methods.istable()) {
-               LuaValue method = methods.get(key);
-               if (!method.isnil()) return method;
-            }
-            if (fallback.istable()) return fallback.get(key);
-            if (fallback.isfunction()) return fallback.invoke(args).arg1();
-            return instance.rawget(key);
-         }
-      });
-      meta.rawset("__mlua_instance_lookup", LuaValue.NIL);
-      if (meta.rawget("__mlua_instance_newindex_lookup").toboolean()) {
-         LuaValue fallbackNewIndex = meta.rawget("__mlua_instance_newindex_fallback");
-         meta.rawset("__newindex", fallbackNewIndex == LuaValue.FALSE ? LuaValue.NIL : fallbackNewIndex);
-         meta.rawset("__mlua_instance_newindex_fallback", LuaValue.NIL);
-         meta.rawset("__mlua_instance_newindex_lookup", LuaValue.NIL);
-      }
    }
 
    public synchronized LuaTable registerFunction(LuaTable owner, String name, LuaValue function,

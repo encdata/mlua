@@ -27,8 +27,8 @@ public class BossBarModule implements MLuaModule {
     @Override public List<ServiceEntry> services() {
         ServiceEntry.Builder bossBar = ServiceEntry.builder("BossBar", MLuaBossBarService::new)
             .description("Creates and manages server boss bars.");
-        bossBar.function("Create", "Creates a boss bar with a title and optional display settings.")
-            .function("Get", "Returns a live boss bar handle by identifier.")
+        bossBar.function("Create", "Creates a boss bar with a title.")
+            .function("Get", "Returns a live boss bar handle by identifier, or nil when missing.")
             .function("Remove", "Removes a boss bar by identifier.")
             .function("GetAll", "Returns the live handles for boss bars owned by the calling mod.");
         return List.of(bossBar.build());

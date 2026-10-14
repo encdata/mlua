@@ -17,10 +17,10 @@ public final class AdvancementsModule implements MLuaModule {
             .description("Provides server-side advancement lookup and progress control.");
         advancements.function("GetAdvancement", "Returns advancement details by identifier, or nil when missing.")
             .function("GetPlayerAdvancements", "Returns a player's completion status and criteria for each advancement.")
-            .function("GrantCriteria", "Grants one or more criteria for an advancement to a player.")
-            .function("RevokeCriteria", "Revokes one or more criteria for an advancement from a player.")
-            .function("GrantAll", "Grants all advancements to a player.")
-            .function("RevokeAll", "Revokes all advancements from a player.")
+            .function("GrantCriteria", "Grants one criterion for an advancement to a player.")
+            .function("RevokeCriteria", "Revokes one criterion for an advancement from a player.")
+            .function("GrantAll", "Grants all criteria for an advancement to a player.")
+            .function("RevokeAll", "Revokes all criteria for an advancement from a player.")
             .function("GetAllAdvancements", "Returns details for all registered advancements.");
         return List.of(advancements.build());
     }

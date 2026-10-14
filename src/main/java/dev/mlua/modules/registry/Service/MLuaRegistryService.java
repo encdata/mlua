@@ -14,6 +14,8 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.common.enums.RegistrationPhase;
+import dev.mlua.common.enums.Side;
+import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -63,6 +65,9 @@ import net.minecraft.world.level.block.Block;
 
 public final class MLuaRegistryService extends MLuaServiceBase {
    private static final Map<String, RegistryEndpoint> REGISTRY_ENDPOINTS = registryEndpoints();
+   private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
+   private final DynamicRegistryState dynamicRegistry = this.sharedState(
+      "dynamic-categories", DynamicRegistryState.class, DynamicRegistryState::new);
    private final MLuaItemFactory itemFactory = new MLuaItemFactory();
    private final MLuaBlockFactory blockFactory = new MLuaBlockFactory();
    private final MLuaCreativeTabFactory tabFactory = new MLuaCreativeTabFactory();
@@ -114,6 +119,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return "Registry";
    }
 
+   public static void clearOwnedCategories(Object runtimeSession, Side side, String ownerModId) {
+      if (!(runtimeSession instanceof MLuaRuntimeSession session) || ownerModId == null || ownerModId.isBlank()) return;
+      List<Side> sides = side == Side.BOTH ? List.of(Side.SERVER, Side.CLIENT) : List.of(side);
+      for (Side currentSide : sides) {
+         DynamicRegistryState state = session.existingSharedServiceState(
+            currentSide, "Registry", "dynamic-categories", DynamicRegistryState.class);
+         if (state != null) state.unregisterOwner(ownerModId);
+      }
+   }
+
    public LuaTable toLua() {
       LuaTable table = new LuaTable();
       LuaTable items = registryTable();
@@ -151,6 +166,45 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("DataPack", dataPack);
       table.set("WorldGeneration", worldGeneration);
       table.set("ContentTypes", contentTypes);
+      for (DynamicRegistryCategory category : this.dynamicRegistry.categories()) {
+         this.installDynamicCategory(table, category);
+      }
+      table.set("RegisterCategory", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String category = args.checkjstring(2).trim();
+            String key = category.toLowerCase(java.util.Locale.ROOT);
+            String description = args.checkjstring(3);
+            LuaValue register = args.checkfunction(4);
+            if (category.isEmpty() || category.startsWith(":") || category.endsWith(":") || !category.contains(":")) {
+               throw new LuaError("[MLua] Registry category names must use a namespace, such as 'addon:weapons'");
+            }
+            if (description.isBlank()) throw new LuaError("[MLua] Registry category description must not be empty");
+            if (MLuaRegistryService.this.registryEndpoints.containsKey(key)) {
+               throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
+            }
+            String domain = "addon:" + MLuaRegistryService.this.context.mlua().ownerModId() + ":" + key;
+            DynamicRegistryCategory registered = new DynamicRegistryCategory(category, description, domain,
+               MLuaRegistryService.this.context.mlua().ownerModId(), register);
+            if (!MLuaRegistryService.this.dynamicRegistry.register(registered)) {
+               throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
+            }
+            try {
+               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() -> {
+                  if (MLuaRegistryService.this.dynamicRegistry.unregister(key, registered)) {
+                     RegistryEndpoint endpoint = new RegistryEndpoint(category, "Register", domain, category, null, List.of());
+                     MLuaRegistryService.this.registryEndpoints.remove(key, endpoint);
+                     table.set(category, LuaValue.NIL);
+                  }
+               });
+            } catch (RuntimeException failure) {
+               MLuaRegistryService.this.dynamicRegistry.unregister(key, registered);
+               throw failure;
+            }
+            MLuaRegistryService.this.installDynamicCategory(table, registered);
+            return table.get(category);
+         }
+      });
       dataPack.set("Register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -756,7 +810,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("Register", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = resolveEndpoint(category, "category");
+             RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
              LuaTable target = table.get(endpoint.table()).checktable();
              LuaValue register = target.get(endpoint.registerMethod());
              if (!register.isfunction()) throw new LuaError("[MLua] Registry category '" + category + "' does not support generic registration");
@@ -768,7 +822,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        });
       table.set("RegisterType", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "type domain");
+             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "type domain", table);
              LuaTable target = table.get(endpoint.typeTable()).checktable();
              return target.get("RegisterType").invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3), args.arg(4)}));
           }
@@ -800,14 +854,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        });
       table.set("GetTypes", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "type domain");
+             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "type domain", table);
              LuaTable target = table.get(endpoint.typeTable()).checktable();
              return target.get("GetTypes").invoke(target);
           }
        });
       table.set("ResolveType", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "type domain");
+             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "type domain", table);
              LuaTable target = table.get(endpoint.typeTable()).checktable();
              return target.get("ResolveType").invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3)}));
           }
@@ -833,6 +887,35 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              return result;
           }
        });
+       table.set("GetCategories", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             LuaTable result = new LuaTable();
+             int index = 1;
+             java.util.TreeSet<String> categories = new java.util.TreeSet<>(REGISTRY_ENDPOINTS.values()
+                   .stream().map(RegistryEndpoint::table).toList());
+             MLuaRegistryService.this.dynamicRegistry.categories().forEach(category -> categories.add(category.name()));
+             for (String category : categories) {
+                result.set(index++, LuaValue.valueOf(category));
+             }
+             return result;
+          }
+       });
+       table.set("Get", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             String category = args.checkjstring(2);
+             MLuaRegistryService.this.requireDynamicCategory(category);
+             LuaTable definition = MLuaRegistryService.this.dynamicRegistry.definition(
+                category, MLuaRegistryService.this.registryId(args.checkjstring(3)));
+             return definition == null ? LuaValue.NIL : definition;
+          }
+       });
+       table.set("GetAll", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             String category = args.checkjstring(2);
+             MLuaRegistryService.this.requireDynamicCategory(category);
+             return MLuaRegistryService.this.dynamicRegistry.definitions(category);
+          }
+       });
        table.set("GetEntry", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              RegistryKind kind = MLuaRegistryEntry.kind(args.checkjstring(2));
@@ -848,13 +931,15 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              return entry.get("Exists").invoke(entry).arg1();
           }
        });
-       for (RegistryEndpoint endpoint : REGISTRY_ENDPOINTS.values().stream().distinct().toList()) {
+       for (RegistryEndpoint endpoint : this.registryEndpoints.values().stream().distinct().toList()) {
           if (!endpoint.table().equals(endpoint.typeTable())) continue;
+          if (this.dynamicRegistry.category(endpoint.table()) != null) continue;
           LuaTable target = table.get(endpoint.table()).checktable();
           installContentTypeApi(target, endpoint.typeDomain(), endpoint.typedDefinitions().toArray(String[]::new));
           if (endpoint.registryKind() != null) installRegistryEntryApi(target, endpoint.registryKind());
           documentRegistryTable(target, endpoint.table());
        }
+       documentRegistryTable(table, "Registry");
        documentRegistryTable(contentTypes, "ContentTypes");
        wrapTypedDefinition(entities, "item", "RegisterSpawnEgg:3");
        wrapTypedDefinition(blocks, "item", "RegisterItem:3");
@@ -867,19 +952,165 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return table;
    }
 
+   private void installDynamicCategory(LuaTable registry, DynamicRegistryCategory category) {
+      String key = category.name().trim().toLowerCase(java.util.Locale.ROOT);
+      RegistryEndpoint endpoint = new RegistryEndpoint(category.name(), "Register", category.domain(),
+         category.name(), null, List.of());
+      RegistryEndpoint existing = this.registryEndpoints.putIfAbsent(key, endpoint);
+      if (existing != null) return;
+      LuaTable target = registryTable();
+      target.set("Register", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String categoryKey = category.name().trim().toLowerCase(java.util.Locale.ROOT);
+            DynamicRegistryCategory active = MLuaRegistryService.this.dynamicRegistry.category(categoryKey);
+            if (active == null) throw new LuaError("[MLua] Registry category '" + category.name() + "' is no longer registered");
+            String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
+            if (MLuaRegistryService.this.dynamicRegistry.hasDefinition(categoryKey, id)) {
+               throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
+            }
+            LuaTable definition = args.checktable(3);
+            LuaTable resolved = MLuaRegistryService.this.context.mlua().registration()
+               .resolveContentType(active.domain(), MLuaRegistryService.this.context.mlua().ownerModId(), definition);
+            Varargs result = active.register().invoke(LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(id), resolved}));
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            RegisteredDefinition stored = MLuaRegistryService.this.dynamicRegistry
+               .registerDefinition(categoryKey, id, owner, resolved);
+            if (stored == null) {
+               throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
+            }
+            try {
+               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                  MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
+            } catch (RuntimeException failure) {
+               MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored);
+               throw failure;
+            }
+            return result;
+         }
+      });
+      this.installContentTypeApi(target, category.domain());
+      this.documentRegistryTable(target, category.name());
+      target.rawset("__mlua_doc_description", LuaValue.valueOf(category.description()));
+      registry.set(category.name(), target);
+   }
+
+   private static final class DynamicRegistryState {
+      private final Map<String, DynamicRegistryCategory> categories = new java.util.LinkedHashMap<>();
+      private final Map<String, Map<String, RegisteredDefinition>> definitions = new java.util.LinkedHashMap<>();
+
+      private synchronized boolean register(DynamicRegistryCategory category) {
+         String key = category.name().trim().toLowerCase(java.util.Locale.ROOT);
+         if (this.categories.putIfAbsent(key, category) != null) return false;
+         this.definitions.put(key, new java.util.LinkedHashMap<>());
+         return true;
+      }
+
+      private synchronized List<DynamicRegistryCategory> categories() {
+         return List.copyOf(this.categories.values());
+      }
+
+      private synchronized DynamicRegistryCategory category(String name) {
+         return this.categories.get(name.trim().toLowerCase(java.util.Locale.ROOT));
+      }
+
+      private synchronized boolean unregister(String key, DynamicRegistryCategory expected) {
+         if (!this.categories.remove(key, expected)) return false;
+         this.definitions.remove(key);
+         return true;
+      }
+
+      private synchronized boolean hasDefinition(String category, String id) {
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         return values != null && values.containsKey(id);
+      }
+
+      private synchronized RegisteredDefinition registerDefinition(String category, String id, String owner, LuaTable definition) {
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         if (values == null || values.containsKey(id)) return null;
+         RegisteredDefinition stored = new RegisteredDefinition(owner,
+            copyLuaTable(definition, new java.util.IdentityHashMap<>()));
+         values.put(id, stored);
+         return stored;
+      }
+
+      private synchronized void unregisterDefinition(String category, String id, RegisteredDefinition expected) {
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         if (values != null) values.remove(id, expected);
+      }
+
+      private synchronized void unregisterOwner(String ownerModId) {
+         List<String> removed = this.categories.entrySet().stream()
+            .filter(entry -> ownerModId.equals(entry.getValue().owner()))
+            .map(Map.Entry::getKey).toList();
+         for (String key : removed) {
+            this.categories.remove(key);
+            this.definitions.remove(key);
+         }
+         this.definitions.values().forEach(values -> values.entrySet()
+            .removeIf(entry -> ownerModId.equals(entry.getValue().owner())));
+      }
+
+      private synchronized LuaTable definition(String category, String id) {
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         RegisteredDefinition definition = values == null ? null : values.get(id);
+         return definition == null ? null : copyLuaTable(definition.value(), new java.util.IdentityHashMap<>());
+      }
+
+      private synchronized LuaTable definitions(String category) {
+         LuaTable result = new LuaTable();
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         if (values != null) values.forEach((id, definition) ->
+            result.set(id, copyLuaTable(definition.value(), new java.util.IdentityHashMap<>())));
+         return result;
+      }
+   }
+
+   private record DynamicRegistryCategory(String name, String description, String domain, String owner,
+                                          LuaValue register) { }
+   private record RegisteredDefinition(String owner, LuaTable value) { }
+
+   private DynamicRegistryCategory requireDynamicCategory(String category) {
+      DynamicRegistryCategory registered = this.dynamicRegistry.category(category);
+      if (registered == null) throw new LuaError("[MLua] Registry category '" + category + "' is not addon-owned");
+      return registered;
+   }
+
+   private static LuaTable copyLuaTable(LuaTable source, Map<LuaTable, LuaTable> copies) {
+      LuaTable existing = copies.get(source);
+      if (existing != null) return existing;
+      LuaTable copy = new LuaTable();
+      copies.put(source, copy);
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = source.next(key);
+         key = entry.arg1();
+         if (key.isnil()) return copy;
+         LuaValue value = entry.arg(2);
+         copy.set(key, value.istable() ? copyLuaTable(value.checktable(), copies) : value);
+      }
+   }
+
    private static void documentRegistryTable(LuaTable target, String category) {
       target.rawset("__mlua_doc_description", LuaValue.valueOf(
-         "Registry." + category + " provides the registration and lookup operations available for this content category."));
+         "Registry".equals(category)
+            ? "The central registry service for built-in Minecraft content and addon-owned categories."
+            : "Registry." + category + " provides the registration and lookup operations available for this content category."));
       LuaTable methods = new LuaTable();
-      Map<String, String> descriptions = Map.of(
-         "Register", "Registers a definition during the registry phase; accepted fields depend on the content category.",
-         "RegisterType", "Defines addon-owned reusable defaults that other definitions in this category can inherit.",
-         "ResolveType", "Returns a copy of the definition with its registered type defaults merged in.",
-         "GetTypes", "Lists the reusable types available to this addon for the category.",
-         "GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.",
-         "GetEntry", "Creates a RegistryEntry view for the resolved identifier.",
-         "Exists", "Checks whether the resolved identifier exists in Minecraft's live registry.",
-         "RegisterItem", "Registers an item form for a previously registered block.");
+      Map<String, String> descriptions = Map.ofEntries(
+         Map.entry("Register", "Registers a definition during the registry phase; accepted fields depend on the content category."),
+         Map.entry("RegisterCategory", "Registers an addon-owned category with a handler for resolved definitions."),
+         Map.entry("GetCategories", "Lists the built-in and addon-owned registration categories."),
+         Map.entry("GetKinds", "Lists the native Minecraft registry kinds."),
+         Map.entry("Get", "Returns a copy of one definition from an addon-owned category."),
+         Map.entry("GetAll", "Returns copied definitions keyed by namespaced identifier from an addon-owned category."),
+         Map.entry("RegisterType", "Defines addon-owned reusable defaults that other definitions in this category can inherit."),
+         Map.entry("ResolveType", "Returns a copy of the definition with its registered type defaults merged in."),
+         Map.entry("GetTypes", "Lists the reusable types available to this addon for the category."),
+         Map.entry("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier."),
+         Map.entry("GetEntry", "Creates a RegistryEntry view for the resolved identifier."),
+         Map.entry("Exists", "Checks whether the resolved identifier exists in Minecraft's live registry."),
+         Map.entry("RegisterItem", "Registers an item form for a previously registered block."));
       descriptions.forEach((name, description) -> {
          if (target.rawget(name).isfunction()) methods.rawset(name, LuaValue.valueOf(description));
       });
@@ -961,9 +1192,28 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return id.toString();
    }
 
-   private static RegistryEndpoint resolveEndpoint(String category, String purpose) {
+   private RegistryEndpoint resolveEndpoint(String category, String purpose, LuaTable registry) {
       String key = category.trim().toLowerCase(java.util.Locale.ROOT);
-      RegistryEndpoint endpoint = REGISTRY_ENDPOINTS.get(key);
+      DynamicRegistryCategory dynamicCategory = this.dynamicRegistry.category(key);
+      RegistryEndpoint endpoint;
+      if (dynamicCategory != null) {
+         endpoint = new RegistryEndpoint(dynamicCategory.name(), "Register", dynamicCategory.domain(),
+            dynamicCategory.name(), null, List.of());
+         if (!endpoint.equals(this.registryEndpoints.get(key))) {
+            this.registryEndpoints.remove(key);
+            registry.set(dynamicCategory.name(), LuaValue.NIL);
+            this.installDynamicCategory(registry, dynamicCategory);
+         }
+         endpoint = this.registryEndpoints.get(key);
+      } else {
+         endpoint = REGISTRY_ENDPOINTS.get(key);
+         if (endpoint == null) {
+            RegistryEndpoint stale = this.registryEndpoints.remove(key);
+            if (stale != null) registry.set(stale.table(), LuaValue.NIL);
+         } else {
+            this.registryEndpoints.put(key, endpoint);
+         }
+      }
       if (endpoint == null) throw new LuaError("[MLua] Unknown or unsupported Registry " + purpose + " '" + category + "'");
       return endpoint;
    }

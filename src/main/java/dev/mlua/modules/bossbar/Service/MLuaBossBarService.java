@@ -2,11 +2,12 @@ package dev.mlua.modules.bossbar.Service;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.bossbar.MLuaBossBarRegistry;
+import dev.mlua.api.MLuaDescription;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerPlayer;
@@ -20,7 +21,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.util.UUID;
 import java.util.function.Function;
 
-public final class MLuaBossBarService extends MLuaServiceBase {
+public final class MLuaBossBarService extends MLuaReflectiveService {
     private static final MLuaBossBarRegistry<ServerBossEvent> bossBars = new MLuaBossBarRegistry<>();
 
     public static void clearOwned(Object runtimeOwner, String ownerModId) {
@@ -52,61 +53,54 @@ public final class MLuaBossBarService extends MLuaServiceBase {
         if (this.registration == null || this.registration.classTable("BossBarHandle") == null) {
             throw new IllegalStateException("BossBarHandle class must be registered before materializing the BossBar service");
         }
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Server");
-
-        table.set("Create", fn((args) -> {
-            requireServer();
-            String name = args.checkjstring(2);
-            String title = args.checkjstring(3);
-            ServerBossEvent event = new ServerBossEvent(
-                //--version 26.1
-                UUID.randomUUID(),
-                //--endversion
-                Component.literal(title),
-                BossEvent.BossBarColor.WHITE,
-                BossEvent.BossBarOverlay.PROGRESS
-            );
-            MLuaBossBarRegistry.Key key = key(name);
-            ServerBossEvent replaced = bossBars.put(key, event);
-            if (replaced != null) replaced.removeAllPlayers();
-            return createHandle(key, event);
-        }));
-
-        table.set("Get", fn((args) -> {
-            requireServer();
-            String name = args.checkjstring(2);
-            MLuaBossBarRegistry.Key key = key(name);
-            ServerBossEvent event = bossBars.get(key);
-            if (event == null) {
-                return LuaValue.NIL;
-            }
-            return createHandle(key, event);
-        }));
-
-        table.set("Remove", fn((args) -> {
-            requireServer();
-            String name = args.checkjstring(2);
-            ServerBossEvent event = bossBars.remove(key(name));
-            if (event != null) {
-                event.removeAllPlayers();
-            }
-            return LuaValue.NONE;
-        }));
-
-        table.set("GetAll", fn((args) -> {
-            requireServer();
-            LuaTable result = new LuaTable();
-            int index = 1;
-            for (var entry : bossBars.snapshot(runtimeOwner(), ownerModId()).entrySet()) {
-                LuaTable handle = createHandle(entry.getKey(), entry.getValue());
-                handle.set("__name", entry.getKey().name());
-                result.set(index++, handle);
-            }
-            return result;
-        }));
-
         return table;
+    }
+
+    @MLuaDescription("Creates a boss bar with a title.")
+    public LuaTable Create(String name, String title) {
+        requireServer();
+        ServerBossEvent event = new ServerBossEvent(
+            //--version 26.1
+            UUID.randomUUID(),
+            //--endversion
+            Component.literal(title),
+            BossEvent.BossBarColor.WHITE,
+            BossEvent.BossBarOverlay.PROGRESS
+        );
+        MLuaBossBarRegistry.Key key = key(name);
+        ServerBossEvent replaced = bossBars.put(key, event);
+        if (replaced != null) replaced.removeAllPlayers();
+        return createHandle(key, event);
+    }
+
+    @MLuaDescription("Returns a live boss bar handle by identifier, or nil when missing.")
+    public LuaValue Get(String name) {
+        requireServer();
+        MLuaBossBarRegistry.Key key = key(name);
+        ServerBossEvent event = bossBars.get(key);
+        return event == null ? LuaValue.NIL : createHandle(key, event);
+    }
+
+    @MLuaDescription("Removes a boss bar by identifier.")
+    public void Remove(String name) {
+        requireServer();
+        ServerBossEvent event = bossBars.remove(key(name));
+        if (event != null) event.removeAllPlayers();
+    }
+
+    @MLuaDescription("Returns the live handles for boss bars owned by the calling mod.")
+    public LuaTable GetAll() {
+        requireServer();
+        LuaTable result = new LuaTable();
+        int index = 1;
+        for (var entry : bossBars.snapshot(runtimeOwner(), ownerModId()).entrySet()) {
+            LuaTable handle = createHandle(entry.getKey(), entry.getValue());
+            handle.set("__name", entry.getKey().name());
+            result.set(index++, handle);
+        }
+        return result;
     }
 
     private LuaTable createHandle(MLuaBossBarRegistry.Key key, ServerBossEvent event) {
@@ -234,15 +228,17 @@ public final class MLuaBossBarService extends MLuaServiceBase {
 
     private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
         return new VarArgFunction() {
+            @Override
             public Varargs invoke(Varargs args) {
                 try {
                     return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new LuaError("[MLua] " + e.getMessage());
+                } catch (LuaError failure) {
+                    throw failure;
+                } catch (Exception failure) {
+                    throw new LuaError("[MLua] " + failure.getMessage());
                 }
             }
         };
     }
+
 }

@@ -9,6 +9,7 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.minecraft.binding.MLuaAttributeModifierIds;
 import java.util.function.Function;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -159,7 +160,7 @@ public final class MLuaAttributeService extends MLuaServiceBase {
          String name = args.checkjstring(4);
          double amount = args.checkdouble(5);
          int operation = args.optint(6, 0);
-         UUID uuid = UUID.nameUUIDFromBytes(name.getBytes());
+         UUID uuid = MLuaAttributeModifierIds.legacy(name);
          AttributeModifier modifier = new AttributeModifier(uuid, name, amount, AttributeModifier.Operation.fromValue(operation));
          instance.addTransientModifier(modifier);
          return LuaValue.TRUE;
@@ -176,7 +177,7 @@ public final class MLuaAttributeService extends MLuaServiceBase {
          String name = args.checkjstring(4);
          double amount = args.checkdouble(5);
          int operation = args.optint(6, 0);
-         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", "modifier_" + name.toLowerCase().replaceAll("[^a-z0-9_/.-]", "_"));
+         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
          AttributeModifier modifier = new AttributeModifier(id, amount, AttributeModifier.Operation.BY_ID.apply(operation));
          instance.addTransientModifier(modifier);
          return LuaValue.TRUE;
@@ -195,7 +196,7 @@ public final class MLuaAttributeService extends MLuaServiceBase {
             return LuaValue.FALSE;
          }
          String name = args.checkjstring(4);
-         UUID uuid = UUID.nameUUIDFromBytes(name.getBytes());
+         UUID uuid = MLuaAttributeModifierIds.legacy(name);
          instance.removeModifier(uuid);
          return LuaValue.TRUE;
 //--endversion
@@ -209,7 +210,7 @@ public final class MLuaAttributeService extends MLuaServiceBase {
             return LuaValue.FALSE;
          }
          String name = args.checkjstring(4);
-         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", "modifier_" + name.toLowerCase().replaceAll("[^a-z0-9_/.-]", "_"));
+         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
          instance.removeModifier(id);
          return LuaValue.TRUE;
 //--endversion

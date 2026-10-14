@@ -31,7 +31,7 @@ public final class MLuaParticleService extends MLuaServiceBase {
         registerEmitterProperty(registration, "Spread", "number", "The emitter's scalar spread.", "GetSpread", "SetSpread");
         registerEmitterProperty(registration, "Speed", "number", "The emitter's particle speed.", "GetSpeed", "SetSpeed");
         registerEmitterProperty(registration, "Velocity", "Vector3", "The emitter's current velocity.", "GetVelocity", "SetVelocity");
-        registerEmitterProperty(registration, "FollowEntity", "number?", "The entity id followed by this emitter, or nil. Assign an entity instance or id to change it.", "GetFollowEntity", "SetFollowEntity");
+        registerEmitterProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this emitter. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerEmitterProperty(registration, "Offset", "Vector3", "The offset from the followed entity.", "GetOffset", "SetOffset");
         registerEmitterProperty(registration, "Enabled", "boolean", "Whether this emitter is enabled.", "GetEnabled", "SetEnabled");
         registerEmitterMethod(registration, "GetId", "Returns this emitter's runtime identifier.");

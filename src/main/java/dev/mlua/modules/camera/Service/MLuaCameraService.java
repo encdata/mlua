@@ -3,167 +3,144 @@ package dev.mlua.modules.camera.Service;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.common.enums.Side;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.client.MLuaCameraController;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
-import java.util.function.Function;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
-public final class MLuaCameraService extends MLuaServiceBase {
+@MLuaDescription("Client-side camera service.")
+public final class MLuaCameraService extends MLuaReflectiveService {
    public MLuaCameraService(MLuaService.Context context) {
       super(context);
    }
 
+   @Override
    public String name() {
       return "Camera";
    }
 
+   @Override
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Client");
-      table.set("GetCFrame", fn((args) -> {
-         this.ensureClient();
-         return MLuaCameraController.getCFrame().toLua();
-      }));
-      table.set("SetCFrame", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setCFrame(MLuaCFrame.fromLua(args.arg(2)));
-         return LuaValue.NONE;
-      }));
-      table.set("GetPosition", fn((args) -> {
-         this.ensureClient();
-         return MLuaCameraController.getCFrame().toLua().get("Position");
-      }));
-      table.set("SetPosition", fn((args) -> {
-         this.ensureClient();
-         double[] p = MLuaCFrame.vector(args.arg(2));
-         MLuaCFrame current = MLuaCameraController.getCFrame();
-         double[] look = current.lookVector();
-         MLuaCameraController.setCFrame(MLuaCFrame.lookAt(p[0], p[1], p[2], p[0] + look[0], p[1] + look[1], p[2] + look[2]));
-         return LuaValue.NONE;
-      }));
-      table.set("GetLookVector", fn((args) -> {
-         this.ensureClient();
-         return MLuaCameraController.getCFrame().toLua().get("LookVector");
-      }));
-      table.set("LookAt", fn((args) -> {
-         this.ensureClient();
-         MLuaCFrame current = MLuaCameraController.getCFrame();
-         double[] target = MLuaEntityWrapper.targetPosition(args.arg(2));
-         MLuaCameraController.setCFrame(MLuaCFrame.lookAt(current.x(), current.y(), current.z(), target[0], target[1], target[2]));
-         return LuaValue.NONE;
-      }));
-      table.set("GetFOV", fn((args) -> {
-         this.ensureClient();
-         return LuaValue.valueOf(MLuaCameraController.getFov());
-      }));
-      table.set("SetFOV", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setFov(args.checkdouble(2));
-         return LuaValue.NONE;
-      }));
-      table.set("GetFOVMultiplier", fn((args) -> {
-         this.ensureClient();
-         return LuaValue.valueOf(MLuaCameraController.getFovMultiplier());
-      }));
-      table.set("SetFOVMultiplier", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setFovMultiplier(args.checkdouble(2));
-         return LuaValue.NONE;
-      }));
-      table.set("MultiplyFOV", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setFovMultiplier(MLuaCameraController.getFovMultiplier() * args.checkdouble(2));
-         return LuaValue.NONE;
-      }));
-      table.set("GetSubject", fn((args) -> {
-         this.ensureClient();
-         Entity entity = MLuaCameraController.getSubject();
-         if (entity instanceof LivingEntity living) {
-            if (living instanceof LocalPlayer local) {
-               return MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(local), context.mlua().registration());
-            } else {
-               return MLuaEntityWrapper.entityTable(living, context.mlua().registration());
-            }
-         } else {
-            return LuaValue.NIL;
-         }
-      }));
-       table.set("SetSubject", fn((args) -> {
-          this.ensureClient();
-          LuaValue value = args.arg(2);
-          if (value.isnil()) {
-              Minecraft mc = MLuaMinecraftClient.instance();
-              if (mc == null || mc.player == null) {
-                 return LuaValue.NONE;
-              }
-              MLuaCameraController.setSubject(mc.player);
-              return LuaValue.NONE;
-          } else {
-             LuaValue entityValue = value.istable() ? value.checktable().rawget("__entity") : LuaValue.NIL;
-             if (!entityValue.isuserdata(Entity.class)) {
-                throw new LuaError("[MLua] Camera:SetSubject expects a Player or Entity from the client world");
-             }
-             MLuaCameraController.setSubject((Entity)entityValue.checkuserdata(Entity.class));
-             return LuaValue.NONE;
-          }
-       }));
-       table.set("GetMode", fn((args) -> {
-         this.ensureClient();
-         return LuaValue.valueOf(MLuaCameraController.getMode());
-      }));
-      table.set("SetMode", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setMode(args.arg(2).tojstring());
-         return LuaValue.NONE;
-      }));
-      table.set("GetViewMode", fn((args) -> {
-         this.ensureClient();
-         return LuaValue.valueOf(MLuaCameraController.getViewMode());
-      }));
-      table.set("SetViewMode", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setViewMode(args.arg(2).tojstring());
-         return LuaValue.NONE;
-      }));
-      table.set("SetRightHandOffset", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setHeldItemOffset(MLuaCFrame.fromLua(args.arg(2)));
-         return LuaValue.NONE;
-      }));
-      table.set("GetRightHandOffset", fn((args) -> {
-         this.ensureClient();
-         MLuaCFrame offset = MLuaCameraController.getHeldItemOffset();
-         return offset != null ? offset.toLua() : LuaValue.NIL;
-      }));
-      table.set("SetLeftHandOffset", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.setHeldItemLeftOffset(MLuaCFrame.fromLua(args.arg(2)));
-         return LuaValue.NONE;
-      }));
-      table.set("GetLeftHandOffset", fn((args) -> {
-         this.ensureClient();
-         MLuaCFrame offset = MLuaCameraController.getHeldItemLeftOffset();
-         return offset != null ? offset.toLua() : LuaValue.NIL;
-      }));
-      table.set("Reset", fn((args) -> {
-         this.ensureClient();
-         MLuaCameraController.reset();
-         return LuaValue.NONE;
-      }));
       return table;
    }
+
+   @MLuaDescription("Returns the current camera transform.")
+   public LuaTable GetCFrame() { ensureClient(); return MLuaCameraController.getCFrame().toLua(); }
+
+   @MLuaDescription("Sets the scriptable camera transform.")
+   public void SetCFrame(LuaValue value) { ensureClient(); MLuaCameraController.setCFrame(MLuaCFrame.fromLua(value)); }
+
+   @MLuaDescription("Returns the current camera position.")
+   public LuaValue GetPosition() { ensureClient(); return MLuaCameraController.getCFrame().toLua().get("Position"); }
+
+   @MLuaDescription("Sets the scriptable camera position while keeping its current look direction.")
+   public void SetPosition(LuaValue value) {
+      ensureClient();
+      double[] position = MLuaCFrame.vector(value);
+      MLuaCFrame current = MLuaCameraController.getCFrame();
+      double[] look = current.lookVector();
+      MLuaCameraController.setCFrame(MLuaCFrame.lookAt(position[0], position[1], position[2],
+         position[0] + look[0], position[1] + look[1], position[2] + look[2]));
+   }
+
+   @MLuaDescription("Returns the current camera forward direction.")
+   public LuaValue GetLookVector() { ensureClient(); return MLuaCameraController.getCFrame().toLua().get("LookVector"); }
+
+   @MLuaDescription("Turns the camera toward a position or entity.")
+   public void LookAt(LuaValue value) {
+      ensureClient();
+      MLuaCFrame current = MLuaCameraController.getCFrame();
+      double[] target = MLuaEntityWrapper.targetPosition(value);
+      MLuaCameraController.setCFrame(MLuaCFrame.lookAt(current.x(), current.y(), current.z(), target[0], target[1], target[2]));
+   }
+
+   @MLuaDescription("Returns the camera field of view.")
+   public double GetFOV() { ensureClient(); return MLuaCameraController.getFov(); }
+
+   @MLuaDescription("Sets the camera field of view.")
+   public void SetFOV(double value) { ensureClient(); MLuaCameraController.setFov(value); }
+
+   @MLuaDescription("Returns the current field-of-view multiplier.")
+   public double GetFOVMultiplier() { ensureClient(); return MLuaCameraController.getFovMultiplier(); }
+
+   @MLuaDescription("Sets the field-of-view multiplier.")
+   public void SetFOVMultiplier(double value) { ensureClient(); MLuaCameraController.setFovMultiplier(value); }
+
+   @MLuaDescription("Multiplies the current field of view by a value.")
+   public void MultiplyFOV(double value) { ensureClient(); MLuaCameraController.setFovMultiplier(MLuaCameraController.getFovMultiplier() * value); }
+
+   @MLuaDescription("Returns the camera subject, if one is set.")
+   public LuaValue GetSubject() {
+      ensureClient();
+      Entity entity = MLuaCameraController.getSubject();
+      if (!(entity instanceof LivingEntity living)) return LuaValue.NIL;
+      if (living instanceof LocalPlayer local) {
+         return MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(local), context.mlua().registration());
+      }
+      return MLuaEntityWrapper.entityTable(living, context.mlua().registration());
+   }
+
+   @MLuaDescription("Sets the camera subject to an entity or player, or resets it to the local player when nil.")
+   public void SetSubject(LuaValue value) {
+      ensureClient();
+      if (value.isnil()) {
+         Minecraft minecraft = MLuaMinecraftClient.instance();
+         if (minecraft != null && minecraft.player != null) MLuaCameraController.setSubject(minecraft.player);
+         return;
+      }
+      LuaValue entityValue = value.istable() ? value.checktable().rawget("__entity") : LuaValue.NIL;
+      if (!entityValue.isuserdata(Entity.class)) {
+         throw new LuaError("[MLua] Camera:SetSubject expects a Player or Entity from the client world");
+      }
+      MLuaCameraController.setSubject((Entity) entityValue.checkuserdata(Entity.class));
+   }
+
+   @MLuaDescription("Returns the current camera control mode.")
+   public String GetMode() { ensureClient(); return MLuaCameraController.getMode(); }
+
+   @MLuaDescription("Sets the camera control mode.")
+   public void SetMode(String value) { ensureClient(); MLuaCameraController.setMode(value); }
+
+   @MLuaDescription("Returns the current first-person or third-person view mode.")
+   public String GetViewMode() { ensureClient(); return MLuaCameraController.getViewMode(); }
+
+   @MLuaDescription("Sets the first-person or third-person view mode.")
+   public void SetViewMode(String value) { ensureClient(); MLuaCameraController.setViewMode(value); }
+
+   @MLuaDescription("Sets the first-person right-hand camera offset.")
+   public void SetRightHandOffset(LuaValue value) { ensureClient(); MLuaCameraController.setHeldItemOffset(MLuaCFrame.fromLua(value)); }
+
+   @MLuaDescription("Returns the first-person right-hand camera offset.")
+   public LuaValue GetRightHandOffset() {
+      ensureClient();
+      MLuaCFrame offset = MLuaCameraController.getHeldItemOffset();
+      return offset != null ? offset.toLua() : LuaValue.NIL;
+   }
+
+   @MLuaDescription("Sets the first-person left-hand camera offset.")
+   public void SetLeftHandOffset(LuaValue value) { ensureClient(); MLuaCameraController.setHeldItemLeftOffset(MLuaCFrame.fromLua(value)); }
+
+   @MLuaDescription("Returns the first-person left-hand camera offset.")
+   public LuaValue GetLeftHandOffset() {
+      ensureClient();
+      MLuaCFrame offset = MLuaCameraController.getHeldItemLeftOffset();
+      return offset != null ? offset.toLua() : LuaValue.NIL;
+   }
+
+   @MLuaDescription("Clears scriptable camera overrides.")
+   public void Reset() { ensureClient(); MLuaCameraController.reset(); }
 
    private void ensureClient() {
       if (this.context.mlua().side() != Side.CLIENT) {
@@ -171,17 +148,4 @@ public final class MLuaCameraService extends MLuaServiceBase {
       }
    }
 
-   private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-      return new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            try {
-               return (Varargs)body.apply(args);
-            } catch (LuaError var3) {
-               throw var3;
-            } catch (Exception var4) {
-               throw new LuaError("[MLua] " + var4.getMessage());
-            }
-         }
-      };
-   }
 }

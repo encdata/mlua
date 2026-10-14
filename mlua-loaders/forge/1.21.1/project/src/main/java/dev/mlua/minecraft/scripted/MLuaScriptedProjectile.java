@@ -1,6 +1,7 @@
 package dev.mlua.minecraft.scripted;
 
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
@@ -30,12 +31,14 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 public class MLuaScriptedProjectile extends Entity {
    private final String luaClassName;
+    private final ThreadLocal<Boolean> resolvingLuaHandle = ThreadLocal.withInitial(() -> false);
    private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(MLuaScriptedProjectile.class, EntityDataSerializers.FLOAT);
 
    private Vec3 direction;
@@ -325,74 +328,112 @@ public class MLuaScriptedProjectile extends Entity {
    }
 
    public LuaTable toLuaHandle(boolean includeOwner) {
-      LuaTable table = new LuaTable();
-      table.set("__side", "Server");
-      Vec3 pos = this.position();
-      table.set("Position", MLuaVector.vector3(pos.x, pos.y, pos.z));
-      if (this.direction != null) {
-         table.set("Direction", MLuaVector.vector3(this.direction.x, this.direction.y, this.direction.z));
-      }
-      table.set("Velocity", MLuaVector.vector3(this.getDeltaMovement().x, this.getDeltaMovement().y, this.getDeltaMovement().z));
-      table.set("Speed", this.speed);
-      table.set("Damage", this.damage);
-      table.set("DamageSource", this.damageSourceName);
-      table.set("FireTicks", this.fireTicks);
-      table.set("Knockback", this.knockback);
-      table.set("Tick", this.ticksAlive);
-      if (includeOwner) {
-         try {
-            Entity owner = this.resolveOwner();
-            if (owner instanceof net.minecraft.server.level.ServerPlayer player) {
-               table.set("Owner", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), MLuaRuntime.registrationForLevel(player.level())));
-            } else if (owner instanceof LivingEntity living) {
-               table.set("Owner", MLuaEntityWrapper.entityTable(living, MLuaRuntime.registrationForLevel(living.level())));
-            }
-         } catch (Exception exception) {
-            MLuaLogger.LOGGER.error("Failed to attach projectile owner wrapper", exception);
-         }
-      }
-      table.set("Destroy", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            destroy();
-            return LuaValue.NONE;
-         }
-      });
-      table.set("GetPosition", new ZeroArgFunction() {
-         @Override
-         public LuaValue call() {
-            Vec3 current = position();
-            return MLuaVector.vector3(current.x, current.y, current.z);
-         }
-      });
-      table.set("SetDamage", new OneArgFunction() {
-         @Override
-         public LuaValue call(LuaValue arg) {
-            damage = arg.checkdouble();
-            return LuaValue.NONE;
-         }
-      });
-      table.set("SetDirection", new OneArgFunction() {
-         @Override
-         public LuaValue call(LuaValue arg) {
-            LuaTable vector = arg.checktable();
-            direction = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()).normalize();
-            return LuaValue.NONE;
-         }
-      });
-      table.set("SetVelocity", new OneArgFunction() {
-         @Override
-         public LuaValue call(LuaValue arg) {
-            LuaTable vector = arg.checktable();
-            Vec3 velocity = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble());
-            setDeltaMovement(velocity);
-            speed = velocity.length() / 0.05;
-            direction = velocity.lengthSqr() > 1.0E-8 ? velocity.normalize() : Vec3.ZERO;
-            return LuaValue.NONE;
-         }
-      });
-      return MLuaRuntime.registrationForLevel(this.level()).attachClassInstance(table, this.luaClassName, "Projectile");
+        boolean previous = this.resolvingLuaHandle.get();
+        this.resolvingLuaHandle.set(true);
+        try {
+          var registration = this.callbackContext != null ? this.callbackContext.registration() : MLuaRuntime.registrationForLevel(this.level());
+          LuaTable table = MLuaEntityWrapper.entityTable(this, registration);
+          registration.attachClassInstance(table, this.luaClassName, "Projectile");
+          MLuaClassMethods.setInstanceMethod(table, "Destroy", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                destroy();
+                return LuaValue.NONE;
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "SetDamage", new VarArgFunction() {
+             @Override
+             public Varargs invoke(Varargs args) {
+                damage = args.checkdouble(2);
+                return LuaValue.NONE;
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "SetDirection", new VarArgFunction() {
+             @Override
+             public Varargs invoke(Varargs args) {
+                if (args.arg(2).isnil()) {
+                   direction = null;
+                   return LuaValue.NONE;
+                }
+                LuaTable vector = args.checktable(2);
+                direction = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()).normalize();
+                return LuaValue.NONE;
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "SetVelocity", new VarArgFunction() {
+             @Override
+             public Varargs invoke(Varargs args) {
+                LuaTable vector = args.checktable(2);
+                Vec3 velocity = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble());
+                setDeltaMovement(velocity);
+                speed = velocity.length() / 0.05;
+                direction = velocity.lengthSqr() > 1.0E-8 ? velocity.normalize() : Vec3.ZERO;
+                return LuaValue.NONE;
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetDirection", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return direction == null ? LuaValue.NIL : MLuaVector.vector3(direction.x, direction.y, direction.z);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetSpeed", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return LuaValue.valueOf(speed);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetDamage", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return LuaValue.valueOf(damage);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetDamageSource", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return LuaValue.valueOf(damageSourceName);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetFireTicks", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return LuaValue.valueOf(fireTicks);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetKnockback", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return LuaValue.valueOf(knockback);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetTick", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                return LuaValue.valueOf(ticksAlive);
+             }
+          });
+          MLuaClassMethods.setInstanceMethod(table, "GetOwner", new ZeroArgFunction() {
+             @Override
+             public LuaValue call() {
+                if (!includeOwner) return LuaValue.NIL;
+                Entity owner = resolveOwner();
+                if (owner == null) return LuaValue.NIL;
+                if (owner instanceof net.minecraft.server.level.ServerPlayer player) {
+                   return MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration);
+                }
+                return MLuaEntityWrapper.entityTable(owner, registration);
+             }
+          });
+          return table;
+        } finally {
+            this.resolvingLuaHandle.set(previous);
+        }
    }
+
+    public boolean isResolvingLuaHandle() {
+        return this.resolvingLuaHandle.get();
+    }
 
    private Entity resolveOwner() {
       if (this.ownerEntity != null && this.ownerEntity.isAlive()) {

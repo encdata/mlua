@@ -1,6 +1,7 @@
 package dev.mlua.modules.chat.Service;
 
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.service.MLuaService;
@@ -15,7 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Server chat operations backed by the shared reflective service contract. */
+@MLuaDescription("Server chat messaging, moderation, history, and message events.")
 public final class MLuaChatService extends MLuaReflectiveService {
    private static final int MAX_HISTORY_PER_PLAYER = 100;
 
@@ -67,11 +68,13 @@ public final class MLuaChatService extends MLuaReflectiveService {
       return table;
    }
 
+   @MLuaDescription("Sends a chat message to every online player.")
    public void Broadcast(String message) {
       var server = this.context.server();
       if (server != null) server.getPlayerList().broadcastSystemMessage(Component.literal(message), false);
    }
 
+   @MLuaDescription("Sends a chat message to one online player by name.")
    public void SendMessage(String target, String message) {
       var server = this.context.server();
       if (server == null) return;
@@ -79,20 +82,24 @@ public final class MLuaChatService extends MLuaReflectiveService {
       if (player != null) player.sendSystemMessage(Component.literal(message));
    }
 
+   @MLuaDescription("Prevents a player from sending chat; duration is in seconds, or omitted for a permanent mute.")
    public void MutePlayer(String playerName, Optional<Double> durationSeconds) {
       double seconds = durationSeconds.orElse(0.0);
       long expiry = seconds > 0 ? System.currentTimeMillis() + (long) (seconds * 1000.0) : 0L;
       MLuaChatStateRegistry.get(runtimeOwner()).mutedPlayers.put(playerName, expiry);
    }
 
+   @MLuaDescription("Allows a muted player to send chat again.")
    public void UnmutePlayer(String playerName) {
       MLuaChatStateRegistry.get(runtimeOwner()).mutedPlayers.remove(playerName);
    }
 
+   @MLuaDescription("Returns whether a player is currently muted.")
    public boolean IsMuted(String playerName) {
       return isPlayerMuted(runtimeOwner(), playerName);
    }
 
+   @MLuaDescription("Returns the names of currently muted players.")
    public List<String> GetMutedPlayers() {
       var mutedPlayers = MLuaChatStateRegistry.get(runtimeOwner()).mutedPlayers;
       List<String> result = new ArrayList<>();
@@ -102,6 +109,7 @@ public final class MLuaChatService extends MLuaReflectiveService {
       return result;
    }
 
+   @MLuaDescription("Returns recent recorded chat messages for a player.")
    public List<String> GetMessageHistory(String playerName, Optional<Integer> count) {
       int limit = Math.max(0, count.orElse(10));
       ConcurrentLinkedDeque<String> history = MLuaChatStateRegistry.get(runtimeOwner()).messageHistory.get(playerName);
@@ -114,6 +122,7 @@ public final class MLuaChatService extends MLuaReflectiveService {
       return result;
    }
 
+   @MLuaDescription("Clears a player's visible chat by sending blank lines.")
    public void ClearChat(String playerName) {
       var server = this.context.server();
       if (server == null) return;
@@ -123,6 +132,7 @@ public final class MLuaChatService extends MLuaReflectiveService {
       }
    }
 
+   @MLuaDescription("Returns the names of online players.")
    public List<String> GetOnlinePlayers() {
       var server = this.context.server();
       if (server == null) return List.of();
@@ -132,6 +142,7 @@ public final class MLuaChatService extends MLuaReflectiveService {
          .toList();
    }
 
+   @MLuaDescription("Sends a message to server operators, or to everyone when permission is empty.")
    public void BroadcastToPermission(String permission, String message) {
       var server = this.context.server();
       if (server == null) return;

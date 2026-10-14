@@ -5,6 +5,7 @@ import java.util.function.Supplier;
 import java.util.ArrayList;
 import java.util.List;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import net.minecraft.nbt.ByteTag;
 import net.minecraft.nbt.CompoundTag;
@@ -37,13 +38,20 @@ public final class MLuaNbtWrapper {
                                  List<Object> path, MLuaRegistration registration) {
       LuaTable table = new LuaTable();
       table.rawset("__nbt_proxy", LuaValue.TRUE);
-      table.rawset("Get", new VarArgFunction() {
+      table.rawset("__mlua_nbt_snapshot", new VarArgFunction() {
+         @Override
+         public Varargs invoke(Varargs args) {
+            Tag current = tagAtPath(getter.get(), path);
+            return LuaValue.userdataOf(current == null ? new CompoundTag() : current.copy());
+         }
+      });
+      LuaValue getMethod = new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             return getPathValue(getter, setter, append(path, keyObject(args.arg(2))), false, registration);
          }
-      });
-      table.rawset("Set", new VarArgFunction() {
+      };
+      LuaValue setMethod = new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             CompoundTag tag = mutable(getter.get());
@@ -51,8 +59,8 @@ public final class MLuaNbtWrapper {
             setter.accept(tag);
             return LuaValue.NONE;
          }
-      });
-      table.rawset("Remove", new VarArgFunction() {
+      };
+      LuaValue removeMethod = new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
             CompoundTag tag = mutable(getter.get());
@@ -60,7 +68,7 @@ public final class MLuaNbtWrapper {
             setter.accept(tag);
             return LuaValue.NONE;
          }
-      });
+      };
 
       LuaTable meta = new LuaTable();
       meta.set("__index", new TwoArgFunction() {
@@ -101,6 +109,9 @@ public final class MLuaNbtWrapper {
          throw new IllegalStateException("Nbt class must be registered before creating NBT proxies");
       }
       registration.attachClassInstance(table, "Nbt", null);
+      MLuaClassMethods.setInstanceMethod(table, "Get", getMethod);
+      MLuaClassMethods.setInstanceMethod(table, "Set", setMethod);
+      MLuaClassMethods.setInstanceMethod(table, "Remove", removeMethod);
       return table;
    }
 
@@ -190,6 +201,12 @@ public final class MLuaNbtWrapper {
          return compound;
       }
       return StringTag.valueOf(value.tojstring());
+   }
+
+   public static CompoundTag toCompound(LuaValue value) {
+      Tag converted = toTag(value);
+      if (converted instanceof CompoundTag compound) return compound;
+      throw new org.luaj.vm2.LuaError("[MLua] NBT replacement must be a compound value.");
    }
 
    private static CompoundTag mutable(CompoundTag tag) {
@@ -304,7 +321,14 @@ public final class MLuaNbtWrapper {
    }
 
    private static Tag toTagFromProxy(LuaTable proxy) {
-      LuaValue tostring = proxy.getmetatable().checktable().get("__tostring");
-      return StringTag.valueOf(tostring.call(proxy).tojstring());
+      LuaValue snapshot = proxy.rawget("__mlua_nbt_snapshot");
+      if (!snapshot.isfunction()) {
+         throw new org.luaj.vm2.LuaError("[MLua] NBT proxy cannot be copied because its backing value is unavailable.");
+      }
+      LuaValue value = snapshot.call();
+      if (!value.isuserdata(Tag.class)) {
+         throw new org.luaj.vm2.LuaError("[MLua] NBT proxy returned an invalid backing value.");
+      }
+      return ((Tag)value.touserdata(Tag.class)).copy();
    }
 }

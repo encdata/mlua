@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.binding;
 
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import org.luaj.vm2.LuaError;
@@ -28,23 +29,54 @@ public final class MLuaAttributeInstance {
         register(registration, "GetModifiers", "Returns the modifiers currently applied to this attribute.", args -> modifiers(args.arg1().checktable()));
         register(registration, "AddModifier", "Adds or replaces a transient modifier on this attribute.", args -> addModifier(args.arg1().checktable(), args));
         register(registration, "RemoveModifier", "Removes a transient modifier by its identifier.", args -> removeModifier(args.arg1().checktable(), args.checkjstring(2)));
-        registration.registerClassProperty("AttributeInstance", "Id", getter("GetId"), null,
-            "string", "server:Server", "This attribute's namespaced identifier.");
-        registration.registerClassProperty("AttributeInstance", "Value", getter("GetValue"), null,
-            "number", "server:Server", "The effective value after modifiers.");
-        registration.registerClassProperty("AttributeInstance", "BaseValue", getter("GetBaseValue"), setter("SetBaseValue"),
-            "number", "server:Server", "The base value before modifiers.");
-        registration.registerClassProperty("AttributeInstance", "DefaultValue", getter("GetDefaultValue"), null,
-            "number", "server:Server", "The registered default value.");
-        registration.registerClassProperty("AttributeInstance", "Modifiers", getter("GetModifiers"), null,
-            "table", "server:Server", "The modifiers currently applied to this attribute.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Id", "GetId", null,
+            "string", "shared:Shared", "This attribute's namespaced identifier.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Value", "GetValue", null,
+            "number", "shared:Shared", "The effective value after modifiers.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "BaseValue", "GetBaseValue", "SetBaseValue",
+            "number", "shared:Shared", "The base value before modifiers.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "DefaultValue", "GetDefaultValue", null,
+            "number", "shared:Shared", "The registered default value.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Modifiers", "GetModifiers", null,
+            "table", "shared:Shared", "The modifiers currently applied to this attribute.");
     }
 
-    public static LuaTable create(MLuaRegistration registration, String id, AttributeInstance attribute) {
-        LuaTable instance = registration.createClassInstance("AttributeInstance");
+    public static LuaTable create(MLuaRegistration registration, String id, AttributeInstance attribute,
+                                  LuaTable owner) {
+        LuaValue cacheValue = owner.rawget("__mlua_attribute_instances");
+        LuaTable cache;
+        if (cacheValue.istable()) {
+            cache = cacheValue.checktable();
+        } else {
+            cache = new LuaTable();
+            owner.rawset("__mlua_attribute_instances", cache);
+        }
+        LuaValue cachedValue = cache.rawget(id);
+        if (cachedValue.istable()) {
+            LuaTable cached = cachedValue.checktable();
+            LuaValue cachedAttribute = cached.rawget(BACKING);
+            if (cachedAttribute.isuserdata(AttributeInstance.class)
+                && cachedAttribute.touserdata(AttributeInstance.class) == attribute) {
+                if (cached.rawget("__mlua_attribute_initializing").toboolean()) {
+                    throw new LuaError("[MLua] Circular attribute initialization for '" + id + "'.");
+                }
+                return cached;
+            }
+        }
+        LuaTable instance = registration.attachClassInstance(new LuaTable(), "AttributeInstance", null);
         instance.rawset(BACKING, LuaValue.userdataOf(attribute));
         instance.rawset(ID, LuaValue.valueOf(id));
-        return instance;
+        instance.rawset("__mlua_attribute_initializing", LuaValue.TRUE);
+        cache.rawset(id, instance);
+        try {
+            registration.initializeClassInstance(instance, "AttributeInstance", null);
+            instance.rawset("__mlua_attribute_initializing", LuaValue.NIL);
+            return instance;
+        } catch (RuntimeException | Error failure) {
+            instance.rawset("__mlua_attribute_initializing", LuaValue.NIL);
+            cache.rawset(id, LuaValue.NIL);
+            throw failure;
+        }
     }
 
     private static void register(MLuaRegistration registration, String name, String description,
@@ -52,22 +84,6 @@ public final class MLuaAttributeInstance {
         registration.registerClassFunction("AttributeInstance", name, new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) { return implementation.apply(args); }
         }, description);
-    }
-
-    private static LuaValue getter(String methodName) {
-        return new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                return args.arg1().checktable().get(methodName).invoke(args.arg1()).arg1();
-            }
-        };
-    }
-
-    private static LuaValue setter(String methodName) {
-        return new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                return args.arg1().checktable().get(methodName).invoke(LuaValue.varargsOf(new LuaValue[]{args.arg1(), args.arg(2)}));
-            }
-        };
     }
 
     private static AttributeInstance attribute(LuaTable instance) {
@@ -120,7 +136,7 @@ public final class MLuaAttributeInstance {
         double amount = args.checkdouble(3);
         int operation = args.optint(4, 0);
         //--version 1.20.1
-        java.util.UUID uuid = java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        java.util.UUID uuid = MLuaAttributeModifierIds.legacy(name);
         attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
             uuid, name, amount, net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.fromValue(operation)));
         //--endversion
@@ -130,7 +146,7 @@ public final class MLuaAttributeInstance {
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(operation)));
         //--endversion
         //--version 26.1
-        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", modifierPath(name));
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
         attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(id, amount,
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(operation)));
         //--endversion
@@ -140,25 +156,21 @@ public final class MLuaAttributeInstance {
     private static LuaValue removeModifier(LuaTable instance, String name) {
         AttributeInstance attribute = attribute(instance);
         //--version 1.20.1
-        attribute.removeModifier(java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        attribute.removeModifier(MLuaAttributeModifierIds.legacy(name));
         //--endversion
         //--version 1.21.1
         attribute.removeModifier(modifierId(name));
         //--endversion
         //--version 26.1
-        attribute.removeModifier(net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", modifierPath(name)));
+        attribute.removeModifier(net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name)));
         //--endversion
         return LuaValue.TRUE;
     }
 
     //--version 1.21.1
     private static net.minecraft.resources.ResourceLocation modifierId(String name) {
-        return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("mlua", modifierPath(name));
+        return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
     }
     //--endversion
-
-    private static String modifierPath(String name) {
-        return "modifier_" + name.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_/.-]", "_");
-    }
 
 }

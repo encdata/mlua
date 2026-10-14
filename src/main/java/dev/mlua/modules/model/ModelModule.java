@@ -40,6 +40,7 @@ public final class ModelModule implements MLuaModule {
             .function("ClearPart", "Clears overrides for one model part.")
             .function("ClearModel", "Clears overrides for one entity model.")
             .function("ClearAll", "Clears model overrides owned by the calling script.")
+            .function("Clear", "Clears model overrides owned by the calling script.")
             .function("GetModelState", "Returns current override state for an entity model.")
             .function("GetPartNames", "Returns the model part names supported by the active renderer.");
         return List.of(model.build());

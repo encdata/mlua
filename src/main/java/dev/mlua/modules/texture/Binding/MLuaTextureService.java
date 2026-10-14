@@ -1,24 +1,21 @@
 package dev.mlua.modules.texture.Binding;
 
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
-import dev.mlua.minecraft.MLuaResourceLocations;
-import net.minecraft.resources.ResourceLocation;
-import org.luaj.vm2.LuaError;
+import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.mcapi.MCApiRuntime;
 import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 
-public final class MLuaTextureService extends MLuaServiceBase {
-    private final Map<String, ResourceLocation> textures = new ConcurrentHashMap<>();
+public final class MLuaTextureService extends MLuaReflectiveService {
+    private final TextureState state;
 
     public MLuaTextureService(MLuaService.Context context) {
         super(context);
+        this.state = this.context.sharedState("textures:" + this.context.ownerModId(), TextureState.class,
+            TextureState::new);
     }
 
     @Override
@@ -26,71 +23,55 @@ public final class MLuaTextureService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Client");
-
-        table.set("RegisterTexture", fn(args -> {
-            String name = args.checkjstring(2);
-            String path = args.checkjstring(3);
-            if (name.isBlank()) {
-                throw new LuaError("[MLua] RegisterTexture requires a non-empty name");
-            }
-            if (path.isBlank()) {
-                throw new LuaError("[MLua] RegisterTexture requires a non-empty path");
-            }
-            ResourceLocation location = MLuaResourceLocations.build(
-                context.mlua().ownerModId(), path
-            );
-            textures.put(name, location);
-            return new MLuaTextureInstance(name, location).toLua();
-        }));
-
-        table.set("GetTexture", fn(args -> {
-            String name = args.checkjstring(2);
-            ResourceLocation location = textures.get(name);
-            if (location == null) return LuaValue.NIL;
-            return new MLuaTextureInstance(name, location).toLua();
-        }));
-
-        table.set("RemoveTexture", fn(args -> {
-            String name = args.checkjstring(2);
-            ResourceLocation removed = textures.remove(name);
-            return LuaValue.valueOf(removed != null);
-        }));
-
-        table.set("HasTexture", fn(args -> {
-            String name = args.checkjstring(2);
-            return LuaValue.valueOf(textures.containsKey(name));
-        }));
-
-        table.set("GetRegisteredTextures", fn(args -> {
-            LuaTable result = new LuaTable();
-            for (Map.Entry<String, ResourceLocation> entry : textures.entrySet()) {
-                result.set(entry.getKey(),
-                    new MLuaTextureInstance(entry.getKey(), entry.getValue()).toLua());
-            }
-            return result;
-        }));
-
-        table.set("ClearTextures", fn(args -> {
-            textures.clear();
-            return LuaValue.NONE;
-        }));
-
         return table;
     }
 
-    private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new LuaError("[MLua] " + e.getMessage());
-                }
-            }
-        };
+    @MLuaDescription("Registers a texture from the calling mod's texture directory.")
+    public LuaTable RegisterTexture(String name, String path) {
+        if (name.isBlank()) {
+            throw new org.luaj.vm2.LuaError("[MLua] RegisterTexture requires a non-empty name");
+        }
+        if (path.isBlank()) {
+            throw new org.luaj.vm2.LuaError("[MLua] RegisterTexture requires a non-empty path");
+        }
+        String location = MCApiRuntime.createResourceLocation(context.ownerModId(), path).toString();
+        state.textures.put(name, location);
+        return new MLuaTextureInstance(name, location).toLua(context.registration());
+    }
+
+    @MLuaDescription("Returns a live texture handle by identifier.")
+    public LuaTable GetTexture(String name) {
+        String location = state.textures.get(name);
+        return location == null ? null : new MLuaTextureInstance(name, location).toLua(context.registration());
+    }
+
+    @MLuaDescription("Removes a texture registered by the calling mod.")
+    public boolean RemoveTexture(String name) {
+        return state.textures.remove(name) != null;
+    }
+
+    @MLuaDescription("Returns whether a texture identifier is registered.")
+    public boolean HasTexture(String name) {
+        return state.textures.containsKey(name);
+    }
+
+    @MLuaDescription("Returns texture identifiers registered by the calling mod.")
+    public LuaTable GetRegisteredTextures() {
+        LuaTable result = new LuaTable();
+        for (Map.Entry<String, String> entry : state.textures.entrySet()) {
+            result.set(entry.getKey(), new MLuaTextureInstance(entry.getKey(), entry.getValue()).toLua(context.registration()));
+        }
+        return result;
+    }
+
+    @MLuaDescription("Removes all textures registered by the calling mod.")
+    public void ClearTextures() {
+        state.textures.clear();
+    }
+
+    private static final class TextureState {
+        private final Map<String, String> textures = new ConcurrentHashMap<>();
     }
 }

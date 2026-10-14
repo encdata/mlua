@@ -2,16 +2,17 @@ package dev.mlua.minecraft.binding;
 
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.BlockItem;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Live identity view for a registry key, shared across all supported registry kinds. */
 public final class MLuaRegistryEntry {
     private static final String BACKING = "__mlua_registry_entry";
 
@@ -31,6 +32,29 @@ public final class MLuaRegistryEntry {
         register(registration, "GetNamespace", "Returns the identifier namespace.", entry -> LuaValue.valueOf(MLuaResourceLocations.namespace(entry.id)));
         register(registration, "GetPath", "Returns the identifier path.", entry -> LuaValue.valueOf(MLuaResourceLocations.path(entry.id)));
         register(registration, "Exists", "Checks whether the key currently resolves in its Minecraft registry.", entry -> LuaValue.valueOf(exists(entry)));
+        registration.registerClassFunction("RegistryEntry", "Equals", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                Entry entry = backing(args.arg1().checktable());
+                LuaValue other = args.arg(2);
+                return LuaValue.valueOf(other.istable()
+                    && registration.isInstanceOf(other, "RegistryEntry")
+                    && entry.equals(backing(other.checktable())));
+            }
+        }, "Compares registry kind and namespaced identifier with another RegistryEntry.");
+        register(registration, "GetHashCode", "Returns a hash code derived from this registry key.",
+            entry -> LuaValue.valueOf(entry.hashCode()));
+        register(registration, "ToString", "Returns this registry key as kind:namespace:path.",
+            entry -> LuaValue.valueOf(entry.kind.name().toLowerCase(java.util.Locale.ROOT) + ":" + entry.id));
+        MLuaClassMethods.registerInstanceProperty(registration, "RegistryEntry", "Kind", "GetKind", null,
+            "string", "shared:Shared", "The normalized registry kind.");
+        MLuaClassMethods.registerInstanceProperty(registration, "RegistryEntry", "Id", "GetId", null,
+            "string", "shared:Shared", "The full namespaced registry identifier.");
+        MLuaClassMethods.registerInstanceProperty(registration, "RegistryEntry", "Namespace", "GetNamespace", null,
+            "string", "shared:Shared", "The identifier namespace.");
+        MLuaClassMethods.registerInstanceProperty(registration, "RegistryEntry", "Path", "GetPath", null,
+            "string", "shared:Shared", "The identifier path.");
+        MLuaClassMethods.registerInstanceProperty(registration, "RegistryEntry", "IsRegistered", "Exists", null,
+            "boolean", "shared:Shared", "Whether this key currently resolves in its Minecraft registry.");
     }
 
     private static void register(MLuaRegistration registration, String name, String description,
@@ -43,6 +67,7 @@ public final class MLuaRegistryEntry {
     }
 
     public static LuaTable create(MLuaRegistration registration, RegistryKind kind, String identifier) {
+        if (kind == null) throw new LuaError("[MLua] Registry kind is required");
         var id = MLuaResourceLocations.tryParseOrNull(identifier);
         if (id == null) throw new LuaError("[MLua] Invalid registry identifier: " + identifier);
         LuaTable instance = registration.createClassInstance("RegistryEntry");
@@ -59,7 +84,8 @@ public final class MLuaRegistryEntry {
 
     private static boolean exists(Entry entry) {
         return switch (entry.kind) {
-            case ITEM, BLOCK_ITEM -> BuiltInRegistries.ITEM.containsKey(entry.id);
+            case ITEM -> BuiltInRegistries.ITEM.containsKey(entry.id);
+            case BLOCK_ITEM -> BuiltInRegistries.ITEM.getOptional(entry.id).filter(BlockItem.class::isInstance).isPresent();
             case BLOCK -> BuiltInRegistries.BLOCK.containsKey(entry.id);
             case ENTITY -> BuiltInRegistries.ENTITY_TYPE.containsKey(entry.id);
             case PARTICLE -> BuiltInRegistries.PARTICLE_TYPE.containsKey(entry.id);

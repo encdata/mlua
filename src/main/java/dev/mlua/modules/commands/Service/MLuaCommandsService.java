@@ -1,6 +1,7 @@
 package dev.mlua.modules.commands.Service;
 
 import dev.mlua.common.enums.RegistrationPhase;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.minecraft.command.MLuaCommandDefinition;
 import dev.mlua.minecraft.command.MLuaCommandRegistry;
@@ -9,7 +10,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Command registration and execution methods exposed through the reflective service base. */
+@MLuaDescription("Registers, inspects, and executes MLua commands.")
 public final class MLuaCommandsService extends MLuaReflectiveService {
    public MLuaCommandsService(Context context) {
       super(context);
@@ -27,6 +28,7 @@ public final class MLuaCommandsService extends MLuaReflectiveService {
       return table;
    }
 
+   @MLuaDescription("Registers a command definition during the command registration phase.")
    public void Register(String name, LuaTable definitionTable) {
       if (!this.context.isPhase(RegistrationPhase.COMMANDS)) {
          throw new LuaError("[MLua] Cannot register command '" + name
@@ -40,18 +42,20 @@ public final class MLuaCommandsService extends MLuaReflectiveService {
       }
    }
 
+   @MLuaDescription("Returns the command names registered with MLua.")
    public List<String> GetRegisteredCommands() {
       return List.copyOf(MLuaCommandRegistry.get().names());
    }
 
+   @MLuaDescription("Executes a command as the server.")
    public LuaValue Execute(String command) {
       if (this.context.server() == null) {
          throw new LuaError("[MLua] Commands:Execute requires an active server.");
       }
       //--version 1.20.1
-      int result = this.context.server().getCommands().performPrefixedCommand(
+      this.context.server().getCommands().performPrefixedCommand(
          this.context.server().createCommandSourceStack(), command);
-      return LuaValue.valueOf(result);
+      return LuaValue.TRUE;
       //--endversion
       //--version 1.21.1
       this.context.server().getCommands().performPrefixedCommand(

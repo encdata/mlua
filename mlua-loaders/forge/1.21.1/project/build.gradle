@@ -46,7 +46,6 @@ def forgeImplExcludes = [
     'dev/mlua/mc/impl/world/**',
 ]
 def forgeProjectExcludes = [
-    'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java',
     'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java',
     'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java',
     'dev/mlua/minecraft/scripted/MLuaScriptedItem.java',
@@ -108,12 +107,6 @@ def forgeRootExcludes = [
     'dev/mlua/loader/impl/forge/ForgeNetworkContext.java',
     'dev/mlua/api/RuntimeMLuaApiBridge.java',
     'dev/mlua/minecraft/MLuaResourceLocations.java',
-    'dev/mlua/modules/advancements/Service/MLuaAdvancementService.java',
-    'dev/mlua/modules/attribute/Service/MLuaAttributeService.java',
-    'dev/mlua/modules/commands/Service/MLuaCommandsService.java',
-    'dev/mlua/modules/effects/Service/MLuaPotionEffectsService.java',
-    'dev/mlua/modules/enchantment/Service/MLuaEnchantmentService.java',
-    'dev/mlua/modules/itemstack/Service/MLuaItemStackService.java',
 ]
 
 task prepareForgeRootSources(type: Sync) {

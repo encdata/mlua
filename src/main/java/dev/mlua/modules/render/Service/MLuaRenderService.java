@@ -50,9 +50,9 @@ public final class MLuaRenderService extends MLuaServiceBase {
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
-        registerObjectProperty(registration, "FollowEntity", "number?", "The followed entity id, or nil.", "GetFollowEntity", "SetFollowEntity");
-        registerObjectProperty(registration, "Resource", "string?", "The image or model resource used by this object.", "GetResource", "SetResource");
-        registerObjectProperty(registration, "Text", "string?", "The text displayed by a text object.", "GetText", "SetText");
+        registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
+        registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
+        registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
         String[][] methods = {
             {"GetId", "Returns the object's runtime identifier."}, {"GetType", "Returns the object's render type."},
             {"GetIsDestroyed", "Returns whether this object has been removed."},
@@ -407,7 +407,7 @@ public final class MLuaRenderService extends MLuaServiceBase {
             return resource != null ? LuaValue.valueOf(resource) : LuaValue.NIL;
         }));
         operations.set("SetResource", fn(args -> {
-            requireObject(id).setResource(args.checkjstring(2));
+            requireObject(id).setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
             return LuaValue.NONE;
         }));
         operations.set("GetText", fn(args -> {
@@ -415,7 +415,7 @@ public final class MLuaRenderService extends MLuaServiceBase {
             return resource != null ? LuaValue.valueOf(resource) : LuaValue.NIL;
         }));
         operations.set("SetText", fn(args -> {
-            requireObject(id).setResource(args.checkjstring(2));
+            requireObject(id).setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
             return LuaValue.NONE;
         }));
         operations.set("Destroy", fn(args -> {

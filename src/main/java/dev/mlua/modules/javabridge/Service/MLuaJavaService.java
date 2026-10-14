@@ -485,7 +485,6 @@ public final class MLuaJavaService extends MLuaServiceBase {
         }
     }
 
-    /** Converts Lua tables using the declared Java field type, preserving collection element types. */
     private Object convertLuaValue(LuaValue value, Type targetType) {
         return convertLuaValue(value, targetType, new IdentityHashMap<>());
     }
@@ -1448,9 +1447,6 @@ public final class MLuaJavaService extends MLuaServiceBase {
             throw new LuaError("[MLua] Java Iterable parameters require a dense Lua array table, Java array, or Java collection; got "
                 + rawValue.getClass().getName());
         }
-        // Empty Lua tables are indistinguishable from empty arrays after the generic
-        // Lua value unwrapping step. Let the declared Java parameter type disambiguate
-        // the empty table when the caller expects a map.
         if (Map.class.isAssignableFrom(rawType)
             && (rawValue instanceof Map<?, ?> || rawValue instanceof Collection<?> collection && collection.isEmpty())) {
             Map<?, ?> source = rawValue instanceof Map<?, ?> map ? map : Map.of();
@@ -1491,7 +1487,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             throw new LuaError("[MLua] Java map type " + targetType.getName()
                 + " cannot order or accept the Lua table keys.");
         } catch (ReflectiveOperationException ignored) {
-            // Report the unsupported concrete map through the caller's typed error.
+            return null;
         }
         return null;
     }
@@ -1645,7 +1641,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 collection.addAll(values);
                 return collection;
             } catch (ReflectiveOperationException | ClassCastException ignored) {
-                // The caller reports the target type that could not be constructed.
+                return null;
             }
         }
         return null;

@@ -1,6 +1,7 @@
 package dev.mlua.modules.run.Service;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.service.MLuaReflectiveService;
@@ -9,7 +10,7 @@ import dev.mlua.modules.events.Service.MLuaEventsService;
 import net.minecraft.SharedConstants;
 import org.luaj.vm2.LuaTable;
 
-/** Runtime signals and environment information exposed through the shared Java service base. */
+@MLuaDescription("Provides runtime frame signals and environment information.")
 public final class MLuaRunService extends MLuaReflectiveService {
    public MLuaRunService(Context context) {
       super(context);
@@ -37,7 +38,6 @@ public final class MLuaRunService extends MLuaReflectiveService {
       return table;
    }
 
-   /** Updates the live per-session frame state used by GetDeltaTime. */
    public static void setDeltaTime(Object runtimeSession, Side side, double value) {
       if (!(runtimeSession instanceof MLuaRuntimeSession session)) return;
       double bounded = Math.max(0.0D, Math.min(1.0D, value));
@@ -49,35 +49,47 @@ public final class MLuaRunService extends MLuaReflectiveService {
       }
    }
 
+   @MLuaDescription("Returns the latest simulation frame delta time for this runtime side.")
    public double GetDeltaTime() {
       return frameState().deltaTime;
    }
 
+   @MLuaDescription("Returns the latest render frame delta time for this runtime side.")
    public double GetRenderDeltaTime() {
       return frameState().deltaTime;
    }
 
+   @MLuaDescription("Returns whether this script is running on the server.")
    public boolean IsServer() { return this.context.isServer(); }
 
+   @MLuaDescription("Returns whether this script is running on a client.")
    public boolean IsClient() { return this.context.isClient(); }
 
+   @MLuaDescription("Returns the runtime side for this script.")
    public String GetSide() { return this.context.side().name(); }
 
+   @MLuaDescription("Returns whether MLua is running on Forge.")
    public boolean IsForge() { return "forge".equalsIgnoreCase(LoaderApi.platform().loaderName()); }
 
+   @MLuaDescription("Returns whether MLua is running on Fabric.")
    public boolean IsFabric() { return "fabric".equalsIgnoreCase(LoaderApi.platform().loaderName()); }
 
+   @MLuaDescription("Returns whether MLua is running on NeoForge.")
    public boolean IsNeoForge() { return "neoforge".equalsIgnoreCase(LoaderApi.platform().loaderName()); }
 
+   @MLuaDescription("Returns the Minecraft version string.")
    public String GetVersion() { return SharedConstants.getCurrentVersion().getName(); }
 
+   @MLuaDescription("Returns the MLua mod version string.")
    public String GetMluaVersion() {
       String version = MLuaRunService.class.getPackage().getImplementationVersion();
       return version == null || version.isBlank() ? "0.0.5" : version;
    }
 
+   @MLuaDescription("Returns the active mod loader name.")
    public String GetLoader() { return LoaderApi.platform().loaderName(); }
 
+   @MLuaDescription("Returns whether the runtime is in development mode.")
    public boolean IsDevelopmentMode() { return !LoaderApi.platform().isProduction(); }
 
    private FrameState frameState() {

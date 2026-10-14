@@ -9,8 +9,11 @@ import dev.mlua.core.script.MLuaScript;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import dev.mlua.module.MLuaRegistration;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -33,6 +36,7 @@ public final class MLuaContext implements MLuaContextView {
    private volatile Globals globals;
    private final Map<String, LuaTable> materializedServices = new LinkedHashMap<>();
    private final Map<String, LuaTable> serviceProxies = new LinkedHashMap<>();
+   private final ArrayDeque<String> serviceMaterializationStack = new ArrayDeque<>();
 
    public MLuaContext(MLuaScript script, Side side, RegistrationPhase phase, MLuaServiceRegistry services, MLuaTaskScheduler scheduler, MLuaModuleCache moduleCache, MinecraftServer server, Path filesRoot) {
       this(script, side, phase, services, scheduler, moduleCache, server, filesRoot, null, null);
@@ -95,25 +99,45 @@ public final class MLuaContext implements MLuaContextView {
       this.materializedServices.remove(name, expected);
    }
 
-   /** Resolves a service table once for this script context, including concurrent first access. */
    public synchronized LuaTable materializeService(String name, Supplier<LuaTable> factory) {
+      if (name == null || name.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
+      java.util.Objects.requireNonNull(factory, "factory");
       LuaTable existing = this.materializedServices.get(name);
       if (existing != null) return existing;
-      LuaTable created = java.util.Objects.requireNonNull(factory, "factory").get();
-      if (created == null) throw new IllegalStateException("Service table factory returned null: " + name);
-      this.materializedServices.put(name, created);
-      return created;
+      if (this.serviceMaterializationStack.contains(name)) {
+         List<String> cycle = new ArrayList<>();
+         boolean inCycle = false;
+         for (String active : this.serviceMaterializationStack) {
+            if (active.equals(name)) inCycle = true;
+            if (inCycle) cycle.add(active);
+         }
+         cycle.add(name);
+         throw new IllegalStateException("[MLua] Circular service initialization: " + String.join(" -> ", cycle));
+      }
+      this.serviceMaterializationStack.addLast(name);
+      try {
+         LuaTable created = factory.get();
+         if (created == null) throw new IllegalStateException("Service table factory returned null: " + name);
+         this.materializedServices.put(name, created);
+         return created;
+      } catch (RuntimeException | Error failure) {
+         this.materializedServices.remove(name);
+         throw failure;
+      } finally {
+         this.serviceMaterializationStack.removeLast();
+      }
    }
 
    public synchronized Map<String, LuaTable> materializedServices() {
       return Collections.unmodifiableMap(new LinkedHashMap<>(this.materializedServices));
    }
 
-   /** Returns one stable Lua service instance per service name and script context. */
    public synchronized LuaTable serviceProxy(String name, Supplier<LuaTable> factory) {
+      if (name == null || name.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
+      java.util.Objects.requireNonNull(factory, "factory");
       LuaTable existing = this.serviceProxies.get(name);
       if (existing != null) return existing;
-      LuaTable created = java.util.Objects.requireNonNull(factory, "factory").get();
+      LuaTable created = factory.get();
       if (created == null) throw new IllegalStateException("Service proxy factory returned null: " + name);
       this.serviceProxies.put(name, created);
       return created;

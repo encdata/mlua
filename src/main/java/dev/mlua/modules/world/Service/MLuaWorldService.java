@@ -3,6 +3,7 @@ package dev.mlua.modules.world.Service;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.modules.world.WorldModule;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
@@ -16,6 +17,7 @@ import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.runtime.data.MLuaDataManager;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,6 +25,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
@@ -62,7 +65,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaWorldService extends MLuaServiceBase {
    private static final Map<String, GameRules.Key<?>> GAME_RULE_KEYS = new HashMap<>();
-   private final Map<Level, LuaTable> worldInstances = new IdentityHashMap<>();
+   private final Map<Level, WeakReference<LuaTable>> worldInstances = new WeakHashMap<>();
    static {
       GameRules.visitGameRuleTypes(new GameRules.GameRuleTypeVisitor() {
          public <T extends GameRules.Value<T>> void visit(GameRules.Key<T> key, GameRules.Type<T> type) {
@@ -88,6 +91,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetSide", varArg((args) -> LuaValue.valueOf(this.context.mlua().side().name())));
       table.set("GetWeather", currentWorldMethod("GetWeather"));
       table.set("SetWeather", currentWorldMethod("SetWeather"));
+      WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
       LuaTable methodDescriptions = new LuaTable();
       methodDescriptions.set("Current", LuaValue.valueOf("Returns the current live world instance."));
       methodDescriptions.set("Get", LuaValue.valueOf("Returns the live world instance for a dimension identifier."));
@@ -95,6 +99,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       methodDescriptions.set("GetSide", LuaValue.valueOf("Returns whether this service belongs to a client or server context."));
       methodDescriptions.set("GetWeather", LuaValue.valueOf("Returns the current world's weather."));
       methodDescriptions.set("SetWeather", LuaValue.valueOf("Sets the current world's weather. This method is server-side only."));
+      WorldModule.describeWorldServiceMethods(methodDescriptions);
       table.set("__mlua_doc_methods", methodDescriptions);
       return table;
    }
@@ -103,12 +108,16 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return varArg(args -> {
          Level level = this.currentLevel();
          if (level == null) return LuaValue.NIL;
-         LuaValue method = this.worldTable(() -> level).get(methodName);
+         LuaTable instance = this.worldTable(() -> level);
+         LuaValue method = instance.get(methodName);
          if (!method.isfunction()) {
             throw new LuaError("[MLua] World service class declares '" + methodName
                + "', but the current live World instance does not implement it.");
          }
-         return method.invoke(args);
+         LuaValue[] forwarded = new LuaValue[Math.max(1, args.narg())];
+         forwarded[0] = instance;
+         for (int index = 2; index <= args.narg(); index++) forwarded[index - 1] = args.arg(index);
+         return method.invoke(LuaValue.varargsOf(forwarded));
       });
    }
 
@@ -119,7 +128,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
    private synchronized LuaTable worldTable(Supplier<Level> supplier) {
       Level initial = supplier.get();
       if (initial == null) return new LuaTable();
-      LuaTable cached = worldInstances.get(initial);
+      WeakReference<LuaTable> reference = worldInstances.get(initial);
+      LuaTable cached = reference == null ? null : reference.get();
       if (cached != null) return cached;
       LuaTable fields = new LuaTable();
       fields.set("__side", LuaValue.valueOf(initial.isClientSide ? "CLIENT" : "SERVER"));
@@ -452,7 +462,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NONE;
       }));
 
-      worldInstances.put(initial, table);
+      WorldModule.bindWorldInstanceMethods(this.context.mlua().registration(), table);
+      worldInstances.put(initial, new WeakReference<>(table));
       return table;
    }
 
@@ -556,7 +567,6 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return List.of();
    }
 
-   /** Keeps client-only Minecraft classes out of the common service's linkage graph. */
    private static Level clientLevel() {
       try {
          Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");

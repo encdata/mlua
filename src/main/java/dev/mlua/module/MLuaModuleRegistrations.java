@@ -14,7 +14,6 @@ import java.util.WeakHashMap;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Tracks the classes and services contributed by each module to each registry. */
 final class MLuaModuleRegistrations {
     private final Map<MLuaRegistration, Map<MLuaModule, List<String>>> classes = new WeakHashMap<>();
     private final Map<MLuaRegistration, Map<MLuaModule, Map<SnapshotKey, ClassSnapshot>>> classSnapshots = new WeakHashMap<>();

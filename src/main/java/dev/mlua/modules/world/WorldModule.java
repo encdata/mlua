@@ -7,9 +7,12 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.module.MLuaDocBuilder;
+import dev.mlua.module.ServiceEntry;
 import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
 public class WorldModule implements MLuaModule {
     @Override
@@ -21,9 +24,30 @@ public class WorldModule implements MLuaModule {
         registration.registerClass("World", "Level", "A live world instance with dimension, time, block, entity, and weather APIs.");
         worldMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "World", name, description));
+        registerWorldProperties(registration);
     }
 
-    private static Map<String, String> worldMethods() {
+    private static void registerWorldProperties(MLuaRegistration registration) {
+        String[][] properties = {
+            {"Id", "GetId", null, "string", "This world's dimension identifier."},
+            {"Dimension", "GetDimension", null, "string", "This world's dimension identifier."},
+            {"Side", "GetSide", null, "string", "Whether this world belongs to the client or server."},
+            {"ClientSide", "IsClient", null, "boolean", "Whether this is a client world."},
+            {"ServerSide", "IsServer", null, "boolean", "Whether this is a server world."},
+            {"Time", "GetTime", "SetTime", "number", "This world's day time in ticks."},
+            {"DayTime", "GetDayTime", null, "number", "The current day cycle time in ticks."},
+            {"GameTime", "GetGameTime", null, "number", "The total number of ticks this world has been running."},
+            {"SpawnPosition", "GetSpawnPosition", null, "Vector3", "This world's shared spawn position."},
+            {"Weather", "GetWeather", "SetWeather", "Weather", "This world's current weather."},
+            {"Difficulty", "GetDifficulty", "SetDifficulty", "Difficulty", "This world's difficulty."}
+        };
+        for (String[] property : properties) {
+            MLuaClassMethods.registerInstanceProperty(registration, "World", property[0], property[1], property[2],
+                property[3], "shared:Shared", property[4]);
+        }
+    }
+
+    public static Map<String, String> worldMethods() {
         return Map.ofEntries(
             Map.entry("GetId", "Returns this world's dimension identifier."),
             Map.entry("GetDimension", "Returns this world's dimension identifier."),
@@ -86,6 +110,33 @@ public class WorldModule implements MLuaModule {
         );
     }
 
+    public static void bindWorldServiceMethods(LuaTable service, java.util.function.Function<String, LuaValue> methodFactory) {
+        worldMethods().forEach((name, description) -> {
+            if (!isExplicitServiceMethod(name)) service.set(name, methodFactory.apply(name));
+        });
+    }
+
+    public static void bindWorldInstanceMethods(MLuaRegistration registration, LuaTable instance) {
+        worldMethods().forEach((name, description) -> {
+            LuaValue implementation = instance.rawget(name);
+            if (!implementation.isfunction()) {
+                throw new IllegalStateException("World instance is missing registered method '" + name + "'");
+            }
+            MLuaClassMethods.bindInstanceMethod(registration, "World", instance, name, implementation, description);
+            instance.rawset(name, LuaValue.NIL);
+        });
+    }
+
+    public static void describeWorldServiceMethods(LuaTable methodDescriptions) {
+        worldMethods().forEach((name, description) -> {
+            if (!isExplicitServiceMethod(name)) methodDescriptions.set(name, LuaValue.valueOf(description));
+        });
+    }
+
+    private static boolean isExplicitServiceMethod(String name) {
+        return name.equals("GetSide") || name.equals("GetWeather") || name.equals("SetWeather");
+    }
+
     @Override
     public void contributeGlobals(Globals globals, MLuaContextView context) {
         globals.set("Level", context.registration().classTable("Level"));
@@ -94,21 +145,21 @@ public class WorldModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("WorldService", "World:GetBlockInventory(x: number, y: number, z: number)", "Container");
-        docs.signature("WorldService", "World:SetBlock(x: number, y: number, z: number, blockId: string)", null);
-        docs.signature("WorldService", "World:BreakBlock(x: number, y: number, z: number, dropItems: boolean)", null);
-        docs.signature("WorldService", "World:DestroyBlock(x: number, y: number, z: number, dropItems: boolean)", null);
-        docs.signature("WorldService", "World:PlaySound(x: number, y: number, z: number, sound: string, volume: number, pitch: number)", null);
-        docs.signature("WorldService", "World:SpawnParticle(x: number, y: number, z: number, particle: string, count: number)", null);
-        docs.signature("WorldService", "World:SpawnEntity(entityId: string, x: number, y: number, z: number, yaw: number, pitch: number)", null);
-        docs.signature("WorldService", "World:GetBlock(x: number, y: number, z: number)", null);
-        docs.signature("WorldService", "World:Raycast(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, distance: number)", null);
+        docs.signature("WorldService", "WorldService:GetBlockInventory(x: number, y: number, z: number)", "Container");
+        docs.signature("WorldService", "WorldService:SetBlock(x: number, y: number, z: number, blockId: string)", null);
+        docs.signature("WorldService", "WorldService:BreakBlock(x: number, y: number, z: number, dropItems: boolean)", null);
+        docs.signature("WorldService", "WorldService:DestroyBlock(x: number, y: number, z: number, dropItems: boolean)", null);
+        docs.signature("WorldService", "WorldService:PlaySound(x: number, y: number, z: number, sound: string, volume: number, pitch: number)", null);
+        docs.signature("WorldService", "WorldService:SpawnParticle(x: number, y: number, z: number, particle: string, count: number)", null);
+        docs.signature("WorldService", "WorldService:SpawnEntity(entityId: string, x: number, y: number, z: number, yaw: number, pitch: number)", null);
+        docs.signature("WorldService", "WorldService:GetBlock(x: number, y: number, z: number)", null);
+        docs.signature("WorldService", "WorldService:Raycast(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, distance: number)", null);
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
-        // World is the live level class; WorldService is a separate Minecraft:GetService class.
-        // Keep the class definition tied to its registered Lua contract instead of scanning the
-        // service implementation as if it were the live world instance type.
         docs.clazz("World", null, "A live world instance with dimension, time, block, entity, and weather APIs.", "classes/world.html", "Level");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");
+        docs.guideStep("WorldService", "Use the current world service and live world instance",
+            "The World service forwards the World class methods to the current dimension. Use Current or Get when you need to keep a specific live world instance, such as when working across dimensions.",
+            "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");
     }
 
     @Override
@@ -125,6 +176,9 @@ public class WorldModule implements MLuaModule {
             .function("GetSide", "Returns whether this service belongs to a client or server context.")
             .function("GetWeather", "Returns the current world's weather.")
             .function("SetWeather", "Sets the current world's weather. This method is server-side only.");
+        worldMethods().forEach((name, description) -> {
+            if (!isExplicitServiceMethod(name)) world.function(name, description);
+        });
         return List.of(world.build());
     }
 }

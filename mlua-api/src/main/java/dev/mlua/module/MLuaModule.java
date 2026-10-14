@@ -16,12 +16,10 @@ import org.luaj.vm2.Globals;
 public interface MLuaModule extends MLuaReloadable {
     String id();
 
-    /** Return false to disable this feature without removing its implementation. */
     default boolean enabled() {
         return true;
     }
 
-    /** Module ids that must be loaded before this module is initialized. */
     default List<String> dependencies() {
         return List.of();
     }
@@ -45,7 +43,6 @@ public interface MLuaModule extends MLuaReloadable {
         return List.of();
     }
 
-    /** Registers this feature's Lua classes in the runtime's class registry. */
     default void registerClasses(MLuaRegistration registration) {
     }
 
@@ -56,7 +53,6 @@ public interface MLuaModule extends MLuaReloadable {
         this.contributeContextGlobals(globals, context);
     }
 
-    /** @deprecated Override {@link #contributeGlobals(Globals, MLuaContextView)} instead. */
     @Deprecated
     default void contributeContextGlobals(Globals globals, MLuaContextView context) {
     }
@@ -70,51 +66,37 @@ public interface MLuaModule extends MLuaReloadable {
     default void onInitialize() {
     }
 
-    /** Clears runtime-owned state when this runtime reloads scripts or stops. */
     default void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
     }
 
-    /** Clears state created by one addon during a scoped script reload. */
     default void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, String ownerModId) {
     }
 
-    /** Called after a runtime side finishes its tick, for side-specific service work. */
     default void onRuntimeTick(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, double deltaTime) {
     }
 
-    /** Called after all modules have completed a side tick, for publishing runtime signals. */
     default void afterRuntimeTick(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, double deltaTime) {
     }
 
-    /** Called for a client render frame when a module needs its measured delta time. */
     default void onRenderFrame(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, double deltaTime) {
     }
 
-    /** Called after all modules have updated their render-frame state. */
     default void afterRenderFrame(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, double deltaTime) {
     }
 
-    /** Called after a client render frame has ended. */
     default void onRenderFrameEnd(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession) {
     }
 
-    /** Called immediately before the runtime executes scripts for a registration phase. */
     default void beforeScriptPhase(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side,
                                    RegistrationPhase phase, Object phaseContext) {
     }
 
-    /** Called after the runtime executes scripts for a registration phase. */
     default void afterScriptPhase(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side,
                                   RegistrationPhase phase, Object phaseContext) {
     }
 
-    /**
-     * Declares one Lua service. Function descriptions define the service class contract: every live
-     * instance returned by the factory must expose each declared function with that description.
-     */
     record ServiceEntry(String name, String className, Function<MLuaService.Context, MLuaService> factory,
                         String description, Map<String, String> functionDescriptions) {
-        /** Starts a typed service declaration with descriptions attached per exposed method. */
         public static Builder builder(String name, Function<MLuaService.Context, MLuaService> factory) {
             return new Builder(name, factory);
         }
@@ -135,7 +117,6 @@ public interface MLuaModule extends MLuaReloadable {
             this(name, null, factory, description, functionDescriptions);
         }
 
-        /** Declares a service under a specific Lua class name. */
         @Deprecated(forRemoval = false)
         public ServiceEntry(String name, String className, Function<MLuaService.Context, MLuaService> factory,
                             String description) {
@@ -149,7 +130,6 @@ public interface MLuaModule extends MLuaReloadable {
 
         public ServiceEntry {
             if (name == null || name.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
-            // The service lookup name is its Lua class name unless an explicit class is selected.
             if (className == null) className = name;
             if (className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
             Objects.requireNonNull(factory, "factory");
@@ -173,7 +153,6 @@ public interface MLuaModule extends MLuaReloadable {
             });
         }
 
-        /** Mutable declaration builder; {@link #build()} returns an immutable service contract. */
         public static final class Builder {
             private final String name;
             private final Function<MLuaService.Context, MLuaService> factory;

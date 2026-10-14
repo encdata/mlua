@@ -48,7 +48,7 @@ public class CameraModule implements MLuaModule {
             .function("SetFOVMultiplier", "Sets the field-of-view multiplier.")
             .function("MultiplyFOV", "Multiplies the current field of view by a value.")
             .function("GetSubject", "Returns the camera subject, if one is set.")
-            .function("SetSubject", "Sets the camera subject to an entity or player.")
+            .function("SetSubject", "Sets the camera subject to an entity or player, or resets it to the local player when nil.")
             .function("GetMode", "Returns the current camera control mode.")
             .function("SetMode", "Sets the camera control mode.")
             .function("GetViewMode", "Returns the current first-person or third-person view mode.")

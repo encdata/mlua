@@ -16,7 +16,6 @@ import java.util.WeakHashMap;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaTable;
 
-/** Mutable state owned by one MLua client/server session. */
 public final class MLuaRuntimeSession {
     private static final Map<MinecraftServer, WeakReference<MLuaRuntimeSession>> SERVER_SESSIONS =
             Collections.synchronizedMap(new WeakHashMap<>());
@@ -47,7 +46,6 @@ public final class MLuaRuntimeSession {
     public MLuaTaskScheduler clientScheduler() { return clientScheduler; }
     public MinecraftServer server() { return server; }
 
-    /** Returns one Lua-backed service instance per runtime side and registered service class. */
     public synchronized LuaTable materializeLuaService(Side side, String name, LuaTable classTable,
                                                         Supplier<LuaTable> factory) {
         if (side == null || side == Side.BOTH) {
@@ -89,6 +87,36 @@ public final class MLuaRuntimeSession {
         T created = java.util.Objects.requireNonNull(factory.get(), "service state factory returned null");
         states.put(stateKey, created);
         return created;
+    }
+
+    public synchronized <T> T existingSharedServiceState(Side side, String serviceName, String key,
+                                                          Class<T> stateType) {
+        if (side == null || side == Side.BOTH) throw new IllegalArgumentException("A concrete side is required for service state");
+        ServiceStateKey stateKey = new ServiceStateKey(serviceName, key);
+        Map<ServiceStateKey, Object> states = this.javaServiceStates.get(side);
+        Object existing = states == null ? null : states.get(stateKey);
+        if (existing == null) return null;
+        if (!stateType.isInstance(existing)) {
+            throw new IllegalStateException("Java service '" + serviceName + "' state '" + key
+                + "' was already created as " + existing.getClass().getName());
+        }
+        return stateType.cast(existing);
+    }
+
+    public synchronized boolean removeSharedServiceState(Side side, String serviceName, String key) {
+        if (side == null || serviceName == null || serviceName.isBlank() || key == null || key.isBlank()) {
+            throw new IllegalArgumentException("Service state removal requires a side, service, and state key");
+        }
+        ServiceStateKey stateKey = new ServiceStateKey(serviceName, key);
+        if (side == Side.BOTH) {
+            boolean removed = false;
+            for (Map<ServiceStateKey, Object> states : this.javaServiceStates.values()) {
+                removed |= states.remove(stateKey) != null;
+            }
+            return removed;
+        }
+        Map<ServiceStateKey, Object> states = this.javaServiceStates.get(side);
+        return states != null && states.remove(stateKey) != null;
     }
 
     private record ServiceStateKey(String serviceName, String key) { }

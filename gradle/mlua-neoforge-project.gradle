@@ -34,7 +34,8 @@ def prepareCommonVersionSources = registerMergedTree(project, 'prepareCommonVers
 def neoForgeProjectExcludes = [
     'dev/mlua/api/**', 'dev/mlua/modules/**', 'dev/mlua/transformer/MLuaTransformService.java',
     'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
-    'dev/mlua/loader/impl/forge/**', 'dev/mlua/runtime/forge/**'
+    'dev/mlua/loader/impl/forge/**', 'dev/mlua/runtime/forge/**',
+    'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java'
 ]
 if (is26Family) {
     neoForgeProjectExcludes += 'dev/mlua/runtime/client/MLuaClientModels.java'
@@ -42,7 +43,6 @@ if (is26Family) {
     neoForgeProjectExcludes += 'dev/mlua/transformer/MLuaTransformer.java'
 } else {
     neoForgeProjectExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
-    neoForgeProjectExcludes += 'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java'
     neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java'
     neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java'
     neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedItem.java'

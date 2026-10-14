@@ -21,6 +21,7 @@ public class RegistryModule implements MLuaModule {
     @Override
     public void clearOwnedState(MLuaRegistration runtime, Object runtimeSession,
                                 dev.mlua.common.enums.Side side, String ownerModId) {
+        MLuaRegistryService.clearOwnedCategories(runtimeSession, side, ownerModId);
         MLuaContentTypeRegistry.clearOwner(runtime, ownerModId);
         MLuaBehaviorRegistry.clearOwner(ownerModId);
         dev.mlua.runtime.registry.MLuaLoaderRegistry.clearGeneratedDataResources(ownerModId);
@@ -40,9 +41,13 @@ public class RegistryModule implements MLuaModule {
         ServiceEntry.Builder registry = ServiceEntry.builder("Registry", MLuaRegistryService::new)
             .description("Registers and queries addon content, generated data pack resources, Minecraft registries, and reusable inherited content types.");
         registry.function("Register", "Routes a named content definition through its typed registry.")
+            .function("RegisterCategory", "Adds an addon-owned category that uses the shared registry and inherited content type APIs.")
             .function("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults.")
             .function("ResolveType", "Returns a definition with its reusable type defaults merged in.")
             .function("GetKinds", "Lists the registry kinds supported by this loader.")
+            .function("GetCategories", "Lists the built-in and addon-owned registration categories.")
+            .function("Get", "Returns one copied definition from an addon-owned category.")
+            .function("GetAll", "Returns definitions keyed by namespaced identifier from an addon-owned category.")
             .function("GetTypes", "Lists reusable implementation and addon-defined content types for a category.")
             .function("GetRegistered", "Returns identifiers registered in a supported Minecraft registry.")
             .function("GetEntry", "Creates a live RegistryEntry view for a kind and namespaced identifier.")
@@ -134,6 +139,9 @@ public class RegistryModule implements MLuaModule {
         docs.guideStep("Registry", "Use the shared registration entry point",
                 "Registry:Register routes definitions through the typed registries for items, blocks, entities, effects, potions, particles, containers, projectiles, world generation, tabs, recipes, loot, tags, common config, and damage sources. Use block_item after registering its block; register a tag as Registry:Register(\"tag\", kind, name, definition). RegisterType defines reusable addon-scoped defaults for each category. Items select them with kind, blocks with type, and other categories with RegistryType. Use Registry.ContentTypes for reusable defaults in your own data domains. GetRegistered returns IDs visible for a Minecraft registry kind.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:Register(\"item\", \"flare_gun\", {\n    kind = \"firearm\",\n    maxStackSize = 1,\n    onUse = function(context)\n        -- Use the live player and projectile services here.\n    end,\n})\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\")) do\n    print(id)\nend");
+        docs.guideStep("Registry", "Add an addon-owned registry category",
+                "RegisterCategory adds a category to Registry. Its handler receives each namespaced id and resolved definition during the registry phase. RegisterType and ResolveType use the same inherited defaults as built-in categories. Get and GetAll return copies of the registered definitions.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:RegisterCategory(\"horror:weapons\", \"Weapon tuning data owned by this addon.\", function(id, definition)\n    if definition.Damage <= 0 then\n        error(\"Weapon damage must be positive\")\n    end\nend)\n\nRegistry:RegisterType(\"horror:weapons\", \"sidearm\", {\n    Base = \"default\",\n    Defaults = { Damage = 8, MagazineSize = 6 },\n})\n\nRegistry:Register(\"horror:weapons\", \"revolver\", {\n    RegistryType = \"sidearm\",\n    Damage = 12,\n})\n\nlocal revolver = Registry:Get(\"horror:weapons\", \"horror:revolver\")\nfor id, weapon in pairs(Registry:GetAll(\"horror:weapons\")) do\n    print(id, weapon.Damage)\nend");
         docs.guideStep("Registry.ContentTypes", "Define types for addon data",
                 "ContentTypes lets an addon reuse inherited defaults and descriptions outside Minecraft's built-in categories. Give each domain a stable name, register its types during the registry phase, then resolve definitions with RegistryType. A definition without a selector passes through unchanged; a named type that is missing from that domain raises an error.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.ContentTypes:Register(\"horror.weapon\", \"sidearm\", {\n    Base = \"default\",\n    Description = \"Shared defaults for compact horror weapons.\",\n    Defaults = { Damage = 6, Magazine = { Size = 8, ReloadTicks = 30 } },\n})\n\nRegistry.ContentTypes:Register(\"horror.weapon\", \"revolver\", {\n    Base = \"sidearm\",\n    Description = \"A slow, powerful revolver.\",\n    Defaults = { Damage = 12, Magazine = { Size = 6 } },\n})\n\nlocal weapon = Registry.ContentTypes:Resolve(\"horror.weapon\", {\n    RegistryType = \"revolver\",\n    Damage = 14,\n})\nprint(weapon.Damage, weapon.Magazine.Size, weapon.Magazine.ReloadTicks)");
@@ -148,7 +156,7 @@ public class RegistryModule implements MLuaModule {
                 "Registry.WorldGeneration:AddFeature(\"dead_oak_forest\", {\n    feature = \"myaddon:dead_oak\",\n    biomes = { \"#minecraft:is_forest\" },\n    step = \"vegetal_decoration\",\n})");
         docs.guideStep("Registry", "Work with registry entries generically",
                 "Native registry tables share GetId, GetEntry, and Exists for items, blocks, entities, effects, potions, particles, and creative tabs. GetEntry returns the same live RegistryEntry class as Registry:GetEntry and RegistryEntry.new, keeping the normalized kind and namespaced ID together.",
-                "local Registry = Minecraft:GetService(\"Registry\")\nlocal bow = Registry.Items:GetEntry(\"minecraft:bow\")\nlocal stone = Registry.Blocks:GetEntry(\"minecraft:stone\")\nlocal sameShape = RegistryEntry.new(\"items\", \"minecraft:bow\")\n\nprint(Registry.Items:GetId(\"bow\")) -- resolves to the addon's namespace\nprint(bow:GetKind(), bow:GetId())\nif stone:Exists() then\n    print(stone:GetNamespace(), stone:GetPath())\nend\n\nfor _, kind in ipairs(Registry:GetKinds()) do\n    print(kind)\nend");
+                "local Registry = Minecraft:GetService(\"Registry\")\nlocal bow = Registry.Items:GetEntry(\"minecraft:bow\")\nlocal stone = Registry.Blocks:GetEntry(\"minecraft:stone\")\nlocal sameShape = RegistryEntry.new(\"items\", \"minecraft:bow\")\n\nprint(Registry.Items:GetId(\"bow\"))\nprint(bow.Kind, bow.Id)\nif stone.IsRegistered then\n    print(stone.Namespace, stone.Path)\nend\n\nfor _, kind in ipairs(Registry:GetKinds()) do\n    print(kind)\nend");
         docs.guideStep("Registry.Containers", "Attach storage to a scripted block",
                 "The block entity keeps its slots on the server and opens a vanilla chest screen when the player interacts with the block.",
                 "Registry.Blocks:Register(\"supply_crate\", {\n    Container = \"supply_crate\",\n    onRightClick = function(context)\n        local container = context.Block:GetContainer()\n        if container and container:IsEmpty() then\n            container:SetSlot(1, { Id = \"minecraft:torch\", Count = 1 })\n        end\n    end,\n})");
@@ -191,9 +199,25 @@ public class RegistryModule implements MLuaModule {
         docs.clazz("BlockEntity", "MLuaBlockWrapper",
                 "A live block entity attached to a block position, with persistent state and optional inventory.",
                 "classes/block-entity.html", "Instance");
+        docs.method("BlockEntity", "BlockEntity:GetPosition(): Vector3", "Returns this block entity's world position.", "", "Vector3", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:GetBlock(): Block", "Returns the live block that owns this block entity.", "", "Block", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:GetType(): string", "Returns this block entity type's registry identifier.", "", "string", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:GetNbt(): Nbt", "Returns this block entity's live NBT data.", "", "Nbt", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:SetNbt(keyOrValue: string|table|Nbt, value?: any)", "Writes one NBT value or replaces the full data compound.", "key and value, or a replacement table or Nbt value", "void", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:GetContainer(): Container|nil", "Returns the same live Container exposed by Block.Container, when available.", "", "Container|nil", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:GetInventory(): Container|nil", "Alias for GetContainer.", "", "Container|nil", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:HasContainer(): boolean", "Whether this block entity owns a live Container.", "", "boolean", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:SetChanged()", "Marks this block entity's saved state as changed.", "", "void", "Shared", "");
+        docs.property("BlockEntity", "blockEntity.Position", "Vector3", "This block entity's world position.", "shared:Shared");
+        docs.property("BlockEntity", "blockEntity.Block", "Block", "The live block that owns this block entity.", "shared:Shared");
+        docs.property("BlockEntity", "blockEntity.Type", "string", "This block entity type's registry identifier.", "shared:Shared");
+        docs.property("BlockEntity", "blockEntity.Nbt", "Nbt|table", "The live NBT view; assign a table or Nbt value to replace its data.", "shared:Shared");
+        docs.property("BlockEntity", "blockEntity.Container", "Container|nil", "The same live Container exposed by Block.Container, when available.", "shared:Shared");
+        docs.property("BlockEntity", "blockEntity.Inventory", "Container|nil", "Alias for blockEntity.Container.", "shared:Shared");
+        docs.property("BlockEntity", "blockEntity.HasContainer", "boolean", "Whether this block entity owns a live Container.", "shared:Shared");
         docs.guideStep("BlockEntity", "Extend a block with saved state",
                 "Register a Lua class under BlockEntity and assign it in the block definition. Retrieve the live instance from Block:GetBlockEntity().",
-                "Minecraft:RegisterClass(\"RuneChestEntity\", \"BlockEntity\", \"Stores a rune chest's state.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"SetCharge\", function(self, charge)\n    self:GetBlock():SetNbt(\"mlua_charge\", charge)\nend, \"Saves this block's charge value.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"GetCharge\", function(self)\n    return self:GetBlock():GetNbt(\"mlua_charge\") or 0\nend, \"Returns the saved charge value.\")\n\nRegistry.Blocks:Register(\"rune_chest\", {\n    container = { Rows = 3 },\n    blockEntity = { className = \"RuneChestEntity\" }\n})\n\nlocal World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(position)\nlocal entity = block:GetBlockEntity()\nentity:SetCharge(12)");
+                "Minecraft:RegisterClass(\"RuneChestEntity\", \"BlockEntity\", \"Stores a rune chest's state.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"SetCharge\", function(self, charge)\n    self.Nbt.charge = charge\nend, \"Saves this block's charge value.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"GetCharge\", function(self)\n    return self.Nbt.charge or 0\nend, \"Returns the saved charge value.\")\n\nRegistry.Blocks:Register(\"rune_chest\", {\n    container = { Rows = 3 },\n    blockEntity = { className = \"RuneChestEntity\" }\n})\n\nlocal World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(position)\nlocal entity = block:GetBlockEntity()\nentity:SetCharge(12)");
         docs.guideStep("Block", "Inspect a block from the world",
                 "World:GetBlock returns a live Block wrapper at the requested position. Read its registered id and use its instance methods to change or break it.",
                 "local World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(Vector3.new(0, 64, 0))\nprint(block.Id, block.Name)\nblock:Break(false)");

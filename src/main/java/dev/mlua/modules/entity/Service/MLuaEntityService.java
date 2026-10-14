@@ -3,29 +3,27 @@ package dev.mlua.modules.entity.Service;
 import dev.mlua.common.enums.Side;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 
-public final class MLuaEntityService extends MLuaServiceBase {
+public final class MLuaEntityService extends MLuaReflectiveService {
     public MLuaEntityService(MLuaService.Context context) {
         super(context);
     }
@@ -37,57 +35,63 @@ public final class MLuaEntityService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Both");
-        table.set("GetById", fn(args -> wrap(resolveEntity(args.checkint(2)))));
-        table.set("FindByUUID", fn(args -> wrap(resolveEntity(UUID.fromString(args.checkjstring(2))))));
-        table.set("GetByUUID", table.get("FindByUUID"));
-        table.set("GetAll", fn(args -> allEntities(args)));
-        table.set("GetNearby", fn(args -> nearbyEntities(args)));
-        table.set("Spawn", fn(args -> spawn(args)));
-        table.set("Remove", fn(args -> {
-            Entity entity = requireEntity(args.arg(2));
-            entity.remove(Entity.RemovalReason.DISCARDED);
-            return LuaValue.NONE;
-        }));
-        table.set("Kill", fn(args -> {
-            Entity entity = requireEntity(args.arg(2));
-            entity.kill();
-            return LuaValue.NONE;
-        }));
-        table.set("Teleport", fn(args -> {
-            Entity entity = requireEntity(args.arg(2));
-            double[] pos = position(args.arg(3), args, 3);
-            entity.teleportTo(pos[0], pos[1], pos[2]);
-            entity.hurtMarked = true;
-            return LuaValue.NONE;
-        }));
-        table.set("SetVelocity", fn(args -> {
-            Entity entity = requireEntity(args.arg(2));
-            double[] vel = position(args.arg(3), args, 3);
-            entity.setDeltaMovement(vel[0], vel[1], vel[2]);
-            entity.hurtMarked = true;
-            return LuaValue.NONE;
-        }));
-        table.set("Damage", fn(args -> {
-            Entity entity = requireEntity(args.arg(2));
-            if (entity instanceof LivingEntity living) {
-                float amount = (float) args.checkdouble(3);
-                living.hurt(living.level().damageSources().generic(), amount);
-                return LuaValue.TRUE;
-            }
-            return LuaValue.FALSE;
-        }));
         return table;
     }
 
-    private LuaValue spawn(Varargs args) {
+    @MLuaDescription("Returns a live entity instance by runtime ID, or nil when absent.")
+    public LuaValue GetById(int id) {
+        return wrap(resolveEntity(id));
+    }
+
+    @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
+    public LuaValue FindByUUID(String uuid) {
+        return wrap(resolveEntity(UUID.fromString(uuid)));
+    }
+
+    @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
+    public LuaValue GetByUUID(String uuid) {
+        return FindByUUID(uuid);
+    }
+
+    @MLuaDescription("Returns all entities currently loaded on this side.")
+    public LuaTable GetAll() {
+        return allEntities();
+    }
+
+    @MLuaDescription("Returns entities near a Vector3, CFrame, or entity within a radius. Coordinates may also be supplied as x, y, z, radius.")
+    public LuaTable GetNearby(LuaValue centerValue, Optional<LuaValue> second, Optional<LuaValue> third, Optional<LuaValue> fourth) {
+        Entity centerEntity = centerValue.istable() && !centerValue.checktable().rawget("__entity").isnil()
+            ? requireEntity(centerValue) : null;
+        double[] center = centerEntity == null
+            ? position(centerValue, second.orElse(LuaValue.NIL), third.orElse(LuaValue.NIL))
+            : new double[]{centerEntity.getX(), centerEntity.getY(), centerEntity.getZ()};
+        LuaValue radiusValue = centerEntity != null || isPosition(centerValue)
+            ? second.orElse(LuaValue.NIL)
+            : fourth.orElse(LuaValue.NIL);
+        double radius = radiusValue.checkdouble();
+        Level level = centerEntity != null ? centerEntity.level() : currentLevel();
+        LuaTable out = new LuaTable();
+        if (level == null) return out;
+        AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius,
+            center[0] + radius, center[1] + radius, center[2] + radius);
+        int index = 1;
+        for (Entity entity : level.getEntities((Entity) null, box, entity -> entity != centerEntity)) {
+            out.set(index++, wrap(entity));
+        }
+        return out;
+    }
+
+    @MLuaDescription("Creates an entity at a position in a world.")
+    public LuaValue Spawn(String typeId, LuaValue positionValue, Optional<LuaValue> second,
+                          Optional<LuaValue> third, Optional<LuaValue> fourth) {
         if (context.mlua().server() == null) {
             throw new LuaError("[MLua] EntityService:Spawn is server-only.");
         }
-        String typeId = args.checkjstring(2);
-        double[] pos = position(args.arg(3), args, 3);
-        ServerLevel level = resolveServerLevel(args.arg(4));
+        double[] pos = position(positionValue, second.orElse(LuaValue.NIL), third.orElse(LuaValue.NIL));
+        LuaValue worldValue = isPosition(positionValue) ? second.orElse(LuaValue.NIL) : fourth.orElse(LuaValue.NIL);
+        ServerLevel level = resolveServerLevel(worldValue);
         EntityType<?> type = (EntityType<?>) MCApiRuntime.lookupRegistry("entity_type", typeId);
         if (type == null) {
             throw new LuaError("[MLua] Unknown entity type: " + typeId);
@@ -113,7 +117,41 @@ public final class MLuaEntityService extends MLuaServiceBase {
         return wrap(entity);
     }
 
-    private LuaValue allEntities(Varargs args) {
+    @MLuaDescription("Removes an entity from its world.")
+    public void Remove(LuaValue value) {
+        requireEntity(value).remove(Entity.RemovalReason.DISCARDED);
+    }
+
+    @MLuaDescription("Kills a living entity.")
+    public void Kill(LuaValue value) {
+        requireEntity(value).kill();
+    }
+
+    @MLuaDescription("Moves an entity to a position.")
+    public void Teleport(LuaValue entityValue, LuaValue positionValue, Optional<LuaValue> y, Optional<LuaValue> z) {
+        Entity entity = requireEntity(entityValue);
+        double[] pos = position(positionValue, y.orElse(LuaValue.NIL), z.orElse(LuaValue.NIL));
+        entity.teleportTo(pos[0], pos[1], pos[2]);
+        entity.hurtMarked = true;
+    }
+
+    @MLuaDescription("Sets an entity's motion vector.")
+    public void SetVelocity(LuaValue entityValue, LuaValue vectorValue, Optional<LuaValue> y, Optional<LuaValue> z) {
+        Entity entity = requireEntity(entityValue);
+        double[] velocity = position(vectorValue, y.orElse(LuaValue.NIL), z.orElse(LuaValue.NIL));
+        entity.setDeltaMovement(velocity[0], velocity[1], velocity[2]);
+        entity.hurtMarked = true;
+    }
+
+    @MLuaDescription("Applies generic damage to a living entity and returns whether it was applied.")
+    public boolean Damage(LuaValue entityValue, double amount) {
+        Entity entity = requireEntity(entityValue);
+        if (!(entity instanceof LivingEntity living)) return false;
+        living.hurt(living.level().damageSources().generic(), (float) amount);
+        return true;
+    }
+
+    private LuaTable allEntities() {
         LuaTable out = new LuaTable();
         int index = 1;
         if (context.mlua().side() == Side.CLIENT) {
@@ -133,30 +171,6 @@ public final class MLuaEntityService extends MLuaServiceBase {
             for (Entity entity : level.getAllEntities()) {
                 out.set(index++, wrap(entity));
             }
-        }
-        return out;
-    }
-
-    private LuaValue nearbyEntities(Varargs args) {
-        Entity centerEntity = null;
-        double[] center;
-        if (args.arg(2).istable() && !args.arg(2).checktable().rawget("__entity").isnil()) {
-            centerEntity = requireEntity(args.arg(2));
-            center = new double[]{centerEntity.getX(), centerEntity.getY(), centerEntity.getZ()};
-        } else {
-            center = position(args.arg(2), args, 2);
-        }
-        double radius = args.arg(2).istable() ? args.checkdouble(3) : args.checkdouble(5);
-        Level level = centerEntity != null ? centerEntity.level() : currentLevel();
-        LuaTable out = new LuaTable();
-        if (level == null) {
-            return out;
-        }
-        AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius, center[0] + radius, center[1] + radius, center[2] + radius);
-        int index = 1;
-        Entity excluded = centerEntity;
-        for (Entity entity : level.getEntities((Entity) null, box, entity -> entity != excluded)) {
-            out.set(index++, wrap(entity));
         }
         return out;
     }
@@ -253,7 +267,6 @@ public final class MLuaEntityService extends MLuaServiceBase {
         return context.mlua().server() == null ? null : context.mlua().server().overworld();
     }
 
-    /** Resolve client-only state without linking client classes on a dedicated server. */
     private static Level clientLevel() {
         try {
             Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
@@ -276,7 +289,6 @@ public final class MLuaEntityService extends MLuaServiceBase {
                 return entities;
             }
         } catch (ReflectiveOperationException | LinkageError ignored) {
-            // A server-side Level has no client rendering collection.
         }
         return List.of();
     }
@@ -287,18 +299,18 @@ public final class MLuaEntityService extends MLuaServiceBase {
         return MLuaEntityWrapper.entityTable(entity, context.mlua().registration());
     }
 
-    private static LuaTable positionTable(double x, double y, double z) {
-        LuaTable table = new LuaTable();
-        table.set("X", x);
-        table.set("Y", y);
-        table.set("Z", z);
-        table.set("x", x);
-        table.set("y", y);
-        table.set("z", z);
-        return table;
+    private static boolean isPosition(LuaValue value) {
+        if (!value.istable()) return false;
+        if (MLuaCFrame.isCFrame(value)) return true;
+        LuaTable table = value.checktable();
+        if (table.rawget("__entity").isuserdata(Entity.class)) return true;
+        double x = table.get("X").optdouble(table.get("x").optdouble(Double.NaN));
+        double y = table.get("Y").optdouble(table.get("y").optdouble(Double.NaN));
+        double z = table.get("Z").optdouble(table.get("z").optdouble(Double.NaN));
+        return !Double.isNaN(x) && !Double.isNaN(y) && !Double.isNaN(z);
     }
 
-    private static double[] position(LuaValue value, Varargs args, int start) {
+    private static double[] position(LuaValue value, LuaValue yValue, LuaValue zValue) {
         if (value.istable()) {
             if (MLuaCFrame.isCFrame(value)) {
                 MLuaCFrame cf = MLuaCFrame.fromLua(value);
@@ -317,24 +329,10 @@ public final class MLuaEntityService extends MLuaServiceBase {
                 return new double[]{x, y, z};
             }
         }
-        if (args.narg() >= start + 2) {
-            return new double[]{args.checkdouble(start), args.checkdouble(start + 1), args.checkdouble(start + 2)};
+        if (value.isnumber() && yValue.isnumber() && zValue.isnumber()) {
+            return new double[]{value.checkdouble(), yValue.checkdouble(), zValue.checkdouble()};
         }
         throw new LuaError("[MLua] Expected Vector3/CFrame/entity position or x, y, z.");
     }
 
-    private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new LuaError("[MLua] " + e.toString());
-                }
-            }
-        };
-    }
 }

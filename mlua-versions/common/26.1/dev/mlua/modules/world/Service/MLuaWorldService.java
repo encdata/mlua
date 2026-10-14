@@ -2,8 +2,9 @@ package dev.mlua.modules.world.Service;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.classes.MLuaClassMethods;
-import dev.mlua.core.service.LuaBackedService;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.modules.world.WorldModule;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
@@ -66,12 +67,11 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-public final class MLuaWorldService implements MLuaService, LuaBackedService {
-    private final MLuaService.Context context;
+public final class MLuaWorldService extends MLuaServiceBase {
     private final Map<Level, WeakReference<LuaTable>> worldInstances = new WeakHashMap<>();
 
     public MLuaWorldService(MLuaService.Context context) {
-        this.context = context;
+        super(context);
     }
 
     @Override
@@ -89,23 +89,26 @@ public final class MLuaWorldService implements MLuaService, LuaBackedService {
         table.set("GetSide", function(args -> LuaValue.valueOf(context.mlua().side().name())));
         table.set("GetWeather", currentWorldMethod("GetWeather"));
         table.set("SetWeather", currentWorldMethod("SetWeather"));
+        WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
         return table;
     }
 
     private VarArgFunction currentWorldMethod(String methodName) {
-        return function(args -> {
-            Level level = currentLevel();
-            if (level == null) return LuaValue.NIL;
-            LuaTable instance = world(level);
-            LuaValue method = instance.get(methodName);
-            if (!method.isfunction()) {
-                throw new LuaError("[MLua] Current World instance does not implement " + methodName + ".");
+        return new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                Level level = MLuaWorldService.this.currentLevel();
+                if (level == null) return LuaValue.NIL;
+                LuaTable instance = MLuaWorldService.this.world(level);
+                LuaValue method = instance.get(methodName);
+                if (!method.isfunction()) {
+                    throw new LuaError("[MLua] Current World instance does not implement " + methodName + ".");
+                }
+                LuaValue[] forwarded = new LuaValue[Math.max(1, args.narg())];
+                forwarded[0] = instance;
+                for (int index = 2; index <= args.narg(); index++) forwarded[index - 1] = args.arg(index);
+                return method.invoke(LuaValue.varargsOf(forwarded));
             }
-            LuaValue[] forwarded = new LuaValue[Math.max(1, args.narg())];
-            forwarded[0] = instance;
-            for (int index = 2; index <= args.narg(); index++) forwarded[index - 1] = args.arg(index);
-            return method.invoke(LuaValue.varargsOf(forwarded)).arg1();
-        });
+        };
     }
 
     private Level currentLevel() {

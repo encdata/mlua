@@ -4,9 +4,9 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 //--version 1.21.1,26.1
 import net.minecraft.core.Holder;
 //--endversion
@@ -19,43 +19,43 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import dev.mlua.minecraft.scripted.MLuaScriptedMobEffect;
 
-public final class MLuaPotionEffectsService extends MLuaServiceBase {
+@MLuaDescription("Queries registered potion effects and exposes effect metadata to Lua.")
+public final class MLuaPotionEffectsService extends MLuaReflectiveService {
    public MLuaPotionEffectsService(MLuaService.Context context) {
       super(context);
    }
 
+   @Override
    public String name() {
       return "PotionEffects";
    }
 
+   @Override
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Both");
-      table.set("Get", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaPotionEffectsService.effectTable(args.checkjstring(2));
-         }
-      });
-      table.set("Exists", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(MLuaPotionEffectsService.resolve(args.checkjstring(2)) != null);
-         }
-      });
-      table.set("GetAll", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LuaTable values = new LuaTable();
-            int index = 1;
-            for (MobEffect effect : BuiltInRegistries.MOB_EFFECT) {
-               ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect);
-               if (id != null) {
-                  values.set(index++, MLuaPotionEffectsService.effectTable(id.toString(), effect));
-               }
-            }
-
-            return values;
-         }
-      });
       return table;
+   }
+
+   @MLuaDescription("Returns metadata for a potion effect identifier.")
+   public LuaTable Get(String id) {
+      return effectTable(id);
+   }
+
+   @MLuaDescription("Returns whether a potion effect identifier exists.")
+   public boolean Exists(String id) {
+      return resolve(id) != null;
+   }
+
+   @MLuaDescription("Returns metadata for all registered potion effects.")
+   public LuaTable GetAll() {
+      LuaTable values = new LuaTable();
+      int index = 1;
+      for (MobEffect effect : BuiltInRegistries.MOB_EFFECT) {
+         ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect);
+         if (id != null) values.set(index++, effectTable(id.toString(), effect));
+      }
+      return values;
    }
 
    public static LuaTable effectTable(String id) {

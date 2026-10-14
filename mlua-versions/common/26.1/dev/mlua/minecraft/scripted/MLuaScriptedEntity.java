@@ -218,7 +218,11 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    public LuaTable entityTable() {
       dev.mlua.module.MLuaRegistration registration = MLuaRuntime.registrationForLevel(this.level());
-      LuaTable table = MLuaEntityWrapper.entityTable(this, registration);
+      return MLuaEntityWrapper.entityTable(this, registration);
+   }
+
+   public void attachLuaClass(LuaTable table, dev.mlua.module.MLuaRegistration registration) {
+      if (table.rawget("__mlua_scripted_entity_bound").toboolean()) return;
       if (registration.classTable("ScriptedEntity") == null) {
          throw new IllegalStateException("ScriptedEntity class must be registered before creating scripted entities");
       }
@@ -234,7 +238,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          if (!key.isstring() || !next.arg(2).isfunction()) continue;
          MLuaClassMethods.setInstanceMethod(table, key.tojstring(), next.arg(2));
       }
-      return table;
+      table.rawset("__mlua_scripted_entity_bound", LuaValue.TRUE);
    }
 
    private LuaTable entityMethods() {

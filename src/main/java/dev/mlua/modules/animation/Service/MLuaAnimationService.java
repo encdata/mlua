@@ -1,8 +1,9 @@
 package dev.mlua.modules.animation.Service;
 
 import dev.mlua.common.enums.AnimationPriority;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaAnimation;
 import dev.mlua.minecraft.animation.MLuaBonePose;
@@ -14,14 +15,12 @@ import dev.mlua.minecraft.binding.MLuaAnimationBindings;
 import dev.mlua.modules.enums.MLuaEnumValue;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
+import java.util.Optional;
 
-public final class MLuaAnimationService extends MLuaServiceBase {
+public final class MLuaAnimationService extends MLuaReflectiveService {
     private final Map<String, MLuaAnimation> registeredAnimations = new ConcurrentHashMap<>();
 
     public MLuaAnimationService(MLuaService.Context context) {
@@ -33,86 +32,76 @@ public final class MLuaAnimationService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
-
-        table.set("Create", fn((args) -> {
-            LuaTable keyframes = args.arg(2).checktable();
-            MLuaAnimation anim = MLuaAnimation.fromLuaTable(keyframes);
-            return MLuaAnimationBindings.wrapAnimation(anim, MLuaAnimationService.this.context.mlua().registration());
-        }));
-
-        table.set("RegisterAnimation", fn((args) -> {
-            String id = args.arg(2).checkjstring();
-            LuaTable animTable = args.arg(3).checktable();
-            LuaValue animObj = animTable.get("__class");
-            if (animObj.isnil() || !"Animation".equals(animObj.tojstring())) {
-                LuaTable keyframes = animTable;
-                MLuaAnimation anim = MLuaAnimation.fromLuaTable(keyframes);
-                registeredAnimations.put(id, anim);
-            } else {
-                LuaValue lengthVal = animTable.get("Length");
-                if (lengthVal.isnumber()) {
-                    LuaValue getKeyframes = animTable.get("GetKeyframes");
-                    if (getKeyframes.isfunction()) {
-                        LuaValue kfResult = getKeyframes.call();
-                        if (kfResult.istable()) {
-                            MLuaAnimation anim = MLuaAnimation.fromLuaTable(kfResult.checktable());
-                            registeredAnimations.put(id, anim);
-                        }
-                    }
-                }
-            }
-            return LuaValue.NONE;
-        }));
-
-        table.set("GetAnimation", fn((args) -> {
-            String id = args.arg(2).checkjstring();
-            MLuaAnimation anim = registeredAnimations.get(id);
-            if (anim == null) return LuaValue.NIL;
-            return MLuaAnimationBindings.wrapAnimation(anim, MLuaAnimationService.this.context.mlua().registration());
-        }));
-
-        table.set("GetRegisteredAnimations", fn((args) -> {
-            LuaTable result = new LuaTable();
-            for (String id : registeredAnimations.keySet()) {
-                result.set(id, MLuaAnimationBindings.wrapAnimation(registeredAnimations.get(id), MLuaAnimationService.this.context.mlua().registration()));
-            }
-            return result;
-        }));
-
-        table.set("GetPose", fn((args) -> {
-            LuaValue entityVal = args.arg(2);
-            MLuaEntityScope scope = resolveEntityScope(entityVal);
-            Map<String, MLuaCFrame> pose = MLuaBonePose.getPose(scope, MLuaAnimationService.this.context.mlua().registration());
-            LuaTable poseTable = new LuaTable();
-            for (Map.Entry<String, MLuaCFrame> entry : pose.entrySet()) {
-                poseTable.set(entry.getKey(), entry.getValue().toLua());
-            }
-            return poseTable;
-        }));
-
-        table.set("SetPose", fn((args) -> {
-            LuaValue entityVal = args.arg(2);
-            String bone = args.arg(3).checkjstring();
-            MLuaCFrame cframe = MLuaCFrame.fromLua(args.arg(4));
-            MLuaEntityScope scope = resolveEntityScope(entityVal);
-            MLuaBonePose.setPose(scope, bone, cframe, MLuaAnimationService.this.context.mlua().registration());
-            return LuaValue.NONE;
-        }));
-
-        table.set("ClearPose", fn((args) -> {
-            LuaValue entityVal = args.arg(2);
-            if (entityVal.isnil()) return LuaValue.NONE;
-            MLuaEntityScope scope = resolveEntityScope(entityVal);
-            MLuaBonePose.clearPose(scope, MLuaAnimationService.this.context.mlua().registration());
-            return LuaValue.NONE;
-        }));
-
-        table.set("GetAnimationPriority", fn((args) -> {
-            return MLuaEnumValue.enumConstants(AnimationPriority.class, null);
-        }));
-
+        LuaTable table = super.toLua();
+        table.set("__side", "Client");
         return table;
+    }
+
+    @MLuaDescription("Creates an animation from an ordered keyframe table.")
+    public LuaValue Create(LuaTable keyframes) {
+        MLuaAnimation animation = MLuaAnimation.fromLuaTable(keyframes);
+        return MLuaAnimationBindings.wrapAnimation(animation, this.context.mlua().registration());
+    }
+
+    @MLuaDescription("Stores an animation under an identifier for later retrieval.")
+    public void RegisterAnimation(String id, LuaValue animationValue) {
+        MLuaAnimation animation;
+        if (this.context.mlua().registration().isInstanceOf(animationValue, "Animation")) {
+            LuaValue getKeyframes = animationValue.get("GetKeyframes");
+            if (!getKeyframes.isfunction()) throw new LuaError("[MLua] Animation instance does not provide GetKeyframes.");
+            LuaValue keyframes = getKeyframes.call(animationValue);
+            if (!keyframes.istable()) throw new LuaError("[MLua] Animation:GetKeyframes() must return a table.");
+            animation = MLuaAnimation.fromLuaTable(keyframes.checktable());
+        } else {
+            if (animationValue.istable() && this.context.mlua().registration().classNameOf(animationValue) != null) {
+                throw new LuaError("[MLua] RegisterAnimation expects an Animation instance or a keyframe table.");
+            }
+            animation = MLuaAnimation.fromLuaTable(animationValue.checktable());
+        }
+        this.registeredAnimations.put(id, animation);
+    }
+
+    @MLuaDescription("Returns a registered animation by identifier, or nil when missing.")
+    public LuaValue GetAnimation(String id) {
+        MLuaAnimation animation = this.registeredAnimations.get(id);
+        return animation == null ? LuaValue.NIL
+            : MLuaAnimationBindings.wrapAnimation(animation, this.context.mlua().registration());
+    }
+
+    @MLuaDescription("Returns all animations registered in this service instance.")
+    public LuaTable GetRegisteredAnimations() {
+        LuaTable result = new LuaTable();
+        for (Map.Entry<String, MLuaAnimation> entry : this.registeredAnimations.entrySet()) {
+            result.set(entry.getKey(), MLuaAnimationBindings.wrapAnimation(entry.getValue(), this.context.mlua().registration()));
+        }
+        return result;
+    }
+
+    @MLuaDescription("Returns the current custom pose for an entity.")
+    public LuaTable GetPose(LuaValue entity) {
+        MLuaEntityScope scope = resolveEntityScope(entity);
+        Map<String, MLuaCFrame> pose = MLuaBonePose.getPose(scope, this.context.mlua().registration());
+        LuaTable result = new LuaTable();
+        for (Map.Entry<String, MLuaCFrame> entry : pose.entrySet()) {
+            result.set(entry.getKey(), entry.getValue().toLua());
+        }
+        return result;
+    }
+
+    @MLuaDescription("Sets a custom transform for one entity bone.")
+    public void SetPose(LuaValue entity, String bone, LuaValue cframe) {
+        MLuaBonePose.setPose(resolveEntityScope(entity), bone, MLuaCFrame.fromLua(cframe), this.context.mlua().registration());
+    }
+
+    @MLuaDescription("Clears custom pose overrides for an entity.")
+    public void ClearPose(Optional<LuaValue> entity) {
+        if (entity.isEmpty() || entity.get().isnil()) return;
+        MLuaBonePose.clearPose(resolveEntityScope(entity.get()), this.context.mlua().registration());
+    }
+
+    @MLuaDescription("Returns the available animation priorities.")
+    public LuaTable GetAnimationPriority() {
+        return MLuaEnumValue.enumConstants(AnimationPriority.class, null);
     }
 
     private MLuaEntityScope resolveEntityScope(LuaValue value) {
@@ -146,17 +135,4 @@ public final class MLuaAnimationService extends MLuaServiceBase {
         return MLuaEntityScope.legacy(entityId);
     }
 
-    private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new LuaError("[MLua] " + e.getMessage());
-                }
-            }
-        };
-    }
 }

@@ -11,6 +11,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -22,18 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-public final class MLuaModalService implements MLuaService {
+public final class MLuaModalService extends MLuaServiceBase {
     private static final Map<MLuaTaskSchedulerView, ModalState> STATES = new WeakHashMap<>();
-    private final MLuaService.Context context;
     private final ModalState state;
 
-    public MLuaModalService() {
-        this.context = null;
-        this.state = new ModalState();
-    }
-
     public MLuaModalService(MLuaService.Context context) {
-        this.context = context;
+        super(context);
         this.state = stateFor(context.mlua().scheduler());
     }
 
@@ -89,19 +84,19 @@ public final class MLuaModalService implements MLuaService {
     }
 
     private dev.mlua.core.scheduler.MLuaTaskSchedulerView scheduler() {
-        return this.context != null ? this.context.mlua().scheduler() : null;
+        return this.context.mlua().scheduler();
     }
 
     private String ownerModId() {
-        return this.context != null ? this.context.mlua().ownerModId() : null;
+        return this.context.mlua().ownerModId();
     }
 
     private org.luaj.vm2.Globals ownerGlobals() {
-        return this.context != null ? this.context.mlua().globals() : null;
+        return this.context.mlua().globals();
     }
 
     private dev.mlua.common.enums.Side ownerSide() {
-        return this.context != null ? this.context.mlua().side() : null;
+        return this.context.mlua().side();
     }
 
     private LuaTable showMessageBoxImpl(String title, String message, java.util.List<String> buttons) {

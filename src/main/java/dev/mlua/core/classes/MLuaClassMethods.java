@@ -8,7 +8,6 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
 
-/** Helpers for registering stable class methods that dispatch through live instance tables. */
 public final class MLuaClassMethods {
    private MLuaClassMethods() {
    }
@@ -42,7 +41,6 @@ public final class MLuaClassMethods {
       registration.registerClassFunction(className, methodName, dispatcher, description);
    }
 
-   /** Registers a class property that delegates reads and optional writes to live instance methods. */
    public static void registerInstanceProperty(MLuaRegistration registration, String className,
                                                String propertyName, String getterMethod,
                                                String setterMethod, String description) {
@@ -50,7 +48,6 @@ public final class MLuaClassMethods {
          "any", "shared:Shared", description);
    }
 
-   /** Registers a live property with type and side metadata used by the API crawler. */
    public static void registerInstanceProperty(MLuaRegistration registration, String className,
                                                String propertyName, String getterMethod,
                                                String setterMethod, String valueType,
@@ -100,7 +97,6 @@ public final class MLuaClassMethods {
       }
    }
 
-   /** Registers a stable class dispatcher and binds this instance's implementation. */
    public static void bindInstanceMethod(MLuaRegistration registration, String className, LuaTable instance,
                                          String methodName, LuaValue implementation, String description) {
       if (instance == null) throw new NullPointerException("instance");
@@ -115,7 +111,6 @@ public final class MLuaClassMethods {
       setInstanceMethod(instance, methodName, implementation);
    }
 
-   /** Stores a live implementation behind its already registered class dispatcher. */
    public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation) {
       if (instance == null) throw new NullPointerException("instance");
       if (methodName == null || methodName.isBlank()) throw new IllegalArgumentException("Method name must be non-empty");
@@ -149,7 +144,6 @@ public final class MLuaClassMethods {
       methods.rawset(methodName, implementation);
    }
 
-   /** Stores a live implementation and refreshes its per-instance description. */
    public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation,
                                         String description) {
       if (description == null || description.isBlank()) {
@@ -162,7 +156,6 @@ public final class MLuaClassMethods {
       setInstanceMethod(instance, methodName, implementation);
    }
 
-   /** Binds an implementation using the description already registered on this class or a parent class. */
    public static void bindInstanceMethod(MLuaRegistration registration, String className, LuaTable instance,
                                          String methodName, LuaValue implementation) {
       String description = registration.classMethodDescription(className, methodName);
@@ -172,7 +165,6 @@ public final class MLuaClassMethods {
       bindInstanceMethod(registration, className, instance, methodName, implementation, description);
    }
 
-   /** Registers a concrete method implementation and its description together on an object class. */
    public static void registerClassMethod(MLuaRegistration registration, String className, LuaTable classTable,
                                           String methodName, LuaValue function, String description) {
       if (registration.classTable(className) != classTable) {
@@ -181,7 +173,6 @@ public final class MLuaClassMethods {
       registration.registerClassFunction(className, methodName, function, description);
    }
 
-   /** Registers the documented functions exposed by one live service on its shared service class. */
    public static void registerServiceMethods(MLuaRegistration registration, String className,
                                              LuaTable serviceInstance) {
       LuaTable classTable = registration.classTable(className);

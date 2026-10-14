@@ -2,6 +2,7 @@ package dev.mlua.modules.tag.Service;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.minecraft.MLuaResourceLocations;
@@ -12,7 +13,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Creates live TagBuilder class instances using registered class dispatchers. */
+@MLuaDescription("Service for creating tag builders.")
 public final class MLuaTagService extends MLuaReflectiveService {
     private static final String BUILDER_STATE = "__mlua_tag_builder_state";
 
@@ -25,10 +26,13 @@ public final class MLuaTagService extends MLuaReflectiveService {
         return "Tag";
     }
 
+    @MLuaDescription("Creates a builder for an item tag.")
     public LuaTable Items() { return createBuilder(); }
 
+    @MLuaDescription("Creates a builder for a block tag.")
     public LuaTable Blocks() { return createBuilder(); }
 
+    @MLuaDescription("Creates a builder for an entity type tag.")
     public LuaTable EntityTypes() { return createBuilder(); }
 
     private LuaTable createBuilder() {

@@ -9,32 +9,22 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
 
-/** Registration surface provided by the MLua runtime to built-in features and addon modules. */
 public interface MLuaRegistration {
-    /** Registers a runtime resource cleanup to run if this registry script rolls back. */
     default void onRegistrationRollback(Runnable cleanup) {
         throw new UnsupportedOperationException("Registration rollback callbacks are not supported by this runtime");
     }
 
-    /** Adds an addon documentation page or tutorial contribution. */
     default void registerDocumentation(MLuaDocBuilder.Contribution contribution) {
         throw new UnsupportedOperationException("Addon documentation registration is not supported by this runtime");
     }
 
-    /** Removes a documentation contribution owned by the given addon. */
     default boolean unregisterDocumentation(String id, String owner) {
         throw new UnsupportedOperationException("Addon documentation removal is not supported by this runtime");
     }
 
-    /**
-     * Low-level class-table registration for runtime implementations.
-     * Addons should use {@link #registerClass(String, String, String)} so the class
-     * contract is documented at the point it is declared.
-     */
     @Deprecated(forRemoval = false)
     LuaTable registerClass(String name, String parentName);
 
-    /** Registers or retrieves a Lua object class and records its API description. */
     default LuaTable registerClass(String name, String parentName, String description) {
         validateClassDescription(classTable(name), name, description);
         LuaTable table = registerClass(name, parentName);
@@ -43,14 +33,9 @@ public interface MLuaRegistration {
         return table;
     }
 
-    /**
-     * Low-level supplied-table registration for runtime implementations.
-     * Addons should use the overload that also accepts a class description.
-     */
     @Deprecated(forRemoval = false)
     LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
 
-    /** Registers a supplied class table and records its class description. */
     default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
         validateClassDescription(this.classTable(name), name, description);
         validateClassDescription(classTable, name, description);
@@ -60,7 +45,6 @@ public interface MLuaRegistration {
         return table;
     }
 
-    /** Registers a class with ordered base classes. Use behavior mixins for reusable behavior. */
     default LuaTable registerClassWithParents(String name, java.util.List<String> parentNames, String description) {
         if (parentNames == null) throw new NullPointerException("parentNames");
         LuaTable classTable = classTable(name);
@@ -68,13 +52,6 @@ public interface MLuaRegistration {
         return registerClass(name, classTable, parentNames, description);
     }
 
-    /**
-     * Registers a concrete, constructible Lua instance class. The generated {@code new(fields)}
-     * constructor is attached through the described class-function registry. Existing class
-     * constructors are preserved; subclasses receive their own constructor when they only inherit
-     * a generated one. The class inherits the shared {@code Instance} base unless one of its
-     * declared parents already does. Service and native UI classes keep their own factories.
-     */
     default LuaTable registerInstantiableClass(String name, java.util.List<String> parentNames,
                                                String description) {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Class name must be non-empty");
@@ -98,6 +75,11 @@ public interface MLuaRegistration {
             parents.add(instanceBase);
         }
         LuaTable existing = classTable(name);
+        LuaValue declaredConstructor = existing == null ? LuaValue.NIL : existing.rawget("new");
+        if (!declaredConstructor.isnil() && !declaredConstructor.isfunction()) {
+            throw new IllegalStateException("Lua class '" + name
+                + "' defines 'new' as a non-function; constructors must be callable class functions");
+        }
         LuaTable type = registerClass(name, existing == null ? new LuaTable() : existing, parents, description);
         if (type.rawget("__mlua_service_class").toboolean()
             || type.get("__mlua_ui_java_type").isuserdata()) return type;
@@ -123,7 +105,6 @@ public interface MLuaRegistration {
         return type;
     }
 
-    /** Registers a concrete instance class with one optional parent. */
     default LuaTable registerInstantiableClass(String name, String parentName, String description) {
         return registerInstantiableClass(name,
             parentName == null || parentName.isBlank() ? java.util.List.of() : java.util.List.of(parentName),
@@ -187,35 +168,29 @@ public interface MLuaRegistration {
 
     LuaTable classTable(String name);
 
-    /** Registers a Lua-authored reusable content type within one addon namespace. */
     default void registerContentType(String domain, String owner, String name, String base,
                                     String description, LuaTable defaults) {
         throw new UnsupportedOperationException("Script-defined content types are not supported by this runtime");
     }
 
-    /** Resolves a registered Lua-authored content type into its merged definition. */
     default LuaTable resolveContentType(String domain, String owner, LuaTable properties) {
         throw new UnsupportedOperationException("Script-defined content types are not supported by this runtime");
     }
 
-    /** Lists script-defined content types visible to an addon in one content domain. */
     default Map<String, String> contentTypes(String domain, String owner) {
         throw new UnsupportedOperationException("Script-defined content types are not supported by this runtime");
     }
 
-    /** Removes one script-defined content type during registration rollback. */
     default boolean unregisterContentType(String domain, String owner, String name) {
         throw new UnsupportedOperationException("Script-defined content type removal is not supported by this runtime");
     }
 
-    /** Returns the description registered for a class, or {@code null} when it has none. */
     default String classDescription(String className) {
         LuaTable type = classTable(className);
         LuaValue value = type == null ? LuaValue.NIL : type.rawget("__mlua_doc_description");
         return value.isstring() ? value.tojstring() : null;
     }
 
-    /** Returns a method description from this class, its behavior mixins, or its base classes. */
     default String classMethodDescription(String className, String methodName) {
         LuaTable type = classTable(className);
         if (type == null || methodName == null) return null;
@@ -227,64 +202,52 @@ public interface MLuaRegistration {
         return description.isstring() ? description.tojstring() : null;
     }
 
-    /** Rebuilds inherited method metadata after a registered table has been restored or edited. */
     default void refreshClassMetadata(String className) {
         throw new UnsupportedOperationException("Class metadata refresh is not supported by this runtime");
     }
 
-    /** Removes a registered class and returns whether it existed. */
     default boolean unregisterClass(String name) {
         throw new UnsupportedOperationException("Class unregistration is not supported by this runtime");
     }
 
-    /** Removes a class owned by a registration scope when no child classes or live instances depend on it. */
     default boolean unregisterClassIfUnused(String name) {
         throw new UnsupportedOperationException("Safe class unregistration is not supported by this runtime");
     }
 
-    /** Registers a reusable behavior mixin that contributes methods without adding a class type. */
     default LuaTable registerBehaviorMixin(String name, String description) {
         throw new UnsupportedOperationException("Behavior mixin registration is not supported by this runtime");
     }
 
-    /** Returns a registered behavior mixin table, or null when no mixin uses that name. */
     default LuaTable behaviorMixinTable(String name) {
         throw new UnsupportedOperationException("Behavior mixin lookup is not supported by this runtime");
     }
 
-    /** Returns the names of registered behavior mixins. */
     default java.util.Set<String> behaviorMixinNames() {
         throw new UnsupportedOperationException("Behavior mixin lookup is not supported by this runtime");
     }
 
-    /** Removes a registered behavior mixin and its class applications. */
     default boolean unregisterBehaviorMixin(String mixinName) {
         throw new UnsupportedOperationException("Behavior mixin unregistration is not supported by this runtime");
     }
 
-    /** Removes one behavior mixin application from a class. */
     default boolean removeBehaviorMixin(String className, String mixinName) {
         throw new UnsupportedOperationException("Behavior mixin removal is not supported by this runtime");
     }
 
-    /** Registers a described function on a behavior mixin. */
     default LuaTable registerBehaviorMixinFunction(String mixinName, String functionName,
                                                    LuaValue function, String description) {
         throw new UnsupportedOperationException("Behavior mixin registration is not supported by this runtime");
     }
 
-    /** Removes a mixin function only when it is still the exact function supplied by its owner. */
     default boolean unregisterBehaviorMixinFunction(String mixinName, String functionName,
                                                     LuaValue expectedFunction) {
         throw new UnsupportedOperationException("Behavior mixin function unregistration is not supported by this runtime");
     }
 
-    /** Applies a mixin to a class without changing the class's IsA ancestry. */
     default void applyBehaviorMixin(String className, String mixinName) {
         throw new UnsupportedOperationException("Behavior mixin registration is not supported by this runtime");
     }
 
-    /** Returns the names of classes registered in this runtime. */
     default java.util.Set<String> classNames() {
         throw new UnsupportedOperationException("Class registry lookup is not supported by this runtime");
     }
@@ -294,14 +257,12 @@ public interface MLuaRegistration {
         return isClassOrParent(className, parentName, new HashSet<>());
     }
 
-    /** Returns whether a live instance belongs to a registered class or one of its parent classes. */
     default boolean isInstanceOf(LuaValue instance, String className) {
         if (instance == null || !instance.istable() || className == null || className.isBlank()) return false;
         String actual = classNameOf(instance);
         return actual != null && isClassOrParent(actual, className, new HashSet<>());
     }
 
-    /** Returns the registered identity of an instance, or its declared type for unattached tables. */
     default String classNameOf(LuaValue instance) {
         if (instance == null || !instance.istable()) return null;
         LuaTable table = instance.checktable();
@@ -328,7 +289,6 @@ public interface MLuaRegistration {
         }
     }
 
-    /** Registers a described Lua function on a class by name. */
     default LuaTable registerClassFunction(String className, String functionName,
                                            LuaValue function, String description) {
         if (functionName == null || functionName.isBlank()) throw new IllegalArgumentException("Function name must be non-empty");
@@ -367,18 +327,15 @@ public interface MLuaRegistration {
         return registerFunction(owner, functionName, function, description);
     }
 
-    /** Removes a class function only when it is still the exact function supplied by its owner. */
     default boolean unregisterClassFunction(String className, String functionName, LuaValue expectedFunction) {
         throw new UnsupportedOperationException("Class function unregistration is not supported by this runtime");
     }
 
-    /** Registers a live property descriptor and its documentation on a class. */
     default LuaTable registerClassProperty(String className, String propertyName,
                                            LuaValue getter, LuaValue setter, String description) {
         throw new UnsupportedOperationException("Class property registration is not supported by this runtime");
     }
 
-    /** Registers a live class property with its value type and side availability for generated references. */
     default LuaTable registerClassProperty(String className, String propertyName,
                                            LuaValue getter, LuaValue setter, String valueType,
                                            String side, String description) {
@@ -393,12 +350,10 @@ public interface MLuaRegistration {
         return owner;
     }
 
-    /** Removes a registered class property only when its getter is still owned by the caller. */
     default boolean unregisterClassProperty(String className, String propertyName, LuaValue expectedGetter) {
         throw new UnsupportedOperationException("Class property unregistration is not supported by this runtime");
     }
 
-    /** Registers a described service method dispatcher that resolves its implementation per live instance. */
     default LuaTable registerServiceFunction(String className, String functionName, String description) {
         if (className == null || className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
         if (functionName == null || functionName.isBlank()) throw new IllegalArgumentException("Service function name must be non-empty");
@@ -447,14 +402,12 @@ public interface MLuaRegistration {
         return registered;
     }
 
-    /** Registers a shared Lua implementation and its description on a previously described service class. */
     default LuaTable registerServiceClassFunction(String serviceName, String functionName,
                                                   LuaValue function, String description) {
         return registerServiceClassFunction(serviceName, serviceClassName(serviceName), functionName,
             function, description);
     }
 
-    /** Registers a shared Lua implementation and its description on an explicitly named, described service class. */
     default LuaTable registerServiceClassFunction(String serviceName, String className, String functionName,
                                                   LuaValue function, String description) {
         if (serviceName == null || serviceName.isBlank()) {
@@ -501,9 +454,6 @@ public interface MLuaRegistration {
             throw new IllegalStateException("Lua service class '" + className + "' function '" + functionName
                 + "' is already registered with a different description");
         }
-        // A child service class may intentionally override a parent method and
-        // describe its own contract. Only a description stored on this class
-        // constrains this registration; inherited docs remain the fallback.
         if (hasClassProperty(className, functionName)) {
             throw new IllegalStateException("Lua service class '" + className
                 + "' cannot register function '" + functionName + "' because it is an inherited property");
@@ -511,7 +461,6 @@ public interface MLuaRegistration {
         return registerClassFunction(className, functionName, function, description);
     }
 
-    /** Removes a method from a service class only when it is still the function supplied by its owner. */
     default boolean unregisterServiceClassFunction(String serviceName, String functionName,
                                                    LuaValue expectedFunction) {
         if (serviceName == null || serviceName.isBlank() || functionName == null || functionName.isBlank()
@@ -520,7 +469,6 @@ public interface MLuaRegistration {
             expectedFunction);
     }
 
-    /** Removes an explicitly named service class method only when it is still the supplied function. */
     default boolean unregisterServiceClassFunction(String serviceName, String className, String functionName,
                                                    LuaValue expectedFunction) {
         if (serviceName == null || serviceName.isBlank() || className == null || className.isBlank()
@@ -568,7 +516,6 @@ public interface MLuaRegistration {
         return receiver.get(key);
     }
 
-    /** Resolves a service class recorded in the registry, or defaults to the service lookup name. */
     default String serviceClassName(String serviceName) {
         if (serviceName == null || serviceName.isBlank()) {
             throw new IllegalArgumentException("Service class name must be non-empty");
@@ -603,7 +550,6 @@ public interface MLuaRegistration {
         return serviceName;
     }
 
-    /** Registers a class as the shared base for live Lua-facing instances. */
     default LuaTable registerInstanceBaseClass(String name, String parentName, String description) {
         String existingBase = instanceBaseClassName();
         if (existingBase != null && !existingBase.equals(name)) {
@@ -619,7 +565,6 @@ public interface MLuaRegistration {
         return type;
     }
 
-    /** Returns the registered shared instance base class, or null when unavailable. */
     default String instanceBaseClassName() {
         String result = null;
         for (String name : classNames()) {
@@ -640,14 +585,12 @@ public interface MLuaRegistration {
         return result;
     }
 
-    /** Returns the shared instance base class and fails when the core class module is unavailable. */
     default String requireInstanceBaseClassName() {
         String name = instanceBaseClassName();
         if (name == null) throw new IllegalStateException("Register an instance base class before registering instance classes");
         return name;
     }
 
-    /** Registers a class as the base type used by service instances and generated service classes. */
     default LuaTable registerServiceBaseClass(String name, String parentName, String description) {
         String existingBase = serviceBaseClassName();
         if (existingBase != null && !existingBase.equals(name)) {
@@ -663,7 +606,6 @@ public interface MLuaRegistration {
         return type;
     }
 
-    /** Returns the registered service base class, or null when service classes are unavailable. */
     default String serviceBaseClassName() {
         String result = null;
         for (String name : classNames()) {
@@ -684,12 +626,10 @@ public interface MLuaRegistration {
         return result;
     }
 
-    /** Registers the Lua class for a named service, disambiguating it from any existing instance class. */
     default LuaTable registerServiceClass(String serviceName, String description) {
         return registerServiceClass(serviceName, serviceClassName(serviceName), description);
     }
 
-    /** Registers a service class using an explicit class name chosen by the addon. */
     default LuaTable registerServiceClass(String serviceName, String className, String description) {
         if (serviceName == null || serviceName.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
         if (className == null || className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
@@ -729,7 +669,6 @@ public interface MLuaRegistration {
         return serviceClass;
     }
 
-    /** Registers a service class and all of its described instance-method dispatchers together. */
     default LuaTable registerServiceClass(String serviceName, String description,
                                           java.util.Map<String, String> functionDescriptions) {
         if (functionDescriptions == null) throw new NullPointerException("functionDescriptions");
@@ -737,14 +676,11 @@ public interface MLuaRegistration {
         return registerServiceClass(serviceName, className, description, functionDescriptions);
     }
 
-    /** Registers an explicitly named service class and its described method dispatchers together. */
     default LuaTable registerServiceClass(String serviceName, String className, String description,
                                           java.util.Map<String, String> functionDescriptions) {
         if (serviceName == null || serviceName.isBlank()) throw new IllegalArgumentException("Service name must be non-empty");
         if (className == null || className.isBlank()) throw new IllegalArgumentException("Service class name must be non-empty");
         if (functionDescriptions == null) throw new NullPointerException("functionDescriptions");
-        // Snapshot input before validating so callers cannot change the batch between
-        // preflight and registration (and preserve its declared order).
         java.util.Map<String, String> methodsToRegister = new java.util.LinkedHashMap<>(functionDescriptions);
         LuaTable existingClass = classTable(className);
         String propertyOwnerName = existingClass == null ? serviceBaseClassName() : className;
@@ -842,7 +778,6 @@ public interface MLuaRegistration {
         }
     }
 
-    /** Returns whether a class or any registered parent defines the named live property. */
     default boolean hasClassProperty(String className, String propertyName) {
         return hasClassProperty(className, propertyName, new HashSet<>());
     }
@@ -867,7 +802,6 @@ public interface MLuaRegistration {
         }
     }
 
-    /** Adds a Lua-facing method and its documentation to a registered object class without replacing existing methods. */
     default LuaTable registerFunction(LuaTable owner, String name, LuaValue function, String description) {
         if (owner == null) throw new NullPointerException("owner");
         if (!owner.rawget("__class").toboolean()) throw new IllegalArgumentException("Function owner must be a registered Lua class");
@@ -907,7 +841,6 @@ public interface MLuaRegistration {
         return owner;
     }
 
-    /** Returns whether a name belongs to runtime-owned class or mixin metadata. */
     static boolean isReservedFunctionName(String name) {
         return name == null || name.equals("__type") || name.equals("__class") || name.equals("ClassName")
             || name.equals("__mixin") || name.equals("__mixin_name") || name.startsWith("__mlua_");
@@ -923,12 +856,6 @@ public interface MLuaRegistration {
         throw new UnsupportedOperationException("Class instance attachment is not supported by this runtime");
     }
 
-    /**
-     * Creates a live Lua instance, copies its initial fields, and invokes a documented
-     * {@code Init(self, fields)} method when the class resolves one through its class,
-     * behavior mixins, or base classes. Initial fields and later field assignments cannot replace
-     * registered class methods; registered properties continue to initialize through their setters.
-     */
     default LuaTable createClassInstance(String className, LuaTable initialFields) {
         LuaTable type = classTable(className);
         if (type == null) throw new IllegalStateException("Lua class is not registered: " + className);
@@ -940,10 +867,6 @@ public interface MLuaRegistration {
         return initializeClassInstance(instance, className, initialFields);
     }
 
-    /**
-     * Applies initial fields and runs the documented initializer on an already attached live instance.
-     * The instance is marked initialized only after all fields and its initializer complete successfully.
-     */
     default LuaTable initializeClassInstance(LuaTable instance, String className, LuaTable initialFields) {
         java.util.Objects.requireNonNull(instance, "instance");
         LuaTable type = classTable(className);

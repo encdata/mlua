@@ -2,6 +2,7 @@ package dev.mlua.modules.coreclasses;
 
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.core.MLuaExampleScripts;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;
 import dev.mlua.module.MLuaRegistration;
@@ -11,7 +12,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Owns the runtime's reusable root classes independently from feature modules. */
 public final class CoreClassesModule implements MLuaModule {
     @Override
     public String id() { return "core-classes"; }
@@ -25,6 +25,18 @@ public final class CoreClassesModule implements MLuaModule {
         registration.registerInstanceBaseClass("Instance", "Object", "Base class for live wrappers around Minecraft objects.");
         registerInstanceMethods(registration);
         registration.registerServiceBaseClass("Service", registration.requireInstanceBaseClassName(), "Base class for live Lua service instances.");
+        registration.registerClassFunction("Service", "GetName", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                String instanceClassName = registration.classNameOf(args.arg1());
+                if (instanceClassName == null) return LuaValue.NIL;
+                LuaTable instanceClass = registration.classTable(instanceClassName);
+                LuaValue serviceName = instanceClass == null ? LuaValue.NIL : instanceClass.rawget("__mlua_service_name");
+                return serviceName.isstring() ? serviceName : LuaValue.NIL;
+            }
+        }, "Returns this service's registered name.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Service", "Name", "GetName", null,
+            "string", "shared:Shared", "This service's registered name.");
     }
 
     private static void registerInstanceMethods(MLuaRegistration registration) {
@@ -85,6 +97,7 @@ public final class CoreClassesModule implements MLuaModule {
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.property("Instance", "ClassName", "string",
             "The registered MLua class name for this live instance.", "read:Read");
+        docs.property("Service", "Name", "string", "This service's registered name.", "read:Read");
         List<MLuaDocBuilder.GuideStep> gettingStarted = new java.util.ArrayList<>();
         gettingStarted.add(new MLuaDocBuilder.GuideStep("Docs", "Create a server script",
             "Install MLua, launch Minecraft once, then create this file in the MLua scripts folder. The server suffix makes it run when a world starts.",

@@ -18,6 +18,11 @@ import dev.mlua.mcapi.item.MCItem;
 import dev.mlua.mcapi.item.MCItemStack;
 import dev.mlua.mcapi.nbt.MCCompoundTag;
 import dev.mlua.mcapi.nbt.MCListTag;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.function.BiFunction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import org.luaj.vm2.LuaError;
@@ -27,6 +32,8 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaItemWrapper {
+   private static final Map<MLuaRegistration, ItemWrapperCache> ITEM_CACHES = new WeakHashMap<>();
+
    private MLuaItemWrapper() {
    }
 
@@ -36,16 +43,94 @@ public final class MLuaItemWrapper {
 
    public static LuaTable itemTable(net.minecraft.world.item.ItemStack stack, MLuaRegistration registration) {
       if (stack == null) stack = net.minecraft.world.item.ItemStack.EMPTY;
-      LuaTable fields = new LuaTable();
-      fields.rawset("__side", LuaValue.valueOf("Shared"));
-      fields.rawset("__item_stack", LuaValue.userdataOf(stack));
       String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
       String className = MLuaBehaviorRegistry.getContentClass("item", itemId);
       if (className == null && stack.getItem() instanceof net.minecraft.world.item.BlockItem) {
          className = "BlockItem";
       }
-      LuaTable table = registration.createClassInstance(className == null ? "Item" : className, fields);
-      return MLuaServiceProperties.attach(table);
+      String resolvedClass = className == null ? "Item" : className;
+      ItemWrapperCache cache;
+      synchronized (ITEM_CACHES) {
+         cache = ITEM_CACHES.computeIfAbsent(registration, ignored -> new ItemWrapperCache());
+      }
+      return cache.getOrCreate(stack, resolvedClass, registration);
+   }
+
+   private static LuaTable createItemTable(String className, MLuaRegistration registration) {
+      return registration.attachClassInstance(new LuaTable(), className, null);
+   }
+
+   private static final class ItemWrapperCache {
+      private final ReferenceQueue<net.minecraft.world.item.ItemStack> collectedStacks = new ReferenceQueue<>();
+      private final Map<StackReference, Map<String, WeakReference<LuaTable>>> entries = new HashMap<>();
+
+      synchronized LuaTable getOrCreate(net.minecraft.world.item.ItemStack stack, String className,
+                                        MLuaRegistration registration) {
+         this.removeCollectedStacks();
+         StackReference lookup = new StackReference(stack, null);
+         Map<String, WeakReference<LuaTable>> variants = this.entries.get(lookup);
+         WeakReference<LuaTable> reference = variants == null ? null : variants.get(className);
+         LuaTable cached = reference == null ? null : reference.get();
+         if (cached != null && className.equals(registration.classNameOf(cached))) {
+            if (cached.rawget("__mlua_item_initializing").toboolean()) {
+               throw new LuaError("[MLua] Circular item initialization for class '" + className + "'.");
+            }
+            return cached;
+         }
+         LuaTable instance = createItemTable(className, registration);
+         instance.rawset("__mlua_item_initializing", LuaValue.TRUE);
+         if (variants == null) {
+            variants = new HashMap<>();
+            this.entries.put(new StackReference(stack, this.collectedStacks), variants);
+         }
+         WeakReference<LuaTable> instanceReference = new WeakReference<>(instance);
+         variants.put(className, instanceReference);
+         LuaTable fields = new LuaTable();
+         fields.rawset("__side", LuaValue.valueOf("Shared"));
+         fields.rawset("__item_stack", LuaValue.userdataOf(stack));
+         try {
+            registration.initializeClassInstance(instance, className, fields);
+            MLuaServiceProperties.attach(instance);
+            instance.rawset("__mlua_item_initializing", LuaValue.NIL);
+            return instance;
+         } catch (RuntimeException | Error failure) {
+            instance.rawset("__mlua_item_initializing", LuaValue.NIL);
+            variants.remove(className, instanceReference);
+            if (variants.isEmpty()) this.entries.remove(lookup);
+            throw failure;
+         }
+      }
+
+      private void removeCollectedStacks() {
+         StackReference reference;
+         while ((reference = (StackReference)this.collectedStacks.poll()) != null) {
+            this.entries.remove(reference);
+         }
+         this.entries.values().forEach(variants -> variants.entrySet().removeIf(entry -> entry.getValue().get() == null));
+         this.entries.values().removeIf(Map::isEmpty);
+      }
+   }
+
+   private static final class StackReference extends WeakReference<net.minecraft.world.item.ItemStack> {
+      private final int identityHash;
+
+      StackReference(net.minecraft.world.item.ItemStack stack, ReferenceQueue<net.minecraft.world.item.ItemStack> queue) {
+         super(stack, queue);
+         this.identityHash = System.identityHashCode(stack);
+      }
+
+      @Override
+      public int hashCode() {
+         return this.identityHash;
+      }
+
+      @Override
+      public boolean equals(Object other) {
+         if (this == other) return true;
+         if (!(other instanceof StackReference reference)) return false;
+         net.minecraft.world.item.ItemStack stack = this.get();
+         return stack != null && stack == reference.get();
+      }
    }
 
    public static LuaTable itemGlobal() {
@@ -153,7 +238,9 @@ public final class MLuaItemWrapper {
             stack(self).setCount(args.checkint(2));
             return LuaValue.NONE;
          }), "Sets the number of items in this stack.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxCount", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getMaxStackSize())), "Returns the maximum stack size for this item.");
+         LuaValue getMaxStackSize = selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getMaxStackSize()));
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxStackSize", getMaxStackSize, "Returns the maximum stack size for this item.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxCount", getMaxStackSize, "Compatibility alias for GetMaxStackSize.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getMaxDamage())), "Returns the maximum durability damage for this item.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getDamageValue())), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", selfItem((self, args) -> {
@@ -228,20 +315,7 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "getNbt", classTable.rawget("GetNbt"), "Returns this item's NBT data or one value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetNbt", selfItem((self, args) -> {
             if (args.narg() == 2 && args.arg(2).istable()) {
-               net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
-               LuaTable replacement = args.arg(2).checktable();
-               LuaValue key = LuaValue.NIL;
-               while (true) {
-                  Varargs next = replacement.next(key);
-                  key = next.arg1();
-                  if (key.isnil()) {
-                     break;
-                  }
-                  if (key.isstring()) {
-                     MLuaNbtWrapper.set(tag, key.tojstring(), next.arg(2));
-                  }
-               }
-               stack(self).setTag(MCCompoundTagImpl.fromReal(tag));
+               stack(self).setTag(MCCompoundTagImpl.fromReal(MLuaNbtWrapper.toCompound(args.arg(2))));
                return LuaValue.NONE;
             }
             MLuaNbtWrapper.set(((MCCompoundTagImpl)stack(self).getOrCreateTag()).inner(), args.checkjstring(2), args.arg(3));
@@ -269,6 +343,25 @@ public final class MLuaItemWrapper {
           }), "Removes an enchantment from this item stack.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetItemId", classTable.rawget("GetId"), "Returns this item's registered identifier.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "ToString", selfItem((self, ignored) -> LuaValue.valueOf(id(stack(self)) + " x" + stack(self).getCount())), "Returns this item's identifier and stack count.");
+          String[][] properties = {
+              {"Id", "GetId", null, "string", "This item's registered identifier."},
+              {"Name", "GetName", null, "string", "This item's registered identifier."},
+              {"Count", "GetCount", "SetCount", "number", "The number of items in this stack."},
+              {"MaxStackSize", "GetMaxStackSize", null, "number", "The maximum stack size for this item."},
+              {"MaxDamage", "GetMaxDamage", null, "number", "The maximum durability damage for this item."},
+              {"Damage", "GetDamage", "SetDamage", "number", "This item's current durability damage."},
+              {"Empty", "IsEmpty", null, "boolean", "Whether this stack contains no items."},
+              {"Damageable", "IsDamageable", null, "boolean", "Whether this item has durability."},
+              {"HasTag", "GetHasTag", null, "boolean", "Whether this item has NBT data."},
+              {"DisplayName", "GetDisplayName", "SetDisplayName", "string", "This item's display name."},
+              {"Lore", "GetLore", "SetLore", "table", "This item's lore lines."},
+              {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This item's live NBT view; assign a table to replace its data."},
+              {"Enchantments", "GetEnchantments", null, "table", "The enchantments applied to this item."}
+          };
+          for (String[] property : properties) {
+              MLuaClassMethods.registerInstanceProperty(registration, "Item", property[0], property[1], property[2],
+                  property[3], "shared:Shared", property[4]);
+          }
          classTable.rawset("__initialized", LuaValue.TRUE);
       }
       return classTable;

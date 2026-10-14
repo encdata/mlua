@@ -1,6 +1,7 @@
 package dev.mlua.modules.files.Service;
 
 import dev.mlua.core.MLuaPathRules;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -9,7 +10,7 @@ import java.nio.file.Path;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 
-/** Mod-scoped file access exposed through the shared reflective Java service base. */
+@MLuaDescription("Provides file read/write operations in the MLua data directory.")
 public final class MLuaFilesService extends MLuaReflectiveService {
    public MLuaFilesService(Context context) {
       super(context);
@@ -27,6 +28,7 @@ public final class MLuaFilesService extends MLuaReflectiveService {
       return table;
    }
 
+   @MLuaDescription("Reads a UTF-8 text file from the calling mod's data directory.")
    public String ReadText(String relative) {
       Path path = resolve(relative);
       try {
@@ -36,6 +38,7 @@ public final class MLuaFilesService extends MLuaReflectiveService {
       }
    }
 
+   @MLuaDescription("Writes UTF-8 text to a file in the calling mod's data directory.")
    public boolean WriteText(String relative, String content) {
       Path path = resolve(relative);
       try {

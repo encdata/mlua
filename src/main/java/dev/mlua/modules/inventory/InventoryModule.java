@@ -42,10 +42,10 @@ public final class InventoryModule implements MLuaModule {
     public List<ServiceEntry> services() {
         ServiceEntry.Builder inventory = ServiceEntry.builder("InventoryService", MLuaInventoryService::new)
             .description("Access player inventories and common container operations from Lua.");
-        inventory.function("GetPlayerInventory", "Returns a live Inventory instance for a player.")
-            .function("GetEnderChest", "Returns a player's live ender chest container.")
-            .function("GetSlot", "Returns a live slot from a player's inventory.")
-            .function("SetSlot", "Sets an item in a player's inventory slot.")
+        inventory.function("GetPlayerInventory", "Returns the same live Inventory instance exposed by Player.Inventory.")
+            .function("GetEnderChest", "Returns the same live ender chest Container exposed by Player.EnderChest.")
+            .function("GetSlot", "Returns the same live Slot exposed by Player.Inventory:GetSlot(index).")
+            .function("SetSlot", "Sets an item in the same live Slot exposed by Player.Inventory:GetSlot(index).")
             .function("AddItem", "Adds an item stack to a player's inventory.")
             .function("Clear", "Removes all items from a player's inventory.");
         return List.of(inventory.build());
@@ -83,7 +83,8 @@ public final class InventoryModule implements MLuaModule {
         docs.method("Slot", "Slot:GetRawIndex(): number", "Returns this slot's zero-based Minecraft index.", "", "number", "Shared", "");
         docs.method("Slot", "Slot:IsEmpty(): boolean", "Returns whether this slot contains no item.", "", "boolean", "Shared", "");
         docs.method("Slot", "Slot:GetCount(): number", "Returns the number of items in this slot.", "", "number", "Shared", "");
-        docs.method("Slot", "Slot:GetMaxCount(): number", "Returns the maximum stack size for this slot's item.", "", "number", "Shared", "");
+        docs.method("Slot", "Slot:GetMaxStackSize(): number", "Returns the maximum stack size for this slot's item.", "", "number", "Shared", "");
+        docs.method("Slot", "Slot:GetMaxCount(): number", "Compatibility alias for GetMaxStackSize.", "", "number", "Shared", "");
         docs.method("Slot", "Slot:GetDisplayName(): string|nil", "Returns this slot item's display name, or nil when empty.", "", "string|nil", "Shared", "");
         docs.method("Slot", "Slot:GetItemId(): string|nil", "Returns this slot item's registered identifier, or nil when empty.", "", "string|nil", "Shared", "");
         docs.method("Slot", "Slot:GetLore(): string[]", "Returns this slot item's lore lines.", "", "string[]", "Shared", "");

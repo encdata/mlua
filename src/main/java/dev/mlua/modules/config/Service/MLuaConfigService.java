@@ -1,13 +1,14 @@
 package dev.mlua.modules.config.Service;
 
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.runtime.config.MLuaConfigRegistry;
 import java.util.Optional;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Reads and updates addon-owned configuration values through the shared reflective service base. */
+@MLuaDescription("Reads and updates registered MLua configuration values.")
 public final class MLuaConfigService extends MLuaReflectiveService {
    public MLuaConfigService(Context context) {
       super(context);
@@ -25,12 +26,14 @@ public final class MLuaConfigService extends MLuaReflectiveService {
       return table;
    }
 
+   @MLuaDescription("Returns the current value for a registered configuration key.")
    public LuaValue Get(String path, Optional<String> requestedScope) {
       String scope = scope(requestedScope, path);
       Object value = MLuaConfigRegistry.get().getValue(this.context.ownerModId(), scope, path);
       return MLuaLuaBindings.toLuaValue(value);
    }
 
+   @MLuaDescription("Updates a configuration value for the requested scope.")
    public void Set(String path, LuaValue value, Optional<String> requestedScope) {
       String scope = scope(requestedScope, path);
       MLuaConfigRegistry.get().setValue(this.context.ownerModId(), scope, path,
@@ -38,6 +41,7 @@ public final class MLuaConfigService extends MLuaReflectiveService {
       MLuaConfigRegistry.get().save(this.context.ownerModId(), scope);
    }
 
+   @MLuaDescription("Persists the current configuration values to disk.")
    public void Save(Optional<String> requestedScope) {
       if (requestedScope.isEmpty()) {
          saveAll();
@@ -47,6 +51,7 @@ public final class MLuaConfigService extends MLuaReflectiveService {
       }
    }
 
+   @MLuaDescription("Returns whether a configuration key is registered.")
    public boolean Exists(String path, Optional<String> requestedScope) {
       MLuaConfigRegistry registry = MLuaConfigRegistry.get();
       if (requestedScope.isPresent()) {

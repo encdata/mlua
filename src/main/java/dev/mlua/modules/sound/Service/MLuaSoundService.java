@@ -32,7 +32,7 @@ public final class MLuaSoundService extends MLuaServiceBase {
         registerHandleProperty(registration, "Volume", "number", "The sound's playback volume.", "GetVolume", "SetVolume");
         registerHandleProperty(registration, "Pitch", "number", "The sound's playback pitch.", "GetPitch", "SetPitch");
         registerHandleProperty(registration, "Position", "Vector3", "The sound's current position.", "GetPosition", "SetPosition");
-        registerHandleProperty(registration, "FollowEntity", "number?", "The entity id followed by this sound, or nil.", "GetFollowEntity", "FollowEntity");
+        registerHandleProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this sound. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerHandleProperty(registration, "FollowOffset", "Vector3", "The offset from the followed entity.", "GetFollowOffset", "SetFollowOffset");
         registerHandleMethod(registration, "Stop", "Stops playback of this sound.");
         registerHandleMethod(registration, "Destroy", "Stops playback and removes this sound handle.");
@@ -47,8 +47,8 @@ public final class MLuaSoundService extends MLuaServiceBase {
         registerHandleMethod(registration, "GetPosition", "Returns the sound's current position.");
         registerHandleMethod(registration, "SetPosition", "Moves the sound to the given coordinates.");
         registerHandleMethod(registration, "GetFollowEntity", "Returns the entity id followed by this sound, or nil.");
-        registerHandleMethod(registration, "FollowEntity", "Attaches this sound to an entity.");
         registerHandleMethod(registration, "SetFollowEntity", "Attaches this sound to an entity.");
+        registerHandleMethod(registration, "AttachToEntity", "Attaches this sound to an entity.");
         registerHandleMethod(registration, "ClearFollowEntity", "Stops this sound from following an entity.");
         registerHandleMethod(registration, "GetFollowOffset", "Returns the offset from the followed entity.");
         registerHandleMethod(registration, "SetFollowOffset", "Changes the offset from the followed entity.");
@@ -206,6 +206,7 @@ public final class MLuaSoundService extends MLuaServiceBase {
             requireSound(id).followEntity(resolveEntityScope(args.arg(2)));
             return LuaValue.NONE;
         }));
+        operations.set("AttachToEntity", operations.get("FollowEntity"));
         operations.set("SetFollowEntity", operations.get("FollowEntity"));
         operations.set("ClearFollowEntity", fn(args -> {
             requireSound(id).followEntity(null);

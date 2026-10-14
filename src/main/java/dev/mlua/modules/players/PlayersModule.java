@@ -71,7 +71,7 @@ public class PlayersModule implements MLuaModule {
 
     @Override
     public void registerClasses(MLuaRegistration registration) {
-        LuaTable entityClass = registration.registerClass("Entity", registration.requireInstanceBaseClassName(),
+        registration.registerClass("Entity", registration.requireInstanceBaseClassName(),
             "A live entity instance with position, movement, health, and interaction APIs.");
         registration.registerClassFunction("Entity", "GetId",
             entityMethod(entity -> LuaValue.valueOf(entity.getId())), "Returns this entity's runtime ID.");
@@ -166,21 +166,27 @@ public class PlayersModule implements MLuaModule {
             "number", "shared:Shared", "This entity's maximum health.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "Armor", "GetArmor", null,
             "number", "shared:Shared", "This entity's armor value.");
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsJumping", "GetIsJumping", null,
+            "boolean", "shared:Shared", "Whether this entity is moving upward while airborne.");
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsSwimming", "GetIsSwimming", null,
+            "boolean", "shared:Shared", "Whether this entity is swimming.");
 
         LuaTable playerClass = registration.registerClass("Player", "LivingEntity",
             "A live player instance with player identity, inventory, messaging, and player controls.");
-        registration.registerClassFunction("Player", "GetUserId", entityClass.rawget("GetId"),
-            "Returns this player's runtime ID.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SendMessage",
             "Sends a chat message to this player. On the client, displays the message locally.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetDisplayName",
             "Returns this player's display name.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "DisplayName", "GetDisplayName", null,
+            "string", "shared:Shared", "This player's display name.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SendActionBar",
             "Sends an action bar message to this player.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SendTitle",
             "Displays a title to this player.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetGameMode",
             "Returns this player's current game mode.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "GameMode", "GetGameMode", null,
+            "GameMode", "shared:Shared", "This player's current game mode.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetGameMode",
             "Changes this player's game mode. This method is server-side only.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetInventory",
@@ -282,14 +288,16 @@ public class PlayersModule implements MLuaModule {
         for (String[] method : inventoryAndStateMethods) {
             MLuaClassMethods.registerInstanceMethod(registration, "Player", method[0], method[1]);
         }
-        MLuaClassMethods.registerInstanceProperty(registration, "Player", "UserId", "GetUserId", null,
-            "number", "shared:Shared", "This player's runtime ID.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "FoodLevel", "GetFoodLevel", "SetFoodLevel",
             "number", "shared:Shared", "This player's food level.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "Food", "GetFood", "SetFood",
+            "number", "shared:Shared", "Compatibility alias for FoodLevel.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "Saturation", "GetSaturation", "SetSaturation",
             "number", "shared:Shared", "This player's food saturation.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "ViewMode", "GetViewMode", "SetViewMode",
             "ViewMode", "client:Client", "The local player's view mode; client-side only.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "SelectedSlot", "GetSelectedSlot", null,
+            "number", "shared:Shared", "The selected hotbar slot using a one-based index.");
     }
 
     private static void registerEntityProperties(MLuaRegistration registration) {
@@ -299,13 +307,20 @@ public class PlayersModule implements MLuaModule {
             {"EntityType", "GetEntityType", null, "string", "shared:Shared", "This entity's registered type."},
             {"Name", "GetName", null, "string", "shared:Shared", "This entity's current name."},
             {"UUID", "GetUUID", null, "string", "shared:Shared", "This entity's UUID."},
+            {"Level", "GetLevel", null, "Level", "shared:Shared", "The live world containing this entity."},
+            {"Dimension", "GetDimension", null, "string", "shared:Shared", "The dimension identifier containing this entity."},
+            {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "server:Server", "The entity's persistent data; assign a table or Nbt value to replace it."},
             {"Position", "GetPosition", "SetPosition", "Vector3", "shared:Shared", "This entity's current position."},
             {"Velocity", "GetVelocity", "SetVelocity", "Vector3", "shared:Shared", "This entity's current velocity."},
             {"Rotation", "GetRotation", "SetRotation", "Vector2", "shared:Shared", "This entity's pitch and yaw in degrees."},
+            {"CFrame", "GetCFrame", "SetCFrame", "CFrame", "shared:Shared", "This entity's position and rotation."},
+            {"LookVector", "GetLookVector", null, "Vector3", "shared:Shared", "The direction this entity is facing."},
             {"IsAlive", "GetIsAlive", null, "boolean", "shared:Shared", "Whether this entity is alive."},
             {"IsOnGround", "GetIsOnGround", null, "boolean", "shared:Shared", "Whether this entity is on the ground."},
             {"IsInWater", "GetIsInWater", null, "boolean", "shared:Shared", "Whether this entity is in water."},
-            {"IsOnFire", "GetIsOnFire", null, "boolean", "shared:Shared", "Whether this entity is on fire."}
+            {"IsOnFire", "GetIsOnFire", null, "boolean", "shared:Shared", "Whether this entity is on fire."},
+            {"IsMoving", "GetIsMoving", null, "boolean", "shared:Shared", "Whether this entity is moving."},
+            {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is falling."}
         };
         for (String[] property : properties) {
             MLuaClassMethods.registerInstanceProperty(registration, "Entity", property[0], property[1], property[2],
@@ -430,6 +445,7 @@ public class PlayersModule implements MLuaModule {
                 "classes/living-entity.html", "Entity");
         docs.property("Entity", "entity.Name", "string", "The entity's current name.", "shared:Shared");
         docs.property("Entity", "entity.UUID", "string", "The entity's UUID.", "shared:Shared");
+        docs.property("Entity", "entity.Nbt", "Nbt|table", "The entity's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server");
         docs.property("Entity", "entity.Position", "Vector3", "The entity's current position. Readable and writable.", "shared:Shared");
         docs.property("Entity", "entity.Velocity", "Vector3", "The entity's current velocity. Readable and writable.", "shared:Shared");
         docs.property("Entity", "entity.Rotation", "Vector2", "The entity's pitch and yaw. Readable and writable.", "shared:Shared");
@@ -445,15 +461,18 @@ public class PlayersModule implements MLuaModule {
                 "classes/player.html", "LivingEntity");
         docs.property("Player", "player.Name", "string", "The player's username.", "shared:Shared");
         docs.property("Player", "player.UUID", "string", "The player's UUID.", "shared:Shared");
+        docs.property("Player", "player.Nbt", "Nbt|table", "The player's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server");
         docs.property("Player", "player.Position", "Vector3", "The player's current position. Readable and writable.", "shared:Shared");
         docs.property("Player", "player.Health", "number", "The player's current health. Readable and writable.", "shared:Shared");
         docs.property("Player", "player.MaxHealth", "number", "The player's maximum health.", "shared:Shared");
-        docs.property("Player", "player.Food", "number", "The player's current food level. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.FoodLevel", "number", "The player's current food level. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.Food", "number", "Compatibility alias for player.FoodLevel. Readable and writable.", "shared:Shared");
         docs.property("Player", "player.Saturation", "number", "The player's current food saturation. Readable and writable.", "shared:Shared");
         docs.property("Player", "player.Velocity", "Vector3", "The player's current velocity. Readable and writable.", "shared:Shared");
         docs.property("Player", "player.Rotation", "Vector2", "The player's pitch and yaw. Readable and writable.", "shared:Shared");
         docs.property("Player", "player.ViewMode", "ViewMode", "The local player's camera perspective. Readable and writable.", "client:Client");
-        docs.property("Player", "player.GameMode", "GameMode", "The player's game mode. Readable and writable.", "shared:Shared");
+        docs.property("Player", "player.GameMode", "GameMode", "The player's current game mode.", "shared:Shared");
+        docs.property("Player", "player.SelectedSlot", "number", "The selected hotbar slot using a one-based index.", "shared:Shared");
         docs.property("Player", "player.Armor", "number", "The player's current armor value.", "shared:Shared");
         docs.property("Player", "player.IsAlive", "boolean", "Whether the player is alive.", "shared:Shared");
         docs.property("Player", "player.IsOnGround", "boolean", "Whether the player is on the ground.", "shared:Shared");

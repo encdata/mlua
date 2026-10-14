@@ -2,11 +2,12 @@ package dev.mlua.modules.components;
 
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;
+import dev.mlua.module.MLuaRegistration;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.modules.components.Service.MLuaComponentsService;
 import dev.mlua.common.enums.Side;
 import dev.mlua.runtime.entity.MLuaEntityComponentManager;
 import java.util.List;
-import java.util.Map;
 
 public final class ComponentsModule implements MLuaModule {
     @Override
@@ -32,6 +33,35 @@ public final class ComponentsModule implements MLuaModule {
     }
 
     @Override
+    public List<String> dependencies() { return List.of("core-classes"); }
+
+    @Override
+    public void registerClasses(MLuaRegistration registration) {
+        registration.registerClass("EntityComponent", registration.requireInstanceBaseClassName(),
+            "A live entity component with state, enable control, and lifecycle methods.");
+        String[][] methods = {
+            {"GetName", "Returns this component's registered name."},
+            {"GetEntity", "Returns the entity that owns this component."},
+            {"GetState", "Returns this component's state table or one state value."},
+            {"SetState", "Sets one value in this component's state table."},
+            {"GetEnabled", "Returns whether this component is enabled."},
+            {"SetEnabled", "Enables or disables this component."},
+            {"Destroy", "Removes this component from its entity."}
+        };
+        for (String[] method : methods) {
+            MLuaClassMethods.registerInstanceMethod(registration, "EntityComponent", method[0], method[1]);
+        }
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityComponent", "Name", "GetName", null,
+            "string", "shared:Shared", "This component's registered name.");
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityComponent", "Entity", "GetEntity", null,
+            "Entity", "shared:Shared", "The entity that owns this component.");
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityComponent", "State", "GetState", null,
+            "table", "shared:Shared", "The mutable state table owned by this component.");
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityComponent", "Enabled", "GetEnabled", "SetEnabled",
+            "boolean", "shared:Shared", "Whether this component is enabled.");
+    }
+
+    @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder components = ServiceEntry.builder("Components", MLuaComponentsService::new)
             .description("Attach reusable Lua behavior components to entities with tick and event callbacks.");
@@ -48,7 +78,7 @@ public final class ComponentsModule implements MLuaModule {
         docs.service("Components", "MLuaComponentsService",
             "Attach reusable Lua behavior components to entities with tick and event callbacks.",
             "services/components.html");
-        docs.clazz("EntityComponent", "MLuaComponentsService",
+        docs.clazz("EntityComponent", null,
             "Mutable entity behavior component handle returned by Components:Attach.",
             "classes/entity-component.html", "Instance");
     }

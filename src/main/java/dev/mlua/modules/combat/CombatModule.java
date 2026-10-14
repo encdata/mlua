@@ -37,6 +37,30 @@ public class CombatModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "SetDamage", "Changes this projectile's damage.");
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "SetDirection", "Changes this projectile's direction.");
         MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "SetVelocity", "Changes this projectile's velocity and speed.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetDirection", "Returns this projectile's current direction.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetSpeed", "Returns this projectile's configured speed in blocks per tick.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetDamage", "Returns this projectile's current damage.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetDamageSource", "Returns this projectile's registered damage source.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetFireTicks", "Returns the fire duration applied to hit entities.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetKnockback", "Returns the knockback applied to hit entities.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetTick", "Returns the number of server ticks since this projectile was launched.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Projectile", "GetOwner", "Returns this projectile's owner, or nil when it has no live owner.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "Direction", "GetDirection", "SetDirection",
+            "Vector3|nil", "server:Server", "This projectile's current direction.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "Speed", "GetSpeed", null,
+            "number", "server:Server", "This projectile's configured speed in blocks per tick.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "Damage", "GetDamage", "SetDamage",
+            "number", "server:Server", "This projectile's current damage.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "DamageSource", "GetDamageSource", null,
+            "string", "server:Server", "This projectile's registered damage source.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "FireTicks", "GetFireTicks", null,
+            "number", "server:Server", "The fire duration applied to hit entities.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "Knockback", "GetKnockback", null,
+            "number", "server:Server", "The knockback applied to hit entities.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "Tick", "GetTick", null,
+            "number", "server:Server", "The number of server ticks since this projectile was launched.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Projectile", "Owner", "GetOwner", null,
+            "Entity|nil", "server:Server", "This projectile's owner, or nil when it has no live owner.");
 
         registration.registerClass("ProjectileType", registration.requireInstanceBaseClassName(),
             "A registered projectile definition that can create live projectiles.");

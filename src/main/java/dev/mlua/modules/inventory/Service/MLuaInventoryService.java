@@ -1,6 +1,7 @@
 package dev.mlua.modules.inventory.Service;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.binding.MLuaContainer;
@@ -13,7 +14,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Player inventory operations backed by live Container and Slot class instances. */
+@MLuaDescription("Access player inventories and common container operations from Lua.")
 public final class MLuaInventoryService extends MLuaReflectiveService {
     public MLuaInventoryService(MLuaService.Context context) {
         super(context);
@@ -24,19 +25,23 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
         return "InventoryService";
     }
 
+    @MLuaDescription("Returns the same live Inventory instance exposed by Player.Inventory.")
     public LuaTable GetPlayerInventory(LuaValue playerValue) {
         return playerInventory(player(playerValue));
     }
 
+    @MLuaDescription("Returns the same live ender chest Container exposed by Player.EnderChest.")
     public LuaTable GetEnderChest(LuaValue playerValue) {
         return enderChest(player(playerValue));
     }
 
+    @MLuaDescription("Returns the same live Slot exposed by Player.Inventory:GetSlot(index).")
     public LuaValue GetSlot(LuaValue playerValue, int slotIndex) {
         LuaTable inventory = playerInventory(player(playerValue));
         return invokeInstanceMethod(inventory, "GetSlot", LuaValue.valueOf(slotIndex));
     }
 
+    @MLuaDescription("Sets an item in the same live Slot exposed by Player.Inventory:GetSlot(index).")
     public boolean SetSlot(LuaValue playerValue, int slotIndex, LuaValue itemValue) {
         ensureServer();
         LuaTable inventory = playerInventory(player(playerValue));
@@ -46,11 +51,13 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
         return true;
     }
 
+    @MLuaDescription("Adds an item stack to a player's inventory.")
     public boolean AddItem(LuaValue playerValue, LuaValue itemValue) {
         ensureServer();
         return player(playerValue).getInventory().add(MLuaItemWrapper.toItemStack(itemValue));
     }
 
+    @MLuaDescription("Removes all items from a player's inventory.")
     public void Clear(LuaValue playerValue) {
         ensureServer();
         invokeInstanceMethod(playerInventory(player(playerValue)), "Clear");
@@ -84,7 +91,6 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
         throw new LuaError("[MLua] Expected player table, player name, or player UUID.");
     }
 
-    /** Resolve the client player without linking this shared service to client classes on a server. */
     private static Player localPlayer() {
         try {
             Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
@@ -106,7 +112,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     private LuaTable enderChest(Player player) {
         return MLuaContainer.containerTable(MCContainerImpl.fromReal(player.getEnderChestInventory()),
-            this.context.side() == Side.SERVER, this.context.registration());
+            this.context.side() == Side.SERVER, this.context.registration(), "Ender Chest");
     }
 
     private static LuaValue invokeInstanceMethod(LuaTable instance, String name, LuaValue... methodArguments) {

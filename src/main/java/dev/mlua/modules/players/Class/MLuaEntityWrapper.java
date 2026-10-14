@@ -18,6 +18,8 @@ import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaNbtWrapper;
+import dev.mlua.minecraft.scripted.MLuaScriptedEntity;
+import dev.mlua.minecraft.scripted.MLuaScriptedProjectile;
 import dev.mlua.mcapi.core.MCVec3;
 import dev.mlua.mcapi.entity.MCEntity;
 import dev.mlua.mcapi.entity.MCLivingEntity;
@@ -120,6 +122,12 @@ public final class MLuaEntityWrapper {
     }
 
     public static LuaTable entityTable(net.minecraft.world.entity.Entity entity, MLuaRegistration registration) {
+      if (entity instanceof MLuaScriptedProjectile projectile && !projectile.isResolvingLuaHandle()) {
+         return projectile.toLuaHandle(true);
+      }
+      if (entity instanceof net.minecraft.world.entity.player.Player player) {
+         return MLuaPlayerWrapper.playerEntityTable(player, registration);
+      }
       if (entity instanceof net.minecraft.world.entity.LivingEntity livingEntity) {
          return entityTable(livingEntity, registration);
       }
@@ -243,27 +251,11 @@ public final class MLuaEntityWrapper {
          if (raw.level().isClientSide) {
             throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
          }
-         net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(raw);
          if (args.narg() == 2 && args.arg(2).istable()) {
-            java.util.Set<String> keys = new java.util.HashSet<>(persistentData.getAllKeys());
-            for (String k : keys) {
-                persistentData.remove(k);
-            }
-            org.luaj.vm2.LuaTable replacement = args.arg(2).checktable();
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-               Varargs next = replacement.next(key);
-               key = next.arg1();
-               if (key.isnil()) {
-                  break;
-               }
-               if (key.isstring()) {
-                  MLuaNbtWrapper.set(persistentData, key.tojstring(), next.arg(2));
-               }
-            }
-            MLuaDataManager.setEntityPersistentTag(raw, persistentData);
+            MLuaDataManager.setEntityPersistentTag(raw, MLuaNbtWrapper.toCompound(args.arg(2)));
             return LuaValue.NONE;
          }
+         net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(raw);
          MLuaNbtWrapper.set(persistentData, args.checkjstring(2), args.arg(3));
          MLuaDataManager.setEntityPersistentTag(raw, persistentData);
          return LuaValue.NONE;
@@ -277,11 +269,19 @@ public final class MLuaEntityWrapper {
     }
 
     public static LuaTable entityTable(net.minecraft.world.entity.LivingEntity entity, MLuaRegistration registration) {
+      if (entity instanceof net.minecraft.world.entity.player.Player player) {
+         return MLuaPlayerWrapper.playerEntityTable(player, registration);
+      }
+      return livingEntityTable(entity, registration);
+    }
+
+    public static LuaTable livingEntityTable(net.minecraft.world.entity.LivingEntity entity, MLuaRegistration registration) {
       MCLivingEntity wrapped = new MCLivingEntityImpl(entity);
       MLuaEntityWrapperCache.Key cacheKey = MLuaEntityWrapperCache.key(entity);
       MLuaEntityWrapperCache cache = cacheFor(registration);
       LuaTable cached = cache.get(cacheKey);
       if (cached != null && hasEntity(cached, entity)) {
+         if (entity instanceof MLuaScriptedEntity scripted) scripted.attachLuaClass(cached, registration);
          return cached;
       }
        LuaTable table = cached != null ? cached : new LuaTable();
@@ -424,7 +424,7 @@ public final class MLuaEntityWrapper {
           if (attr == null) return LuaValue.NIL;
           net.minecraft.world.entity.ai.attributes.AttributeInstance instance = ((net.minecraft.world.entity.LivingEntity)((MCLivingEntityImpl)wrapped).inner()).getAttribute(attr);
           return instance == null ? LuaValue.NIL : dev.mlua.minecraft.binding.MLuaAttributeInstance.create(registration,
-             MLuaResourceLocations.parse(attrName).toString(), instance);
+             MLuaResourceLocations.parse(attrName).toString(), instance, args.arg1().checktable());
        }));
        MLuaClassMethods.setInstanceMethod(table, "SetAttribute", varArg((args) -> {
           String attrName = args.checkjstring(2);
@@ -512,27 +512,14 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "getNbt", table.get("GetNbt"));
       MLuaClassMethods.setInstanceMethod(table, "SetNbt", varArg((args) -> {
          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-         net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(raw);
+          if (raw.level().isClientSide) {
+             throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
+          }
          if (args.narg() == 2 && args.arg(2).istable()) {
-             java.util.Set<String> keys = new java.util.HashSet<>(persistentData.getAllKeys());
-             for (String k : keys) {
-                 persistentData.remove(k);
-             }
-             org.luaj.vm2.LuaTable replacement = args.arg(2).checktable();
-             LuaValue key = LuaValue.NIL;
-             while (true) {
-                Varargs next = replacement.next(key);
-                key = next.arg1();
-                if (key.isnil()) {
-                   break;
-                }
-                if (key.isstring()) {
-                   MLuaNbtWrapper.set(persistentData, key.tojstring(), next.arg(2));
-                }
-             }
-             MLuaDataManager.setEntityPersistentTag(raw, persistentData);
+             MLuaDataManager.setEntityPersistentTag(raw, MLuaNbtWrapper.toCompound(args.arg(2)));
              return LuaValue.NONE;
           }
+          net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(raw);
           MLuaNbtWrapper.set(persistentData, args.checkjstring(2), args.arg(3));
           MLuaDataManager.setEntityPersistentTag(raw, persistentData);
           return LuaValue.NONE;
@@ -644,6 +631,7 @@ public final class MLuaEntityWrapper {
          }
          return LuaValue.NONE;
       }));
+      if (entity instanceof MLuaScriptedEntity scripted) scripted.attachLuaClass(table, registration);
       return attachEntityProperties(table);
    }
 
@@ -664,7 +652,7 @@ public final class MLuaEntityWrapper {
 
    public static LuaTable attachEntityProperties(LuaTable table) {
       Map<String, LuaValue> getters = new java.util.HashMap<>();
-      for (String property : new String[]{"Id", "Type", "EntityType", "Name", "UUID", "UserId"}) {
+      for (String property : new String[]{"Id", "Type", "EntityType", "Name", "UUID"}) {
          LuaValue getter = table.get("Get" + property);
          if (getter.isfunction()) getters.put(property, getter);
       }
