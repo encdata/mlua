@@ -4,6 +4,7 @@ import dev.mlua.mcapi.network.MCConnection;
 import dev.mlua.mcapi.network.MCPacket;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 
 public class MCConnectionImpl implements MCConnection {
     private final Connection inner;
@@ -14,6 +15,24 @@ public class MCConnectionImpl implements MCConnection {
 
     public static MCConnectionImpl fromReal(Connection inner) {
         return inner == null ? null : new MCConnectionImpl(inner);
+    }
+
+    public static MCConnection fromPlayerListener(ServerGamePacketListenerImpl listener) {
+        if (listener == null) return null;
+        return new MCConnection() {
+            @Override
+            public void send(MCPacket packet) {
+                if (!(packet instanceof MCPacketImpl impl)) {
+                    throw new IllegalArgumentException("Unsupported Minecraft packet adapter");
+                }
+                listener.send((Packet<?>) impl.inner());
+            }
+
+            @Override
+            public ConnectionProtocol getProtocol() {
+                return ConnectionProtocol.PLAY;
+            }
+        };
     }
 
     public Connection inner() {
