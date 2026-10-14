@@ -52,26 +52,26 @@ public final class InventoryModule implements MLuaModule {
             "services/inventory.html"));
         docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:GetPlayerInventory(player: Player)", "Inventory"));
         docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:GetEnderChest(player: Player)", "Container"));
-        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:GetSlot(player: Player, index: number)", "Slot?"));
-        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:SetSlot(player: Player, index: number, item: Item?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:GetSlot(player: Player, index: integer)", "Slot?"));
+        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:SetSlot(player: Player, index: integer, item: Item?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:AddItem(player: Player, item: Item)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:CountItem(player: Player, itemId: string)", "number"));
-        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:ContainsItem(player: Player, itemId: string, count: number?)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:RemoveItem(player: Player, itemId: string, count: number)", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:ContainsItem(player: Player, itemId: string, count: integer?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:RemoveItem(player: Player, itemId: string, count: integer)", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("InventoryService", "InventoryService:Clear(player: Player)", "void"));
         docs.register(MLuaDocBuilder.Registration.clazz("Container", "MLuaContainer", "A live container instance that exposes its current slots.", "classes/container.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:GetSize(): number", "Returns the number of slots in this container.", "", "number", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:IsEmpty(): boolean", "Returns whether this container has no items.", "", "boolean", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:Clear()", "Removes all items from this writable container.", "", "void", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:GetSlot(index: number): Slot|nil", "Returns the live slot at a one-based index.", "index: one-based slot index", "Slot|nil", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:SetSlot(index: number, item: Item|nil)", "Sets the item in a writable slot by one-based index.", "index: one-based slot index; item: item stack or nil to clear", "void", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:GetSlot(index: integer): Slot|nil", "Returns the live slot at a one-based whole-number index.", "index: one-based slot index", "Slot|nil", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:SetSlot(index: integer, item: Item|nil)", "Sets the item in a writable slot by one-based whole-number index.", "index: one-based slot index; item: item stack or nil to clear", "void", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:GetTitle(): string|nil", "Returns this container's display title when available.", "", "string|nil", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:GetAll(): Slot[]", "Returns all live slots in this container.", "", "Slot[]", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:GetFirstEmptySlot(): Slot|nil", "Returns the first empty live slot, or nil when the container is full.", "", "Slot|nil", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:CountItem(itemId: string): number", "Returns the total stack count for an item identifier across this container.", "itemId: registered item identifier", "number", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Container", "Container:FindSlots(itemId: string): Slot[]", "Returns the live slots that currently contain this item identifier.", "itemId: registered item identifier", "Slot[]", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:ContainsItem(itemId: string, count: number?): boolean", "Returns whether this container has at least the requested total count.", "itemId: registered item identifier; count: minimum count, default 1", "boolean", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:RemoveItem(itemId: string, count: number): number", "Removes up to count items from a writable container and returns the amount removed.", "itemId: registered item identifier; count: positive number", "number", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:ContainsItem(itemId: string, count: integer?): boolean", "Returns whether this container has at least the requested total count.", "itemId: registered item identifier; count: positive whole number, default 1", "boolean", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Container", "Container:RemoveItem(itemId: string, count: integer): number", "Removes up to count items from a writable container and returns the amount removed.", "itemId: registered item identifier; count: positive whole number", "number", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.property("Container", "container.FirstEmptySlot", "Slot|nil", "The first empty live slot, or nil when full.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Container", "Read slots through a live container",
             "Container and Inventory expose live slots. Lua slot indexes start at one, and each Slot reads the current backing inventory.",
@@ -83,8 +83,8 @@ public final class InventoryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:GetHotbar(): Slot[]", "Returns the same live slot instances as the first nine inventory slots.", "", "Slot[]", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:GetArmorContents(): Slot[]", "Returns the same live slot instances as the inventory's armor positions.", "", "Slot[]", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:GetOffhandSlot(): Slot|nil", "Returns the same live slot instance as the inventory's offhand position.", "", "Slot|nil", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:SetHotbarSlot(index: number, item: Item|nil)", "Sets or clears a hotbar position by one-based index.", "index: 1-9; item: item stack or nil to clear", "void", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:SetArmorSlot(index: number, item: Item|nil)", "Sets or clears an armor position by one-based index.", "index: 1-4; item: item stack or nil to clear", "void", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:SetHotbarSlot(index: integer, item: Item|nil)", "Sets or clears a hotbar position by one-based whole-number index.", "index: 1-9; item: item stack or nil to clear", "void", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:SetArmorSlot(index: integer, item: Item|nil)", "Sets or clears an armor position by one-based whole-number index.", "index: 1-4; item: item stack or nil to clear", "void", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("Inventory", "Inventory:SetOffhandSlot(item: Item|nil)", "Sets or clears the offhand position.", "item: item stack or nil to clear", "void", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.guideStep("Inventory", "Use the inventory's named slot groups",
             "The hotbar, armor, and offhand accessors return the same cached Slot instances as GetSlot, so changes and addon extensions are visible through either path.",

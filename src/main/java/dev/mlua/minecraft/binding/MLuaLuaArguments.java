@@ -66,4 +66,17 @@ public final class MLuaLuaArguments {
         }
         return (long)number;
     }
+
+    public static int wholeInt(Varargs args, int index, String method, String parameter) {
+        long number = wholeLong(args, index, method, parameter);
+        if (number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must fit in a 32-bit integer.");
+        }
+        return (int)number;
+    }
+
+    public static int optionalWholeInt(Varargs args, int index, int fallback,
+                                       String method, String parameter) {
+        return args.arg(index).isnil() ? fallback : wholeInt(args, index, method, parameter);
+    }
 }

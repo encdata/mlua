@@ -112,7 +112,7 @@ public final class MLuaContainer {
          MLuaClassMethods.setInstanceMethod(table, "SetHotbarSlot", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-               int index = args.checkint(2);
+               int index = MLuaLuaArguments.wholeInt(args, 2, "Inventory:SetHotbarSlot", "slot");
                if (index < 1 || index > layout.hotbarSize()) {
                   throw new org.luaj.vm2.LuaError("[MLua] Hotbar slot must be between 1 and "
                      + layout.hotbarSize() + ".");
@@ -124,7 +124,7 @@ public final class MLuaContainer {
          MLuaClassMethods.setInstanceMethod(table, "SetArmorSlot", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-               int index = args.checkint(2);
+               int index = MLuaLuaArguments.wholeInt(args, 2, "Inventory:SetArmorSlot", "slot");
                if (index < 1 || index > layout.armorSize()) {
                   throw new org.luaj.vm2.LuaError("[MLua] Armor slot must be between 1 and "
                      + layout.armorSize() + ".");
@@ -204,7 +204,7 @@ public final class MLuaContainer {
       MLuaClassMethods.setInstanceMethod(table, "GetSlot", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
-            int index = args.checkint(2);
+            int index = MLuaLuaArguments.wholeInt(args, 2, "Container:GetSlot", "slot");
             int rawIndex = toRawIndex(index, access.size());
             if (rawIndex < 0) return LuaValue.NIL;
             return slotInstance(slotInstances, rawIndex, () -> access.getItem(rawIndex), () -> rawIndex,
@@ -215,7 +215,8 @@ public final class MLuaContainer {
          @Override
          public Varargs invoke(Varargs args) {
             ensureWritable(writable);
-            int rawIndex = requireRawIndex(args.checkint(2), access.size());
+            int rawIndex = requireRawIndex(
+               MLuaLuaArguments.wholeInt(args, 2, "Container:SetSlot", "slot"), access.size());
             LuaValue itemValue = args.arg(3);
             access.setItem(rawIndex, itemValue.isnil() ? MCItemStack.EMPTY
                : new MCItemStackImpl(MLuaItemWrapper.toItemStack(itemValue, registration)));
@@ -286,7 +287,7 @@ public final class MLuaContainer {
       MLuaClassMethods.setInstanceMethod(table, "ContainsItem", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             String itemId = requireItemId(args.checkjstring(2));
-            int required = args.optint(3, 1);
+            int required = MLuaLuaArguments.optionalWholeInt(args, 3, 1, "Container:ContainsItem", "count");
             if (required < 1) throw new org.luaj.vm2.LuaError("[MLua] Required item count must be positive.");
             int count = 0;
             for (int index = 0; index < access.size(); index++) {
@@ -300,7 +301,7 @@ public final class MLuaContainer {
          @Override public Varargs invoke(Varargs args) {
             ensureWritable(writable);
             String itemId = requireItemId(args.checkjstring(2));
-            int remaining = args.checkint(3);
+            int remaining = MLuaLuaArguments.wholeInt(args, 3, "Container:RemoveItem", "count");
             if (remaining < 1) throw new org.luaj.vm2.LuaError("[MLua] Removed item count must be positive.");
             int removed = 0;
             for (int index = 0; index < access.size() && remaining > 0; index++) {
@@ -393,15 +394,15 @@ public final class MLuaContainer {
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetSize", "Returns the number of slots in this container.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "IsEmpty", "Returns whether this container has no items.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "Clear", "Removes all items from this writable container.");
-      MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetSlot", "Returns the live slot at a one-based index.");
-      MLuaClassMethods.registerInstanceMethod(registration, "Container", "SetSlot", "Sets the item in a writable slot by one-based index.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetSlot", "Returns the live slot at a one-based whole-number index.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "SetSlot", "Sets the item in a writable slot by one-based whole-number index.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetTitle", "Returns this container's display title when available.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetAll", "Returns all live slots in this container.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetFirstEmptySlot", "Returns the first empty live slot, or nil when full.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "CountItem", "Returns the total count of an item identifier in this container.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "FindSlots", "Returns live slots containing the given item identifier.");
-      MLuaClassMethods.registerInstanceMethod(registration, "Container", "ContainsItem", "Returns whether this container has at least the requested item count.");
-      MLuaClassMethods.registerInstanceMethod(registration, "Container", "RemoveItem", "Removes up to the requested count from this writable container and returns the removed count.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "ContainsItem", "Returns whether this container has at least the requested whole-number item count.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "RemoveItem", "Removes up to a positive whole-number count from this writable container and returns the removed count.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetHotbar", "Returns the live slots for the nine hotbar positions.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetArmorContents", "Returns the live slots for the four armor positions.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetOffhandSlot", "Returns the live offhand slot.");
