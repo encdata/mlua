@@ -174,15 +174,18 @@ public interface MLuaModule extends MLuaReloadable {
             }
 
             public Builder description(String description) {
-                this.description = Objects.requireNonNull(description, "description");
+                Objects.requireNonNull(description, "description");
+                if (this.description != null && !this.description.equals(description)) {
+                    throw new IllegalArgumentException("Service '" + this.name + "' has conflicting descriptions");
+                }
+                this.description = description;
                 return this;
             }
 
             public Builder reflective(Class<? extends MLuaReflectiveService> serviceType) {
                 MLuaReflectiveService.ApiMetadata metadata = MLuaReflectiveService.apiMetadata(serviceType);
                 if (this.description != null && !this.description.equals(metadata.description())) {
-                    throw new IllegalArgumentException("Reflective service '" + this.name
-                        + "' has conflicting descriptions");
+                    throw new IllegalArgumentException("Service '" + this.name + "' has conflicting descriptions");
                 }
                 this.description = metadata.description();
                 metadata.functionDescriptions().forEach((method, description) -> {

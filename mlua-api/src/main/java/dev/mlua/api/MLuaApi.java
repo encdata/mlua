@@ -47,6 +47,7 @@ public final class MLuaApi {
    public static final class ServiceBuilder {
       private final String name;
       private final MLuaModule.ServiceEntry.Builder declaration;
+      private String declarationDescription;
       private boolean explicitClassName;
       private Side side = Side.BOTH;
       private boolean registered;
@@ -78,12 +79,23 @@ public final class MLuaApi {
 
       public ServiceBuilder description(String description) {
          ensureOpen();
-         this.declaration.description(Objects.requireNonNull(description, "description"));
+         Objects.requireNonNull(description, "description");
+         if (this.declarationDescription != null && !this.declarationDescription.equals(description)) {
+            throw new IllegalArgumentException("Service '" + this.name + "' has conflicting descriptions");
+         }
+         this.declarationDescription = description;
+         this.declaration.description(description);
          return this;
       }
 
       public ServiceBuilder reflective(Class<? extends MLuaReflectiveService> serviceType) {
          ensureOpen();
+         MLuaReflectiveService.ApiMetadata metadata = MLuaReflectiveService.apiMetadata(serviceType);
+         if (this.declarationDescription != null
+            && !this.declarationDescription.equals(metadata.description())) {
+            throw new IllegalArgumentException("Service '" + this.name + "' has conflicting descriptions");
+         }
+         this.declarationDescription = metadata.description();
          this.declaration.reflective(serviceType);
          return this;
       }
