@@ -136,6 +136,7 @@ public class RegistryModule implements MLuaModule {
         docs.signature("Block", "Block:GetHasBlockEntity()", "boolean");
         docs.signature("Block", "Block:GetIsRandomlyTicking()", "boolean");
         docs.signature("Block", "Block:Set(blockId: string, properties: BlockStateProperties?)", "boolean");
+        docs.signature("Block", "Block:Break(dropItems: boolean?)", "boolean");
         docs.service("Registry", "MLuaRegistryService",
                 "Registers addon content, generated data pack resources, Minecraft registry entries, and reusable inherited content types.",
                 "services/registry.html");

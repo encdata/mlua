@@ -356,10 +356,9 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return LuaValue.valueOf(rawLevel.getBlockState(rawPos).isRandomlyTicking());
          }), "Checks whether this block state receives random game ticks.");
-         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Break", selfBlock((self, ignored) -> {
-            level(self).destroyBlock(pos(self), true);
-            return LuaValue.TRUE;
-         }), "Breaks this block and drops its resources.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Break", selfBlock((self, args) ->
+            LuaValue.valueOf(level(self).destroyBlock(pos(self), args.optboolean(2, true)))),
+            "Breaks this block, optionally dropping its resources.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Set", selfBlock((self, args) -> {
             String blockId = args.checkjstring(2);
             net.minecraft.world.level.block.Block newBlock =
