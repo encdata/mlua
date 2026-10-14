@@ -419,12 +419,7 @@ public abstract class GuiBase {
             if (value instanceof Number number) return LuaValue.valueOf(number.doubleValue());
             if (value instanceof dev.mlua.minecraft.ui.UDim2 udim) return toLuaUDim2(udim);
             if (value instanceof dev.mlua.minecraft.ui.data.Vector2 vector) return toLuaVector2(vector);
-            if (value instanceof dev.mlua.minecraft.ui.data.Rect rect) {
-                LuaTable table = new LuaTable();
-                table.set("X", rect.x()); table.set("Y", rect.y());
-                table.set("Width", rect.width()); table.set("Height", rect.height());
-                return table;
-            }
+            if (value instanceof dev.mlua.minecraft.ui.data.Rect rect) return toLuaRect(rect);
             if (value instanceof Enum<?> enumValue) return enumLuaValue(enumValue);
             throw new org.luaj.vm2.LuaError("[MLua] UI property '" + property + "' returns unsupported Java type "
                 + getter.getReturnType().getTypeName() + ". Register a Lua property descriptor for this value.");
@@ -516,7 +511,7 @@ public abstract class GuiBase {
         return new dev.mlua.minecraft.ui.data.Vector2(x.optdouble(0), y.optdouble(0));
     }
 
-    private static LuaTable toLuaUDim2(dev.mlua.minecraft.ui.UDim2 udim2) {
+    protected static LuaTable toLuaUDim2(dev.mlua.minecraft.ui.UDim2 udim2) {
         LuaTable t = new LuaTable();
         t.set("X", toLuaUDim(udim2.x()));
         t.set("Y", toLuaUDim(udim2.y()));
@@ -530,10 +525,19 @@ public abstract class GuiBase {
         return t;
     }
 
-    private static LuaTable toLuaVector2(dev.mlua.minecraft.ui.data.Vector2 v) {
+    protected static LuaTable toLuaVector2(dev.mlua.minecraft.ui.data.Vector2 v) {
         LuaTable t = new LuaTable();
         t.set("X", v.x());
         t.set("Y", v.y());
+        return t;
+    }
+
+    protected static LuaTable toLuaRect(dev.mlua.minecraft.ui.data.Rect rect) {
+        LuaTable t = new LuaTable();
+        t.set("X", rect.x());
+        t.set("Y", rect.y());
+        t.set("Width", rect.width());
+        t.set("Height", rect.height());
         return t;
     }
 
