@@ -6,6 +6,7 @@ import org.luaj.vm2.LuaValue;
 public class TextLabel extends GuiObject {
     protected String text = "";
     protected int textColor3 = 0xFF000000;
+    protected float textTransparency = 0.0f;
     protected int textSize = 14;
     protected String textXAlignment = "Center";
     protected String textYAlignment = "Center";
@@ -21,6 +22,8 @@ public class TextLabel extends GuiObject {
     public String getText() { return text; }
     public void setTextColor3(int color) { this.textColor3 = color; syncLuaProperty("TextColor3", LuaValue.valueOf(color)); }
     public int getTextColor3() { return textColor3; }
+    public void setTextTransparency(float transparency) { this.textTransparency = transparency; syncLuaProperty("TextTransparency", LuaValue.valueOf(transparency)); }
+    public float getTextTransparency() { return textTransparency; }
     public void setTextSize(int size) { this.textSize = size; syncLuaProperty("TextSize", LuaValue.valueOf(size)); }
     public int getTextSize() { return textSize; }
     public void setTextXAlignment(String align) { this.textXAlignment = align; syncLuaProperty("TextXAlignment", LuaValue.valueOf(align)); }

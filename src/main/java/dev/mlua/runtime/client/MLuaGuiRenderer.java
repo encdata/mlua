@@ -103,9 +103,9 @@ public final class MLuaGuiRenderer {
         }
 
         if (obj instanceof TextLabel label) {
-            drawText(graphics, label.getText(), label.getTextColor3(), absW, absH, label.getTextSize(), label.getTextXAlignment(), label.getTextYAlignment(), label.getTextScaled(), label.getTextWrapped(), label::setTextFits);
+            drawText(graphics, label.getText(), label.getTextColor3(), label.getTextTransparency(), absW, absH, label.getTextSize(), label.getTextXAlignment(), label.getTextYAlignment(), label.getTextScaled(), label.getTextWrapped(), label::setTextFits);
         } else if (obj instanceof TextButton button) {
-            drawText(graphics, button.getText(), button.getTextColor3(), absW, absH, button.getTextSize(), button.getTextXAlignment(), button.getTextYAlignment(), button.getTextScaled(), button.getTextWrapped(), button::setTextFits);
+            drawText(graphics, button.getText(), button.getTextColor3(), button.getTextTransparency(), absW, absH, button.getTextSize(), button.getTextXAlignment(), button.getTextYAlignment(), button.getTextScaled(), button.getTextWrapped(), button::setTextFits);
         } else if (obj instanceof ImageLabel label) {
             drawImage(graphics, label.getImage(), label.getImageColor3(), label.getImageTransparency(), absW, absH);
         } else if (obj instanceof ImageButton button) {
@@ -222,7 +222,9 @@ public final class MLuaGuiRenderer {
         graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
-    private static void drawText(GuiGraphics graphics, String text, int color, int boxW, int boxH, int textSize, String xAlign, String yAlign, boolean textScaled, boolean textWrapped, java.util.function.Consumer<Boolean> textFitsSink) {
+    private static void drawText(GuiGraphics graphics, String text, int color, float textTransparency, int boxW, int boxH, int textSize, String xAlign, String yAlign, boolean textScaled, boolean textWrapped, java.util.function.Consumer<Boolean> textFitsSink) {
+        int alpha = (int)Math.round(((color >>> 24) & 0xFF) * (1.0f - Math.max(0.0f, Math.min(1.0f, textTransparency))));
+        color = (alpha << 24) | (color & 0x00FFFFFF);
         var font = Minecraft.getInstance().font;
         int padX = 4;
         int padY = 2;
