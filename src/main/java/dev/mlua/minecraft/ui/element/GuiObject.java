@@ -41,6 +41,7 @@ public abstract class GuiObject extends GuiBase2d {
     protected final MLuaSignal inputBegan = new MLuaSignal();
     protected final MLuaSignal inputChanged = new MLuaSignal();
     protected final MLuaSignal inputEnded = new MLuaSignal();
+    protected final MLuaSignal animationCompleted = new MLuaSignal();
     protected final MLuaSignal mouseWheelForward = new MLuaSignal();
     protected final MLuaSignal mouseWheelBackward = new MLuaSignal();
 
@@ -56,6 +57,7 @@ public abstract class GuiObject extends GuiBase2d {
     public MLuaSignal getInputBegan() { return inputBegan; }
     public MLuaSignal getInputChanged() { return inputChanged; }
     public MLuaSignal getInputEnded() { return inputEnded; }
+    public MLuaSignal getAnimationCompleted() { return animationCompleted; }
     public MLuaSignal getMouseWheelForward() { return mouseWheelForward; }
     public MLuaSignal getMouseWheelBackward() { return mouseWheelBackward; }
 
@@ -104,6 +106,7 @@ public abstract class GuiObject extends GuiBase2d {
         table.set("InputBegan", MLuaLuaBindings.signalInstance(inputBegan, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
         table.set("InputChanged", MLuaLuaBindings.signalInstance(inputChanged, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
         table.set("InputEnded", MLuaLuaBindings.signalInstance(inputEnded, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
+        table.set("AnimationCompleted", MLuaLuaBindings.signalInstance(animationCompleted, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
         table.set("MouseWheelForward", MLuaLuaBindings.signalInstance(mouseWheelForward, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
         table.set("MouseWheelBackward", MLuaLuaBindings.signalInstance(mouseWheelBackward, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
         table.set("MouseEnter", MLuaLuaBindings.signalInstance(mouseEnter, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
@@ -179,7 +182,10 @@ public abstract class GuiObject extends GuiBase2d {
     public void tickTween(double dt) {
         if (activeTween != null) {
             activeTween.tick(dt);
-            if (activeTween.done) activeTween = null;
+            if (activeTween.done) {
+                activeTween = null;
+                animationCompleted.fireOnSide(dev.mlua.common.enums.Side.CLIENT, LuaValue.NONE);
+            }
         }
     }
 
