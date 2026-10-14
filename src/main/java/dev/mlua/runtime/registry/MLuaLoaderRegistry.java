@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.mlua.loaderapi.EntityVisualInfo;
 import dev.mlua.loaderapi.GeneratedDataResources;
+import dev.mlua.loaderapi.GeneratedAssetResources;
 import dev.mlua.loaderapi.GeneratedAssetKind;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.RegistryHandle;
@@ -148,6 +149,18 @@ public final class MLuaLoaderRegistry {
 
     public static Map<String, JsonObject> getGeneratedDataResources() {
         return GeneratedDataResources.snapshot();
+    }
+
+    public static void registerGeneratedAssetResource(String owner, String path, JsonObject definition) {
+        GeneratedAssetResources.register(owner, path, definition);
+    }
+
+    public static Map<String, JsonObject> getGeneratedAssetResources() {
+        return GeneratedAssetResources.snapshot();
+    }
+
+    public static boolean clearGeneratedAssetResources(String owner) {
+        return GeneratedAssetResources.removeOwner(owner);
     }
 
     public static boolean clearGeneratedDataResources(String owner) {

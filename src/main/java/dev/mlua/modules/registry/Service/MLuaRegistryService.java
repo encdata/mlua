@@ -123,6 +123,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       addEndpoint(endpoints, "Containers", "Register", "container", "Containers", null, List.of("container", "containers"), "Register:3");
       addEndpoint(endpoints, "Projectiles", "Register", "projectile", "Projectiles", null, List.of("projectile", "projectiles"), "Register:3");
       addEndpoint(endpoints, "DataPack", "Register", "datapack", "DataPack", null, List.of("data", "datapack", "data_pack"), "Register:4");
+      addEndpoint(endpoints, "Assets", "register", "assets", "Assets", null, List.of("asset", "assets"));
       addEndpoint(endpoints, "WorldGeneration", "AddFeature", "worldgen", "WorldGeneration", null,
          List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"), "AddFeature:3");
       addEndpoint(endpoints, "Tabs", "Register", "tab", "Tabs", RegistryKind.CREATIVE_TAB, List.of("tab", "tabs", "creative_tab", "creative_tabs"), "Register:3");
@@ -181,6 +182,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable config = registryTable();
       LuaTable damageSource = registryTable();
       LuaTable dataPack = registryTable();
+      LuaTable assets = registryTable();
       LuaTable worldGeneration = registryTable();
       LuaTable contentTypes = registryTable();
       table.set("__side", "Registry");
@@ -199,6 +201,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("Config", config);
       table.set("DamageSource", damageSource);
       table.set("DataPack", dataPack);
+      table.set("Assets", assets);
       table.set("WorldGeneration", worldGeneration);
       table.set("ContentTypes", contentTypes);
       for (DynamicRegistryCategory category : this.dynamicRegistry.categories()) {
@@ -254,6 +257,24 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return LuaValue.NONE;
          }
       });
+      assets.set("register", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.ensureRegistryPhase();
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            String path = args.checkjstring(2);
+            JsonObject json = MLuaRegistryService.jsonObjectArg(args.arg(3), "asset resource");
+            try {
+               MLuaLoaderRegistry.registerGeneratedAssetResource(owner, path, json);
+            } catch (IllegalArgumentException | IllegalStateException error) {
+               throw new LuaError("[MLua] " + error.getMessage());
+            }
+            return LuaValue.NONE;
+         }
+      });
+      assets.rawset("__mlua_doc_description", LuaValue.valueOf(
+         "Generates JSON files under the addon's assets namespace, including shared manifests such as sounds.json."));
+      MLuaServiceMetadata.attachMethodDescriptions(assets, Map.of(
+         "register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json."));
       worldGeneration.set("AddFeature", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();

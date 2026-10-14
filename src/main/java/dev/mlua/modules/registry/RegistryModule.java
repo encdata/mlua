@@ -25,6 +25,7 @@ public class RegistryModule implements MLuaModule {
         MLuaContentTypeRegistry.clearOwner(runtime, ownerModId);
         MLuaBehaviorRegistry.clearOwner(ownerModId);
         dev.mlua.runtime.registry.MLuaLoaderRegistry.clearGeneratedDataResources(ownerModId);
+        dev.mlua.runtime.registry.MLuaLoaderRegistry.clearGeneratedAssetResources(ownerModId);
     }
 
     @Override

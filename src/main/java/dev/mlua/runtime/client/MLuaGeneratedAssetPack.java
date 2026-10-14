@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.loaderapi.GeneratedAssetKind;
 import dev.mlua.loaderapi.GeneratedDataResources;
+import dev.mlua.loaderapi.GeneratedAssetResources;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.runtime.registry.MLuaAssetResolver;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
@@ -74,6 +75,7 @@ public final class MLuaGeneratedAssetPack {
          writeBlockStates(resources);
          writeTags(resources);
          writeDataPackResources(resources);
+         writeAssetPackResources(resources);
          DATA = hasAssetDefinitions() ? Map.copyOf(resources) : Map.of();
          MLuaLogger.LOGGER.info("Generated MLua pack with {} resources (items={}, blocks={}, recipes={}, lootTables={}, blockstates={}, tags={})", new Object[]{resources.size(), MLuaLoaderRegistry.getRegisteredIds(RegistryKind.ITEM).size(), MLuaLoaderRegistry.getRegisteredIds(RegistryKind.BLOCK).size(), MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.RECIPE).size(), MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.LOOT_TABLE).size(), MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.BLOCKSTATE).size(), MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.ITEM_TAG).size() + MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.BLOCK_TAG).size() + MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.ENTITY_TYPE_TAG).size()});
       } catch (IOException error) {
@@ -95,7 +97,7 @@ public final class MLuaGeneratedAssetPack {
       for (GeneratedAssetKind kind : GeneratedAssetKind.values()) {
          if (!MLuaLoaderRegistry.getGeneratedAssets(kind).isEmpty()) return true;
       }
-      return !GeneratedDataResources.snapshot().isEmpty();
+      return !GeneratedDataResources.snapshot().isEmpty() || !GeneratedAssetResources.snapshot().isEmpty();
    }
 
    private static void writeDefaults(Map<String, byte[]> resources) {
@@ -250,6 +252,15 @@ public final class MLuaGeneratedAssetPack {
       writeDataObjects(resources, LEGACY_DATA_DIRECTORIES ? "tags/items" : "tags/item", MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.ITEM_TAG));
       writeDataObjects(resources, LEGACY_DATA_DIRECTORIES ? "tags/blocks" : "tags/block", MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.BLOCK_TAG));
       writeDataObjects(resources, LEGACY_DATA_DIRECTORIES ? "tags/entity_types" : "tags/entity_type", MLuaLoaderRegistry.getGeneratedAssets(GeneratedAssetKind.ENTITY_TYPE_TAG));
+   }
+
+   private static void writeAssetPackResources(Map<String, byte[]> resources) {
+      GeneratedAssetResources.snapshot().forEach((id, json) -> {
+         int separator = id.indexOf(':');
+         String path = "assets/" + id.substring(0, separator) + "/" + id.substring(separator + 1);
+         if (resources.containsKey(path)) throw new IllegalStateException("Generated asset resource collides with another MLua asset: " + id);
+         put(resources, path, json.toString());
+      });
    }
 
    private static void writeDataPackResources(Map<String, byte[]> resources) {
