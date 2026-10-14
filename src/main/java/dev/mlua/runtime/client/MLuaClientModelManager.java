@@ -45,30 +45,38 @@ public final class MLuaClientModelManager {
         state.cframeOrder = SEQUENCE.incrementAndGet();
     }
 
-    public static void setOffset(int entityId, String part, LuaTable offset) {
+    public static void setOffset(int entityId, String part, LuaValue offset) {
         setOffset(MLuaEntityScope.legacy(entityId), part, offset);
     }
 
-    public static void setOffset(MLuaEntityScope scope, String part, LuaTable offset) {
+    public static void setOffset(MLuaEntityScope scope, String part, LuaValue offset) {
         setOffset(scope, part, offset, LEGACY_OWNER);
     }
-    public static void setOffset(MLuaEntityScope scope, String part, LuaTable offset, Owner owner) {
+    public static void setOffset(MLuaEntityScope scope, String part, LuaValue offset, Owner owner) {
         PartState state = state(scope, normalizePartName(part), owner);
-        state.offset = offset;
+        state.offset = typedVector(offset, "Offset");
         state.offsetOrder = SEQUENCE.incrementAndGet();
     }
 
-    public static void setScale(int entityId, String part, LuaTable scale) {
+    public static void setScale(int entityId, String part, LuaValue scale) {
         setScale(MLuaEntityScope.legacy(entityId), part, scale);
     }
 
-    public static void setScale(MLuaEntityScope scope, String part, LuaTable scale) {
+    public static void setScale(MLuaEntityScope scope, String part, LuaValue scale) {
         setScale(scope, part, scale, LEGACY_OWNER);
     }
-    public static void setScale(MLuaEntityScope scope, String part, LuaTable scale, Owner owner) {
+    public static void setScale(MLuaEntityScope scope, String part, LuaValue scale, Owner owner) {
         PartState state = state(scope, normalizePartName(part), owner);
-        state.scale = scale;
+        state.scale = typedVector(scale, "Scale");
         state.scaleOrder = SEQUENCE.incrementAndGet();
+    }
+
+    private static LuaTable typedVector(LuaValue value, String property) {
+        if (!MLuaVector.isVector3(value)) {
+            throw new org.luaj.vm2.LuaError("[MLua] Model part " + property + " expects a native Vector3 value.");
+        }
+        double[] components = MLuaVector.components3(value);
+        return MLuaVector.vector3(components[0], components[1], components[2]);
     }
 
     public static void setVisible(int entityId, String part, Boolean visible) {

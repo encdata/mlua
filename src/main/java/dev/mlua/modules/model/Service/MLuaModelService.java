@@ -44,14 +44,14 @@ public final class MLuaModelService extends MLuaReflectiveService {
         MLuaClientModelManager.setCFrame(resolveEntityScope(entity), part, MLuaCFrame.fromLua(cframe), owner());
     }
 
-    @MLuaDescription("Sets a model part position and rotation offset.")
-    public void SetPartOffset(LuaValue entity, String part, LuaTable offset) {
+    @MLuaDescription("Sets a model part translation offset from a native Vector3 value.")
+    public void SetPartOffset(LuaValue entity, String part, LuaValue offset) {
         ensureClient();
         MLuaClientModelManager.setOffset(resolveEntityScope(entity), part, offset, owner());
     }
 
     @MLuaDescription("Sets a model part scale override.")
-    public void SetPartScale(LuaValue entity, String part, LuaTable scale) {
+    public void SetPartScale(LuaValue entity, String part, LuaValue scale) {
         ensureClient();
         MLuaClientModelManager.setScale(resolveEntityScope(entity), part, scale, owner());
     }
@@ -70,10 +70,10 @@ public final class MLuaModelService extends MLuaReflectiveService {
             MLuaClientModelManager.setCFrame(scope, part, MLuaCFrame.fromLua(properties.get("CFrame")), owner());
         }
         if (!properties.get("Offset").isnil()) {
-            MLuaClientModelManager.setOffset(scope, part, properties.get("Offset").checktable(), owner());
+            MLuaClientModelManager.setOffset(scope, part, properties.get("Offset"), owner());
         }
         if (!properties.get("Scale").isnil()) {
-            MLuaClientModelManager.setScale(scope, part, properties.get("Scale").checktable(), owner());
+            MLuaClientModelManager.setScale(scope, part, properties.get("Scale"), owner());
         }
         if (!properties.get("Visible").isnil()) {
             MLuaClientModelManager.setVisible(scope, part, properties.get("Visible").checkboolean(), owner());
