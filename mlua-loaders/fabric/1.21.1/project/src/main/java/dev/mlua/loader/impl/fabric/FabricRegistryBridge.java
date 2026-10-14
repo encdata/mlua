@@ -63,7 +63,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     public <T> RegistryHandle<T> get(RegistryKind registryKind, String modId, String name) {
         return (RegistryHandle<T>) registeredHandles
             .getOrDefault(registryKey(registryKind), Map.of())
-            .get(metadataKey(modId, name));
+            .get(resourceId(modId, name));
     }
 
     @Override
@@ -123,8 +123,8 @@ public final class FabricRegistryBridge implements RegistryBridge {
     @Override
     public void setTexture(RegistryKind registryKind, String modId, String name, Map<String, String> values) {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
-        textures.computeIfAbsent(registryKind, ignored -> new LinkedHashMap<>())
-            .put(metadataKey(modId, name), values == null ? Map.of() : Map.copyOf(values));
+        putMetadata(textures, registryKind, modId, name,
+            values == null || values.isEmpty() ? null : Map.copyOf(values));
     }
 
     @Override
@@ -137,7 +137,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     @Override
     public void setModel(RegistryKind registryKind, String modId, String name, String model) {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
-        putMetadata(models, registryKind, modId, name, model);
+        putMetadata(models, registryKind, modId, name, model == null || model.isBlank() ? null : model);
     }
 
     @Override
@@ -149,7 +149,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     @Override
     public void setCopy(RegistryKind registryKind, String modId, String name, String copy) {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
-        putMetadata(copies, registryKind, modId, name, copy);
+        putMetadata(copies, registryKind, modId, name, copy == null || copy.isBlank() ? null : copy);
     }
 
     @Override
@@ -199,7 +199,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void setEntityVisual(String modId, String name, String texture, String model, float shadowRadius) {
-        entityVisuals.put(metadataKey(modId, name), new EntityVisualInfo(texture, model, shadowRadius));
+        entityVisuals.put(resourceId(modId, name), new EntityVisualInfo(texture, model, shadowRadius));
     }
 
     @Override
@@ -314,7 +314,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     private <T> void putMetadata(Map<RegistryKind, Map<String, T>> target, RegistryKind registryKind, String modId, String name, T value) {
-        String key = metadataKey(modId, name);
+        String key = resourceId(modId, name);
         Map<String, T> values = target.computeIfAbsent(registryKind, ignored -> new LinkedHashMap<>());
         if (value == null) {
             values.remove(key);
@@ -323,7 +323,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
         }
     }
 
-    private static String metadataKey(String modId, String name) {
+    private static String resourceId(String modId, String name) {
         MLuaResourceNameValidator.validate(modId);
         MLuaResourceNameValidator.validate(name);
         return modId + ":" + name;
