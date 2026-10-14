@@ -704,7 +704,7 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Player", "Player:SendMessage(message: string)", null);
         docs.signature("Player", "Player:SendActionBar(message: string)", null);
         docs.signature("Player", "Player:SendTitle(title: string)", null);
-        docs.signature("Player", "Player:GiveItem(item: Item)", null);
+        docs.signature("Player", "Player:GiveItem(item: Item)", "boolean");
         docs.signature("Player", "Player:GiveEffect(effect: string, duration: number, amplifier: number, showParticles: boolean)", null);
         docs.signature("Player", "Player:GiveExperience(amount: number)", null);
         docs.signature("Player", "Player:GiveExperienceLevels(levels: number)", null);

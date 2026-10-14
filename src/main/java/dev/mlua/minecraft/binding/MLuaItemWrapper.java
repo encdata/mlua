@@ -274,6 +274,9 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).hasTag())), "Returns whether this item has NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayName", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getHoverName().getString())), "Returns this item's rendered display name as plain text.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayComponent", selfItem((self, ignored) ->
+            dev.mlua.api.MLuaLuaCoercions.toLuaValue(((MCItemStackImpl)stack(self)).inner().getHoverName())),
+            "Returns this item's native Minecraft display Component.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDisplayName", selfItem((self, args) -> {
             LuaValue value = args.arg(2);
             net.minecraft.network.chat.Component component;
@@ -391,6 +394,7 @@ public final class MLuaItemWrapper {
               {"Stackable", "IsStackable", null, "boolean", "Whether this stack can be stacked with a matching stack."},
               {"HasTag", "GetHasTag", null, "boolean", "Whether this item has NBT data."},
               {"DisplayName", "GetDisplayName", "SetDisplayName", "string|Component", "This item's rendered display name; assign a string or Java Component."},
+              {"DisplayComponent", "GetDisplayComponent", null, "Component", "This item's native Minecraft display Component."},
               {"Lore", "GetLore", "SetLore", "table", "This item's lore lines."},
               {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This item's live NBT view; assign a table to replace its data."},
               {"Enchantments", "GetEnchantments", null, "table", "A map from enchantment id to level for this item."}

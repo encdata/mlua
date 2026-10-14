@@ -39,6 +39,7 @@ public final class ItemStackModule implements MLuaModule {
         docs.clazz("BlockItem", "MLuaItemWrapper", "An item instance that places its associated block and inherits the item stack API.", "classes/block-item.html", "Item");
         docs.clazz("Weapon", "MLuaItemWrapper", "A scriptable weapon base for melee, ranged, thrown, and other item actions.", "classes/weapon.html", "Item");
         docs.signature("Item", "Item:GetDisplayName()", "string");
+        docs.signature("Item", "Item:GetDisplayComponent()", "Component");
         docs.signature("Item", "Item:SetDisplayName(name: string|Component)", "void");
         docs.signature("Item", "Item:SetLore(lore: string|string[])", "void");
         docs.signature("Item", "Item:SetCount(count: number)", "void");

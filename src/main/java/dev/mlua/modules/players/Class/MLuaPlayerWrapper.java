@@ -14,7 +14,6 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.MLuaResourceLocations;
-import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
@@ -327,34 +326,9 @@ public final class MLuaPlayerWrapper {
          throw new LuaError("[MLua] Player.ViewMode can only be written from a .client.lua script.");
       }));
       MLuaClassMethods.setInstanceMethod(table, "GiveItem", varArg((args) -> {
-         LuaValue arg = args.arg(2);
-         if (arg.istable()) {
-            LuaValue idVal = arg.get("Id");
-            LuaValue countVal = arg.get("Count");
-            if (idVal.isnil()) {
-               throw new LuaError("[MLua] Item table missing Id");
-            }
-
-            String idx = idVal.tojstring();
-            int count = countVal.isnil() ? 1 : countVal.checkint();
-            net.minecraft.world.item.Item item = (net.minecraft.world.item.Item) MCApiRuntime.lookupRegistry("item", idx);
-            if (item == null) {
-               throw new LuaError("[MLua] Unknown item: " + idx);
-            }
-
-            player.addItem(MCItemStackImpl.fromReal(new net.minecraft.world.item.ItemStack(item, count)));
-         } else {
-            String id = arg.checkjstring();
-            int countx = args.optint(3, 1);
-            net.minecraft.world.item.Item itemx = (net.minecraft.world.item.Item) MCApiRuntime.lookupRegistry("item", id);
-            if (itemx == null) {
-               throw new LuaError("[MLua] Unknown item: " + id);
-            }
-
-            player.addItem(MCItemStackImpl.fromReal(new net.minecraft.world.item.ItemStack(itemx, countx)));
-         }
-
-         return LuaValue.NONE;
+         net.minecraft.world.item.ItemStack stack = MLuaItemWrapper.toItemStack(args.arg(2), registration);
+         if (stack.isEmpty()) return LuaValue.FALSE;
+         return LuaValue.valueOf(player.addItem(MCItemStackImpl.fromReal(stack)));
       }));
       MLuaClassMethods.setInstanceMethod(table, "ClearInventory", luaFn(() -> {
          player.getInventory().clearContent();
@@ -920,7 +894,7 @@ public final class MLuaPlayerWrapper {
          MLuaClassMethods.setInstanceMethod(table, "SetInventory", varArg((args) -> {
             LuaValue inventoryValue = args.arg(2);
             if (!inventoryValue.istable()) {
-               throw new LuaError("[MLua] SetInventory expects an array-style table of items or nil values.");
+               throw new LuaError("[MLua] SetInventory expects an array of Item instances or nil values.");
             }
             LuaTable inventoryTable = inventoryValue.checktable();
             int size = rawInventory.getContainerSize();
