@@ -715,7 +715,7 @@ public final class MLuaClassRegistry {
          if (!this.inheritsFrom(className, currentName, new HashSet<>())) {
             if (this.inheritsFrom(currentName, className, new HashSet<>())) {
                if (parentName != null && !parentName.isBlank()
-                  && !this.inheritsFrom(className, parentName, new HashSet<>())) {
+                  && !this.isClassOrParent(className, parentName)) {
                   throw new IllegalArgumentException("Lua class '" + className
                      + "' does not inherit from requested instance parent '" + parentName + "'");
                }
@@ -726,7 +726,7 @@ public final class MLuaClassRegistry {
          }
       }
       if (parentName != null && !parentName.isBlank()) {
-         if (!this.inheritsFrom(className, parentName, new HashSet<>())) {
+         if (!this.isClassOrParent(className, parentName)) {
             throw new IllegalArgumentException("Lua class '" + className
                + "' does not inherit from requested instance parent '" + parentName + "'");
          }
@@ -906,6 +906,10 @@ public final class MLuaClassRegistry {
          if (parent.equals(ancestor) || this.inheritsFrom(parent, ancestor, visited)) return true;
       }
       return false;
+   }
+
+   private boolean isClassOrParent(String className, String expectedName) {
+      return className.equals(expectedName) || this.inheritsFrom(className, expectedName, new HashSet<>());
    }
 
    private void refreshInheritedMethodDescriptions(String className) {
