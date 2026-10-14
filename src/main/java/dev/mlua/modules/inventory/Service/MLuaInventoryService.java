@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import java.util.UUID;
 import java.util.Optional;
@@ -87,13 +88,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     private Player player(LuaValue value) {
         if (value.istable()) {
-            if (!this.context.registration().isInstanceOf(value, "Player")) {
-                throw new LuaError("[MLua] Expected a Player instance, player name, or player UUID.");
-            }
-            LuaValue raw = value.checktable().rawget("__entity");
-            if (raw.isuserdata(Player.class)) {
-                return (Player) raw.touserdata(Player.class);
-            }
+            return (Player) MLuaEntityWrapper.requireLuaInstance(value, this.context.registration(), "Player", "Player");
             if (raw.isuserdata(net.minecraft.world.entity.Entity.class)) {
                 Object entity = raw.touserdata(net.minecraft.world.entity.Entity.class);
                 if (entity instanceof Player player) return player;

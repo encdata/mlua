@@ -1077,6 +1077,16 @@ public final class MLuaEntityWrapper {
       return entityFromLua(value);
    }
 
+   public static net.minecraft.world.entity.Entity requireLuaInstance(LuaValue value, MLuaRegistration registration,
+                                                                        String className, String expected) {
+      if (registration == null || !registration.isInstanceOf(value, className)) {
+         throw new LuaError("[MLua] Expected a " + expected + " instance");
+      }
+      net.minecraft.world.entity.Entity entity = entityFromLua(value);
+      if (entity == null) throw new LuaError("[MLua] Expected a live " + expected + " instance");
+      return entity;
+   }
+
    private static LuaValue luaFn(final Supplier<LuaValue> fn) {
       return new ZeroArgFunction() {
          public LuaValue call() {

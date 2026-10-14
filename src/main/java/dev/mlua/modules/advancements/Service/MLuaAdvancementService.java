@@ -12,6 +12,7 @@ import dev.mlua.mc.impl.server.MCMinecraftServerImpl;
 import dev.mlua.mcapi.entity.MCServerPlayer;
 import dev.mlua.mcapi.server.MCMinecraftServer;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 //--version 1.20.1
 import dev.mlua.mcapi.advancement.MCAdvancement;
 import dev.mlua.mc.impl.advancement.MCAdvancementImpl;
@@ -329,17 +330,9 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 //--endversion
 
    private MCServerPlayer extractPlayer(LuaValue playerTable) {
-      if (!this.context.mlua().registration().isInstanceOf(playerTable, "Player")) {
-         throw new LuaError("[MLua] Expected a Player instance");
-      }
-      LuaValue ud = playerTable.get("__entity");
-      if (ud != null && ud.isuserdata()) {
-         Object obj = ud.checkuserdata(net.minecraft.server.level.ServerPlayer.class);
-         if (obj instanceof net.minecraft.server.level.ServerPlayer sp) {
-            return MCServerPlayerImpl.fromReal(sp);
-         }
-      }
-      throw new LuaError("[MLua] Expected a live Player instance");
+      var player = MLuaEntityWrapper.requireLuaInstance(playerTable, this.context.mlua().registration(), "Player", "Player");
+      if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) return MCServerPlayerImpl.fromReal(serverPlayer);
+      throw new LuaError("[MLua] Expected a connected ServerPlayer instance");
    }
 
 }

@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaAttributeModifierIds;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -180,13 +181,7 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
    }
 
    private LivingEntity extractEntity(LuaValue value) {
-      if (!context.mlua().registration().isInstanceOf(value, "LivingEntity")) {
-         throw new LuaError("[MLua] Expected a LivingEntity instance.");
-      }
-      LuaTable table = value.checktable();
-      LuaValue entity = table.get("__entity");
-      if (entity.isuserdata(LivingEntity.class)) return (LivingEntity) entity.checkuserdata(LivingEntity.class);
-      throw new LuaError("[MLua] Expected a live LivingEntity instance.");
+      return (LivingEntity) MLuaEntityWrapper.requireLuaInstance(value, context.mlua().registration(), "LivingEntity", "LivingEntity");
    }
 
 //--version 1.20.1

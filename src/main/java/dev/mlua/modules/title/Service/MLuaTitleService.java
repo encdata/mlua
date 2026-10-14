@@ -3,6 +3,7 @@ package dev.mlua.modules.title.Service;
 import dev.mlua.common.enums.Side;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
 import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
@@ -77,16 +78,8 @@ public final class MLuaTitleService extends MLuaReflectiveService {
     }
 
     private ServerPlayer extractPlayer(LuaValue playerValue) {
-        if (!context.mlua().registration().isInstanceOf(playerValue, "Player")) {
-            throw new LuaError("[MLua] Expected a Player instance");
-        }
-        LuaTable table = playerValue.checktable();
-        LuaValue entity = table.get("__entity");
-        if (entity.isuserdata(Player.class)) {
-            Player player = (Player) entity.checkuserdata(Player.class);
-            if (player instanceof ServerPlayer serverPlayer) return serverPlayer;
-            throw new LuaError("[MLua] Expected a ServerPlayer, got " + player.getClass().getSimpleName());
-        }
-        throw new LuaError("[MLua] Expected a live Player instance");
+        Player player = (Player) MLuaEntityWrapper.requireLuaInstance(playerValue, context.mlua().registration(), "Player", "Player");
+        if (player instanceof ServerPlayer serverPlayer) return serverPlayer;
+        throw new LuaError("[MLua] Expected a ServerPlayer, got " + player.getClass().getSimpleName());
     }
 }

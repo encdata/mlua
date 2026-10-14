@@ -7,6 +7,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.bossbar.MLuaBossBarRegistry;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.api.MLuaDescription;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
@@ -218,15 +219,7 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
     }
 
     private ServerPlayer extractPlayer(LuaValue playerVal) {
-        if (!context.mlua().registration().isInstanceOf(playerVal, "Player")) {
-            throw new LuaError("[MLua] Expected a Player instance");
-        }
-        LuaTable t = playerVal.checktable();
-        LuaValue e = t.get("__entity");
-        if (e.isuserdata(ServerPlayer.class)) {
-            return (ServerPlayer) e.checkuserdata(ServerPlayer.class);
-        }
-        throw new LuaError("[MLua] Expected a live Player instance");
+        return (ServerPlayer) MLuaEntityWrapper.requireLuaInstance(playerVal, context.mlua().registration(), "Player", "Player");
     }
 
     private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {

@@ -9,6 +9,7 @@ import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.runtime.data.MLuaDataManager;
 import dev.mlua.modules.quest.MLuaQuestRegistry;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.Map;
 import net.minecraft.nbt.CompoundTag;
 //--version 26.1
@@ -222,15 +223,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     //--endversion
 
     private ServerPlayer extractPlayer(LuaValue playerVal) {
-        if (!context.mlua().registration().isInstanceOf(playerVal, "Player")) {
-            throw new LuaError("[MLua] Expected a Player instance");
-        }
-        LuaTable t = playerVal.checktable();
-        LuaValue entityObj = t.get("__entity");
-        if (entityObj.isuserdata(Player.class)) {
-            return (ServerPlayer) entityObj.checkuserdata(Player.class);
-        }
-        throw new LuaError("[MLua] Expected a live Player instance");
+        return (ServerPlayer) MLuaEntityWrapper.requireLuaInstance(playerVal, context.mlua().registration(), "Player", "Player");
     }
 
 }

@@ -251,13 +251,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     private Entity requireEntity(LuaValue value) {
         if (value.istable()) {
-            if (!context.mlua().registration().isInstanceOf(value, "Entity")) {
-                throw new LuaError("[MLua] Expected an Entity instance or entity id.");
-            }
-            LuaValue raw = value.checktable().rawget("__entity");
-            if (raw.isuserdata(Entity.class)) {
-                return (Entity) raw.touserdata(Entity.class);
-            }
+            return MLuaEntityWrapper.requireLuaInstance(value, context.mlua().registration(), "Entity", "Entity");
         }
         if (value.isint()) {
             Entity entity = resolveEntity(value.toint());
@@ -344,8 +338,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
     private Entity entityValue(LuaValue value) {
         if (!value.istable()) return null;
         if (!context.mlua().registration().isInstanceOf(value, "Entity")) return null;
-        LuaValue raw = value.checktable().rawget("__entity");
-        return raw.isuserdata(Entity.class) ? (Entity)raw.touserdata(Entity.class) : null;
+        return MLuaEntityWrapper.requireLuaInstance(value, context.mlua().registration(), "Entity", "Entity");
     }
 
     private double[] position(LuaValue value) {
