@@ -179,11 +179,14 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
       return result;
    }
 
-   private static LivingEntity extractEntity(LuaValue value) {
+   private LivingEntity extractEntity(LuaValue value) {
+      if (!context.mlua().registration().isInstanceOf(value, "LivingEntity")) {
+         throw new LuaError("[MLua] Expected a LivingEntity instance.");
+      }
       LuaTable table = value.checktable();
       LuaValue entity = table.get("__entity");
       if (entity.isuserdata(LivingEntity.class)) return (LivingEntity) entity.checkuserdata(LivingEntity.class);
-      throw new LuaError("[MLua] Expected an Entity table");
+      throw new LuaError("[MLua] Expected a live LivingEntity instance.");
    }
 
 //--version 1.20.1

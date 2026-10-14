@@ -106,13 +106,14 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
 
     private MLuaEntityScope resolveEntityScope(LuaValue value) {
         if (value.istable()) {
+            if (!this.context.mlua().registration().isInstanceOf(value, "Entity")) {
+                throw new LuaError("[MLua] Expected an Entity instance or entity ID");
+            }
             LuaTable table = value.checktable();
             LuaValue entityObj = table.get("__entity");
             if (entityObj.isuserdata(net.minecraft.world.entity.Entity.class)) {
                 return MLuaEntityScope.of((net.minecraft.world.entity.Entity) entityObj.checkuserdata(net.minecraft.world.entity.Entity.class));
             }
-            LuaValue idVal = table.get("Id");
-            if (idVal.isint()) return this.resolveEntityScope(idVal.toint());
         }
         if (value.isint()) return this.resolveEntityScope(value.toint());
         throw new LuaError("[MLua] Expected Entity or entity ID");
