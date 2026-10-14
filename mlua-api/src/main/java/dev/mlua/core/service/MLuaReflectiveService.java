@@ -52,12 +52,16 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
             || (method.getParameterCount() == 0 && (method.getName().equals("name") || method.getName().equals("toLua")))) {
             continue;
          }
+         MLuaDescription description = findMethodDescription(method);
+         if (description == null) continue;
+         if (description.value().isBlank()) {
+            throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
+               + "' method '" + method.getName() + "' has an empty description");
+         }
          if (MLuaRegistration.isReservedFunctionName(method.getName())) {
             throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
                + "' uses reserved function name '" + method.getName() + "'");
          }
-         MLuaDescription description = findMethodDescription(method);
-         if (description == null || description.value().isBlank()) continue;
          if (functions.putIfAbsent(method.getName(), description.value()) != null) {
             throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
                + "' overloads Lua method '" + method.getName() + "'");
@@ -100,6 +104,13 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          }
          if (method.isAnnotationPresent(MLuaServiceIgnore.class)) continue;
 
+         MLuaDescription methodDescription = findMethodDescription(method);
+         if (methodDescription == null) continue;
+         if (methodDescription.value().isBlank()) {
+            throw new IllegalStateException("Reflective service '" + this.name() + "' method '" + method.getName()
+               + "' has an empty description");
+         }
+
          String name = method.getName();
          if (MLuaRegistration.isReservedFunctionName(name)) {
             throw new IllegalStateException("Reflective service '" + this.name()
@@ -114,13 +125,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
             throw new IllegalStateException("Reflective service '" + this.name() + "' cannot access public method '"
                + name + "' declared by " + declaring.getName());
          }
-         MLuaDescription methodDescription = findMethodDescription(method);
-         if (methodDescription != null && methodDescription.value().isBlank()) {
-            throw new IllegalStateException("Reflective service '" + this.name() + "' method '" + name + "' has an empty description");
-         }
-         if (methodDescription != null) {
-            methodDescriptions.set(name, LuaValue.valueOf(methodDescription.value()));
-         }
+         methodDescriptions.set(name, LuaValue.valueOf(methodDescription.value()));
          table.set(name, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
