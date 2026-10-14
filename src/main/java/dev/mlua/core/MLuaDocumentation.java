@@ -2546,10 +2546,10 @@ function deactivate() {}
    private static String luaApiInventoryContent() {
       StringBuilder body = new StringBuilder();
       body.append(callout("info", "This inventory links to the generated reference pages bundled beside this file. It works without a network connection."));
-      appendInventorySection(body, "Services", MLuaDocBuilder.DocEntryType.SERVICE);
-      appendInventorySection(body, "Classes", MLuaDocBuilder.DocEntryType.CLASS);
+      appendInventorySection(body, "Services", MLuaDocBuilder.DocEntryType.SERVICE, null);
+      appendInventorySection(body, "Classes", MLuaDocBuilder.DocEntryType.CLASS, null);
       appendInventorySection(body, "Globals", MLuaDocBuilder.DocEntryType.LIBRARY, "Globals");
-      appendInventorySection(body, "Data Types", MLuaDocBuilder.DocEntryType.DATA_TYPE);
+      appendInventorySection(body, "Data Types", MLuaDocBuilder.DocEntryType.DATA_TYPE, null);
       appendInventorySection(body, "Libraries", MLuaDocBuilder.DocEntryType.LIBRARY, null);
       StringBuilder enums = new StringBuilder("<div class=\"cards\">");
       for (EnumInfo entry : discoverEnums()) {
