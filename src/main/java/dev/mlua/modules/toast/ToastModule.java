@@ -29,9 +29,9 @@ public final class ToastModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.service("Toast", "MLuaToastService", "Displays native Minecraft client toasts.", "services/toast.html");
-        docs.signature("Toast", "Toast:Show(title: string, message: string)", "void");
+        docs.signature("Toast", "Toast:Show(title: string|Component, message: string|Component)", "void");
         docs.guideStep("Toast", "Show a native client toast",
-            "Toast:Show adds a vanilla system notification to the local client's toast manager.",
-            "local Toast = Minecraft:GetService(\"Toast\")\nToast:Show(\"Signal found\", \"The radio picked up a nearby transmission.\")");
+            "Toast:Show adds a vanilla system notification to the local client's toast manager. Pass strings for plain text or a Java Component when you need to preserve formatted Minecraft text.",
+            "local Toast = Minecraft:GetService(\"Toast\")\nToast:Show(\"Signal found\", \"The radio picked up a nearby transmission.\")\n\nlocal Java = Minecraft:GetService(\"Java\")\nlocal Component = Java:LoadClass(\"net.minecraft.network.chat.Component\")\nToast:Show(\n    Component.literal(\"Radio\"),\n    Component.literal(\"Signal acquired\")\n)");
     }
 }
