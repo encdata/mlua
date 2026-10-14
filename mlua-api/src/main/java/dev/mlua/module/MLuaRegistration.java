@@ -951,29 +951,27 @@ public interface MLuaRegistration {
                 collectClassInitializers(registration, parents.get(index).optjstring(""), visited, initializers);
             }
         }
-        LuaValue initializer = type.rawget("Init");
-        LuaTable descriptionOwner = type;
-        if (!initializer.isfunction()) {
-            LuaValue mixinsValue = type.rawget("__mlua_doc_mixins");
-            if (mixinsValue.istable()) {
-                LuaTable mixins = mixinsValue.checktable();
-                for (int index = 1; index <= mixins.length(); index++) {
-                    LuaTable mixin = registration.behaviorMixinTable(mixins.get(index).optjstring(""));
-                    LuaValue candidate = mixin == null ? LuaValue.NIL : mixin.get("Init");
-                    if (candidate.isfunction()) {
-                        initializer = candidate;
-                        descriptionOwner = mixin;
-                        break;
-                    }
-                }
+        LuaValue mixinsValue = type.rawget("__mlua_doc_mixins");
+        if (mixinsValue.istable()) {
+            LuaTable mixins = mixinsValue.checktable();
+            for (int index = 1; index <= mixins.length(); index++) {
+                String mixinName = mixins.get(index).optjstring("");
+                LuaTable mixin = registration.behaviorMixinTable(mixinName);
+                LuaValue initializer = mixin == null ? LuaValue.NIL : mixin.rawget("Init");
+                addClassInitializer(className, "mixin '" + mixinName + "'", mixin, initializer, initializers);
             }
         }
+        addClassInitializer(className, "class", type, type.rawget("Init"), initializers);
+    }
+
+    private static void addClassInitializer(String className, String ownerName, LuaTable owner,
+                                            LuaValue initializer, List<LuaValue> initializers) {
         if (!initializer.isfunction()) return;
-        LuaValue descriptionsValue = descriptionOwner.rawget("__mlua_doc_methods");
+        LuaValue descriptionsValue = owner.rawget("__mlua_doc_methods");
         LuaValue description = descriptionsValue.istable()
             ? descriptionsValue.checktable().rawget("Init") : LuaValue.NIL;
         if (!description.isstring() || description.tojstring().isBlank()) {
-            throw new IllegalStateException("Lua class '" + className
+            throw new IllegalStateException("Lua " + ownerName + " on class '" + className
                 + "' defines Init without registering its description");
         }
         initializers.add(initializer);
