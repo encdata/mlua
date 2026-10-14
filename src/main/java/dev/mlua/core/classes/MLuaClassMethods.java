@@ -24,11 +24,16 @@ public final class MLuaClassMethods {
          throw new IllegalStateException("Lua class '" + className + "' has invalid instance dispatcher metadata");
       }
       LuaTable dispatchers = dispatchersValue.istable() ? dispatchersValue.checktable() : new LuaTable();
+      LuaValue existingDispatcher = dispatchers.rawget(methodName);
+      if (!existingDispatcher.isnil() && !existingDispatcher.isboolean()) {
+         throw new IllegalStateException("Lua class '" + className
+            + "' has invalid dispatcher metadata for method '" + methodName + "'");
+      }
       LuaValue existing = classTable.rawget(methodName);
       if (existing.isfunction()) {
          registration.registerClassFunction(className, methodName, existing, description);
          if (dispatchersValue.isnil()) classTable.rawset("__mlua_instance_dispatchers", dispatchers);
-         if (dispatchers.rawget(methodName).isnil()) dispatchers.rawset(methodName, LuaValue.FALSE);
+         if (existingDispatcher.isnil()) dispatchers.rawset(methodName, LuaValue.FALSE);
          return;
       }
       if (!existing.isnil()) {
