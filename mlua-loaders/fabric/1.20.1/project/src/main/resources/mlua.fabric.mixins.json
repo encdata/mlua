@@ -6,6 +6,8 @@
   "refmap": "mlua-fabric-1.20.1-refmap.json",
   "mixins": [
     "BlockItemMixin",
+    "FabricItemDropMixin",
+    "FabricItemPickupMixin",
     "FabricProjectileHitMixin",
     "PackRepositoryAccessor",
     "PackRepositoryMixin"

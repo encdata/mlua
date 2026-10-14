@@ -30,6 +30,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 public final class FabricEventBridge implements EventBridge {
+    private static final List<ItemStackCallback> itemDropCallbacks = new CopyOnWriteArrayList<>();
+    private static final List<ItemStackCallback> itemPickupCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ProjectileCallback> projectileHitCallbacks = new CopyOnWriteArrayList<>();
     private final List<BlockPlaceCallback> blockPlaceCallbacks = new ArrayList<>();
     @Override public void onClientTickEnd(Runnable callback) { ClientTickEvents.END_CLIENT_TICK.register(client -> callback.run()); }
@@ -55,6 +57,10 @@ public final class FabricEventBridge implements EventBridge {
     @Override public void onItemUseEvent(CancellableItemUseCallback callback) { UseItemCallback.EVENT.register((player, world, hand) -> { CancellableResult result = callback.handle(player, hand, player.getItemInHand(hand)); return result != null && result.cancel() ? InteractionResult.FAIL : InteractionResult.PASS; }); }
     @Override public void onEntityInteractEvent(CancellableEntityInteractCallback callback) { UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> { CancellableResult result = callback.handle(player, hand, entity); return result != null && result.cancel() ? InteractionResult.FAIL : InteractionResult.PASS; }); }
     @Override public void onProjectileHit(ProjectileCallback callback) { projectileHitCallbacks.add(callback); }
+    @Override public void onItemDrop(ItemStackCallback callback) { itemDropCallbacks.add(callback); }
+    @Override public void onItemPickup(ItemStackCallback callback) { itemPickupCallbacks.add(callback); }
+    public static void fireItemDrop(Object player, Object stack) { itemDropCallbacks.forEach(callback -> callback.handle(player, stack)); }
+    public static void fireItemPickup(Object player, Object stack) { itemPickupCallbacks.forEach(callback -> callback.handle(player, stack)); }
     public static void fireProjectileHit(Object projectile, Object hitResult) { projectileHitCallbacks.forEach(callback -> callback.handle(projectile, hitResult)); }
     public void fireBlockPlace(Entity entity, Level level, BlockPos pos) { blockPlaceCallbacks.forEach(callback -> callback.handle(entity, level, pos)); }
 }
