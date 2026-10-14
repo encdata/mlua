@@ -280,14 +280,25 @@ public final class MLuaWorldService extends MLuaServiceBase {
         bindWorldMethod(result, implementations, "Raycast", levelFunction(level, (world, args) -> {
             double[] originValues = positionArgs(args, 2);
             double[] directionValues = MLuaVector.components3(args.arg(3));
-            if (directionValues[0] == 0.0 && directionValues[1] == 0.0 && directionValues[2] == 0.0) {
-                throw new LuaError("Raycast direction must not be Vector3.zero");
-            }
-            Vec3 origin = new Vec3(originValues[0], originValues[1], originValues[2]);
-            Vec3 direction = new Vec3(directionValues[0], directionValues[1], directionValues[2]).normalize();
             double distance = args.optdouble(4, 100.0);
             boolean includeFluids = args.optboolean(5, false);
-            BlockHitResult hit = world.clip(new ClipContext(origin, origin.add(direction.scale(distance)),
+            if (!Double.isFinite(distance) || distance < 0.0) throw new LuaError("[MLua] World:Raycast distance must be finite and non-negative.");
+            for (double component : originValues) {
+                if (!Double.isFinite(component)) throw new LuaError("[MLua] World:Raycast origin must be finite.");
+            }
+            for (double component : directionValues) {
+                if (!Double.isFinite(component)) throw new LuaError("[MLua] World:Raycast direction must be finite.");
+            }
+            LuaValue fluidArgument = args.arg(5);
+            if (!fluidArgument.isnil() && !fluidArgument.isboolean()) throw new LuaError("[MLua] World:Raycast includeFluids must be a boolean.");
+            includeFluids = fluidArgument.toboolean();
+            Vec3 origin = new Vec3(originValues[0], originValues[1], originValues[2]);
+            double directionScale = Math.max(Math.abs(directionValues[0]), Math.max(Math.abs(directionValues[1]), Math.abs(directionValues[2])));
+            if (directionScale == 0.0) return LuaValue.NIL;
+            Vec3 direction = new Vec3(directionValues[0] / directionScale, directionValues[1] / directionScale, directionValues[2] / directionScale).normalize();
+            Vec3 end = origin.add(direction.scale(distance));
+            if (!Double.isFinite(end.x) || !Double.isFinite(end.y) || !Double.isFinite(end.z)) throw new LuaError("[MLua] World:Raycast endpoint must be finite.");
+            BlockHitResult hit = world.clip(new ClipContext(origin, end,
                 ClipContext.Block.COLLIDER,
                 includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity) null));
             if (hit.getType() == HitResult.Type.MISS) return LuaValue.NIL;

@@ -236,14 +236,24 @@ public final class MLuaWorldService extends MLuaServiceBase {
       bindWorldMethod(table, implementations, "Raycast", levelFn(supplier, (level, args) -> {
          double[] origin = positionArgs(args, 2);
          double[] direction = MLuaVector.components3(args.arg(3));
-         if (direction[0] == 0.0 && direction[1] == 0.0 && direction[2] == 0.0) {
-            throw new LuaError("Raycast direction must not be Vector3.zero");
-         }
          double distance = args.optdouble(4, 100.0);
-         boolean includeFluids = args.optboolean(5, false);
+         if (!Double.isFinite(distance) || distance < 0.0) throw new LuaError("[MLua] World:Raycast distance must be finite and non-negative.");
+         for (double component : origin) {
+            if (!Double.isFinite(component)) throw new LuaError("[MLua] World:Raycast origin must be finite.");
+         }
+         for (double component : direction) {
+            if (!Double.isFinite(component)) throw new LuaError("[MLua] World:Raycast direction must be finite.");
+         }
+         LuaValue fluidArgument = args.arg(5);
+         if (!fluidArgument.isnil() && !fluidArgument.isboolean()) throw new LuaError("[MLua] World:Raycast includeFluids must be a boolean.");
+         boolean includeFluids = fluidArgument.toboolean();
          Vec3 from = new Vec3(origin[0], origin[1], origin[2]);
-         Vec3 dir = new Vec3(direction[0], direction[1], direction[2]).normalize();
-         BlockHitResult hitResult = level.clip(new ClipContext(from, from.add(dir.scale(distance)), ClipContext.Block.COLLIDER, includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity)null));
+         double directionScale = Math.max(Math.abs(direction[0]), Math.max(Math.abs(direction[1]), Math.abs(direction[2])));
+         if (directionScale == 0.0) return LuaValue.NIL;
+         Vec3 dir = new Vec3(direction[0] / directionScale, direction[1] / directionScale, direction[2] / directionScale).normalize();
+         Vec3 to = from.add(dir.scale(distance));
+         if (!Double.isFinite(to.x) || !Double.isFinite(to.y) || !Double.isFinite(to.z)) throw new LuaError("[MLua] World:Raycast endpoint must be finite.");
+         BlockHitResult hitResult = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, (Entity)null));
          if (hitResult.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
             return LuaValue.NIL;
          }
