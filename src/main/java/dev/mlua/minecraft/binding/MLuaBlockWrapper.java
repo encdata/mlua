@@ -286,6 +286,13 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return MLuaBlockStateProperties.read(rawLevel.getBlockState(rawPos));
          }), "Returns the current values of this block's Minecraft state properties.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "SetStateProperties", selfBlock((self, args) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            net.minecraft.world.level.block.state.BlockState state =
+               MLuaBlockStateProperties.apply(rawLevel.getBlockState(rawPos), args.arg(2));
+            return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, 3));
+         }), "Updates this block's Minecraft state properties while keeping its block type.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetFluid", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
@@ -309,11 +316,21 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return LuaValue.valueOf(rawLevel.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, rawPos));
          }), "Returns block light at this position.");
-         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "CanSeeSky", selfBlock((self, ignored) -> {
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetCanSeeSky", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return LuaValue.valueOf(rawLevel.canSeeSky(rawPos));
          }), "Returns whether the sky is visible from this position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetRedstonePower", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBestNeighborSignal(rawPos));
+         }), "Returns the strongest redstone signal from neighboring blocks.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsPowered", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.hasNeighborSignal(rawPos));
+         }), "Returns whether this position receives a redstone signal.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetDestroySpeed", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
@@ -402,12 +419,14 @@ public final class MLuaBlockWrapper {
             {"Position", "GetPosition", null, "Vector3", "This block's position."},
             {"IsAir", "GetIsAir", null, "boolean", "Whether this block position contains air."},
             {"IsSolid", "GetIsSolid", null, "boolean", "Whether this block state is solid."},
-            {"StateProperties", "GetStateProperties", null, "BlockStateProperties", "Current Minecraft state values, such as facing, half, age, or waterlogged."},
+            {"StateProperties", "GetStateProperties", "SetStateProperties", "BlockStateProperties", "Current Minecraft state values, such as facing, half, age, or waterlogged."},
             {"Fluid", "GetFluid", null, "string|nil", "Fluid identifier at this position, or nil when empty."},
             {"LightLevel", "GetLightLevel", null, "number", "Maximum local light level at this position."},
             {"SkyLight", "GetSkyLight", null, "number", "Sky light at this position."},
             {"BlockLight", "GetBlockLight", null, "number", "Block light at this position."},
-            {"CanSeeSky", "CanSeeSky", null, "boolean", "Whether the sky is visible from this position."},
+            {"CanSeeSky", "GetCanSeeSky", null, "boolean", "Whether the sky is visible from this position."},
+            {"RedstonePower", "GetRedstonePower", null, "number", "Strongest redstone signal from neighboring blocks."},
+            {"IsPowered", "GetIsPowered", null, "boolean", "Whether this position receives a redstone signal."},
             {"DestroySpeed", "GetDestroySpeed", null, "number", "Mining hardness of this state in its current world context."},
             {"CanSurvive", "GetCanSurvive", null, "boolean", "Whether this state can remain at its current position."},
             {"CanBeReplaced", "GetCanBeReplaced", null, "boolean", "Whether this state can be replaced by placement."},
