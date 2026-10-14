@@ -8,7 +8,8 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.api.MLuaDescription;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.minecraft.network.MLuaRemoteEvent;
@@ -21,6 +22,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,7 +32,8 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-public final class MLuaNetworkService extends MLuaServiceBase {
+@MLuaDescription("Provides client-server remote events, HTTP requests, and JSON conversion.")
+public final class MLuaNetworkService extends MLuaReflectiveService {
    private static final HttpClient HTTP;
    private final Map<String, LuaTable> remoteTables = new HashMap();
 
@@ -43,100 +46,79 @@ public final class MLuaNetworkService extends MLuaServiceBase {
    }
 
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Both");
-      table.set("GetRemote", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            String name = args.checkjstring(2);
-             MLuaNetworkManager.get().validateRemoteName(name);
-             return (Varargs)MLuaNetworkService.this.remoteTables.computeIfAbsent(name, (key) -> {
-                MLuaRemoteEvent remote = MLuaNetworkManager.get().getRemote(key);
-                if (remote == null) {
-                   throw new LuaError("[MLua] Remote '" + key + "' not found");
-                }
-                return MLuaNetworkService.this.remoteTable(remote, MLuaNetworkService.this.context.mlua());
-             });
-         }
-      });
-      table.set("IsServerAvailable", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(MLuaNetworkManager.get().hasServerMLua());
-         }
-      });
-      table.set("IsClientAvailable", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            MLuaRemoteEvent.requireSide(MLuaNetworkService.this.context.mlua().side(), Side.SERVER, "IsClientAvailable");
-            return LuaValue.valueOf(MLuaNetworkManager.get().hasClientMLua(MLuaNetworkService.this.resolvePlayer(MLuaNetworkService.this.context.mlua(), args.arg(2))));
-         }
-      });
-      table.set("HttpGet", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(MLuaNetworkService.this.http("GET", args.checkjstring(2), (String)null));
-         }
-      });
-      table.set("HttpPost", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(MLuaNetworkService.this.http("POST", args.checkjstring(2), args.optjstring(3, "")));
-         }
-      });
-      table.set("HttpGetAsync", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            String url = args.checkjstring(2);
-            LuaValue callback = args.arg(3);
-            long lifecycleEpoch = MLuaNetworkService.this.lifecycleEpoch();
-            CompletableFuture.runAsync(() -> {
-               try {
-                  String body = MLuaNetworkService.this.http("GET", url, (String)null);
-                  MLuaNetworkService.this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(body), lifecycleEpoch);
-               } catch (Exception var4) {
-                  MLuaNetworkService.this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(var4.getMessage()), lifecycleEpoch);
-               }
-
-            });
-            return LuaValue.NONE;
-         }
-      });
-      table.set("HttpPostAsync", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            String url = args.checkjstring(2);
-            String body = args.optjstring(3, "");
-            LuaValue callback = args.arg(4);
-            long lifecycleEpoch = MLuaNetworkService.this.lifecycleEpoch();
-            CompletableFuture.runAsync(() -> {
-               try {
-                  String result = MLuaNetworkService.this.http("POST", url, body);
-                  MLuaNetworkService.this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(result), lifecycleEpoch);
-               } catch (Exception var5) {
-                  MLuaNetworkService.this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(var5.getMessage()), lifecycleEpoch);
-               }
-
-            });
-            return LuaValue.NONE;
-         }
-      });
-      table.set("JSONEncode", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LuaTable table = args.arg(2).checktable();
-            Gson gson = new Gson();
-            Map<String, Object> map = MLuaLuaBindings.mapFromLua(table);
-            return LuaValue.valueOf(gson.toJson(map));
-         }
-      });
-      table.set("JSONDecode", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            String text = args.checkjstring(2);
-            Gson gson = new Gson();
-            Type type = (new TypeToken<Map<String, Object>>() {
-            }).getType();
-            Map<String, Object> map = (Map)gson.fromJson(text, type);
-            if (map == null) {
-               return LuaValue.NIL;
-            } else {
-               return MLuaNetworkService.this.jsonToLua(map);
-            }
-         }
-      });
       return table;
+   }
+
+   @MLuaDescription("Gets or creates a named remote event.")
+   public LuaTable GetRemote(String name) {
+      MLuaNetworkManager.get().validateRemoteName(name);
+      return this.remoteTables.computeIfAbsent(name, key -> {
+         MLuaRemoteEvent remote = MLuaNetworkManager.get().getRemote(key);
+         if (remote == null) throw new LuaError("[MLua] Remote '" + key + "' not found");
+         return this.remoteTable(remote, this.context.mlua());
+      });
+   }
+
+   @MLuaDescription("Returns whether a server is available to this script.")
+   public boolean IsServerAvailable() {
+      return MLuaNetworkManager.get().hasServerMLua();
+   }
+
+   @MLuaDescription("Returns whether a client is available to this script.")
+   public boolean IsClientAvailable(LuaValue playerValue) {
+      MLuaRemoteEvent.requireSide(this.context.mlua().side(), Side.SERVER, "IsClientAvailable");
+      return MLuaNetworkManager.get().hasClientMLua(this.resolvePlayer(this.context.mlua(), playerValue));
+   }
+
+   @MLuaDescription("Performs an HTTP GET request and returns its result.")
+   public String HttpGet(String url) {
+      return this.http("GET", url, null);
+   }
+
+   @MLuaDescription("Performs an HTTP POST request and returns its result.")
+   public String HttpPost(String url, Optional<String> body) {
+      return this.http("POST", url, body.orElse(""));
+   }
+
+   @MLuaDescription("Performs an HTTP GET request and invokes a callback with the result.")
+   public void HttpGetAsync(String url, LuaValue callback) {
+      long expectedEpoch = this.lifecycleEpoch();
+      CompletableFuture.runAsync(() -> {
+         try {
+            String body = this.http("GET", url, null);
+            this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(body), expectedEpoch);
+         } catch (Exception failure) {
+            this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(failure.getMessage()), expectedEpoch);
+         }
+      });
+   }
+
+   @MLuaDescription("Performs an HTTP POST request and invokes a callback with the result.")
+   public void HttpPostAsync(String url, String body, LuaValue callback) {
+      long expectedEpoch = this.lifecycleEpoch();
+      CompletableFuture.runAsync(() -> {
+         try {
+            String result = this.http("POST", url, body);
+            this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(result), expectedEpoch);
+         } catch (Exception failure) {
+            this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(failure.getMessage()), expectedEpoch);
+         }
+      });
+   }
+
+   @MLuaDescription("Encodes a Lua value as JSON.")
+   public String JSONEncode(LuaValue value) {
+      Map<String, Object> map = MLuaLuaBindings.mapFromLua(value.checktable());
+      return new Gson().toJson(map);
+   }
+
+   @MLuaDescription("Decodes a JSON string into Lua values.")
+   public LuaValue JSONDecode(String text) {
+      Type type = new TypeToken<Map<String, Object>>() { }.getType();
+      Map<String, Object> map = new Gson().fromJson(text, type);
+      return map == null ? LuaValue.NIL : this.jsonToLua(map);
    }
 
    private long lifecycleEpoch() {
