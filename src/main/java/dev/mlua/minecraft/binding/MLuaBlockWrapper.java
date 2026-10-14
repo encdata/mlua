@@ -286,6 +286,34 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return MLuaBlockStateProperties.read(rawLevel.getBlockState(rawPos));
          }), "Returns the current values of this block's Minecraft state properties.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetFluid", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            net.minecraft.world.level.material.FluidState fluid = rawLevel.getFluidState(rawPos);
+            if (fluid.isEmpty()) return LuaValue.NIL;
+            net.minecraft.resources.ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluid.getType());
+            return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
+         }), "Returns the fluid identifier at this position, or nil when empty.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetLightLevel", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getMaxLocalRawBrightness(rawPos));
+         }), "Returns the maximum local light level at this position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetSkyLight", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBrightness(net.minecraft.world.level.LightLayer.SKY, rawPos));
+         }), "Returns sky light at this position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetBlockLight", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, rawPos));
+         }), "Returns block light at this position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "CanSeeSky", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.canSeeSky(rawPos));
+         }), "Returns whether the sky is visible from this position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetDestroySpeed", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
@@ -375,6 +403,11 @@ public final class MLuaBlockWrapper {
             {"IsAir", "GetIsAir", null, "boolean", "Whether this block position contains air."},
             {"IsSolid", "GetIsSolid", null, "boolean", "Whether this block state is solid."},
             {"StateProperties", "GetStateProperties", null, "BlockStateProperties", "Current Minecraft state values, such as facing, half, age, or waterlogged."},
+            {"Fluid", "GetFluid", null, "string|nil", "Fluid identifier at this position, or nil when empty."},
+            {"LightLevel", "GetLightLevel", null, "number", "Maximum local light level at this position."},
+            {"SkyLight", "GetSkyLight", null, "number", "Sky light at this position."},
+            {"BlockLight", "GetBlockLight", null, "number", "Block light at this position."},
+            {"CanSeeSky", "CanSeeSky", null, "boolean", "Whether the sky is visible from this position."},
             {"DestroySpeed", "GetDestroySpeed", null, "number", "Mining hardness of this state in its current world context."},
             {"CanSurvive", "GetCanSurvive", null, "boolean", "Whether this state can remain at its current position."},
             {"CanBeReplaced", "GetCanBeReplaced", null, "boolean", "Whether this state can be replaced by placement."},
