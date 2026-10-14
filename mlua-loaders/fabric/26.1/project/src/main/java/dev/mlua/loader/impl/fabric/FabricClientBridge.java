@@ -38,7 +38,7 @@ public final class FabricClientBridge implements ClientBridge {
     }
 
     @Override public void registerWorldRenderer(Consumer<Object> renderer) {
-        LevelRenderEvents.AFTER_ENTITIES.register(context -> renderer.accept(context));
+        LevelRenderEvents.AFTER_SOLID_FEATURES.register(context -> renderer.accept(context));
     }
 
     @Override public void registerKeyBinding(Object keyMapping) { keyBindings.add(keyMapping); }
