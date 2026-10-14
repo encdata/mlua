@@ -286,6 +286,31 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return MLuaBlockStateProperties.read(rawLevel.getBlockState(rawPos));
          }), "Returns the current values of this block's Minecraft state properties.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetDestroySpeed", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBlockState(rawPos).getDestroySpeed(rawLevel, rawPos));
+         }), "Returns this block state's mining hardness in its current world context.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetCanSurvive", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBlockState(rawPos).canSurvive(rawLevel, rawPos));
+         }), "Checks whether this block state can remain at its current position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetCanBeReplaced", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBlockState(rawPos).canBeReplaced());
+         }), "Checks whether this block state can be replaced by placement.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetHasBlockEntity", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBlockState(rawPos).hasBlockEntity());
+         }), "Checks whether this block state owns a block entity.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsRandomlyTicking", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return LuaValue.valueOf(rawLevel.getBlockState(rawPos).isRandomlyTicking());
+         }), "Checks whether this block state receives random game ticks.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Break", selfBlock((self, ignored) -> {
             level(self).destroyBlock(pos(self), true);
             return LuaValue.TRUE;
@@ -350,6 +375,11 @@ public final class MLuaBlockWrapper {
             {"IsAir", "GetIsAir", null, "boolean", "Whether this block position contains air."},
             {"IsSolid", "GetIsSolid", null, "boolean", "Whether this block state is solid."},
             {"StateProperties", "GetStateProperties", null, "BlockStateProperties", "Current Minecraft state values, such as facing, half, age, or waterlogged."},
+            {"DestroySpeed", "GetDestroySpeed", null, "number", "Mining hardness of this state in its current world context."},
+            {"CanSurvive", "GetCanSurvive", null, "boolean", "Whether this state can remain at its current position."},
+            {"CanBeReplaced", "GetCanBeReplaced", null, "boolean", "Whether this state can be replaced by placement."},
+            {"HasBlockEntity", "GetHasBlockEntity", null, "boolean", "Whether this state owns a block entity."},
+            {"IsRandomlyTicking", "GetIsRandomlyTicking", null, "boolean", "Whether this state receives random game ticks."},
             {"BlockEntity", "GetBlockEntity", null, "BlockEntity|nil", "The block entity at this position, or nil when none exists."},
             {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This block entity's live NBT view; assign a table to replace its data."},
             {"DoorOpen", "IsDoorOpen", null, "boolean", "Whether the door at this block position is open."},
