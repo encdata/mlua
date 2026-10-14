@@ -14,9 +14,11 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
@@ -112,6 +114,22 @@ public final class MLuaChunkWrapper {
             if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
             return LuaValue.valueOf(world.getMaxLocalRawBrightness(pos));
         });
+        bind(chunk, "GetHeightAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            Heightmap.Types heightmap = heightmapType(args.optjstring(3, "MOTION_BLOCKING"));
+            return LuaValue.valueOf(world.getHeight(heightmap, pos.getX(), pos.getZ()));
+        });
+        bind(chunk, "GetTopBlockAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            Heightmap.Types heightmap = heightmapType(args.optjstring(3, "MOTION_BLOCKING"));
+            int y = world.getHeight(heightmap, pos.getX(), pos.getZ()) - 1;
+            if (y < minBuildHeight(world)) return LuaValue.NIL;
+            return MLuaBlockWrapper.blockTable(world, new BlockPos(pos.getX(), y, pos.getZ()), registration);
+        });
         bind(chunk, "SetBlockAt", args -> {
             Level world = level(args.arg1());
             if (!(world instanceof ServerLevel server)) throw new LuaError("[MLua] Chunk:SetBlockAt is server-side only.");
@@ -133,6 +151,20 @@ public final class MLuaChunkWrapper {
             int index = 1;
             for (Entity entity : world.getEntities((Entity)null, bounds)) {
                 entities.set(index++, MLuaEntityWrapper.entityTable(entity, registration));
+            }
+            return entities;
+        });
+        bind(chunk, "GetBlockEntities", args -> {
+            Level world = level(args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return new LuaTable();
+            ChunkPos pos = chunkPosition(args.arg1());
+            LevelChunk loaded = world.getChunk(chunkX(pos), chunkZ(pos));
+            LuaTable entities = new LuaTable();
+            int index = 1;
+            for (net.minecraft.world.level.block.entity.BlockEntity entity : loaded.getBlockEntities().values()) {
+                LuaTable block = MLuaBlockWrapper.blockTable(world, entity.getBlockPos(), registration);
+                LuaValue blockEntity = block.get("BlockEntity");
+                if (!blockEntity.isnil()) entities.set(index++, blockEntity);
             }
             return entities;
         });
@@ -245,6 +277,17 @@ public final class MLuaChunkWrapper {
         //--version 1.20.1,1.21.1
         return world.getMaxBuildHeight();
         //--endversion
+    }
+
+    private static Heightmap.Types heightmapType(String value) {
+        try {
+            return Heightmap.Types.valueOf(value.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException error) {
+            String available = java.util.Arrays.stream(Heightmap.Types.values())
+                .map(Enum::name)
+                .collect(java.util.stream.Collectors.joining(", "));
+            throw new LuaError("[MLua] Unknown heightmap '" + value + "'. Available types: " + available);
+        }
     }
 
     private static ResourceLocation biomeId(Level world, BlockPos pos) {
