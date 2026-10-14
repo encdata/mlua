@@ -2,7 +2,8 @@ package dev.mlua.modules.render.Service;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.api.MLuaDescription;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.math.MLuaVector;
@@ -17,6 +18,7 @@ import dev.mlua.runtime.client.model.MLuaMeshVertex;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -26,7 +28,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 
-public final class MLuaRenderService extends MLuaServiceBase {
+@MLuaDescription("Client-side HUD and projected world-space renderables.")
+public final class MLuaRenderService extends MLuaReflectiveService {
     private static final String OBJECT_OPERATIONS = "__render_object_operations";
     private static final String OBJECT_ID = "__render_object_id";
     public static void registerRenderObjectClass(MLuaRegistration registration) {
@@ -137,74 +140,131 @@ public final class MLuaRenderService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Client");
-        table.set("CreateRect", fn(args -> createObject(MLuaClientRenderManager.RenderType.RECT, null, args.arg(2).opttable(new LuaTable()))));
-        table.set("CreateText", fn(args -> createObject(MLuaClientRenderManager.RenderType.TEXT, args.checkjstring(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("CreateImage", fn(args -> createObject(MLuaClientRenderManager.RenderType.IMAGE, args.checkjstring(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("CreateItem", fn(args -> createObject(MLuaClientRenderManager.RenderType.ITEM, args.checkjstring(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("CreateBlock", fn(args -> createObject(MLuaClientRenderManager.RenderType.BLOCK, args.checkjstring(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("CreateMesh", fn(args -> createMesh(args.checktable(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("LoadBBModel", fn(args -> loadBBModel(args.checkjstring(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("CreateWorldRect", fn(args -> createWorldObject(MLuaClientRenderManager.RenderType.RECT, null, args.checktable(2), args.arg(3).opttable(new LuaTable()))));
-        table.set("CreateWorldText", fn(args -> createWorldObject(MLuaClientRenderManager.RenderType.TEXT, args.checkjstring(2), args.checktable(3), args.arg(4).opttable(new LuaTable()))));
-        table.set("CreateWorldImage", fn(args -> createWorldObject(MLuaClientRenderManager.RenderType.IMAGE, args.checkjstring(2), args.checktable(3), args.arg(4).opttable(new LuaTable()))));
-        table.set("CreateWorldItem", fn(args -> createWorldObject(MLuaClientRenderManager.RenderType.ITEM, args.checkjstring(2), args.checktable(3), args.arg(4).opttable(new LuaTable()))));
-        table.set("CreateWorldBlock", fn(args -> createWorldObject(MLuaClientRenderManager.RenderType.BLOCK, args.checkjstring(2), args.checktable(3), args.arg(4).opttable(new LuaTable()))));
-        table.set("CreateWorldBillboard", fn(args -> createWorldObject(MLuaClientRenderManager.RenderType.IMAGE, args.checkjstring(2), args.checktable(3), args.arg(4).opttable(new LuaTable()))));
-        table.set("CreateWorldLine", fn(args -> {
-            ensureClient();
-            int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.LINE, null, owner());
-            var object = requireObject(id);
-            LuaTable start = args.checktable(2);
-            LuaTable end = args.checktable(3);
-            object.setWorldSpace(true);
-            object.setWorldPosition(component(start, "X"), component(start, "Y"), component(start, "Z"));
-            object.setEndWorldPosition(component(end, "X"), component(end, "Y"), component(end, "Z"));
-            applyProps(object, args.arg(4).opttable(new LuaTable()));
-            return objectTable(id);
-        }));
-        table.set("CreateWorldBeam", fn(args -> {
-            ensureClient();
-            int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BEAM, null, owner());
-            var object = requireObject(id);
-            LuaTable start = args.checktable(2);
-            LuaTable end = args.checktable(3);
-            object.setWorldSpace(true);
-            object.setWorldPosition(component(start, "X"), component(start, "Y"), component(start, "Z"));
-            object.setEndWorldPosition(component(end, "X"), component(end, "Y"), component(end, "Z"));
-            applyProps(object, args.arg(4).opttable(new LuaTable()));
-            return objectTable(id);
-        }));
-        table.set("CreateWorldBox", fn(args -> {
-            ensureClient();
-            int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BOX, null, owner());
-            var object = requireObject(id);
-            LuaTable center = args.checktable(2);
-            LuaTable size = args.checktable(3);
-            object.setWorldSpace(true);
-            object.setWorldPosition(component(center, "X"), component(center, "Y"), component(center, "Z"));
-            object.setSize(component(size, "X"), component(size, "Y"));
-            object.setDepth(component(size, "Z"));
-            applyProps(object, args.arg(4).opttable(new LuaTable()));
-            return objectTable(id);
-        }));
-        table.set("Clear", fn(args -> {
-            ensureClient();
-            MLuaClientRenderManager.clearOwned(owner());
-            return LuaValue.NONE;
-        }));
-        table.set("GetAll", fn(args -> {
-            LuaTable objects = new LuaTable();
-            int index = 1;
-            for (Integer id : MLuaClientRenderManager.ids(owner())) {
-                if (MLuaClientRenderManager.get(id, owner()) != null) {
-                    objects.set(index++, objectTable(id));
-                }
-            }
-            return objects;
-        }));
         return table;
+    }
+
+    @MLuaDescription("Creates a screen-space rectangle render object.")
+    public LuaValue CreateRect(Optional<LuaValue> properties) {
+        return createObject(MLuaClientRenderManager.RenderType.RECT, null, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates screen-space text from a string.")
+    public LuaValue CreateText(String text, Optional<LuaValue> properties) {
+        return createObject(MLuaClientRenderManager.RenderType.TEXT, text, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a screen-space image from a resource identifier.")
+    public LuaValue CreateImage(String resource, Optional<LuaValue> properties) {
+        return createObject(MLuaClientRenderManager.RenderType.IMAGE, resource, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a screen-space item render object.")
+    public LuaValue CreateItem(String itemId, Optional<LuaValue> properties) {
+        return createObject(MLuaClientRenderManager.RenderType.ITEM, itemId, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a screen-space block render object.")
+    public LuaValue CreateBlock(String blockId, Optional<LuaValue> properties) {
+        return createObject(MLuaClientRenderManager.RenderType.BLOCK, blockId, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a mesh render object from vertices and indices.")
+    public LuaValue CreateMesh(LuaTable definition, Optional<LuaValue> properties) {
+        return createMesh(definition, optionalTable(properties));
+    }
+
+    @MLuaDescription("Loads a Blockbench model as a render object.")
+    public LuaValue LoadBBModel(String path, Optional<LuaValue> properties) {
+        return loadBBModel(path, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a rectangle at a world position.")
+    public LuaValue CreateWorldRect(LuaTable position, Optional<LuaValue> properties) {
+        return createWorldObject(MLuaClientRenderManager.RenderType.RECT, null, position, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates text at a world position.")
+    public LuaValue CreateWorldText(String text, LuaTable position, Optional<LuaValue> properties) {
+        return createWorldObject(MLuaClientRenderManager.RenderType.TEXT, text, position, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates an image at a world position.")
+    public LuaValue CreateWorldImage(String resource, LuaTable position, Optional<LuaValue> properties) {
+        return createWorldObject(MLuaClientRenderManager.RenderType.IMAGE, resource, position, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates an item render object at a world position.")
+    public LuaValue CreateWorldItem(String itemId, LuaTable position, Optional<LuaValue> properties) {
+        return createWorldObject(MLuaClientRenderManager.RenderType.ITEM, itemId, position, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a block render object at a world position.")
+    public LuaValue CreateWorldBlock(String blockId, LuaTable position, Optional<LuaValue> properties) {
+        return createWorldObject(MLuaClientRenderManager.RenderType.BLOCK, blockId, position, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a camera-facing image at a world position.")
+    public LuaValue CreateWorldBillboard(String resource, LuaTable position, Optional<LuaValue> properties) {
+        return createWorldObject(MLuaClientRenderManager.RenderType.IMAGE, resource, position, optionalTable(properties));
+    }
+
+    @MLuaDescription("Creates a line between two world positions.")
+    public LuaValue CreateWorldLine(LuaTable start, LuaTable end, Optional<LuaValue> properties) {
+        ensureClient();
+        int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.LINE, null, owner());
+        var object = requireObject(id);
+        object.setWorldSpace(true);
+        object.setWorldPosition(component(start, "X"), component(start, "Y"), component(start, "Z"));
+        object.setEndWorldPosition(component(end, "X"), component(end, "Y"), component(end, "Z"));
+        applyProps(object, optionalTable(properties));
+        return objectTable(id);
+    }
+
+    @MLuaDescription("Creates a beam between two world positions.")
+    public LuaValue CreateWorldBeam(LuaTable start, LuaTable end, Optional<LuaValue> properties) {
+        ensureClient();
+        int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BEAM, null, owner());
+        var object = requireObject(id);
+        object.setWorldSpace(true);
+        object.setWorldPosition(component(start, "X"), component(start, "Y"), component(start, "Z"));
+        object.setEndWorldPosition(component(end, "X"), component(end, "Y"), component(end, "Z"));
+        applyProps(object, optionalTable(properties));
+        return objectTable(id);
+    }
+
+    @MLuaDescription("Creates a box render object at a world position.")
+    public LuaValue CreateWorldBox(LuaTable center, LuaTable size, Optional<LuaValue> properties) {
+        ensureClient();
+        int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BOX, null, owner());
+        var object = requireObject(id);
+        object.setWorldSpace(true);
+        object.setWorldPosition(component(center, "X"), component(center, "Y"), component(center, "Z"));
+        object.setSize(component(size, "X"), component(size, "Y"));
+        object.setDepth(component(size, "Z"));
+        applyProps(object, optionalTable(properties));
+        return objectTable(id);
+    }
+
+    @MLuaDescription("Removes render objects owned by the calling mod.")
+    public void Clear() {
+        ensureClient();
+        MLuaClientRenderManager.clearOwned(owner());
+    }
+
+    @MLuaDescription("Returns live render object handles owned by the calling mod.")
+    public LuaTable GetAll() {
+        LuaTable objects = new LuaTable();
+        int index = 1;
+        for (Integer id : MLuaClientRenderManager.ids(owner())) {
+            if (MLuaClientRenderManager.get(id, owner()) != null) objects.set(index++, objectTable(id));
+        }
+        return objects;
+    }
+
+    private static LuaTable optionalTable(Optional<LuaValue> value) {
+        return value.orElse(LuaValue.NIL).opttable(new LuaTable());
     }
 
     private LuaValue createObject(MLuaClientRenderManager.RenderType type, String resource, LuaTable props) {

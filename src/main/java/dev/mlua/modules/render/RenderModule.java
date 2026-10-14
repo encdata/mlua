@@ -36,27 +36,9 @@ public final class RenderModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder render = ServiceEntry.builder("RenderService", MLuaRenderService::new)
-            .description("Client-side HUD and projected world-space renderables.");
-        render.function("CreateRect", "Creates a screen-space rectangle render object.")
-            .function("CreateText", "Creates screen-space text from a string.")
-            .function("CreateImage", "Creates a screen-space image from a resource identifier.")
-            .function("CreateItem", "Creates a screen-space item render object.")
-            .function("CreateBlock", "Creates a screen-space block render object.")
-            .function("CreateMesh", "Creates a mesh render object from vertices and indices.")
-            .function("LoadBBModel", "Loads a Blockbench model as a render object.")
-            .function("CreateWorldRect", "Creates a rectangle at a world position.")
-            .function("CreateWorldText", "Creates text at a world position.")
-            .function("CreateWorldImage", "Creates an image at a world position.")
-            .function("CreateWorldItem", "Creates an item render object at a world position.")
-            .function("CreateWorldBlock", "Creates a block render object at a world position.")
-            .function("CreateWorldBillboard", "Creates a camera-facing image at a world position.")
-            .function("CreateWorldLine", "Creates a line between two world positions.")
-            .function("CreateWorldBeam", "Creates a beam between two world positions.")
-            .function("CreateWorldBox", "Creates a box render object at a world position.")
-            .function("Clear", "Removes render objects owned by the calling mod.")
-            .function("GetAll", "Returns live render object handles owned by the calling mod.");
-        return List.of(render.build());
+        return List.of(ServiceEntry.builder("RenderService", MLuaRenderService::new)
+            .reflective(MLuaRenderService.class)
+            .build());
     }
 
     @Override
