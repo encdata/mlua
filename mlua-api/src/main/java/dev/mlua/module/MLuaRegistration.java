@@ -142,18 +142,13 @@ public interface MLuaRegistration {
                 if (mixin != null && !mixin.get("new").isnil()) return false;
             }
         }
-        LuaValue parentsValue = type.rawget("__mlua_doc_parents");
-        if (!parentsValue.istable()) return false;
-        LuaTable parents = parentsValue.checktable();
-        for (int index = 1; index <= parents.length(); index++) {
-            LuaTable parent = registration.classTable(parents.rawget(index).optjstring(""));
-            if (parent == null) continue;
-            LuaValue parentConstructor = parent.get("new");
-            if (parentConstructor.isnil()) continue;
-            if (parentConstructor != expectedConstructor) return false;
-            return hasInheritedGenericConstructor(registration, parent, expectedConstructor, visited);
-        }
-        return false;
+        String parentName = superclassName(type);
+        if (parentName == null) return false;
+        LuaTable parent = registration.classTable(parentName);
+        if (parent == null) return false;
+        LuaValue parentConstructor = parent.get("new");
+        if (parentConstructor.isnil() || parentConstructor != expectedConstructor) return false;
+        return hasInheritedGenericConstructor(registration, parent, expectedConstructor, visited);
     }
 
     private static java.util.List<String> normalizeParentNames(java.util.List<String> parentNames) {
@@ -273,14 +268,8 @@ public interface MLuaRegistration {
                 if (mixinName.equals(mixins.rawget(index).optjstring(""))) return true;
             }
         }
-        LuaValue parentsValue = type.rawget("__mlua_doc_parents");
-        if (!parentsValue.istable()) return false;
-        LuaTable parents = parentsValue.checktable();
-        for (int index = 1; index <= parents.length(); index++) {
-            String parentName = parents.rawget(index).optjstring("");
-            if (!parentName.isBlank() && hasBehaviorMixinInHierarchy(parentName, mixinName, visited)) return true;
-        }
-        return false;
+        String parentName = superclassName(type);
+        return parentName != null && hasBehaviorMixinInHierarchy(parentName, mixinName, visited);
     }
 
     default boolean unregisterBehaviorMixin(String mixinName) {
@@ -335,17 +324,8 @@ public interface MLuaRegistration {
         if (!visited.add(currentName)) return false;
         LuaTable currentClass = classTable(currentName);
         if (currentClass == null) return false;
-        LuaValue parentsValue = currentClass.rawget("__mlua_doc_parents");
-        if (!parentsValue.istable()) return false;
-        LuaTable parents = parentsValue.checktable();
-        LuaValue key = LuaValue.NIL;
-        while (true) {
-            org.luaj.vm2.Varargs entry = parents.next(key);
-            key = entry.arg1();
-            if (key.isnil()) return false;
-            LuaValue parent = entry.arg(2);
-            if (parent.isstring() && isClassOrParent(parent.tojstring(), targetName, visited)) return true;
-        }
+        String parentName = superclassName(currentClass);
+        return parentName != null && isClassOrParent(parentName, targetName, visited);
     }
 
     default LuaTable registerClassFunction(String className, String functionName,
@@ -850,15 +830,8 @@ public interface MLuaRegistration {
         LuaValue documentedProperties = type.rawget("__mlua_doc_properties");
         if (documentedProperties.istable()
             && !documentedProperties.checktable().rawget(propertyName).isnil()) return true;
-        LuaValue parents = type.rawget("__mlua_doc_parents");
-        if (!parents.istable()) return false;
-        LuaValue key = LuaValue.NIL;
-        while (true) {
-            Varargs next = parents.checktable().next(key);
-            key = next.arg1();
-            if (key.isnil()) return false;
-            if (hasClassProperty(next.arg(2).optjstring(null), propertyName, visited)) return true;
-        }
+        String parentName = superclassName(type);
+        return parentName != null && hasClassProperty(parentName, propertyName, visited);
     }
 
     default LuaTable registerFunction(LuaTable owner, String name, LuaValue function, String description) {
@@ -995,13 +968,8 @@ public interface MLuaRegistration {
         if (!visited.add(className)) return;
         LuaTable type = registration.classTable(className);
         if (type == null) return;
-        LuaValue parentsValue = type.rawget("__mlua_doc_parents");
-        if (parentsValue.istable()) {
-            LuaTable parents = parentsValue.checktable();
-            for (int index = 1; index <= parents.length(); index++) {
-                collectClassInitializers(registration, parents.get(index).optjstring(""), visited, initializers);
-            }
-        }
+        String parentName = superclassName(type);
+        if (parentName != null) collectClassInitializers(registration, parentName, visited, initializers);
         LuaValue mixinsValue = type.rawget("__mlua_doc_mixins");
         if (mixinsValue.istable()) {
             LuaTable mixins = mixinsValue.checktable();
@@ -1013,6 +981,15 @@ public interface MLuaRegistration {
             }
         }
         addClassInitializer(className, "class", type, type.rawget("Init"), initializers);
+    }
+
+    private static String superclassName(LuaTable type) {
+        LuaValue parentsValue = type.rawget("__mlua_doc_parents");
+        if (!parentsValue.istable()) return null;
+        LuaValue parentValue = parentsValue.checktable().rawget(1);
+        if (!parentValue.isstring()) return null;
+        String parentName = parentValue.tojstring();
+        return parentName.isBlank() ? null : parentName;
     }
 
     private static void addClassInitializer(String className, String ownerName, LuaTable owner,

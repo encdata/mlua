@@ -33,7 +33,7 @@ public final class MLuaUIBindings {
     public static LuaTable registerNativeClass(MLuaRegistration registration, String name,
                                                Class<? extends GuiBase> instanceType,
                                                Supplier<? extends GuiBase> factory,
-                                               String description, String... parentNames) {
+                                               String description, String parentName) {
         if (registration == null) throw new IllegalArgumentException("UI class registration requires an MLua registry");
         if (name == null || name.isBlank()) throw new IllegalArgumentException("UI class name must be non-empty");
         if (instanceType == null || !GuiBase.class.isAssignableFrom(instanceType)) {
@@ -55,35 +55,35 @@ public final class MLuaUIBindings {
                     + existingJavaType.getName() + "'");
             }
         }
-        String[] selectedParents = parentNames == null ? new String[0] : parentNames.clone();
-        if (selectedParents.length == 0) {
+        if (parentName == null || parentName.isBlank()) {
             throw new IllegalArgumentException("Native UI classes must declare a parent class");
         }
-        if (selectedParents.length > 1) {
-            throw new IllegalArgumentException("Native UI classes support one superclass; use behavior mixins for shared behavior");
+        LuaTable parent = registration.classTable(parentName);
+        if (parent == null) {
+            throw new IllegalStateException("UI class '" + name + "' requires registered parent class '"
+                + parentName + "'");
         }
-        LuaTable[] parentTables = new LuaTable[selectedParents.length];
-        for (int index = 0; index < selectedParents.length; index++) {
-            String parentName = selectedParents[index];
-            LuaTable parent = parentName == null ? null : registration.classTable(parentName);
-            if (parent == null) {
-                throw new IllegalStateException("UI class '" + name + "' requires registered parent class '"
-                    + parentName + "'");
-            }
-            boolean uiRootParent = name.equals("GuiBase")
-                && parentName.equals(registration.requireInstanceBaseClassName());
-            LuaTable parentProbe = new LuaTable();
-            parentProbe.rawset("__type", LuaValue.valueOf(parentName));
-            if (!uiRootParent && !registration.isInstanceOf(parentProbe, "GuiBase")) {
-                throw new IllegalArgumentException("UI class '" + name + "' parent '" + parentName
-                    + "' must inherit from GuiBase");
-            }
-            if (!uiRootParent) {
-                validateNativeParentType(name, parentName, instanceType, registration, new HashSet<>());
-            }
-            parentTables[index] = parent;
+        boolean uiRootParent = name.equals("GuiBase")
+            && parentName.equals(registration.requireInstanceBaseClassName());
+        LuaTable parentProbe = new LuaTable();
+        parentProbe.rawset("__type", LuaValue.valueOf(parentName));
+        if (!uiRootParent && !registration.isInstanceOf(parentProbe, "GuiBase")) {
+            throw new IllegalArgumentException("UI class '" + name + "' parent '" + parentName
+                + "' must inherit from GuiBase");
         }
-        return registerClass(registration, name, instanceType, factory, description, parentTables);
+        if (!uiRootParent) validateNativeParentType(name, parentName, instanceType, registration, new HashSet<>());
+        return registerClass(registration, name, instanceType, factory, description, parent);
+    }
+
+    @Deprecated
+    public static LuaTable registerNativeClass(MLuaRegistration registration, String name,
+                                               Class<? extends GuiBase> instanceType,
+                                               Supplier<? extends GuiBase> factory,
+                                               String description, String... parentNames) {
+        if (parentNames == null || parentNames.length != 1) {
+            throw new IllegalArgumentException("Native UI classes require exactly one superclass");
+        }
+        return registerNativeClass(registration, name, instanceType, factory, description, parentNames[0]);
     }
 
     private static void validateNativeParentType(String className, String parentName, Class<?> instanceType,
@@ -105,13 +105,10 @@ public final class MLuaUIBindings {
             return;
         }
         LuaValue parentsValue = parent.rawget("__mlua_doc_parents");
-        if (!parentsValue.istable()) return;
-        LuaTable parents = parentsValue.checktable();
-        for (int index = 1; index <= parents.length(); index++) {
-            LuaValue inheritedParent = parents.rawget(index);
-            if (inheritedParent.isstring()) {
-                validateNativeParentType(className, inheritedParent.tojstring(), instanceType, registration, visited);
-            }
+        LuaValue inheritedParent = parentsValue.istable()
+            ? parentsValue.checktable().rawget(1) : LuaValue.NIL;
+        if (inheritedParent.isstring()) {
+            validateNativeParentType(className, inheritedParent.tojstring(), instanceType, registration, visited);
         }
     }
 
@@ -238,10 +235,7 @@ public final class MLuaUIBindings {
 
     private static LuaTable registerClass(MLuaRegistration registration, String name, Class<?> instanceType,
                                          Supplier<? extends GuiBase> factory, String description,
-                                         LuaTable... parents) {
-        if (parents.length > 1) {
-            throw new IllegalArgumentException("UI classes support one superclass; use behavior mixins for shared behavior");
-        }
+                                         LuaTable parent) {
         LuaTable existing = registration.classTable(name);
         LuaTable classTable = existing != null ? existing : new LuaTable();
         classTable.rawset("__mlua_doc_type", name);
@@ -269,12 +263,12 @@ public final class MLuaUIBindings {
                 }
             };
         }
-        if (existing == null && parents.length == 1) {
+        if (existing == null && parent != null) {
             LuaTable meta = new LuaTable();
-            meta.set("__index", parents[0]);
+            meta.set("__index", parent);
             classTable.setmetatable(meta);
         }
-        String parentName = parents.length == 0 ? null : parents[0].rawget("__type").optjstring("");
+        String parentName = parent == null ? null : parent.rawget("__type").optjstring("");
         classTable = registration.registerClassWithParent(name, classTable, parentName, description);
         if (constructor != null) {
             registration.registerClassFunction(name, "new", constructor,
