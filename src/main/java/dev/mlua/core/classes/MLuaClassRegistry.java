@@ -290,8 +290,7 @@ public final class MLuaClassRegistry {
    public synchronized void applyMixin(String className, String mixinName) {
       if (!this.classes.containsKey(className)) throw new IllegalStateException("Lua class is not registered: " + className);
       if (!this.mixins.containsKey(mixinName)) throw new IllegalStateException("Lua mixin is not registered: " + mixinName);
-      List<String> applied = this.appliedMixins.get(className);
-      if (applied != null && applied.contains(mixinName)) {
+      if (this.effectiveMixins(className, new HashSet<>()).contains(mixinName)) {
          this.pendingClassRemovals.remove(className);
          return;
       }
