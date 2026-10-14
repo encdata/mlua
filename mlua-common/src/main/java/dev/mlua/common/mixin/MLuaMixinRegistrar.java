@@ -104,6 +104,9 @@ public final class MLuaMixinRegistrar {
          throw new LuaError("[MLua] Mixin:" + method
             + " target must use 'Lowner;method(arguments)returnType' notation");
       }
+      if ("<init>".equals(target.substring(ownerEnd + 1, descriptorStart))) {
+         throw new LuaError("[MLua] Mixin:" + method + " cannot target a constructor invocation");
+      }
       return "L" + target.substring(1, ownerEnd).replace('.', '/') + target.substring(ownerEnd);
    }
 
