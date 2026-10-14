@@ -33,6 +33,8 @@ import net.minecraft.world.level.Level;
 public final class FabricEventBridge implements EventBridge {
     private static final List<ItemStackCallback> itemDropCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ItemStackCallback> itemPickupCallbacks = new CopyOnWriteArrayList<>();
+    private static final List<ContainerCallback> containerOpenCallbacks = new CopyOnWriteArrayList<>();
+    private static final List<ContainerCallback> containerCloseCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ProjectileCallback> projectileHitCallbacks = new CopyOnWriteArrayList<>();
     private final List<BlockPlaceCallback> blockPlaceCallbacks = new ArrayList<>();
 
@@ -218,6 +220,16 @@ public final class FabricEventBridge implements EventBridge {
         itemPickupCallbacks.add(callback);
     }
 
+    @Override
+    public void onContainerOpen(ContainerCallback callback) {
+        containerOpenCallbacks.add(callback);
+    }
+
+    @Override
+    public void onContainerClose(ContainerCallback callback) {
+        containerCloseCallbacks.add(callback);
+    }
+
     public static void fireItemDrop(Object player, Object stack) {
         for (ItemStackCallback callback : itemDropCallbacks) {
             callback.handle(player, stack);
@@ -227,6 +239,18 @@ public final class FabricEventBridge implements EventBridge {
     public static void fireItemPickup(Object player, Object stack) {
         for (ItemStackCallback callback : itemPickupCallbacks) {
             callback.handle(player, stack);
+        }
+    }
+
+    public static void fireContainerOpen(Object player, Object container) {
+        for (ContainerCallback callback : containerOpenCallbacks) {
+            callback.handle(player, container);
+        }
+    }
+
+    public static void fireContainerClose(Object player, Object container) {
+        for (ContainerCallback callback : containerCloseCallbacks) {
+            callback.handle(player, container);
         }
     }
 
