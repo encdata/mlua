@@ -341,7 +341,13 @@ public class WorldModule implements MLuaModule {
         docs.signature("BlockState", "BlockState:CanSurvive()", "boolean");
         docs.signature("BlockState", "BlockState:GetLightEmission()", "number");
         docs.signature("BlockState", "BlockState:IsSignalSource()", "boolean");
-        docs.signature("BlockState", "BlockState:GetAnalogOutputSignal()", "number");
+        docs.signature("BlockState", "BlockState:IsRedstoneConductor()", "boolean");
+        docs.signature("BlockState", "BlockState:HasAnalogOutputSignal()", "boolean");
+        docs.signature("BlockState", "BlockState:IsFaceSturdy(direction: Enum.Direction|string)", "boolean");
+        docs.signature("BlockState", "BlockState:IsCollisionShapeFullBlock()", "boolean");
+        docs.signature("BlockState", "BlockState:GetAnalogOutputSignal(direction: Enum.Direction|string?)", "number");
+        docs.signature("BlockState", "BlockState:GetSignal(direction: Enum.Direction|string)", "number");
+        docs.signature("BlockState", "BlockState:GetDirectSignal(direction: Enum.Direction|string)", "number");
         docs.signature("BlockState", "BlockState:CanOcclude()", "boolean");
         docs.signature("BlockState", "BlockState:IsViewBlocking()", "boolean");
         docs.signature("BlockState", "BlockState:GetLightBlock()", "number");
@@ -496,6 +502,9 @@ public class WorldModule implements MLuaModule {
         docs.property("BlockState", "state.Survivable", "boolean", "Whether this state can remain at its world position.", "shared:Shared");
         docs.property("BlockState", "state.LightEmission", "number", "The light level emitted by this state.", "shared:Shared");
         docs.property("BlockState", "state.SignalSource", "boolean", "Whether this state can provide a redstone signal.", "shared:Shared");
+        docs.property("BlockState", "state.RedstoneConductor", "boolean", "Whether this state conducts redstone power at its world position.", "shared:Shared");
+        docs.property("BlockState", "state.AnalogOutput", "boolean", "Whether this state provides comparator output.", "shared:Shared");
+        docs.property("BlockState", "state.CollisionShapeFullBlock", "boolean", "Whether this state's collision shape fills its block space.", "shared:Shared");
         docs.property("BlockState", "state.Occluding", "boolean", "Whether this state occludes neighboring faces.", "shared:Shared");
         docs.property("BlockState", "state.ViewBlocking", "boolean", "Whether this state blocks visibility at its world position.", "shared:Shared");
         docs.property("BlockState", "state.LightBlock", "number", "The light level blocked by this state at its world position.", "shared:Shared");
@@ -545,7 +554,7 @@ public class WorldModule implements MLuaModule {
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal blockEntity = world:GetBlockEntity(Vector3.new(0, 64, 0))\nif blockEntity and blockEntity:HasContainer() then\n    local container = blockEntity:GetContainer()\n    print(\"Slots:\", container:GetSize())\n    for _, slot in ipairs(container:GetAll()) do\n        if not slot:IsEmpty() then\n            print(slot:GetItem():GetId(), slot:GetCount())\n        end\n    end\nend");
         docs.guideStep("World", "Inspect a block state",
             "GetBlockState returns an immutable BlockState instance, while GetBlock returns the live position-aware Block instance. Read typed state properties from BlockState.Properties and check for a property before querying optional values. WithProperty creates a new state value; SetBlockState applies that state to the world on the server.",
-            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed, state.LightEmission, state.Survivable)\nif state:IsSignalSource() then\n    print(\"Analog output:\", state:GetAnalogOutputSignal())\nend\n\nif state:HasProperty(\"facing\") then\n    local rotated = state:WithProperty(\"facing\", \"east\")\n    world:SetBlockState(position, rotated)\nend\n\nlocal block = world:GetBlock(position)\nprint(block:GetClassName(), block:GetStateProperties().facing)");
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed, state.LightEmission, state.Survivable)\nif state:IsSignalSource() then\n    print(\"Analog output:\", state:GetAnalogOutputSignal())\n    print(\"North signal:\", state:GetSignal(Enum.Direction.NORTH))\nend\n\nif state:HasProperty(\"facing\") then\n    local rotated = state:WithProperty(\"facing\", \"east\")\n    world:SetBlockState(position, rotated)\nend\n\nlocal block = world:GetBlock(position)\nprint(block:GetClassName(), block:GetStateProperties().facing)");
         docs.guideStep("World", "Inspect fluid at a position",
             "GetFluid returns the fluid identifier for simple comparisons. GetFluidState returns the native-style FluidState instance, including whether it is empty or a source, its amount and height, and the legacy BlockState representation.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 63, 4)\nlocal fluid = world:GetFluidState(position)\nif not fluid.Empty then\n    print(fluid.Id, fluid.Source, fluid.Amount, fluid.Height)\n    local legacyState = fluid:GetBlockState()\n    print(legacyState.Id)\nend");

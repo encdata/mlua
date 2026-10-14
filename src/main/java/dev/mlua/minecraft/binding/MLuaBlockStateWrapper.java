@@ -87,14 +87,32 @@ public final class MLuaBlockStateWrapper {
             LuaValue.valueOf(state(self).getLightEmission())), "Returns the light level emitted by this state.");
         registration.registerClassFunction("BlockState", "IsSignalSource", self((self, args) ->
             LuaValue.valueOf(state(self).isSignalSource())), "Returns whether this state can provide a redstone signal.");
+        registration.registerClassFunction("BlockState", "IsRedstoneConductor", self((self, args) ->
+            LuaValue.valueOf(state(self).isRedstoneConductor(level(self), position(self)))),
+            "Returns whether this state conducts redstone power at its world position.");
+        registration.registerClassFunction("BlockState", "HasAnalogOutputSignal", self((self, args) ->
+            LuaValue.valueOf(state(self).hasAnalogOutputSignal())),
+            "Returns whether this state provides comparator output.");
+        registration.registerClassFunction("BlockState", "IsFaceSturdy", self((self, args) ->
+            LuaValue.valueOf(state(self).isFaceSturdy(level(self), position(self), MLuaMinecraftEnums.resolveDirection(args.arg(2))))),
+            "Returns whether the requested face can support a full block at this position.");
+        registration.registerClassFunction("BlockState", "IsCollisionShapeFullBlock", self((self, args) ->
+            LuaValue.valueOf(state(self).isCollisionShapeFullBlock(level(self), position(self)))),
+            "Returns whether this state's collision shape fills its block space.");
         registration.registerClassFunction("BlockState", "GetAnalogOutputSignal", self((self, args) ->
 //--version 26.1,26.1.1,26.1.2
-            LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self), Direction.UP))),
+            LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self), args.arg(2).isnil() ? Direction.UP : MLuaMinecraftEnums.resolveDirection(args.arg(2))))),
 //--endversion
 //--version 1.20.1,1.21.1
             LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self)))),
 //--endversion
             "Returns this state's analog redstone output at its world position.");
+        registration.registerClassFunction("BlockState", "GetSignal", self((self, args) ->
+            LuaValue.valueOf(state(self).getSignal(level(self), position(self), MLuaMinecraftEnums.resolveDirection(args.arg(2))))),
+            "Returns the redstone signal strength emitted toward the requested direction.");
+        registration.registerClassFunction("BlockState", "GetDirectSignal", self((self, args) ->
+            LuaValue.valueOf(state(self).getDirectSignal(level(self), position(self), MLuaMinecraftEnums.resolveDirection(args.arg(2))))),
+            "Returns the direct redstone signal strength emitted toward the requested direction.");
         registration.registerClassFunction("BlockState", "CanOcclude", self((self, args) ->
             LuaValue.valueOf(state(self).canOcclude())), "Returns whether this state occludes neighboring faces.");
         registration.registerClassFunction("BlockState", "IsViewBlocking", self((self, args) ->
@@ -125,6 +143,9 @@ public final class MLuaBlockStateWrapper {
             {"Survivable", "CanSurvive", "boolean", "Whether this state can remain at its world position."},
             {"LightEmission", "GetLightEmission", "number", "The light level emitted by this state."},
             {"SignalSource", "IsSignalSource", "boolean", "Whether this state can provide a redstone signal."},
+            {"RedstoneConductor", "IsRedstoneConductor", "boolean", "Whether this state conducts redstone power at its world position."},
+            {"AnalogOutput", "HasAnalogOutputSignal", "boolean", "Whether this state provides comparator output."},
+            {"CollisionShapeFullBlock", "IsCollisionShapeFullBlock", "boolean", "Whether this state's collision shape fills its block space."},
             {"Occluding", "CanOcclude", "boolean", "Whether this state occludes neighboring faces."},
             {"ViewBlocking", "IsViewBlocking", "boolean", "Whether this state blocks visibility at its world position."},
             {"LightBlock", "GetLightBlock", "number", "The light level blocked by this state at its world position."},
