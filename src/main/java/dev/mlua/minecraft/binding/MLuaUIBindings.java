@@ -104,11 +104,9 @@ public final class MLuaUIBindings {
             }
             return;
         }
-        LuaValue parentsValue = parent.rawget("__mlua_doc_parents");
-        LuaValue inheritedParent = parentsValue.istable()
-            ? parentsValue.checktable().rawget(1) : LuaValue.NIL;
-        if (inheritedParent.isstring()) {
-            validateNativeParentType(className, inheritedParent.tojstring(), instanceType, registration, visited);
+        String inheritedParent = registration.superclassName(parentName);
+        if (inheritedParent != null) {
+            validateNativeParentType(className, inheritedParent, instanceType, registration, visited);
         }
     }
 

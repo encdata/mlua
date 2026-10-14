@@ -303,6 +303,12 @@ public interface MLuaRegistration {
         return isClassOrParent(className, parentName, new HashSet<>());
     }
 
+    default String superclassName(String className) {
+        if (className == null || className.isBlank()) return null;
+        LuaTable type = classTable(className);
+        return type == null ? null : superclassName(type);
+    }
+
     default boolean isInstanceOf(LuaValue instance, String className) {
         if (instance == null || !instance.istable() || className == null || className.isBlank()) return false;
         String actual = classNameOf(instance);

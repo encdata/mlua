@@ -317,14 +317,9 @@ public abstract class GuiBase {
         LuaValue properties = classTable.rawget("__mlua_properties");
         LuaValue descriptor = properties.istable() ? properties.checktable().rawget(propertyName) : LuaValue.NIL;
         if (descriptor.istable()) return descriptor.checktable();
-        LuaValue parents = classTable.rawget("__mlua_doc_parents");
-        if (parents.istable()) {
-            LuaTable parentList = parents.checktable();
-            for (int index = 1; index <= parentList.length(); index++) {
-                LuaValue parent = parentList.rawget(index);
-                LuaTable inherited = registeredPropertyDescriptor(registration, parent.optjstring(""), propertyName, visited);
-                if (inherited != null) return inherited;
-            }
+        String parentName = registration.superclassName(className);
+        if (parentName != null) {
+            return registeredPropertyDescriptor(registration, parentName, propertyName, visited);
         }
         return null;
     }
@@ -387,13 +382,8 @@ public abstract class GuiBase {
         if (classTable == null) return false;
         LuaValue metadata = classTable.rawget("__mlua_doc_properties");
         if (metadata.istable() && metadata.checktable().rawget(property).istable()) return true;
-        LuaValue parents = classTable.rawget("__mlua_doc_parents");
-        if (!parents.istable()) return false;
-        LuaTable parentList = parents.checktable();
-        for (int index = 1; index <= parentList.length(); index++) {
-            if (hasJavaPropertyMetadata(registration, parentList.rawget(index).optjstring(""), property, visited)) return true;
-        }
-        return false;
+        String parentName = registration.superclassName(className);
+        return parentName != null && hasJavaPropertyMetadata(registration, parentName, property, visited);
     }
 
     private static LuaValue readJavaProperty(Object target, String property) {
