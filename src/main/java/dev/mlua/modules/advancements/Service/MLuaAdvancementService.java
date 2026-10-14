@@ -41,8 +41,8 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       MCAdvancement adv = this.resolveAdvancement(id);
       if (adv == null) return LuaValue.NIL;
       LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
-      info.set("Id", LuaValue.valueOf(id));
       var raw = ((MCAdvancementImpl)adv).inner();
+      info.set("Id", LuaValue.valueOf(raw.getId().toString()));
       if (raw.getDisplay() != null) {
          info.set("Title", LuaValue.valueOf(raw.getDisplay().getTitle().getString()));
          info.set("Description", LuaValue.valueOf(raw.getDisplay().getDescription().getString()));
@@ -67,7 +67,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       var raw = this.resolveAdvancementHolder(id);
       if (raw == null) return LuaValue.NIL;
       LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
-      info.set("Id", LuaValue.valueOf(id));
+      info.set("Id", LuaValue.valueOf(raw.id().toString()));
       var display = raw.display().orElse(null);
       info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
       info.set("Description", LuaValue.valueOf(display == null ? "" : display.getDescription().getString()));
@@ -96,7 +96,6 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       var rawServer = ((MCMinecraftServerImpl)this.server()).inner();
       for (var adv : rawServer.getAdvancements().getAllAdvancements()) {
          var progress = rawPa.getOrStartProgress(adv);
-         LuaTable advTable = this.context.mlua().registration().createClassInstance("AdvancementProgress");
          String advancementId;
 //--version 1.20.1
          advancementId = adv.getId().toString();
@@ -104,26 +103,56 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 //--version 1.21.1,26.1
          advancementId = adv.id().toString();
 //--endversion
-         advTable.set("Id", LuaValue.valueOf(advancementId));
-         advTable.set("Done", LuaValue.valueOf(progress.isDone()));
-         advTable.set("IsDone", LuaValue.valueOf(progress.isDone()));
-         LuaTable criteria = new LuaTable();
-         for (String criterion : progress.getCompletedCriteria()) {
+         result.set(advancementId, this.progressInfo(advancementId, progress));
+      }
+      return result;
+   }
+
+   @MLuaDescription("Returns one advancement's progress for a player, or nil when the advancement is missing.")
+   public LuaValue GetPlayerAdvancement(LuaValue playerValue, String advancementId) {
+      this.requireServer();
+      MCServerPlayer player = this.extractPlayer(playerValue);
+      var rawPa = ((net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner()).getAdvancements();
+      String canonicalId;
+      net.minecraft.advancements.AdvancementProgress progress;
+//--version 1.20.1
+      MCAdvancement advancement = this.resolveAdvancement(advancementId);
+      if (advancement == null) return LuaValue.NIL;
+      var rawAdvancement = ((MCAdvancementImpl)advancement).inner();
+      canonicalId = rawAdvancement.getId().toString();
+      progress = rawPa.getOrStartProgress(rawAdvancement);
+//--endversion
+//--version 1.21.1,26.1
+      var advancement = this.resolveAdvancementHolder(advancementId);
+      if (advancement == null) return LuaValue.NIL;
+      var holder = new net.minecraft.advancements.AdvancementHolder(
+         MLuaResourceLocations.parse(advancementId), advancement);
+      canonicalId = holder.id().toString();
+      progress = rawPa.getOrStartProgress(holder);
+//--endversion
+      return this.progressInfo(canonicalId, progress);
+   }
+
+   private LuaTable progressInfo(String id, net.minecraft.advancements.AdvancementProgress progress) {
+      LuaTable result = this.context.mlua().registration().createClassInstance("AdvancementProgress");
+      result.set("Id", LuaValue.valueOf(id));
+      result.set("Done", LuaValue.valueOf(progress.isDone()));
+      result.set("IsDone", LuaValue.valueOf(progress.isDone()));
+      LuaTable criteria = new LuaTable();
+      for (String criterion : progress.getCompletedCriteria()) {
+         LuaTable criterionTable = new LuaTable();
+         criterionTable.set("Done", LuaValue.TRUE);
+         criteria.set(criterion, criterionTable);
+      }
+      for (String criterion : progress.getRemainingCriteria()) {
+         if (criteria.get(criterion).isnil()) {
             LuaTable criterionTable = new LuaTable();
-            criterionTable.set("Done", LuaValue.TRUE);
+            criterionTable.set("Done", LuaValue.FALSE);
             criteria.set(criterion, criterionTable);
          }
-         for (String criterion : progress.getRemainingCriteria()) {
-            if (criteria.get(criterion).isnil()) {
-               LuaTable criterionTable = new LuaTable();
-               criterionTable.set("Done", LuaValue.FALSE);
-               criteria.set(criterion, criterionTable);
-            }
-         }
-         advTable.set("Progress", criteria);
-         advTable.set("Criteria", criteria);
-         result.set(advancementId, advTable);
       }
+      result.set("Progress", criteria);
+      result.set("Criteria", criteria);
       return result;
    }
 

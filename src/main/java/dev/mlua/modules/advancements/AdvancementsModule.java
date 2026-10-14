@@ -88,9 +88,10 @@ public final class AdvancementsModule implements MLuaModule {
         docs.field("CriterionProgress", "Done", "boolean", "Whether this criterion has been completed.");
         docs.signature("Advancements", "Advancements:GetAdvancement(id: string): Advancement?", null);
         docs.signature("Advancements", "Advancements:GetAllAdvancements(): Advancement[]", null);
+        docs.signature("Advancements", "Advancements:GetPlayerAdvancement(player: Player, id: string): AdvancementProgress?", null);
         docs.signature("Advancements", "Advancements:GetPlayerAdvancements(player: Player): table<string, AdvancementProgress>", null);
         docs.guideStep("Advancements", "Read and change advancement progress",
-            "GetAdvancement returns an Advancement class instance; GetPlayerAdvancements maps identifiers to AdvancementProgress instances. The original fields remain available, and the class methods provide explicit queries for criteria.",
+            "GetAdvancement returns an Advancement class instance; GetPlayerAdvancements maps identifiers to AdvancementProgress instances. Use GetPlayerAdvancement when you need only one id. The original fields remain available, and the class methods provide explicit queries for criteria.",
             "local Advancements = Minecraft:GetService(\"Advancements\")\nlocal advancement = Advancements:GetAdvancement(\"minecraft:story/mine_stone\")\nif advancement then\n    print(advancement:IsA(\"Advancement\"), advancement.Title, advancement.Parent)\n    for _, group in ipairs(advancement.Requirements) do\n        for _, criterion in ipairs(group) do\n            print(criterion)\n        end\n    end\n\n    local progress = Advancements:GetPlayerAdvancements(player)[advancement.Id]\n    if progress then\n        print(progress:IsA(\"AdvancementProgress\"), progress.IsDone)\n        print(progress:HasCompletedCriterion(\"minecraft:stone\"))\n    end\nend");
     }
 }
