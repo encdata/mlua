@@ -1715,12 +1715,23 @@ public final class MLuaGuiService implements MLuaService {
             if (!this.disposed) this.invokeClassMethod("Tick");
         }
 
+        //--version 1.20.1,1.21.1
         @Override public void resize(Minecraft minecraft, int width, int height) {
             super.resize(minecraft, width, height);
             if (!this.disposed) {
                 this.invokeClassMethod("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
             }
         }
+        //--endversion
+
+        //--version 26.1
+        @Override public void resize(int width, int height) {
+            super.resize(width, height);
+            if (!this.disposed) {
+                this.invokeClassMethod("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
+            }
+        }
+        //--endversion
 
         @Override public boolean isPauseScreen() {
             if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains("IsPauseScreen")) return true;
