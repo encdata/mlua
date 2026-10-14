@@ -75,7 +75,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void setTexture(RegistryKind registryKind, String modId, String name, Map<String, String> textures) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         MLuaTextureDescriptor texture = new MLuaTextureDescriptor(textures == null ? Map.of() : textures);
         switch (registryKind) {
             case ITEM -> forgeRegistry.setItemVisuals(modId, name, texture, null);
@@ -85,7 +85,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public Map<String, String> getTexture(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return switch (registryKind) {
             case ITEM -> forgeRegistry.getItemTexture(namespace, path).faces();
             case BLOCK -> forgeRegistry.getBlockTexture(namespace, path).faces();
@@ -95,7 +95,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void setModel(RegistryKind registryKind, String modId, String name, String model) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         switch (registryKind) {
             case ITEM -> forgeRegistry.setItemVisuals(modId, name, MLuaTextureDescriptor.empty(), model);
             case BLOCK -> forgeRegistry.setBlockVisuals(modId, name, MLuaTextureDescriptor.empty(), model);
@@ -104,7 +104,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public String getModel(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return switch (registryKind) {
             case ITEM -> forgeRegistry.getItemModel(namespace, path);
             case BLOCK -> forgeRegistry.getBlockModel(namespace, path);
@@ -114,7 +114,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void setCopy(RegistryKind registryKind, String modId, String name, String copy) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         switch (registryKind) {
             case ITEM -> forgeRegistry.setItemCopy(modId, name, copy);
             case BLOCK -> forgeRegistry.setBlockCopy(modId, name, copy);
@@ -123,7 +123,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public String getCopy(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return switch (registryKind) {
             case ITEM -> getByPathOrName(forgeRegistry.getItemCopies(), namespace, path);
             case BLOCK -> getByPathOrName(forgeRegistry.getBlockCopies(), namespace, path);
@@ -133,7 +133,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void setCopyModel(RegistryKind registryKind, String modId, String name, boolean copyModel) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         switch (registryKind) {
             case ITEM -> forgeRegistry.setItemCopyModel(modId, name, copyModel);
             case BLOCK -> forgeRegistry.setBlockCopyModel(modId, name, copyModel);
@@ -142,7 +142,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public boolean getCopyModel(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return switch (registryKind) {
             case ITEM -> hasByPathOrName(forgeRegistry.getItemCopyModels(), namespace, path);
             case BLOCK -> hasByPathOrName(forgeRegistry.getBlockCopyModels(), namespace, path);
@@ -152,7 +152,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void setDescription(RegistryKind registryKind, String modId, String name, List<String> description) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         switch (registryKind) {
             case ITEM -> forgeRegistry.setItemDescription(modId, name, description);
             case BLOCK -> forgeRegistry.setBlockDescription(modId, name, description);
@@ -161,7 +161,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public List<String> getDescription(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return switch (registryKind) {
             case ITEM -> forgeRegistry.getItemDescription(namespace, path);
             case BLOCK -> forgeRegistry.getBlockDescription(namespace, path);

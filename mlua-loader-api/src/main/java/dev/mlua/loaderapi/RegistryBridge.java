@@ -8,11 +8,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 public interface RegistryBridge {
-    static RegistryKind requireVisualRegistry(RegistryKind registryKind) {
-        if (registryKind != RegistryKind.ITEM && registryKind != RegistryKind.BLOCK) {
-            throw new IllegalArgumentException("Visual metadata is supported only for ITEM and BLOCK registries; got " + registryKind);
-        }
-        return registryKind;
+    static RegistryKind normalizeVisualRegistry(RegistryKind registryKind) {
+        if (registryKind == RegistryKind.BLOCK_ITEM) return RegistryKind.ITEM;
+        if (registryKind == RegistryKind.ITEM || registryKind == RegistryKind.BLOCK) return registryKind;
+        throw new IllegalArgumentException("Visual metadata is supported only for ITEM and BLOCK registries; got " + registryKind);
     }
 
     <T> RegistryHandle<T> register(RegistryKind registryKind, String modId, String name, Supplier<T> supplier);

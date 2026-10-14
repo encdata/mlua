@@ -119,50 +119,51 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void setTexture(RegistryKind registryKind, String modId, String name, Map<String, String> values) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         textures.computeIfAbsent(registryKind, ignored -> new LinkedHashMap<>())
             .put(modId + ":" + name, values == null ? Map.of() : Map.copyOf(values));
     }
 
     @Override
     public Map<String, String> getTexture(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
-        return textures.getOrDefault(registryKind, Map.of()).getOrDefault(namespace + ":" + path, Map.of());
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
+        Map<String, String> value = getByPathOrName(textures.getOrDefault(registryKind, Map.of()), namespace, path);
+        return value == null ? Map.of() : value;
     }
 
     @Override
     public void setModel(RegistryKind registryKind, String modId, String name, String model) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         putMetadata(models, registryKind, modId, name, model);
     }
 
     @Override
     public String getModel(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
-        return models.getOrDefault(registryKind, Map.of()).get(namespace + ":" + path);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
+        return getByPathOrName(models.getOrDefault(registryKind, Map.of()), namespace, path);
     }
 
     @Override
     public void setCopy(RegistryKind registryKind, String modId, String name, String copy) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         putMetadata(copies, registryKind, modId, name, copy);
     }
 
     @Override
     public String getCopy(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return getByPathOrName(copies.getOrDefault(registryKind, Map.of()), namespace, path);
     }
 
     @Override
     public void setCopyModel(RegistryKind registryKind, String modId, String name, boolean copyModel) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         putMetadata(copyModels, registryKind, modId, name, copyModel ? Boolean.TRUE : null);
     }
 
     @Override
     public boolean getCopyModel(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return Boolean.TRUE.equals(getBooleanByPathOrName(copyModels.getOrDefault(registryKind, Map.of()), namespace, path));
     }
 
@@ -183,13 +184,13 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void setDescription(RegistryKind registryKind, String modId, String name, List<String> description) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         putMetadata(descriptions, registryKind, modId, name, description == null ? null : List.copyOf(description));
     }
 
     @Override
     public List<String> getDescription(RegistryKind registryKind, String namespace, String path) {
-        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
+        registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         return descriptions.getOrDefault(registryKind, Map.of()).get(namespace + ":" + path);
     }
 
@@ -345,7 +346,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
         return kind == RegistryKind.BLOCK_ITEM ? RegistryKind.ITEM : kind;
     }
 
-    private String getByPathOrName(Map<String, String> values, String namespace, String path) {
+    private <T> T getByPathOrName(Map<String, T> values, String namespace, String path) {
         String direct = namespace + ":" + path;
         String value = values.get(direct);
         if (value != null) {
