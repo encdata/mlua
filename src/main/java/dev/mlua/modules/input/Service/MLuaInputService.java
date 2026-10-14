@@ -4,19 +4,19 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.minecraft.client.MLuaKeybindController;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Optional;
 import net.minecraft.client.KeyMapping;
 
-public final class MLuaInputService extends MLuaServiceBase {
+@MLuaDescription("Provides client input state and input change events.")
+public final class MLuaInputService extends MLuaReflectiveService {
    public MLuaInputService(MLuaService.Context context) {
       super(context);
    }
@@ -26,130 +26,109 @@ public final class MLuaInputService extends MLuaServiceBase {
    }
 
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Client");
-      table.set("RegisterKeybind", fn((args) -> {
-         this.ensureClient();
-         String name = args.checkjstring(2);
-         LuaTable props = args.arg(3).opttable((LuaTable)null);
-         return this.registerKeybind(this.context.mlua().ownerModId(), name, props);
-      }));
-      table.set("RegisterKeybinds", fn((args) -> {
-         this.ensureClient();
-         LuaTable definitions = args.checktable(2);
-         LuaTable out = new LuaTable();
-         int i = 1;
-         LuaValue key = LuaValue.NIL;
-
-         while(true) {
-            LuaValue value;
-            do {
-               Varargs next = definitions.next(key);
-               key = next.arg1();
-               if (key.isnil()) {
-                  return out;
-               }
-
-               value = next.arg(2);
-            } while(!value.istable());
-
-             LuaTable props = value.checktable();
-             if (!key.isstring()) {
-                throw new LuaError("[MLua] RegisterKeybinds requires string keys for keybind definitions, got " + key.typename());
-             }
-             String name = key.tojstring();
-             if (name.isBlank()) {
-                throw new LuaError("[MLua] RegisterKeybinds entries need a non-blank name");
-             }
-
-            out.set(i++, this.registerKeybind(this.context.mlua().ownerModId(), name, props));
-         }
-      }));
-      table.set("ListenForKeybind", fn((args) -> {
-         this.ensureClient();
-         String name = args.checkjstring(2);
-         if (MLuaKeybindController.hasLocalKeybind(this.context.mlua().ownerModId(), name)) {
-            return MLuaLuaBindings.signalInstance(MLuaKeybindController.signal(this.context.mlua().ownerModId(), name, this.context.mlua().scheduler()), this.context.mlua().globals(), this.context.mlua().scheduler(), this.context.mlua().ownerModId(), this.context.mlua().side());
-         } else {
-            throw new LuaError("[MLua] ListenForKeybind only works for MLua-registered keybinds.");
-         }
-      }));
-      table.set("IsKeyDown", fn((args) -> {
-         this.ensureClient();
-         String name = args.checkjstring(2);
-         if (MLuaKeybindController.hasLocalKeybind(this.context.mlua().ownerModId(), name)) {
-            return LuaValue.valueOf(MLuaKeybindController.isDown(this.context.mlua().ownerModId(), name));
-         } else {
-            KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);
-            return LuaValue.valueOf(mapping != null && MLuaKeybindController.isDown(mapping));
-         }
-      }));
-      table.set("SetKeybind", fn((args) -> {
-         this.ensureClient();
-         MLuaKeybindController.setKey(this.context.mlua().ownerModId(), args.checkjstring(2), args.arg(3));
-         return LuaValue.NONE;
-      }));
-      table.set("GetKeybind", fn((args) -> {
-         this.ensureClient();
-         String name = args.checkjstring(2);
-         if (MLuaKeybindController.hasLocalKeybind(this.context.mlua().ownerModId(), name)) {
-            return keybindTable(this.context.mlua().ownerModId(), name, this.context.mlua().scheduler(), this.context.mlua().side());
-         } else {
-            KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);
-            return (LuaValue)(mapping != null ? mcKeybindTable(mapping) : LuaValue.NIL);
-         }
-      }));
-      table.set("GetKeybinds", fn((args) -> {
-         this.ensureClient();
-         LuaTable out = new LuaTable();
-         int i = 1;
-         Iterator var4 = MLuaKeybindController.allKeys(this.context.mlua().ownerModId()).entrySet().iterator();
-
-         while(var4.hasNext()) {
-            Map.Entry<String, String> entry = (Map.Entry)var4.next();
-            LuaTable keybind = keybindTable(this.context.mlua().ownerModId(), (String)entry.getKey(), this.context.mlua().scheduler(), this.context.mlua().side());
-            out.set(i++, keybind);
-         }
-
-         var4 = MLuaKeybindController.minecraftKeybinds().iterator();
-
-         while(var4.hasNext()) {
-            KeyMapping mapping = (KeyMapping)var4.next();
-            out.set(i++, mcKeybindTable(mapping));
-         }
-
-         return out;
-      }));
-      table.set("GetMinecraftKeybind", fn((args) -> {
-         this.ensureClient();
-         String name = args.checkjstring(2);
-         Iterator var3 = MLuaKeybindController.minecraftKeybinds().iterator();
-
-         KeyMapping mapping;
-         do {
-            if (!var3.hasNext()) {
-               return LuaValue.NIL;
-            }
-
-            mapping = (KeyMapping)var3.next();
-         } while(!MLuaKeybindController.name(mapping).equals(name));
-
-         return mcKeybindTable(mapping);
-      }));
-      table.set("GetMinecraftKeybinds", fn((args) -> {
-         this.ensureClient();
-         LuaTable out = new LuaTable();
-         int i = 1;
-         Iterator var4 = MLuaKeybindController.minecraftKeybinds().iterator();
-
-         while(var4.hasNext()) {
-            KeyMapping mapping = (KeyMapping)var4.next();
-            out.set(i++, mcKeybindTable(mapping));
-         }
-
-         return out;
-      }));
       return table;
+   }
+
+   @MLuaDescription("Registers one keybind for the calling mod.")
+   public LuaTable RegisterKeybind(String name, Optional<LuaValue> properties) {
+      this.ensureClient();
+      LuaTable props = properties.isPresent() ? properties.get().checktable() : null;
+      return this.registerKeybind(this.context.mlua().ownerModId(), name, props);
+   }
+
+   @MLuaDescription("Registers several keybinds from a keyed definition table.")
+   public LuaTable RegisterKeybinds(LuaTable definitions) {
+      this.ensureClient();
+      LuaTable result = new LuaTable();
+      int index = 1;
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs next = definitions.next(key);
+         key = next.arg1();
+         if (key.isnil()) return result;
+         LuaValue value = next.arg(2);
+         if (!value.istable()) continue;
+         if (!key.isstring()) {
+            throw new LuaError("[MLua] RegisterKeybinds requires string keys for keybind definitions, got " + key.typename());
+         }
+         String name = key.tojstring();
+         if (name.isBlank()) throw new LuaError("[MLua] RegisterKeybinds entries need a non-blank name");
+         result.set(index++, this.registerKeybind(this.context.mlua().ownerModId(), name, value.checktable()));
+      }
+   }
+
+   @MLuaDescription("Returns the change signal for a keybind registered by this mod.")
+   public LuaTable ListenForKeybind(String name) {
+      this.ensureClient();
+      String owner = this.context.mlua().ownerModId();
+      if (!MLuaKeybindController.hasLocalKeybind(owner, name)) {
+         throw new LuaError("[MLua] ListenForKeybind only works for MLua-registered keybinds.");
+      }
+      return MLuaLuaBindings.signalInstance(MLuaKeybindController.signal(owner, name, this.context.mlua().scheduler()),
+         this.context.mlua().globals(), this.context.mlua().scheduler(), owner, this.context.mlua().side());
+   }
+
+   @MLuaDescription("Returns whether a registered or Minecraft keybind is currently pressed.")
+   public boolean IsKeyDown(String name) {
+      this.ensureClient();
+      String owner = this.context.mlua().ownerModId();
+      if (MLuaKeybindController.hasLocalKeybind(owner, name)) return MLuaKeybindController.isDown(owner, name);
+      KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);
+      return mapping != null && MLuaKeybindController.isDown(mapping);
+   }
+
+   @MLuaDescription("Changes the key assigned to a registered keybind.")
+   public void SetKeybind(String name, LuaValue key) {
+      this.ensureClient();
+      MLuaKeybindController.setKey(this.context.mlua().ownerModId(), name, key);
+   }
+
+   @MLuaDescription("Returns the live keybind record for a registered or Minecraft keybind.")
+   public LuaValue GetKeybind(String name) {
+      this.ensureClient();
+      String owner = this.context.mlua().ownerModId();
+      if (MLuaKeybindController.hasLocalKeybind(owner, name)) {
+         return keybindTable(owner, name, this.context.mlua().scheduler(), this.context.mlua().side());
+      }
+      KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);
+      return mapping == null ? LuaValue.NIL : mcKeybindTable(mapping);
+   }
+
+   @MLuaDescription("Returns keybinds registered by the calling mod and available Minecraft keybinds.")
+   public LuaTable GetKeybinds() {
+      this.ensureClient();
+      LuaTable result = new LuaTable();
+      int index = 1;
+      for (Map.Entry<String, String> entry : MLuaKeybindController.allKeys(this.context.mlua().ownerModId()).entrySet()) {
+         result.set(index++, keybindTable(this.context.mlua().ownerModId(), entry.getKey(),
+            this.context.mlua().scheduler(), this.context.mlua().side()));
+      }
+      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
+         result.set(index++, mcKeybindTable(mapping));
+      }
+      return result;
+   }
+
+   @MLuaDescription("Returns a Minecraft keybind by name, or nil when missing.")
+   public LuaValue GetMinecraftKeybind(String name) {
+      this.ensureClient();
+      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
+         if (MLuaKeybindController.name(mapping).equals(name)) return mcKeybindTable(mapping);
+      }
+      return LuaValue.NIL;
+   }
+
+   @MLuaDescription("Returns the available Minecraft keybinds.")
+   public LuaTable GetMinecraftKeybinds() {
+      this.ensureClient();
+      LuaTable result = new LuaTable();
+      int index = 1;
+      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
+         result.set(index++, mcKeybindTable(mapping));
+      }
+      return result;
    }
 
    private void ensureClient() {
@@ -185,17 +164,4 @@ public final class MLuaInputService extends MLuaServiceBase {
       return !a.isnil() ? a : b;
    }
 
-   private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-      return new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            try {
-               return (Varargs)body.apply(args);
-            } catch (LuaError var3) {
-               throw var3;
-            } catch (Exception var4) {
-                    throw new LuaError("[MLua] " + var4.toString());
-            }
-         }
-      };
-   }
 }

@@ -121,7 +121,7 @@ public class InputModule implements MLuaModule {
             .function("IsKeyDown", "Returns whether a registered or Minecraft keybind is currently pressed.")
             .function("SetKeybind", "Changes the key assigned to a registered keybind.")
             .function("GetKeybind", "Returns the live keybind record for a registered or Minecraft keybind.")
-            .function("GetKeybinds", "Returns keybinds registered by the calling mod.")
+            .function("GetKeybinds", "Returns keybinds registered by the calling mod and available Minecraft keybinds.")
             .function("GetMinecraftKeybind", "Returns a Minecraft keybind by name, or nil when missing.")
             .function("GetMinecraftKeybinds", "Returns the available Minecraft keybinds.");
         return List.of(input.build());
