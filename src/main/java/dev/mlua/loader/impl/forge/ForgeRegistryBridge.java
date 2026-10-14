@@ -35,7 +35,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
             case BLOCK_ITEM -> wrap(supplier == null
                 ? forgeRegistry.registerBlockItem(modId, name)
                 : forgeRegistry.registerItem(modId, name, (Supplier) supplier));
-            case ENTITY -> wrap(forgeRegistry.registerEntity(modId, name, (Supplier) supplier, () -> null));
+            case ENTITY -> wrap(forgeRegistry.registerEntity(modId, name, (Supplier) supplier, null));
             case PARTICLE -> wrap(forgeRegistry.registerParticle(modId, name, (Supplier) supplier));
             case POTION -> wrap(forgeRegistry.registerPotion(modId, name, (Supplier) supplier));
             case MOB_EFFECT -> wrap(forgeRegistry.registerMobEffect(modId, name, (Supplier) supplier));
