@@ -38,6 +38,7 @@ public class ForgeClientBridge implements ClientBridge {
     private final List<ModelLayerRegistration> pendingModelLayers = new ArrayList<>();
     private boolean keyMappingsRegistered;
     private boolean modelLayersRegistered;
+    private boolean inputHandlersRegistered;
 
     private record ModelLayerRegistration(ModelLayerLocation location, LayerDefinition definition) { }
 
@@ -99,7 +100,10 @@ public class ForgeClientBridge implements ClientBridge {
     }
 
     @Override
-    public void registerInputHandlers() {
+    public synchronized void registerInputHandlers() {
+        if (inputHandlersRegistered) {
+            return;
+        }
         MinecraftForge.EVENT_BUS.addListener((InputEvent.MouseButton.Pre event) -> {
             if (MLuaInputHandler.handleMouseButton(event.getButton(), event.getAction())) {
                 event.setCanceled(true);
@@ -115,6 +119,7 @@ public class ForgeClientBridge implements ClientBridge {
                 MLuaInputHandler.handleClientTick();
             }
         });
+        inputHandlersRegistered = true;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

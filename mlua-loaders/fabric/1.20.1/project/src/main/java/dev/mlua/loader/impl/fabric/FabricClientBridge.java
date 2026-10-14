@@ -25,6 +25,7 @@ public final class FabricClientBridge implements ClientBridge {
     private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
     private boolean glfwRegistered = false;
     private boolean overlayRegistered;
+    private boolean inputHandlersRegistered;
 
     @Override
     public void registerOverlay(String id, Consumer<Object> renderer) {
@@ -61,9 +62,13 @@ public final class FabricClientBridge implements ClientBridge {
     }
 
     @Override
-    public void registerInputHandlers() {
+    public synchronized void registerInputHandlers() {
+        if (inputHandlersRegistered) {
+            return;
+        }
         ClientTickEvents.END_CLIENT_TICK.register(client -> MLuaInputHandler.handleClientTick());
         registerGlfwCallbacks();
+        inputHandlersRegistered = true;
     }
 
     private void registerGlfwCallbacks() {

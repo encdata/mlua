@@ -26,6 +26,7 @@ public final class FabricClientBridge implements ClientBridge {
     private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
     private boolean glfwRegistered;
     private boolean overlayRegistered;
+    private boolean inputHandlersRegistered;
 
     @Override public void registerOverlay(String id, Consumer<Object> renderer) {
         overlays.put(id, renderer);
@@ -58,9 +59,11 @@ public final class FabricClientBridge implements ClientBridge {
         modelLayers.add(new Object[]{layerLocation, modelPart});
     }
 
-    @Override public void registerInputHandlers() {
+    @Override public synchronized void registerInputHandlers() {
+        if (inputHandlersRegistered) return;
         ClientTickEvents.END_CLIENT_TICK.register(client -> MLuaInputHandler.handleClientTick());
         registerGlfwCallbacks();
+        inputHandlersRegistered = true;
     }
 
     private void registerGlfwCallbacks() {
