@@ -98,19 +98,27 @@ public final class MLuaSlot {
          return LuaValue.valueOf(!stack.isEmpty()
             && MLuaEnchantmentWrapper.hasEnchantment(stack, args.checkjstring(2)));
       });
-      register(registration, "AddEnchantment", "Adds an enchantment to this slot's item when writable.", args -> {
+      register(registration, "AddEnchantment", "Adds an enchantment to this slot's item when writable; returns false when empty.", args -> {
          SlotState state = state(args.arg1());
          ensureWritable(state.writable);
          MCItemStack stack = currentStack(state.stackSupplier);
-         if (!stack.isEmpty()) MLuaEnchantmentWrapper.addEnchantment(stack, args.checkjstring(2), args.optint(3, 1));
-         return LuaValue.NONE;
+         if (stack.isEmpty()) return LuaValue.FALSE;
+         String id = args.checkjstring(2);
+         if (!MLuaEnchantmentWrapper.addEnchantment(stack, id, args.optint(3, 1))) {
+            throw new LuaError("[MLua] Unknown or invalid enchantment: " + id);
+         }
+         return LuaValue.TRUE;
       });
-      register(registration, "RemoveEnchantment", "Removes an enchantment from this slot's item when writable.", args -> {
+      register(registration, "RemoveEnchantment", "Removes an enchantment from this slot's item when writable; returns false when empty.", args -> {
          SlotState state = state(args.arg1());
          ensureWritable(state.writable);
          MCItemStack stack = currentStack(state.stackSupplier);
-         if (!stack.isEmpty()) MLuaEnchantmentWrapper.removeEnchantment(stack, args.checkjstring(2));
-         return LuaValue.NONE;
+         if (stack.isEmpty()) return LuaValue.FALSE;
+         String id = args.checkjstring(2);
+         if (!MLuaEnchantmentWrapper.removeEnchantment(stack, id)) {
+            throw new LuaError("[MLua] Unknown or invalid enchantment: " + id);
+         }
+         return LuaValue.TRUE;
       });
       register(registration, "GetDamage", "Returns this slot item's current durability damage.",
          args -> LuaValue.valueOf(currentStack(state(args.arg1()).stackSupplier).getDamageValue()));

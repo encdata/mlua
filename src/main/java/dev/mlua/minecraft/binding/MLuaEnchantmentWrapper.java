@@ -12,6 +12,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -32,19 +33,21 @@ public final class MLuaEnchantmentWrapper {
       return t;
    }
 
-   public static void addEnchantment(MCItemStack stack, String idStr, int level) {
-      net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(idStr);
-      if (id == null) return;
+   public static boolean addEnchantment(MCItemStack stack, String idStr, int level) {
+      net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
+      if (id == null) throw new LuaError("[MLua] Invalid enchantment id: " + idStr);
       net.minecraft.world.item.enchantment.Enchantment ench = BuiltInRegistries.ENCHANTMENT.get(id);
-      if (ench == null) return;
+      if (ench == null) throw new LuaError("[MLua] Unknown enchantment: " + idStr);
       ((MCItemStackImpl)stack).inner().enchant(ench, level);
+      return true;
    }
 
-   public static void removeEnchantment(MCItemStack stack, String idStr) {
+   public static boolean removeEnchantment(MCItemStack stack, String idStr) {
       net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
-      if (id == null) return;
+      if (id == null) throw new LuaError("[MLua] Invalid enchantment id: " + idStr);
+      if (BuiltInRegistries.ENCHANTMENT.get(id) == null) throw new LuaError("[MLua] Unknown enchantment: " + idStr);
       net.minecraft.world.item.ItemStack rawStack = ((MCItemStackImpl)stack).inner();
-      if (!rawStack.hasTag() || !rawStack.getTag().contains("Enchantments", 9)) return;
+      if (!rawStack.hasTag() || !rawStack.getTag().contains("Enchantments", 9)) return true;
       net.minecraft.nbt.ListTag enchList = rawStack.getTag().getList("Enchantments", 10);
       net.minecraft.nbt.ListTag newList = new net.minecraft.nbt.ListTag();
       for (int i = 0; i < enchList.size(); i++) {
@@ -54,6 +57,7 @@ public final class MLuaEnchantmentWrapper {
          }
       }
       rawStack.getTag().put("Enchantments", newList);
+      return true;
    }
 
    public static int getEnchantmentLevel(MCItemStack stack, String idStr) {
@@ -78,24 +82,26 @@ public final class MLuaEnchantmentWrapper {
       return table;
    }
 
-   public static void addEnchantment(MCItemStack stack, String idStr, int level) {
+   public static boolean addEnchantment(MCItemStack stack, String idStr, int level) {
       net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
-      if (id == null) return;
+      if (id == null) throw new LuaError("[MLua] Invalid enchantment id: " + idStr);
       Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(id).orElse(null);
       if (enchantment == null) {
-         return;
+         throw new LuaError("[MLua] Unknown enchantment: " + idStr);
       }
       ((MCItemStackImpl) stack).inner().enchant(enchantment, level);
+      return true;
    }
 
-   public static void removeEnchantment(MCItemStack stack, String idStr) {
+   public static boolean removeEnchantment(MCItemStack stack, String idStr) {
       net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
-      if (id == null) return;
+      if (id == null) throw new LuaError("[MLua] Invalid enchantment id: " + idStr);
       Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(id).orElse(null);
       if (enchantment == null) {
-         return;
+         throw new LuaError("[MLua] Unknown enchantment: " + idStr);
       }
       EnchantmentHelper.updateEnchantments(((MCItemStackImpl) stack).inner(), mutable -> mutable.removeIf(holder -> holder.equals(enchantment)));
+      return true;
    }
 
    public static int getEnchantmentLevel(MCItemStack stack, String idStr) {

@@ -337,13 +337,23 @@ public final class MLuaItemWrapper {
               LuaValue.valueOf(MLuaEnchantmentWrapper.hasEnchantment(stack(self), args.checkjstring(2)))),
               "Returns whether this item has the given enchantment at a positive level.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "AddEnchantment", selfItem((self, args) -> {
-              MLuaEnchantmentWrapper.addEnchantment(stack(self), args.checkjstring(2), args.optint(3, 1));
-             return LuaValue.NONE;
-          }), "Adds an enchantment to this item stack.");
+              MCItemStack item = stack(self);
+              if (item.isEmpty()) return LuaValue.FALSE;
+              String id = args.checkjstring(2);
+              if (!MLuaEnchantmentWrapper.addEnchantment(item, id, args.optint(3, 1))) {
+                  throw new LuaError("[MLua] Unknown or invalid enchantment: " + id);
+              }
+              return LuaValue.TRUE;
+          }), "Adds an enchantment to this item stack; returns false when the stack is empty.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "RemoveEnchantment", selfItem((self, args) -> {
-              MLuaEnchantmentWrapper.removeEnchantment(stack(self), args.checkjstring(2));
-             return LuaValue.NONE;
-          }), "Removes an enchantment from this item stack.");
+              MCItemStack item = stack(self);
+              if (item.isEmpty()) return LuaValue.FALSE;
+              String id = args.checkjstring(2);
+              if (!MLuaEnchantmentWrapper.removeEnchantment(item, id)) {
+                  throw new LuaError("[MLua] Unknown or invalid enchantment: " + id);
+              }
+              return LuaValue.TRUE;
+          }), "Removes an enchantment from this item stack; returns false when the stack is empty.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetItemId", classTable.rawget("GetId"), "Returns this item's registered identifier.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "ToString", selfItem((self, ignored) -> LuaValue.valueOf(id(stack(self)) + " x" + stack(self).getCount())), "Returns this item's identifier and stack count.");
           String[][] properties = {
