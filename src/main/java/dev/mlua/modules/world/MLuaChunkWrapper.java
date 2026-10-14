@@ -4,7 +4,9 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
+import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -18,6 +20,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.resources.ResourceLocation;
@@ -108,6 +111,18 @@ public final class MLuaChunkWrapper {
             if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
             return MLuaBlockWrapper.blockTable(world, pos, registration);
         });
+        bind(chunk, "GetBlockStateAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            return MLuaBlockStateWrapper.wrap(world.getBlockState(pos), world, pos, registration);
+        });
+        bind(chunk, "GetFluidStateAt", args -> {
+            Level world = level(args.arg1());
+            BlockPos pos = requirePosition(args, 2, args.arg1());
+            if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
+            return MLuaFluidStateWrapper.wrap(world.getFluidState(pos), world, pos, registration);
+        });
         bind(chunk, "GetBlockEntityAt", args -> {
             Level world = level(args.arg1());
             BlockPos pos = requirePosition(args, 2, args.arg1());
@@ -156,12 +171,20 @@ public final class MLuaChunkWrapper {
             Level world = level(args.arg1());
             if (!(world instanceof ServerLevel server)) throw new LuaError("[MLua] Chunk:SetBlockAt is server-side only.");
             BlockPos pos = requirePosition(args, 2, args.arg1());
-            String id = args.checkjstring(2 + coordinateWidth(args, 2));
-            Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
-            if (block == null) throw new LuaError("[MLua] Unknown block: " + id);
+            int valueIndex = 2 + coordinateWidth(args, 2);
+            LuaValue blockValue = args.arg(valueIndex);
+            BlockState state;
+            if (registration.isInstanceOf(blockValue, "BlockState")) {
+                state = MLuaBlockStateWrapper.blockStateFromLua(blockValue, registration);
+            } else {
+                String id = blockValue.checkjstring();
+                Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
+                if (block == null) throw new LuaError("[MLua] Unknown block: " + id);
+                LuaValue properties = args.arg(valueIndex + 1);
+                state = MLuaBlockStateProperties.apply(block.defaultBlockState(), properties);
+            }
             if (!ensureLoaded(server, args.arg1())) return LuaValue.FALSE;
-            LuaValue properties = args.arg(3 + coordinateWidth(args, 2));
-            return LuaValue.valueOf(server.setBlock(pos, MLuaBlockStateProperties.apply(block.defaultBlockState(), properties), 3));
+            return LuaValue.valueOf(server.setBlock(pos, state, 3));
         });
         bind(chunk, "GetEntities", args -> {
             Level world = level(args.arg1());

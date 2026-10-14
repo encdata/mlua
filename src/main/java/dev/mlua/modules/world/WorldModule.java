@@ -33,13 +33,15 @@ public class WorldModule implements MLuaModule {
         Map.entry("SetForced", "Sets this chunk's server force-load ticket."),
         Map.entry("ForceLoad", "Adds a persistent server force-load ticket for this chunk."),
         Map.entry("GetBlockAt", "Loads this chunk if needed and returns the live Block instance at a world position inside it, including its registered addon subclass."),
+        Map.entry("GetBlockStateAt", "Loads this chunk if needed and returns the typed BlockState at a world position."),
+        Map.entry("GetFluidStateAt", "Loads this chunk if needed and returns the typed FluidState at a world position."),
         Map.entry("GetBlockEntityAt", "Loads this chunk if needed and returns its block entity at a world position."),
         Map.entry("GetBiomeAt", "Loads this chunk if needed and returns the biome identifier at a world position inside it."),
         Map.entry("GetFluidAt", "Loads this chunk if needed and returns the fluid identifier at a world position inside it, or nil."),
         Map.entry("GetLightAt", "Loads this chunk if needed and returns the raw local light level at a world position inside it."),
         Map.entry("GetHeightAt", "Loads this chunk if needed and returns the first free Y coordinate above the selected heightmap at a world X/Z position."),
         Map.entry("GetTopBlockAt", "Loads this chunk if needed and returns the live Block immediately below the selected heightmap's first free Y position."),
-        Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block and optional state properties at a world position inside it. Server-side only."),
+        Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block id with optional properties or an existing BlockState at a world position. Server-side only."),
         Map.entry("GetEntities", "Loads this chunk if needed and returns its live entities."),
         Map.entry("GetBlockEntities", "Loads this chunk if needed and returns its live registered BlockEntity instances.")
     );
@@ -379,6 +381,8 @@ public class WorldModule implements MLuaModule {
         docs.signature("Chunk", "Chunk:SetForced(forced: boolean)", "boolean");
         docs.signature("Chunk", "Chunk:ForceLoad()", "boolean");
         docs.signature("Chunk", "Chunk:GetBlockAt(position: Vector3|CFrame)", "Block?");
+        docs.signature("Chunk", "Chunk:GetBlockStateAt(position: Vector3|CFrame)", "BlockState?");
+        docs.signature("Chunk", "Chunk:GetFluidStateAt(position: Vector3|CFrame)", "FluidState?");
         docs.signature("Chunk", "Chunk:GetBlockEntityAt(position: Vector3|CFrame)", "BlockEntity?");
         docs.signature("Chunk", "Chunk:GetBiomeAt(position: Vector3|CFrame)", "string?");
         docs.signature("Chunk", "Chunk:GetFluidAt(position: Vector3|CFrame)", "string?");
@@ -386,6 +390,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("Chunk", "Chunk:GetHeightAt(position: Vector3|CFrame, heightmap: string?)", "number?");
         docs.signature("Chunk", "Chunk:GetTopBlockAt(position: Vector3|CFrame, heightmap: string?)", "Block?");
         docs.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?)", "boolean");
+        docs.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, state: BlockState)", "boolean");
         docs.signature("Chunk", "Chunk:GetEntities()", "Entity[]");
         docs.signature("Chunk", "Chunk:GetBlockEntities()", "BlockEntity[]");
         docs.signature("WorldService", "WorldService:Get(dimensionId: string)", "World?");
@@ -532,8 +537,8 @@ public class WorldModule implements MLuaModule {
         docs.property("World", "world.SpawnPosition", "Vector3", "This world's shared spawn position; assign a native Vector3 or CFrame to change it on the server.", "shared:Shared");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");
         docs.guideStep("World", "Load and edit chunks in a dimension",
-            "Each World instance is one dimension. Vector2 means chunk coordinates (X, Z); Vector3 and CFrame select the chunk containing a block position. GetChunk returns a live Chunk handle without loading it. Data methods load that chunk when called. Chunk:GetHeightAt returns the first free Y value, and Chunk:GetTopBlockAt returns the live registered Block instance below it. Both accept a Minecraft heightmap name, defaulting to MOTION_BLOCKING. SetBlock and SetBlockAt accept an optional property table for states such as stair facing and waterlogging. Property names and values follow the block's Minecraft state definition. LoadChunk loads immediately; ForceLoad adds a persistent ticket, while Unload removes that ticket and lets Minecraft decide when to unload.",
-            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal coordinates = Vector2.new(2, -1)\nlocal blockPosition = Vector3.new(32, 70, -16)\nlocal chunk = nether:GetChunk(coordinates)\n\nchunk:SetBlockAt(blockPosition, \"minecraft:oak_stairs\", { facing = \"north\", half = \"bottom\", waterlogged = false })\nlocal biome = chunk:GetBiomeAt(blockPosition)\nlocal fluid = chunk:GetFluidAt(blockPosition)\nlocal loaded = nether:LoadChunk(coordinates)\nprint(loaded.Loaded, loaded.Position, biome, fluid)\n\nchunk:ForceLoad()\nprint(chunk.Forced)\nchunk:Unload()");
+            "Each World instance is one dimension. Vector2 means chunk coordinates (X, Z); Vector3 and CFrame select the chunk containing a block position. GetChunk returns a live Chunk handle without loading it. Data methods load that chunk when called. Chunk:GetHeightAt returns the first free Y value, and Chunk:GetTopBlockAt returns the live registered Block instance below it. Both accept a Minecraft heightmap name, defaulting to MOTION_BLOCKING. SetBlock and SetBlockAt accept an optional property table for states such as stair facing and waterlogging, or a typed BlockState. Property names and values follow the block's Minecraft state definition. LoadChunk loads immediately; ForceLoad adds a persistent ticket, while Unload removes that ticket and lets Minecraft decide when to unload.",
+            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal coordinates = Vector2.new(2, -1)\nlocal blockPosition = Vector3.new(32, 70, -16)\nlocal chunk = nether:GetChunk(coordinates)\n\nchunk:SetBlockAt(blockPosition, \"minecraft:oak_stairs\", { facing = \"north\", half = \"bottom\", waterlogged = false })\nlocal state = chunk:GetBlockStateAt(blockPosition)\nlocal fluidState = chunk:GetFluidStateAt(blockPosition)\nif state then\n    chunk:SetBlockAt(blockPosition, state)\nend\nlocal biome = chunk:GetBiomeAt(blockPosition)\nlocal fluid = chunk:GetFluidAt(blockPosition)\nlocal loaded = nether:LoadChunk(coordinates)\nprint(loaded.Loaded, loaded.Position, biome, fluid, fluidState.Id)\n\nchunk:ForceLoad()\nprint(chunk.Forced)\nchunk:Unload()");
         docs.guideStep("World", "Find and remove entities in a chunk",
             "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances, so use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
             "local worlds = Minecraft:GetService(\"World\")\nlocal world = worlds:Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = Minecraft:GetService(\"EntityService\"):Spawn(\"minecraft:zombie\", position, world)");
