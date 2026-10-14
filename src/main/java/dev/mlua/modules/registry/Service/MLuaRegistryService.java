@@ -311,7 +311,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
                "worldgen", owner, args.checktable(3));
             String feature = MLuaRegistryService.stringProperty(definition, "feature", "Feature", "placedFeature", "PlacedFeature");
-            String step = MLuaRegistryService.stringProperty(definition, "step", "Step");
+            String step = MLuaRegistryService.worldGenerationStepProperty(definition);
             if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a placed feature id");
             if (step == null || step.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a generation step");
             try {
@@ -2018,6 +2018,19 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
          return null;
       }
+   }
+
+   private static String worldGenerationStepProperty(LuaTable definition) {
+      LuaValue value = definition.get("step");
+      if (value.isnil()) value = definition.get("Step");
+      if (value.isstring()) return value.checkjstring();
+      if (value.isnil()) return null;
+      dev.mlua.loaderapi.GenerationDecorationStep step = dev.mlua.modules.enums.MLuaEnumValue.toJava(
+         value, dev.mlua.loaderapi.GenerationDecorationStep.class);
+      if (step == null) {
+         throw new LuaError("[MLua] WorldGeneration.addFeature step expects a string or Enum.GenerationStep.Decoration value.");
+      }
+      return step.name();
    }
 
    private static boolean booleanProperty(LuaTable table, String... keys) {

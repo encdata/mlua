@@ -2,12 +2,11 @@ package dev.mlua.loaderapi;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Arrays;
 
 public interface WorldGenerationBridge {
-    List<String> DECORATION_STEPS = List.of(
-        "RAW_GENERATION", "LAKES", "LOCAL_MODIFICATIONS", "UNDERGROUND_STRUCTURES",
-        "SURFACE_STRUCTURES", "STRONGHOLDS", "UNDERGROUND_ORES", "UNDERGROUND_DECORATION",
-        "FLUID_SPRINGS", "VEGETAL_DECORATION", "TOP_LAYER_MODIFICATION");
+    List<String> DECORATION_STEPS = Arrays.stream(GenerationDecorationStep.values())
+        .map(Enum::name).toList();
 
     void addPlacedFeature(String owner, String name, String featureId, List<String> biomes, String step);
 

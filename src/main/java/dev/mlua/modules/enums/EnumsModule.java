@@ -45,6 +45,11 @@ public class EnumsModule implements MLuaModule {
         enumTable.set("EasingStyle", MLuaEnumValue.enumConstants(EasingStyle.class, null));
         enumTable.set("EasingDirection", MLuaEnumValue.enumConstants(EasingDirection.class, null));
 
+        LuaTable generationStep = new LuaTable();
+        generationStep.set("Decoration", MLuaEnumValue.enumConstants(
+            dev.mlua.loaderapi.GenerationDecorationStep.class, null));
+        enumTable.set("GenerationStep", generationStep);
+
         LuaTable cameraMode = new LuaTable();
         cameraMode.set("Custom", "Custom");
         cameraMode.set("Scriptable", "Scriptable");
