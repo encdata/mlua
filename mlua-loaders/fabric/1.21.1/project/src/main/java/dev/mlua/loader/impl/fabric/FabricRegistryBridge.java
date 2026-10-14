@@ -10,6 +10,7 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.runtime.registry.MLuaNamedBlockItem;
 import dev.mlua.runtime.registry.MLuaNamedSpawnEggItem;
+import dev.mlua.runtime.registry.MLuaResourceNameValidator;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -121,7 +122,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     public void setTexture(RegistryKind registryKind, String modId, String name, Map<String, String> values) {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
         textures.computeIfAbsent(registryKind, ignored -> new LinkedHashMap<>())
-            .put(modId + ":" + name, values == null ? Map.of() : Map.copyOf(values));
+            .put(metadataKey(modId, name), values == null ? Map.of() : Map.copyOf(values));
     }
 
     @Override
@@ -191,12 +192,12 @@ public final class FabricRegistryBridge implements RegistryBridge {
     @Override
     public List<String> getDescription(RegistryKind registryKind, String namespace, String path) {
         registryKind = RegistryBridge.normalizeVisualRegistry(registryKind);
-        return descriptions.getOrDefault(registryKind, Map.of()).get(namespace + ":" + path);
+        return getByPathOrName(descriptions.getOrDefault(registryKind, Map.of()), namespace, path);
     }
 
     @Override
     public void setEntityVisual(String modId, String name, String texture, String model, float shadowRadius) {
-        entityVisuals.put(modId + ":" + name, new EntityVisualInfo(texture, model, shadowRadius));
+        entityVisuals.put(metadataKey(modId, name), new EntityVisualInfo(texture, model, shadowRadius));
     }
 
     @Override
@@ -311,13 +312,19 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     private <T> void putMetadata(Map<RegistryKind, Map<String, T>> target, RegistryKind registryKind, String modId, String name, T value) {
-        String key = modId + ":" + name;
+        String key = metadataKey(modId, name);
         Map<String, T> values = target.computeIfAbsent(registryKind, ignored -> new LinkedHashMap<>());
         if (value == null) {
             values.remove(key);
         } else {
             values.put(key, value);
         }
+    }
+
+    private static String metadataKey(String modId, String name) {
+        MLuaResourceNameValidator.validate(modId);
+        MLuaResourceNameValidator.validate(name);
+        return modId + ":" + name;
     }
 
     private void mergeTagAsset(GeneratedAssetKind kind, String key, JsonObject definition) {
