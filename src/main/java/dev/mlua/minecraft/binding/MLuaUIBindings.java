@@ -403,7 +403,7 @@ public final class MLuaUIBindings {
             String property = null;
             int accessIndex = -1;
             if (methodName.startsWith("get") && methodName.length() > 3 && method.getParameterCount() == 0
-                && method.getReturnType() != Void.TYPE && method.getReturnType() != org.luaj.vm2.LuaTable.class) {
+                && method.getReturnType() != Void.TYPE) {
                 property = methodName.substring(3);
                 accessIndex = 0;
             } else if (methodName.startsWith("is") && methodName.length() > 2 && method.getParameterCount() == 0
