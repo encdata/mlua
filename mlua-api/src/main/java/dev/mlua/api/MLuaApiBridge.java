@@ -1,12 +1,10 @@
 package dev.mlua.api;
 
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaDescribedService;
 import dev.mlua.common.enums.Side;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.module.MLuaModule;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.Map;
@@ -41,47 +39,32 @@ public interface MLuaApiBridge {
 
    default void registerService(String name, Function<MLuaService.Context, MLuaService> factory,
                                 String description, Map<String, String> functionDescriptions) {
-      if (description == null && functionDescriptions.isEmpty()) {
+      if (description == null && functionDescriptions != null && functionDescriptions.isEmpty()) {
          registerService(name, factory);
          return;
       }
-      registerService(name, context -> new MLuaDescribedService(
-         factory.apply(context), description, functionDescriptions));
+      registerService(Side.BOTH, null, new MLuaModule.ServiceEntry(
+         name, factory, description, functionDescriptions));
    }
 
    default void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                 String description, Map<String, String> functionDescriptions) {
-      if (side == Side.BOTH) {
-         registerService(name, factory, description, functionDescriptions);
-         return;
-      }
-      registerService(name, name, side, factory, description, functionDescriptions);
+      registerService(side, null, new MLuaModule.ServiceEntry(
+         name, factory, description, functionDescriptions));
    }
 
    default void registerService(String name, String className,
                                 Function<MLuaService.Context, MLuaService> factory,
                                 String description, Map<String, String> functionDescriptions) {
-      registerService(name, className, Side.BOTH, factory, description, functionDescriptions);
+      registerService(Side.BOTH, className, new MLuaModule.ServiceEntry(
+         name, className, factory, description, functionDescriptions));
    }
 
    default void registerService(String name, String className, Side side,
                                 Function<MLuaService.Context, MLuaService> factory,
                                 String description, Map<String, String> functionDescriptions) {
-      Side selectedSide = java.util.Objects.requireNonNull(side, "side");
-      Map<String, String> methodDescriptions = Map.copyOf(functionDescriptions);
-      registerModule(new MLuaModule() {
-         @Override public String id() {
-            String key = name + "|" + className + "|" + selectedSide.name();
-            return "mlua_api_service_" + java.util.UUID.nameUUIDFromBytes(
-               key.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString().replace("-", "");
-         }
-
-         @Override public Side side() { return selectedSide; }
-
-         @Override public List<MLuaModule.ServiceEntry> services() {
-            return List.of(new MLuaModule.ServiceEntry(name, className, factory, description, methodDescriptions));
-         }
-      });
+      registerService(side, className, new MLuaModule.ServiceEntry(
+         name, className, factory, description, functionDescriptions));
    }
 
    RegistryHandle<Item> registerItem(String modId, String name, Supplier<Item> supplier);
