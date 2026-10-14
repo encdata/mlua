@@ -359,10 +359,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetEntitiesInRadius", table.get("FindEntitiesInRadius"));
       table.set("GetEntitiesNearby", table.get("FindEntitiesInRadius"));
       table.set("FindEntitiesInBox", levelFn(supplier, (level, args) -> {
-         double[] min = positionArgs(args, 2);
+         double[] min = checkedQueryPosition(positionArgs(args, 2));
          int maxIndex = 2 + coordinateWidth(args, 2);
-         double[] max = positionArgs(args, maxIndex);
-         AABB box = new AABB(min[0], min[1], min[2], max[0], max[1], max[2]);
+         double[] max = checkedQueryPosition(positionArgs(args, maxIndex));
+         AABB box = checkedQueryBox(min, max);
          return this.entitiesTable(level, box, args.arg(maxIndex + coordinateWidth(args, maxIndex)));
       }));
       table.set("FindEntitiesInBounds", levelFn(supplier, (level, args) ->
@@ -877,10 +877,15 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }
 
       LuaTable table = filter.checktable();
+      String entityType = entityTypeId(entity);
       LuaValue type = table.get("type");
-      if (!type.isnil() && !entityTypeId(entity).equals(type.tojstring())) {
+      if (!type.isnil() && !entityType.equals(type.tojstring())) {
          return false;
       }
+      LuaValue types = table.get("types");
+      if (types.istable() && !containsString(types.checktable(), entityType)) return false;
+      LuaValue excludedTypes = table.get("exclude_types");
+      if (excludedTypes.istable() && containsString(excludedTypes.checktable(), entityType)) return false;
       LuaValue playersOnly = table.get("players_only");
       if (!playersOnly.isnil() && playersOnly.toboolean() && !(entity instanceof Player)) {
          return false;
@@ -926,6 +931,17 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return id == null ? "unknown" : id.toString();
    }
 
+   private static boolean containsString(LuaTable values, String expected) {
+      for (int index = 1; !values.get(index).isnil(); index++) {
+         LuaValue value = values.get(index);
+         if (!value.isstring()) {
+            throw new LuaError("[MLua] EntityQuery type lists must contain only entity type identifiers.");
+         }
+         if (expected.equals(value.tojstring())) return true;
+      }
+      return false;
+   }
+
    private static double checkedQueryRadius(double radius) {
       if (!Double.isFinite(radius) || radius < 0) {
          throw new LuaError("[MLua] Entity query radius must be finite and non-negative.");
@@ -940,6 +956,15 @@ public final class MLuaWorldService extends MLuaServiceBase {
          }
       }
       return position;
+   }
+
+   private static AABB checkedQueryBox(double[] minimum, double[] maximum) {
+      for (int axis = 0; axis < 3; axis++) {
+         if (minimum[axis] > maximum[axis]) {
+            throw new LuaError("[MLua] Entity query box minimum must not exceed its maximum.");
+         }
+      }
+      return new AABB(minimum[0], minimum[1], minimum[2], maximum[0], maximum[1], maximum[2]);
    }
 
    private static double[] positionArgs(Varargs args, int index) {

@@ -419,7 +419,9 @@ public class WorldModule implements MLuaModule {
             "RaycastEntity finds the closest matching entity along the direction and stops at colliding blocks. Both block and entity results inherit RaycastResult; block hits also return the live block instance.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal entityHit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude = player })\nif entityHit then\n    print(entityHit:IsA(\"RaycastResult\"), entityHit.Entity.Name, entityHit.Distance, entityHit.Normal)\nend\n\nlocal blockHit = world:Raycast(player.EyePosition, player.LookVector, 32)\nif blockHit then\n    print(blockHit:IsA(\"BlockRaycastResult\"), blockHit.Block, blockHit.BlockInstance.Id, blockHit.Face, blockHit.Normal)\nend");
         docs.type("EntityQuery", null, "Filters accepted by world entity search methods.");
-        docs.field("EntityQuery", "type", "string", "Required registered entity type identifier.");
+        docs.field("EntityQuery", "type", "string", "Match this registered entity type identifier.");
+        docs.field("EntityQuery", "types", "string[]", "Allow only these registered entity type identifiers; combines with type when both are set.");
+        docs.field("EntityQuery", "exclude_types", "string[]", "Exclude these registered entity type identifiers.");
         docs.field("EntityQuery", "players_only", "boolean", "Include only player entities when true.");
         docs.field("EntityQuery", "exclude_players", "boolean", "Exclude player entities when true.");
         docs.field("EntityQuery", "exclude", "Entity", "Exclude this live entity from the query results.");
@@ -428,6 +430,9 @@ public class WorldModule implements MLuaModule {
         docs.field("EntityQuery", "tag", "string", "Require this saved MLua entity tag.");
         docs.field("EntityQuery", "tags", "string[]", "Require every listed saved MLua entity tag.");
         docs.field("EntityQuery", "exclude_tags", "string[]", "Exclude entities with any listed saved MLua tag.");
+        docs.guideStep("World", "Query several entity types",
+            "Use types to include a set of registered entity identifiers and exclude_types to remove specific ones. Radius searches use a spherical distance from the center.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal hostiles = world:FindEntitiesInRadius(player.Position, 24, {\n    types = { \"minecraft:zombie\", \"minecraft:skeleton\", \"minecraft:creeper\" },\n    exclude = player\n})\n\nfor _, entity in ipairs(hostiles) do\n    print(entity.Name, entity.Position)\nend");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance for one dimension, with time, block, entity, and chunk APIs.", "classes/world.html", "Level");
         docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
