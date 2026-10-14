@@ -93,13 +93,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("SetWeather", currentWorldMethod("SetWeather"));
       WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
       LuaTable methodDescriptions = new LuaTable();
-      methodDescriptions.set("Current", LuaValue.valueOf("Returns the current live world instance."));
-      methodDescriptions.set("Get", LuaValue.valueOf("Returns the live world instance for a dimension identifier."));
-      methodDescriptions.set("GetAll", LuaValue.valueOf("Returns all currently loaded live world instances."));
-      methodDescriptions.set("GetSide", LuaValue.valueOf("Returns whether this service belongs to a client or server context."));
-      methodDescriptions.set("GetWeather", LuaValue.valueOf("Returns the current world's weather."));
-      methodDescriptions.set("SetWeather", LuaValue.valueOf("Sets the current world's weather. This method is server-side only."));
-      WorldModule.describeWorldServiceMethods(methodDescriptions);
+      WorldModule.worldServiceMethods().forEach((name, description) ->
+         methodDescriptions.set(name, LuaValue.valueOf(description)));
       table.set("__mlua_doc_methods", methodDescriptions);
       return table;
    }

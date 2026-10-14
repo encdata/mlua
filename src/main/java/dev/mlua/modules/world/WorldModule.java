@@ -9,6 +9,7 @@ import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule.ServiceEntry;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
@@ -127,14 +128,22 @@ public class WorldModule implements MLuaModule {
         });
     }
 
-    public static void describeWorldServiceMethods(LuaTable methodDescriptions) {
-        worldMethods().forEach((name, description) -> {
-            if (!isExplicitServiceMethod(name)) methodDescriptions.set(name, LuaValue.valueOf(description));
-        });
-    }
-
     private static boolean isExplicitServiceMethod(String name) {
         return name.equals("GetSide") || name.equals("GetWeather") || name.equals("SetWeather");
+    }
+
+    public static Map<String, String> worldServiceMethods() {
+        Map<String, String> methods = new LinkedHashMap<>();
+        methods.put("Current", "Returns the current live world instance.");
+        methods.put("Get", "Returns the live world instance for a dimension identifier.");
+        methods.put("GetAll", "Returns all currently loaded live world instances.");
+        methods.put("GetSide", "Returns whether this service belongs to a client or server context.");
+        methods.put("GetWeather", "Returns the current world's weather.");
+        methods.put("SetWeather", "Sets the current world's weather. This method is server-side only.");
+        worldMethods().forEach((name, description) -> {
+            if (!isExplicitServiceMethod(name)) methods.put(name, description);
+        });
+        return java.util.Collections.unmodifiableMap(methods);
     }
 
     @Override
@@ -170,15 +179,7 @@ public class WorldModule implements MLuaModule {
         ServiceEntry.Builder world = ServiceEntry.builder("World", MLuaWorldService::new)
             .className("WorldService")
             .description("Provides live world instances for loaded dimensions.");
-        world.function("Current", "Returns the current live world instance.")
-            .function("Get", "Returns the live world instance for a dimension identifier.")
-            .function("GetAll", "Returns all currently loaded live world instances.")
-            .function("GetSide", "Returns whether this service belongs to a client or server context.")
-            .function("GetWeather", "Returns the current world's weather.")
-            .function("SetWeather", "Sets the current world's weather. This method is server-side only.");
-        worldMethods().forEach((name, description) -> {
-            if (!isExplicitServiceMethod(name)) world.function(name, description);
-        });
+        worldServiceMethods().forEach(world::function);
         return List.of(world.build());
     }
 }
