@@ -69,6 +69,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private static final List<String> SERVICE_METHODS = List.of(
       "Register", "RegisterCategory", "RegisterType", "ResolveType", "GetKinds", "GetCategories",
       "Get", "GetAll", "GetTypes", "GetRegistered", "GetEntry", "Exists");
+   private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
    private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
    private final DynamicRegistryState dynamicRegistry = this.sharedState(
       "dynamic-categories", DynamicRegistryState.class, DynamicRegistryState::new);
@@ -81,6 +82,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    public static Map<String, String> serviceMethodDescriptions() {
+      return SERVICE_METHOD_DESCRIPTIONS;
+   }
+
+   private static Map<String, String> createServiceMethodDescriptions() {
       Map<String, String> methods = new java.util.LinkedHashMap<>();
       for (String name : SERVICE_METHODS) methods.put(name, METHOD_DESCRIPTIONS.get(name));
       return java.util.Collections.unmodifiableMap(methods);

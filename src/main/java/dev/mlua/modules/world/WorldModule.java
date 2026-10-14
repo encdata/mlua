@@ -16,6 +16,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 public class WorldModule implements MLuaModule {
+    private static final Map<String, String> WORLD_METHODS = createWorldMethods();
+    private static final Map<String, String> WORLD_SERVICE_METHODS = createWorldServiceMethods();
+
     @Override
     public List<String> dependencies() { return List.of("core-classes"); }
 
@@ -49,6 +52,10 @@ public class WorldModule implements MLuaModule {
     }
 
     public static Map<String, String> worldMethods() {
+        return WORLD_METHODS;
+    }
+
+    private static Map<String, String> createWorldMethods() {
         return Map.ofEntries(
             Map.entry("GetId", "Returns this world's dimension identifier."),
             Map.entry("GetDimension", "Returns this world's dimension identifier."),
@@ -133,6 +140,10 @@ public class WorldModule implements MLuaModule {
     }
 
     public static Map<String, String> worldServiceMethods() {
+        return WORLD_SERVICE_METHODS;
+    }
+
+    private static Map<String, String> createWorldServiceMethods() {
         Map<String, String> methods = new LinkedHashMap<>();
         methods.put("Current", "Returns the current live world instance.");
         methods.put("Get", "Returns the live world instance for a dimension identifier.");

@@ -44,7 +44,7 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 public final class MLuaJavaService extends MLuaServiceBase {
-    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = serviceMethodDescriptions();
+    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
     private final Map<String, Class<?>> resolvedClasses = new ConcurrentHashMap<>();
     private final Map<MethodCacheKey, List<Method>> resolvedMethods = new ConcurrentHashMap<>();
     private final Map<Class<?>, List<Method>> collectedMethods = new ConcurrentHashMap<>();
@@ -56,6 +56,10 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     public static Map<String, String> serviceMethodDescriptions() {
+        return SERVICE_METHOD_DESCRIPTIONS;
+    }
+
+    private static Map<String, String> createServiceMethodDescriptions() {
         Map<String, String> descriptions = new LinkedHashMap<>();
         descriptions.put("LoadClass", "Loads a JVM class by fully qualified name.");
         descriptions.put("Import", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.");
