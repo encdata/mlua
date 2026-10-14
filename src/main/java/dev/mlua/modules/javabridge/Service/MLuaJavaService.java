@@ -75,8 +75,8 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
         descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
         descriptions.put("TypeOf", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.");
-        descriptions.put("GetMethods", "Lists Java method names, signatures, return types, declaring classes, varargs, and static status.");
-        descriptions.put("GetFields", "Lists Java fields, types, declaring classes, and whether they are static or final.");
+        descriptions.put("GetMethods", "Lists Java methods with structured parameter and return types, signatures, declaring classes, and abstract, default, varargs, and static status.");
+        descriptions.put("GetFields", "Lists Java fields with raw and generic types, declaring classes, and whether they are static or final.");
         descriptions.put("GetField", "Reads a Java instance or static field by its exact Java name, including inherited superclass and interface fields.");
         descriptions.put("SetField", "Writes a non-final Java instance or static field and returns its new value.");
         descriptions.put("Inspect", "Returns structured metadata for a Java class.");
@@ -207,9 +207,26 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     entry.set("Name", method.getName());
                     entry.set("DeclaringClass", method.getDeclaringClass().getName());
                     entry.set("Static", LuaValue.valueOf(Modifier.isStatic(method.getModifiers())));
+                    entry.set("Abstract", LuaValue.valueOf(Modifier.isAbstract(method.getModifiers())));
+                    entry.set("Default", LuaValue.valueOf(method.isDefault()));
                     entry.set("VarArgs", LuaValue.valueOf(method.isVarArgs()));
                     entry.set("ParameterCount", method.getParameterCount());
+                    LuaTable parameters = new LuaTable();
+                    java.lang.reflect.Parameter[] reflectedParameters = method.getParameters();
+                    Type[] genericParameterTypes = method.getGenericParameterTypes();
+                    for (int parameterIndex = 0; parameterIndex < reflectedParameters.length; parameterIndex++) {
+                        java.lang.reflect.Parameter reflectedParameter = reflectedParameters[parameterIndex];
+                        LuaTable parameter = new LuaTable();
+                        parameter.set("Name", reflectedParameter.isNamePresent()
+                            ? reflectedParameter.getName() : "arg" + (parameterIndex + 1));
+                        parameter.set("NamePresent", LuaValue.valueOf(reflectedParameter.isNamePresent()));
+                        parameter.set("Type", reflectedParameter.getType().getName());
+                        parameter.set("GenericType", genericParameterTypes[parameterIndex].getTypeName());
+                        parameters.set(parameterIndex + 1, parameter);
+                    }
+                    entry.set("Parameters", parameters);
                     entry.set("ReturnType", method.getReturnType().getName());
+                    entry.set("GenericReturnType", method.getGenericReturnType().getTypeName());
                     entry.set("Descriptor", methodSignature(method));
                     methods.set(index++, entry);
                 }
@@ -229,6 +246,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     entry.set("Static", LuaValue.valueOf(Modifier.isStatic(field.getModifiers())));
                     entry.set("Final", LuaValue.valueOf(Modifier.isFinal(field.getModifiers())));
                     entry.set("Type", field.getType().getName());
+                    entry.set("GenericType", field.getGenericType().getTypeName());
                     fields.set(index++, entry);
                 }
                 return fields;

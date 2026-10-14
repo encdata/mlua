@@ -39,10 +39,10 @@ public final class JavaModule implements MLuaModule {
             "value: JavaObject; classNameOrClass: class name or JavaClass", "JavaObject", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:TypeOf(value)", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.",
             "value: JavaObject or JavaClass", "string or nil", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetMethods(classOrObject)", "Lists Java method names, signatures, return types, declaring classes, varargs, and static status.",
-            "classOrObject: JavaClass or JavaObject", "Array of records with Name, DeclaringClass, Static, VarArgs, ParameterCount, ReturnType, and Descriptor", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetFields(classOrObject)", "Lists Java fields, types, declaring classes, and whether they are static or final.",
-            "classOrObject: JavaClass or JavaObject", "Array of records with Name, DeclaringClass, Static, Final, and Type", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetMethods(classOrObject)", "Lists Java methods with declaring class, abstract, default, static and varargs status, structured parameter and return types, and a readable descriptor. Parameter names fall back to arg1, arg2, etc. when Java debug names are unavailable.",
+            "classOrObject: JavaClass or JavaObject", "Array of records with Name, DeclaringClass, Static, Abstract, Default, VarArgs, ParameterCount, Parameters, ReturnType, GenericReturnType, and Descriptor. Each Parameters entry contains Name, NamePresent, Type, and GenericType.", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetFields(classOrObject)", "Lists Java fields, raw and generic types, declaring classes, and whether they are static or final.",
+            "classOrObject: JavaClass or JavaObject", "Array of records with Name, DeclaringClass, Static, Final, Type, and GenericType", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetField(classOrObject, fieldName)", "Reads an exact Java field from a live object or class proxy. Use this when a field name conflicts with an exposed method.",
             "classOrObject: JavaObject or JavaClass; fieldName: exact Java field name", "Java value or nil", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:SetField(classOrObject, fieldName, value)", "Writes a non-final exact Java field on a live object or class proxy and returns the value read back from Java.",
