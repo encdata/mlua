@@ -1870,21 +1870,42 @@ public class LexState extends Constants {
 	void compound_assign_inner (LHS_assign lh, int compoundToken) {
 		FuncState fs = this.fs;
 		expdesc e = new expdesc();
+		expdesc target = new expdesc();
+		expdesc current = new expdesc();
+		target.setvalue(lh.v);
+		if (lh.v.k == VINDEXED) {
+			int tableReg = fs.freereg;
+			fs.reserveregs(1);
+			if (lh.v.u.ind_vt == VLOCAL) {
+				fs.codeABC(Lua.OP_MOVE, tableReg, lh.v.u.ind_t, 0);
+			} else {
+				fs.codeABC(Lua.OP_GETUPVAL, tableReg, lh.v.u.ind_t, 0);
+			}
 
-		/* Save original variable info for storing the result back */
-		int orig_k = lh.v.k;
-		int orig_info = lh.v.u.info;
-		short orig_ind_t = lh.v.u.ind_t;
-		short orig_ind_idx = lh.v.u.ind_idx;
-		int orig_ind_vt = lh.v.u.ind_vt;
+			int index = lh.v.u.ind_idx;
+			if (!Lua.ISK(index)) {
+				int indexReg = fs.freereg;
+				fs.reserveregs(1);
+				fs.codeABC(Lua.OP_MOVE, indexReg, index, 0);
+				index = indexReg;
+			}
 
-		/* Read current value of LHS variable into an expression */
-		fs.dischargevars(lh.v);
+			target.init(VINDEXED, 0);
+			target.u.ind_t = (short)tableReg;
+			target.u.ind_idx = (short)index;
+			target.u.ind_vt = VLOCAL;
 
-		/* Parse RHS expression (single value) */
+			int valueReg = fs.freereg;
+			fs.reserveregs(1);
+			fs.codeABC(Lua.OP_GETTABLE, valueReg, tableReg, index);
+			current.init(VNONRELOC, valueReg);
+		} else {
+			current.setvalue(lh.v);
+			fs.dischargevars(current);
+		}
+
 		this.expr(e);
 
-		/* Map compound token to Lua opcode */
 		int lu_op;
 		switch (compoundToken) {
 			case TK_ADD_ASSIGN: lu_op = Lua.OP_ADD; break;
@@ -1898,27 +1919,16 @@ public class LexState extends Constants {
 			default: lexerror("unknown compound assignment operator", compoundToken); return;
 		}
 
-		/* Emit binary op: result = LHS_value OP RHS_value */
-		int rk_b = fs.exp2RK(lh.v);
+		int rk_b = fs.exp2RK(current);
 		int rk_c = fs.exp2RK(e);
 		int dest = fs.freereg;
-		fs.freereg++;
+		fs.reserveregs(1);
 		fs.codeABC(lu_op, dest, rk_b, rk_c);
 
-		/* Store result back to original variable */
 		expdesc result = new expdesc();
 		result.k = VNONRELOC;
 		result.u.info = (short) dest;
-
-		/* Reconstruct the variable descriptor */
-		expdesc var = new expdesc();
-		var.k = orig_k;
-		var.u.info = orig_info;
-		var.u.ind_t = orig_ind_t;
-		var.u.ind_idx = orig_ind_idx;
-		var.u.ind_vt = (short) orig_ind_vt;
-
-		fs.storevar(var, result);
+		fs.storevar(target, result);
 	}
 
 	void assignment (LHS_assign lh, int nvars) {
