@@ -20,13 +20,8 @@ public class ModalModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder modal = ServiceEntry.builder("Modal", MLuaModalService::new)
-            .description("Shows client-side modal dialogs and prompts.");
-        modal.function("SetModal", "Sets the active modal state for the calling script.")
-            .function("IsModal", "Returns whether a modal is currently active.")
-            .function("ShowMessageBox", "Displays a message dialog to the local player.")
-            .function("ShowPrompt", "Displays a text prompt and returns the submitted value.")
-            .function("ShowConfirmDialog", "Displays a confirmation dialog and returns the choice.");
-        return List.of(modal.build());
+        return List.of(ServiceEntry.builder("Modal", MLuaModalService::new)
+            .reflective(MLuaModalService.class)
+            .build());
     }
 }

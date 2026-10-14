@@ -8,10 +8,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.api.MLuaDescription;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -21,9 +20,11 @@ import dev.mlua.common.enums.Side;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.WeakHashMap;
 
-public final class MLuaModalService extends MLuaServiceBase {
+@MLuaDescription("Shows client-side modal dialogs and prompts.")
+public final class MLuaModalService extends MLuaReflectiveService {
     private static final Map<MLuaTaskSchedulerView, ModalState> STATES = new WeakHashMap<>();
     private final ModalState state;
 
@@ -75,12 +76,41 @@ public final class MLuaModalService extends MLuaServiceBase {
         return "Modal";
     }
 
-    public boolean isModal() {
+    @MLuaDescription("Sets the active modal state for the calling script.")
+    public void SetModal(boolean modal) {
+        this.state.modal = modal;
+    }
+
+    @MLuaDescription("Returns whether a modal is currently active.")
+    public boolean IsModal() {
         return this.state.modal;
     }
 
-    public void setModal(boolean modal) {
-        this.state.modal = modal;
+    @MLuaDescription("Displays a message dialog to the local player.")
+    public LuaTable ShowMessageBox(String title, Optional<String> requestedMessage,
+                                   Optional<LuaValue> requestedButtons) {
+        String message = requestedMessage.orElse("");
+        List<String> buttons = new ArrayList<>();
+        LuaValue buttonValue = requestedButtons.orElse(LuaValue.NIL);
+        if (buttonValue.istable()) {
+            LuaTable buttonTable = buttonValue.checktable();
+            for (int index = 1; index <= buttonTable.length(); index++) {
+                buttons.add(buttonTable.get(index).checkjstring());
+            }
+        }
+        if (buttons.isEmpty()) buttons.add("OK");
+        return showMessageBoxImpl(title, message, buttons);
+    }
+
+    @MLuaDescription("Displays a text prompt and returns the submitted value.")
+    public LuaTable ShowPrompt(String title, Optional<String> requestedMessage,
+                               Optional<String> requestedDefaultText) {
+        return showPromptImpl(title, requestedMessage.orElse(""), requestedDefaultText.orElse(""));
+    }
+
+    @MLuaDescription("Displays a confirmation dialog and returns the choice.")
+    public LuaTable ShowConfirmDialog(String title, Optional<String> requestedMessage) {
+        return showConfirmDialogImpl(title, requestedMessage.orElse(""));
     }
 
     private dev.mlua.core.scheduler.MLuaTaskSchedulerView scheduler() {
@@ -350,69 +380,6 @@ public final class MLuaModalService extends MLuaServiceBase {
 
         Minecraft.getInstance().setScreen(screen);
         return MLuaLuaBindings.signalInstance(signal, ownerGlobals(), scheduler(), ownerModId(), ownerSide());
-    }
-
-    @Override
-    public LuaTable toLua() {
-        LuaTable table = new LuaTable();
-
-        table.set("SetModal", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                LuaValue arg = args.arg(args.narg());
-                setModal(arg.checkboolean());
-                return LuaValue.NIL;
-            }
-        });
-
-        table.set("IsModal", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                return LuaValue.valueOf(isModal());
-            }
-        });
-
-        table.set("ShowMessageBox", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                String title = args.checkjstring(2);
-                String message = args.optjstring(3, "");
-
-                List<String> buttons = new ArrayList<>();
-                LuaTable buttonsTable = args.opttable(4, null);
-                if (buttonsTable != null) {
-                    for (int i = 1; i <= buttonsTable.length(); i++) {
-                        buttons.add(buttonsTable.get(i).checkjstring());
-                    }
-                }
-                if (buttons.isEmpty()) {
-                    buttons.add("OK");
-                }
-
-                return showMessageBoxImpl(title, message, buttons);
-            }
-        });
-
-        table.set("ShowPrompt", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                String title = args.checkjstring(2);
-                String message = args.optjstring(3, "");
-                String defaultText = args.optjstring(4, "");
-                return showPromptImpl(title, message, defaultText);
-            }
-        });
-
-        table.set("ShowConfirmDialog", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                String title = args.checkjstring(2);
-                String message = args.optjstring(3, "");
-                return showConfirmDialogImpl(title, message);
-            }
-        });
-
-        return table;
     }
 
     private static final class ModalState {
