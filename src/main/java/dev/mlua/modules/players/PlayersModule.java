@@ -219,6 +219,11 @@ public class PlayersModule implements MLuaModule {
 
         registration.registerClass("Mob", "LivingEntity",
             "A Minecraft mob with AI targeting, visibility checks, and persistence controls.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "NavigateTo", "Starts native mob navigation toward a Vector3 or CFrame at the given speed.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "StopNavigation", "Stops this mob's current navigation path.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "IsNavigationDone", "Returns whether this mob has finished or lost its navigation path.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Mob", "NavigationDone", "IsNavigationDone", null,
+            "boolean", "server:Server", "Whether this mob has finished or lost its navigation path.");
         MLuaClassMethods.registerInstanceMethod(registration, "Mob", "GetTarget", "Returns the living entity this mob currently targets, or nil.");
         MLuaClassMethods.registerInstanceMethod(registration, "Mob", "SetTarget", "Sets or clears this mob's AI target.");
         MLuaClassMethods.registerInstanceMethod(registration, "Mob", "CanSee", "Returns whether this mob has line of sight to an entity.");
@@ -749,6 +754,14 @@ public class PlayersModule implements MLuaModule {
             "if player then\n" +
             "    player:SendMessage(\"Welcome!\")\n" +
             "end");
+        docs.guideStep("Players", "Script mob navigation", "Mob:NavigateTo uses Minecraft's native path navigation. Call it from server-side entity behavior, then check the path before choosing another destination.",
+            "local function updatePatrol(mob, waypoint)\n" +
+            "    if mob:IsNavigationDone() then\n" +
+            "        mob:NavigateTo(waypoint, 1.1)\n" +
+            "    end\n" +
+            "end\n\n" +
+            "local waypoint = Vector3.new(24, 64, -12)\n" +
+            "updatePatrol(scriptedMob, waypoint)");
         docs.clazz("Object", "LuaTable",
                 "Root class in MLua's Lua class hierarchy.",
                 "classes/object.html", null);

@@ -360,6 +360,23 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       if (entity instanceof net.minecraft.world.entity.Mob mob) {
+         MLuaClassMethods.setInstanceMethod(table, "NavigateTo", varArg((args) -> {
+            net.minecraft.world.level.Level level = mob.level();
+            if (level.isClientSide) throw new LuaError("[MLua] Mob:NavigateTo is server-side only.");
+            double[] destination = MLuaCFrame.vector(args.arg(2));
+            double speed = args.optdouble(3, 1.0);
+            if (!Double.isFinite(speed) || speed <= 0) {
+               throw new LuaError("[MLua] Mob:NavigateTo speed must be finite and greater than zero.");
+            }
+            return LuaValue.valueOf(mob.getNavigation().moveTo(destination[0], destination[1], destination[2], speed));
+         }));
+         MLuaClassMethods.setInstanceMethod(table, "StopNavigation", luaFn(() -> {
+            if (mob.level().isClientSide) throw new LuaError("[MLua] Mob:StopNavigation is server-side only.");
+            mob.getNavigation().stop();
+            return LuaValue.NONE;
+         }));
+         MLuaClassMethods.setInstanceMethod(table, "IsNavigationDone", luaFn(() ->
+            LuaValue.valueOf(mob.getNavigation().isDone())));
          MLuaClassMethods.setInstanceMethod(table, "GetTarget", luaFn(() -> {
             net.minecraft.world.entity.LivingEntity target = mob.getTarget();
             return target == null ? LuaValue.NIL : entityTable(target, registration);
