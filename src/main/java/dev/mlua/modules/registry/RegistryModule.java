@@ -121,6 +121,7 @@ public class RegistryModule implements MLuaModule {
         contributeDefinitionSchemas(docs);
         contributeSignatures(docs);
         docs.signature("Block", "Block:GetInventory()", "Container");
+        docs.signature("Block", "Block:GetClassName()", "string");
         docs.signature("BlockEntity", "BlockEntity:GetLevel()", "Level");
         docs.signature("BlockEntity", "BlockEntity:GetDimension()", "string");
         docs.signature("BlockEntity", "BlockEntity:GetIsRemoved()", "boolean");
@@ -209,6 +210,7 @@ public class RegistryModule implements MLuaModule {
         docs.clazz("Block", "MLuaBlockWrapper",
                 "A live block instance at a position in a Minecraft world.",
                 "classes/block.html", "Instance");
+        docs.method("Block", "Block:GetClassName(): string", "Returns the registered Lua class name of this block instance, including an addon subclass.", "", "string", "Shared", "");
         docs.clazz("BlockEntity", "MLuaBlockWrapper",
                 "A live block entity attached to a block position, with persistent state and optional inventory.",
                 "classes/block-entity.html", "Instance");

@@ -12,6 +12,7 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.engine.MLuaLuauTypes;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.common.enums.Side;
 import dev.mlua.module.MLuaRegistration;
@@ -599,30 +600,38 @@ public final class MLuaGuiService implements MLuaService {
     }
 
     private static void applyWidgetProperties(Object widget, LuaTable properties, Object screen) {
-        LuaValue x = properties.get("X");
-        LuaValue y = properties.get("Y");
-        if (isDimension(x) || isDimension(y) || x.isint() || y.isint()) {
+        LuaValue position = properties.get("Position");
+        if (!position.isnil()) {
+            if (!MLuaLuauTypes.isUDim2(position)) {
+                throw new LuaError("[MLua] NativeControl.Position requires a UDim2 value created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
+            }
+            LuaTable dimensions = position.checktable();
+            LuaValue x = dimensions.get("X");
+            LuaValue y = dimensions.get("Y");
             int currentX = readInt(widget, "getX", 0);
             int currentY = readInt(widget, "getY", 0);
             int screenWidth = readDimension(screen, "getWidth", "width", 0);
             int screenHeight = readDimension(screen, "getHeight", "height", 0);
-            int nextX = dimension(x, currentX, screenWidth);
-            int nextY = dimension(y, currentY, screenHeight);
+            int nextX = uiDimension(x, currentX, screenWidth);
+            int nextY = uiDimension(y, currentY, screenHeight);
             if (!invokeIfPresent(widget, "setPosition", new Class<?>[]{int.class, int.class}, nextX, nextY)
                 && (!setIntField(widget, "x", nextX) || !setIntField(widget, "y", nextY))) {
                 throw new LuaError("[MLua] NativeControl position is not writable for " + widget.getClass().getSimpleName());
             }
         }
-        LuaValue width = properties.get("Width");
-        if (width.isint() || isDimension(width)) {
-            int nextWidth = dimension(width, readInt(widget, "getWidth", 0), readDimension(screen, "getWidth", "width", 0));
+        LuaValue size = properties.get("Size");
+        if (!size.isnil()) {
+            if (!MLuaLuauTypes.isUDim2(size)) {
+                throw new LuaError("[MLua] NativeControl.Size requires a UDim2 value created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
+            }
+            LuaTable dimensions = size.checktable();
+            int nextWidth = uiDimension(dimensions.get("X"), readInt(widget, "getWidth", 0),
+                readDimension(screen, "getWidth", "width", 0));
             if (!invokeIfPresent(widget, "setWidth", new Class<?>[]{int.class}, nextWidth) && !setIntField(widget, "width", nextWidth)) {
                 throw new LuaError("[MLua] NativeControl size is not writable for " + widget.getClass().getSimpleName());
             }
-        }
-        LuaValue height = properties.get("Height");
-        if (height.isint() || isDimension(height)) {
-            int nextHeight = dimension(height, readInt(widget, "getHeight", 0), readDimension(screen, "getHeight", "height", 0));
+            int nextHeight = uiDimension(dimensions.get("Y"), readInt(widget, "getHeight", 0),
+                readDimension(screen, "getHeight", "height", 0));
             if (!invokeIfPresent(widget, "setHeight", new Class<?>[]{int.class}, nextHeight) && !setIntField(widget, "height", nextHeight)) {
                 throw new LuaError("[MLua] NativeControl size is not writable for " + widget.getClass().getSimpleName());
             }
@@ -638,20 +647,15 @@ public final class MLuaGuiService implements MLuaService {
         for (LuaValue key : properties.keys()) {
             if (!key.isstring()) continue;
             String name = key.tojstring();
-            if (Set.of("X", "Y", "Width", "Height", "Visible", "Text", "Replacement", "Before", "After")
+            if (Set.of("Position", "Size", "Visible", "Text", "Replacement", "Before", "After")
                 .contains(name)) continue;
             MLuaNativeControl.setWidgetProperty(widget, name, properties.get(key));
         }
     }
 
-    private static boolean isDimension(LuaValue value) {
-        return value.istable() && value.get("Scale").isnumber() && value.get("Offset").isnumber();
-    }
-
-    private static int dimension(LuaValue value, int current, int parentSize) {
-        if (value.isint()) return value.checkint();
-        if (isDimension(value)) return (int) Math.round(parentSize * value.get("Scale").todouble() + value.get("Offset").toint());
-        return current;
+    private static int uiDimension(LuaValue value, int current, int parentSize) {
+        if (!MLuaLuauTypes.isUDim(value)) throw new LuaError("[MLua] UDim2 axes must be UDim values");
+        return (int) Math.round(parentSize * value.get("Scale").todouble() + value.get("Offset").toint());
     }
 
     private static int readDimension(Object target, String methodName, String fieldName, int fallback) {
@@ -1023,16 +1027,18 @@ public final class MLuaGuiService implements MLuaService {
                         throw new LuaError("[MLua] Native layout property names must start with a letter and cannot be runtime metadata");
                     }
                 }
-                if (!properties.get("X").isnil() && !properties.get("X").isint() && !isDimension(properties.get("X"))
-                    || !properties.get("Y").isnil() && !properties.get("Y").isint() && !isDimension(properties.get("Y"))
-                    || !properties.get("Width").isnil() && !properties.get("Width").isint() && !isDimension(properties.get("Width"))
-                    || !properties.get("Height").isnil() && !properties.get("Height").isint() && !isDimension(properties.get("Height"))
+                if (!properties.get("X").isnil() || !properties.get("Y").isnil()
+                    || !properties.get("Width").isnil() || !properties.get("Height").isnil()) {
+                    throw new LuaError("[MLua] Native layout uses Position and Size UDim2 values, not X/Y/Width/Height fields");
+                }
+                if (!properties.get("Position").isnil() && !MLuaLuauTypes.isUDim2(properties.get("Position"))
+                    || !properties.get("Size").isnil() && !MLuaLuauTypes.isUDim2(properties.get("Size"))
                     || !properties.get("Visible").isnil() && !properties.get("Visible").isboolean()
                     || !properties.get("Text").isnil() && !properties.get("Text").isstring()) {
-                    throw new LuaError("[MLua] Native layout X/Y/Width/Height values must be integers or UDim tables; Visible must be boolean and Text must be a string");
+                    throw new LuaError("[MLua] Native layout Position and Size require UDim2 values; Visible must be boolean and Text must be a string");
                 }
                 for (LuaValue key : properties.keys()) {
-                    if (!key.isstring() || Set.of("X", "Y", "Width", "Height", "Visible", "Text", "Replacement", "Before", "After").contains(key.tojstring())) continue;
+                    if (!key.isstring() || Set.of("Position", "Size", "Visible", "Text", "Replacement", "Before", "After").contains(key.tojstring())) continue;
                     LuaValue value = properties.get(key);
                     if (!value.isstring() && !value.isnumber() && !value.isboolean()) {
                         throw new LuaError("[MLua] Native layout property '" + key

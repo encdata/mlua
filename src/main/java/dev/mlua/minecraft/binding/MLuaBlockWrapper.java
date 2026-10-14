@@ -298,6 +298,9 @@ public final class MLuaBlockWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetLevel", selfBlock((self, ignored) -> MLuaLevelWrapper.levelTable(((MCLevelImpl) level(self)).inner(), registration)), "Returns the live world containing this block.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetDimension", selfBlock((self, ignored) -> LuaValue.valueOf(((MCLevelImpl) level(self)).inner().dimension().location().toString())), "Returns the dimension identifier containing this block.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetName", classTable.rawget("GetId"), "Returns the registered block identifier at this position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetClassName",
+            selfBlock((self, ignored) -> self.rawget("__type")),
+            "Returns this block instance's registered Lua class name, including an addon subclass.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetPosition", selfBlock((self, ignored) -> {
             MCBlockPos pos = pos(self);
             return MLuaVector.vector3((double)pos.getX(), (double)pos.getY(), (double)pos.getZ());

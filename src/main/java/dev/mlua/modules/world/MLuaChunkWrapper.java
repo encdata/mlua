@@ -279,7 +279,7 @@ public final class MLuaChunkWrapper {
                 server.getChunk(chunkX(position), chunkZ(position));
             }
             LuaTable chunk = chunkTable(level, position, registration);
-            return chunk.get("GetEntities").invoke(LuaValue.varargsOf(new LuaValue[]{chunk}));
+            return chunk.get("GetEntities").invoke(LuaValue.varargsOf(new LuaValue[]{chunk})).arg1();
         });
     }
 
