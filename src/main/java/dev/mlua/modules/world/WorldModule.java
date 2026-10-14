@@ -80,7 +80,7 @@ public class WorldModule implements MLuaModule {
             {"Time", "GetTime", "SetTime", "number", "This world's day time in ticks."},
             {"DayTime", "GetDayTime", null, "number", "The current day cycle time in ticks."},
             {"GameTime", "GetGameTime", null, "number", "The total number of ticks this world has been running."},
-            {"SpawnPosition", "GetSpawnPosition", null, "Vector3", "This world's shared spawn position."},
+            {"SpawnPosition", "GetSpawnPosition", "SetSpawnPosition", "Vector3", "This world's shared spawn position."},
             {"Weather", "GetWeather", "SetWeather", "Weather", "This world's current weather."},
             {"Difficulty", "GetDifficulty", "SetDifficulty", "Difficulty", "This world's difficulty."},
             {"Raining", "IsRaining", null, "boolean", "Whether it is raining in this world."},
@@ -123,6 +123,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetMinBuildHeight", "Returns this world's minimum build height."),
             Map.entry("GetMaxBuildHeight", "Returns this world's maximum build height."),
             Map.entry("GetSpawnPosition", "Returns this world's shared spawn position."),
+            Map.entry("SetSpawnPosition", "Sets this world's shared respawn position and yaw. This method is server-side only."),
             Map.entry("IsDay", "Returns whether it is daytime in this world."),
             Map.entry("IsNight", "Returns whether it is nighttime in this world."),
             Map.entry("SetTime", "Sets this world's day time. This method is server-side only."),
@@ -236,6 +237,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean");
         docs.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
+        docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("Chunk", "Chunk:GetX()", "number");
         docs.signature("Chunk", "Chunk:GetZ()", "number");
         docs.signature("Chunk", "Chunk:GetDimension()", "string");
@@ -282,6 +284,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:IsRainingAt(position: Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:GetSurfaceY(position: Vector3|CFrame)", "number?");
         docs.signature("WorldService", "WorldService:GetBlock(position: Vector3|CFrame)", "Block");
+        docs.signature("WorldService", "WorldService:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("WorldService", "WorldService:GetFluid(position: Vector3|CFrame)", "string?");
         docs.signature("WorldService", "WorldService:GetBiome(position: Vector3|CFrame)", "string");
         docs.signature("WorldService", "WorldService:GetLightLevel(position: Vector3|CFrame)", "number");
@@ -325,6 +328,7 @@ public class WorldModule implements MLuaModule {
         docs.property("Chunk", "chunk.Forced", "boolean", "Whether this chunk has a force-load ticket.", "shared:Shared");
         docs.property("World", "world.Raining", "boolean", "Whether it is raining in this world.", "shared:Shared");
         docs.property("World", "world.Thundering", "boolean", "Whether a thunderstorm is active in this world.", "shared:Shared");
+        docs.property("World", "world.SpawnPosition", "Vector3", "This world's shared spawn position; assign a native Vector3 or CFrame to change it on the server.", "shared:Shared");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");
         docs.guideStep("World", "Load and edit chunks in a dimension",
             "Each World instance is one dimension. Vector2 means chunk coordinates (X, Z); Vector3 and CFrame select the chunk containing a block position. GetChunk returns a live Chunk handle without loading it. Data methods load that chunk when called. Chunk:GetHeightAt returns the first free Y value, and Chunk:GetTopBlockAt returns the live registered Block instance below it. Both accept a Minecraft heightmap name, defaulting to MOTION_BLOCKING. SetBlock and SetBlockAt accept an optional property table for states such as stair facing and waterlogging. Property names and values follow the block's Minecraft state definition. LoadChunk loads immediately; ForceLoad adds a persistent ticket, while Unload removes that ticket and lets Minecraft decide when to unload.",
@@ -332,6 +336,9 @@ public class WorldModule implements MLuaModule {
         docs.guideStep("World", "Find and remove entities in a chunk",
             "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances, so use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
             "local worlds = Minecraft:GetService(\"World\")\nlocal world = worlds:Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = Minecraft:GetService(\"EntityService\"):Spawn(\"minecraft:zombie\", position, world)");
+        docs.guideStep("World", "Set a dimension's shared spawn point",
+            "SetSpawnPosition takes a native Vector3 or CFrame and an optional yaw in degrees. It is server-side only; SpawnPosition can also be assigned directly.",
+            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal spawn = Vector3.new(0, 65, 0)\nworld:SetSpawnPosition(spawn, 90)\nworld.SpawnPosition = spawn");
         docs.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");

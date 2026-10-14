@@ -213,6 +213,13 @@ public final class MLuaChunkWrapper {
         return MLuaCFrame.vector(args.arg(index));
     }
 
+    public static float positionYaw(Varargs args, int positionIndex, int yawIndex) {
+        LuaValue yaw = args.arg(yawIndex);
+        if (!yaw.isnil()) return (float)yaw.checkdouble();
+        LuaValue position = args.arg(positionIndex);
+        return MLuaCFrame.isCFrame(position) ? MLuaCFrame.fromLua(position).minecraftYaw() : 0.0f;
+    }
+
     public static int chunkX(ChunkPos position) {
         //--version 26.1
         return position.x();

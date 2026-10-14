@@ -149,6 +149,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
          BlockPos spawn = level.getSharedSpawnPos();
          return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
       }));
+      table.set("SetSpawnPosition", serverLevelFn(supplier, (level, args) -> {
+         double[] position = MLuaChunkWrapper.positionArgs(args, 2);
+         level.setDefaultSpawnPos(BlockPos.containing(position[0], position[1], position[2]), MLuaChunkWrapper.positionYaw(args, 2, 3));
+         return LuaValue.TRUE;
+      }));
       table.set("IsDay", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isDay())));
       table.set("IsNight", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isNight())));
       table.set("SetTime", serverLevelFn(supplier, (level, args) -> {

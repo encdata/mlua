@@ -59,6 +59,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.saveddata.WeatherData;
+import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
@@ -198,6 +199,14 @@ public final class MLuaWorldService extends MLuaServiceBase {
                 BlockPos spawn = world.getWorldBorderAdjustedRespawnData(world.getRespawnData()).pos();
                 return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
             }));
+        bindWorldMethod(result, implementations, "SetSpawnPosition", levelFunction(level, (world, args) -> {
+            ServerLevel serverLevel = requireServerWorld(world, "SetSpawnPosition");
+            double[] position = positionArgs(args, 2);
+            BlockPos spawn = BlockPos.containing(position[0], position[1], position[2]);
+            float yaw = MLuaChunkWrapper.positionYaw(args, 2, 3);
+            serverLevel.setRespawnData(LevelData.RespawnData.of(serverLevel.dimension(), spawn, yaw, 0.0f));
+            return LuaValue.TRUE;
+        }));
         bindWorldMethod(result, implementations, "IsDay", levelFunction(level,
             (world, args) -> LuaValue.valueOf(world.getDefaultClockTime() % 24000L < 13000L)));
         bindWorldMethod(result, implementations, "IsNight", levelFunction(level,
