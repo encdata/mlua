@@ -18,6 +18,7 @@ import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.runtime.data.MLuaDataManager;
@@ -441,9 +442,14 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (block == null) {
             throw new LuaError("[MLua] Unknown block: " + blockId);
          }
-         LuaValue properties = args.arg(blockIndex + 1).istable() ? args.arg(blockIndex + 1) : LuaValue.NIL;
+         LuaValue propertiesArg = args.arg(blockIndex + 1);
+         if (!propertiesArg.isnil() && !propertiesArg.istable() && !propertiesArg.isboolean()) {
+            throw new LuaError("[MLua] World:SetBlock properties must be a table when provided.");
+         }
+         LuaValue properties = propertiesArg.istable() ? propertiesArg : LuaValue.NIL;
          int loadIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 2;
-         if (!ensureChunkLoaded(level, blockPos, args.optboolean(loadIndex, true))) return LuaValue.FALSE;
+         if (!ensureChunkLoaded(level, blockPos,
+            MLuaLuaArguments.optionalBoolean(args, loadIndex, true, "World:SetBlock", "loadChunk"))) return LuaValue.FALSE;
          level.setBlock(blockPos, MLuaBlockStateProperties.apply(block.defaultBlockState(), properties), 3);
          return LuaValue.TRUE;
       }));
@@ -453,12 +459,14 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int stateIndex = 2 + coordinateWidth(args, 2);
          net.minecraft.world.level.block.state.BlockState state =
             MLuaBlockStateWrapper.blockStateFromLua(args.arg(stateIndex), context.mlua().registration());
-         if (!ensureChunkLoaded(level, blockPos, args.optboolean(stateIndex + 1, true))) return LuaValue.FALSE;
+         if (!ensureChunkLoaded(level, blockPos,
+            MLuaLuaArguments.optionalBoolean(args, stateIndex + 1, true, "World:SetBlockState", "loadChunk"))) return LuaValue.FALSE;
          return LuaValue.valueOf(level.setBlock(blockPos, state, 3));
       }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         boolean dropItems = args.optboolean(2 + coordinateWidth(args, 2), true);
+         boolean dropItems = MLuaLuaArguments.optionalBoolean(
+            args, 2 + coordinateWidth(args, 2), true, "World:BreakBlock", "dropItems");
          level.destroyBlock(BlockPos.containing(pos[0], pos[1], pos[2]), dropItems);
          return LuaValue.TRUE;
       }));
@@ -550,7 +558,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          double[] pos = positionArgs(args, 2);
          int powerIndex = 2 + coordinateWidth(args, 2);
          float power = (float)args.optdouble(powerIndex, 4.0);
-         boolean fire = args.optboolean(powerIndex + 1, false);
+         boolean fire = MLuaLuaArguments.optionalBoolean(args, powerIndex + 1, false, "World:Explode", "fire");
          level.explode((Entity)null, pos[0], pos[1], pos[2], power, fire, Level.ExplosionInteraction.BLOCK);
          return LuaValue.NONE;
       }));

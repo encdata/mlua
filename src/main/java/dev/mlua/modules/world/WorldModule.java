@@ -238,7 +238,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("FindNearestPlayer", "Returns the nearest player to a position, or nil."),
             Map.entry("GetNearestPlayer", "Returns the nearest player to a position, or nil."),
             Map.entry("FindNearestEntity", "Returns the nearest matching entity to a position, or nil."),
-            Map.entry("SetBlock", "Sets a block and optional state properties at a position, loading its chunk by default. This method is server-side only."),
+            Map.entry("SetBlock", "Sets a block and optional state properties at a position, loading its chunk by default. Pass loadChunk directly as the third argument to omit properties. This method is server-side only."),
             Map.entry("BreakBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("DestroyBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("PlaySound", "Plays a sound at a position. This method is server-side only."),
@@ -321,6 +321,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, loadChunk: boolean)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?)", "BlockRaycastResult?"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean"));
@@ -410,6 +411,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:ForceLoadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, blockId: string, loadChunk: boolean)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetBlockEntity(position: Vector3|CFrame)", "BlockEntity?"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:CanSeeSky(position: Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:IsRaining()", "boolean"));

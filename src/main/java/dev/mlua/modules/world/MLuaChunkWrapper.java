@@ -7,6 +7,7 @@ import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -336,7 +337,8 @@ public final class MLuaChunkWrapper {
             Level level = level(args.arg1());
             ChunkPos position = chunkPosition(args, 2);
             BlockPos origin = new BlockPos(position.getMinBlockX(), minBuildHeight(level), position.getMinBlockZ());
-            boolean load = args.optboolean(3, true);
+            boolean load = MLuaLuaArguments.optionalBoolean(
+                args, 3, true, "World:GetEntitiesInChunk", "loadChunk");
             if (!level.hasChunkAt(origin)) {
                 if (!load || !(level instanceof ServerLevel server)) return new LuaTable();
                 server.getChunk(chunkX(position), chunkZ(position));
