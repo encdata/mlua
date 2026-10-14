@@ -1,6 +1,9 @@
 package dev.mlua.common.mixin;
 
 import dev.mlua.common.enums.MixinType;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.BooleanSupplier;
@@ -15,8 +18,26 @@ import org.slf4j.LoggerFactory;
 /** Creates the same Lua mixin service for early bootstrap and normal runtime scripts. */
 public final class MLuaMixinLuaApi {
    private static final Logger LOGGER = LoggerFactory.getLogger("MLua");
+   private static final Map<String, String> FUNCTION_DESCRIPTIONS = createFunctionDescriptions();
 
    private MLuaMixinLuaApi() { }
+
+   public static Map<String, String> functionDescriptions() {
+      return FUNCTION_DESCRIPTIONS;
+   }
+
+   private static Map<String, String> createFunctionDescriptions() {
+      Map<String, String> descriptions = new LinkedHashMap<>();
+      descriptions.put("CallOriginal", "Calls the original method from the matching overwrite callback.");
+      descriptions.put("Target", "Binds a Java target class and returns target-scoped Inject, Overwrite, Redirect, and ModifyArg methods.");
+      descriptions.put("GetRules", "Returns mixin rules registered by the current script.");
+      descriptions.put("GetFailures", "Returns target classes whose registered mixin rules could not be applied.");
+      descriptions.put("Inject", "Injects a callback at the HEAD or RETURN of a target method.");
+      descriptions.put("Overwrite", "Replaces a target method with a Lua callback.");
+      descriptions.put("Redirect", "Replaces an exact invocation selected by target = 'Lowner;method(descriptor)returnType'; nil preserves the original call.");
+      descriptions.put("ModifyArg", "Changes a zero-based argument at the exact invocation selected by target = 'Lowner;method(descriptor)returnType'.");
+      return Collections.unmodifiableMap(descriptions);
+   }
 
    public static LuaTable create(Supplier<String> activeScope) {
       return create(activeScope, () -> true);
@@ -29,6 +50,10 @@ public final class MLuaMixinLuaApi {
       table.set("GetFailures", function(args -> getFailures()));
       table.set("Target", function(args -> targetApi(args.checkjstring(2), activeScope, registrationAllowed)));
       bindOperations(table, args -> args.checkjstring(2), 3, 4, activeScope, registrationAllowed);
+      LuaTable methodDescriptions = new LuaTable();
+      FUNCTION_DESCRIPTIONS.forEach((name, description) ->
+         methodDescriptions.set(name, LuaValue.valueOf(description)));
+      table.set("__mlua_doc_methods", methodDescriptions);
       return table;
    }
 

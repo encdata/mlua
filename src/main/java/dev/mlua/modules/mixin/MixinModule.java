@@ -2,6 +2,7 @@ package dev.mlua.modules.mixin;
 
 import dev.mlua.module.MLuaDocBuilder;
 
+import dev.mlua.common.mixin.MLuaMixinLuaApi;
 import dev.mlua.modules.mixin.runtime.MLuaMixinService;
 import dev.mlua.module.MLuaModule;
 import java.util.List;
@@ -26,14 +27,7 @@ public class MixinModule implements MLuaModule {
     public List<ServiceEntry> services() {
         ServiceEntry.Builder mixin = ServiceEntry.builder("Mixin", MLuaMixinService::new)
             .description("Registers method mixins from mixin and registry scripts. Provide a JVM descriptor when loader mappings make an overloaded method ambiguous.");
-        mixin.function("CallOriginal", "Calls the original method from the matching overwrite callback.")
-            .function("Target", "Binds a Java target class and returns target-scoped Inject, Overwrite, Redirect, and ModifyArg methods.")
-            .function("GetRules", "Returns mixin rules registered by the current script.")
-            .function("GetFailures", "Returns target classes whose registered mixin rules could not be applied.")
-            .function("Inject", "Injects a callback at the HEAD or RETURN of a target method.")
-            .function("Overwrite", "Replaces a target method with a Lua callback.")
-            .function("Redirect", "Replaces an exact invocation selected by target = 'Lowner;method(descriptor)returnType'; nil preserves the original call.")
-            .function("ModifyArg", "Changes a zero-based argument at the exact invocation selected by target = 'Lowner;method(descriptor)returnType'.");
+        MLuaMixinLuaApi.functionDescriptions().forEach(mixin::function);
         return List.of(mixin.build());
     }
 }
