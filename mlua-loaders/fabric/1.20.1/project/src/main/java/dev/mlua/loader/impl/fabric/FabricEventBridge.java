@@ -37,6 +37,7 @@ public final class FabricEventBridge implements EventBridge {
     private static final List<ContainerCallback> containerCloseCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ItemStackCallback> itemCraftCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ExplosionCallback> explosionCallbacks = new CopyOnWriteArrayList<>();
+    private static final List<AdvancementCallback> advancementCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ProjectileCallback> projectileHitCallbacks = new CopyOnWriteArrayList<>();
     private final List<BlockPlaceCallback> blockPlaceCallbacks = new ArrayList<>();
 
@@ -242,6 +243,11 @@ public final class FabricEventBridge implements EventBridge {
         explosionCallbacks.add(callback);
     }
 
+    @Override
+    public void onAdvancement(AdvancementCallback callback) {
+        advancementCallbacks.add(callback);
+    }
+
     public static void fireItemDrop(Object player, Object stack) {
         for (ItemStackCallback callback : itemDropCallbacks) {
             callback.handle(player, stack);
@@ -275,6 +281,12 @@ public final class FabricEventBridge implements EventBridge {
     public static void fireExplosion(Object level, Object position) {
         for (ExplosionCallback callback : explosionCallbacks) {
             callback.handle(level, position);
+        }
+    }
+
+    public static void fireAdvancement(Object player, String advancementId) {
+        for (AdvancementCallback callback : advancementCallbacks) {
+            callback.handle(player, advancementId);
         }
     }
 
