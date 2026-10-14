@@ -67,7 +67,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       var raw = this.resolveAdvancementHolder(id);
       if (raw == null) return LuaValue.NIL;
       LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
-      info.set("Id", LuaValue.valueOf(raw.id().toString()));
+      info.set("Id", LuaValue.valueOf(MLuaResourceLocations.parse(id).toString()));
       var display = raw.display().orElse(null);
       info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
       info.set("Description", LuaValue.valueOf(display == null ? "" : display.getDescription().getString()));
@@ -140,13 +140,15 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       result.set("IsDone", LuaValue.valueOf(progress.isDone()));
       LuaTable criteria = new LuaTable();
       for (String criterion : progress.getCompletedCriteria()) {
-         LuaTable criterionTable = new LuaTable();
+         LuaTable criterionTable = this.context.mlua().registration().createClassInstance("CriterionProgress");
+         criterionTable.set("Name", LuaValue.valueOf(criterion));
          criterionTable.set("Done", LuaValue.TRUE);
          criteria.set(criterion, criterionTable);
       }
       for (String criterion : progress.getRemainingCriteria()) {
          if (criteria.get(criterion).isnil()) {
-            LuaTable criterionTable = new LuaTable();
+            LuaTable criterionTable = this.context.mlua().registration().createClassInstance("CriterionProgress");
+            criterionTable.set("Name", LuaValue.valueOf(criterion));
             criterionTable.set("Done", LuaValue.FALSE);
             criteria.set(criterion, criterionTable);
          }

@@ -54,6 +54,18 @@ public final class AdvancementsModule implements MLuaModule {
                 return LuaValue.valueOf(criterion.istable() && criterion.get("Done").toboolean());
             }
         }, "Checks whether the named criterion has been completed.");
+        registration.registerClassFunction("AdvancementProgress", "GetCompletedCriteria", criteriaByState(true),
+            "Returns the names of completed criteria.");
+        registration.registerClassFunction("AdvancementProgress", "GetRemainingCriteria", criteriaByState(false),
+            "Returns the names of criteria that are not completed.");
+
+        registration.registerClass("CriterionProgress", registration.requireInstanceBaseClassName(),
+            "Completion state for one criterion in a player's advancement progress.");
+        property(registration, "CriterionProgress", "Name", "string", "Returns the criterion name.");
+        property(registration, "CriterionProgress", "Done", "boolean", "Returns whether this criterion has been completed.");
+        registration.registerClassFunction("CriterionProgress", "IsDone", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return LuaValue.valueOf(self.checktable().get("Done").toboolean()); }
+        }, "Checks whether this criterion has been completed.");
     }
 
     private static void property(MLuaRegistration registration, String className, String name,
@@ -63,6 +75,23 @@ public final class AdvancementsModule implements MLuaModule {
         }, description);
         MLuaClassMethods.registerInstanceProperty(registration, className, name, "Get" + name, null,
             valueType, "server:Server", description);
+    }
+
+    private static org.luaj.vm2.lib.VarArgFunction criteriaByState(boolean completed) {
+        return new org.luaj.vm2.lib.VarArgFunction() {
+            @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
+                LuaValue criteria = args.checktable(1).get("Criteria");
+                org.luaj.vm2.LuaTable result = new org.luaj.vm2.LuaTable();
+                int index = 1;
+                for (LuaValue key : criteria.checktable().keys()) {
+                    LuaValue value = criteria.get(key);
+                    if (value.istable() && value.get("Done").toboolean() == completed) {
+                        result.set(index++, key);
+                    }
+                }
+                return result;
+            }
+        };
     }
 
     @Override
@@ -84,14 +113,18 @@ public final class AdvancementsModule implements MLuaModule {
         docs.property("AdvancementProgress", "AdvancementProgress.Progress", "table<string, CriterionProgress>", "Existing criterion map, equivalent to Criteria.", "read:Read");
         docs.method("AdvancementProgress", "AdvancementProgress:GetCriterion(name: string): CriterionProgress?", "Returns progress for one criterion.", "criterion name", "CriterionProgress?", "server:Server", null);
         docs.method("AdvancementProgress", "AdvancementProgress:HasCompletedCriterion(name: string): boolean", "Checks whether a criterion has been completed.", "criterion name", "boolean", "server:Server", null);
-        docs.type("CriterionProgress", null, "Completion state for one advancement criterion.");
-        docs.field("CriterionProgress", "Done", "boolean", "Whether this criterion has been completed.");
+        docs.method("AdvancementProgress", "AdvancementProgress:GetCompletedCriteria(): string[]", "Returns completed criterion names.", null, "string[]", "server:Server", null);
+        docs.method("AdvancementProgress", "AdvancementProgress:GetRemainingCriteria(): string[]", "Returns criterion names that are not complete.", null, "string[]", "server:Server", null);
+        docs.clazz("CriterionProgress", "MLuaAdvancementService", "Completion state for one criterion in a player's advancement progress.", "classes/criterion-progress.html", "Instance");
+        docs.property("CriterionProgress", "CriterionProgress.Name", "string", "The criterion name.", "read:Read");
+        docs.property("CriterionProgress", "CriterionProgress.Done", "boolean", "Whether this criterion has been completed.", "read:Read");
+        docs.method("CriterionProgress", "CriterionProgress:IsDone(): boolean", "Checks whether this criterion has been completed.", null, "boolean", "server:Server", null);
         docs.signature("Advancements", "Advancements:GetAdvancement(id: string): Advancement?", null);
         docs.signature("Advancements", "Advancements:GetAllAdvancements(): Advancement[]", null);
         docs.signature("Advancements", "Advancements:GetPlayerAdvancement(player: Player, id: string): AdvancementProgress?", null);
         docs.signature("Advancements", "Advancements:GetPlayerAdvancements(player: Player): table<string, AdvancementProgress>", null);
         docs.guideStep("Advancements", "Read and change advancement progress",
-            "GetAdvancement returns an Advancement class instance; GetPlayerAdvancements maps identifiers to AdvancementProgress instances. Use GetPlayerAdvancement when you need only one id. The original fields remain available, and the class methods provide explicit queries for criteria.",
+            "GetAdvancement returns an Advancement class instance; GetPlayerAdvancements maps identifiers to AdvancementProgress instances. Use GetPlayerAdvancement when you need only one id. Criterion entries are CriterionProgress instances, and progress also exposes completed and remaining criterion name lists.",
             "local Advancements = Minecraft:GetService(\"Advancements\")\nlocal advancement = Advancements:GetAdvancement(\"minecraft:story/mine_stone\")\nif advancement then\n    print(advancement:IsA(\"Advancement\"), advancement.Title, advancement.Parent)\n    for _, group in ipairs(advancement.Requirements) do\n        for _, criterion in ipairs(group) do\n            print(criterion)\n        end\n    end\n\n    local progress = Advancements:GetPlayerAdvancements(player)[advancement.Id]\n    if progress then\n        print(progress:IsA(\"AdvancementProgress\"), progress.IsDone)\n        print(progress:HasCompletedCriterion(\"minecraft:stone\"))\n    end\nend");
     }
 }
