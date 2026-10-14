@@ -297,7 +297,7 @@ public final class MLuaClassRegistry {
       this.validateMixinApplication(className, mixinName);
       this.pendingClassRemovals.remove(className);
       this.pendingMixinRemovals.remove(mixinName);
-      if (applied == null) applied = this.appliedMixins.computeIfAbsent(className, ignored -> new ArrayList<>());
+      List<String> applied = this.appliedMixins.computeIfAbsent(className, ignored -> new ArrayList<>());
       applied.add(mixinName);
       this.refreshParentLookup(this.classes.get(className), className);
       this.refreshInheritedMethodDescriptionsFrom(className);
