@@ -73,6 +73,11 @@ public final class MLuaCFrame {
       });
       table.set("fromEulerAnglesXYZ", table.get("Angles"));
       table.set("fromOrientation", table.get("Angles"));
+      table.set("fromAxisAngle", new TwoArgFunction() {
+         public LuaValue call(LuaValue axis, LuaValue angle) {
+            return MLuaCFrame.fromAxisAngle(MLuaVector.components3(axis), angle.checkdouble()).toLua();
+         }
+      });
       table.set("fromYawPitch", new TwoArgFunction() {
          public LuaValue call(LuaValue yaw, LuaValue pitch) {
             return MLuaCFrame.fromMinecraftRotation(yaw.checkdouble(), pitch.checkdouble()).toLua();
@@ -123,6 +128,21 @@ public final class MLuaCFrame {
       double r21 = cx * sy * sz + sx * cz;
       double r22 = cx * cy;
       return new MLuaCFrame(0.0, 0.0, 0.0, r00, r01, sy, r10, r11, r12, r20, r21, r22);
+   }
+
+   public static MLuaCFrame fromAxisAngle(double[] axis, double angle) {
+      double length = Math.sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+      if (length < 1.0E-10) throw new LuaError("[MLua] CFrame.fromAxisAngle requires a non-zero Vector3 axis");
+      double x = axis[0] / length;
+      double y = axis[1] / length;
+      double z = axis[2] / length;
+      double cosine = Math.cos(angle);
+      double sine = Math.sin(angle);
+      double t = 1.0 - cosine;
+      return new MLuaCFrame(0.0, 0.0, 0.0,
+         t * x * x + cosine, t * x * y - sine * z, t * x * z + sine * y,
+         t * x * y + sine * z, t * y * y + cosine, t * y * z - sine * x,
+         t * x * z - sine * y, t * y * z + sine * x, t * z * z + cosine);
    }
 
    public static MLuaCFrame lookAt(double x, double y, double z, double tx, double ty, double tz) {
