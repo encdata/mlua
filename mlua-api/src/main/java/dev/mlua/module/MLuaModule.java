@@ -187,14 +187,15 @@ public interface MLuaModule extends MLuaReloadable {
                 if (this.description != null && !this.description.equals(metadata.description())) {
                     throw new IllegalArgumentException("Service '" + this.name + "' has conflicting descriptions");
                 }
-                this.description = metadata.description();
-                metadata.functionDescriptions().forEach((method, description) -> {
-                    String existing = this.functions.putIfAbsent(method, description);
-                    if (existing != null && !existing.equals(description)) {
-                        throw new IllegalArgumentException("Reflective service '" + this.name
+                metadata.functionDescriptions().forEach((method, methodDescription) -> {
+                    String existing = this.functions.get(method);
+                    if (existing != null && !existing.equals(methodDescription)) {
+                        throw new IllegalArgumentException("Service '" + this.name
                             + "' method '" + method + "' has conflicting descriptions");
                     }
                 });
+                this.description = metadata.description();
+                metadata.functionDescriptions().forEach(this.functions::putIfAbsent);
                 return this;
             }
 
