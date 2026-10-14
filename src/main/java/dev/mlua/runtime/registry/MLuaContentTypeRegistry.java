@@ -1,5 +1,6 @@
 package dev.mlua.runtime.registry;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -84,7 +85,7 @@ public final class MLuaContentTypeRegistry {
         domainTypes.snapshot().forEach((key, definition) -> {
             result.put(key.startsWith(prefix) ? key.substring(prefix.length()) : key, definition.description());
         });
-        return Map.copyOf(result);
+        return Collections.unmodifiableMap(result);
     }
 
     public static boolean unregister(MLuaRegistration scope, String domain, String owner, String name) {
