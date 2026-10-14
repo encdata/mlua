@@ -55,6 +55,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
+        registerObjectProperty(registration, "ModelScale", "number", "The uniform scale applied to this object or model.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
@@ -76,6 +77,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
+            {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Changes the uniform model scale."},
             {"GetFollowEntity", "Returns the followed entity id, or nil."}, {"SetFollowEntity", "Attaches the object to an entity or clears the attachment with nil."},
             {"ClearFollowEntity", "Stops the object from following an entity."},
             {"GetResource", "Returns the image or model resource."}, {"SetResource", "Changes the image or model resource."},
@@ -308,15 +310,18 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     private LuaValue loadBBModel(String path, LuaTable props) {
         ensureClient();
         try {
+            if (!property(props, "AnimationPath").isnil() && !property(props, "AnimationsPath").isnil()) {
+                throw new LuaError("[MLua] RenderObject properties AnimationPath and AnimationsPath are aliases; provide only one.");
+            }
             MLuaBBModelAsset loadedAsset = MLuaBBModelLoader.load(path);
-            LuaValue animationPath = props.get("AnimationPath").isnil() ? props.get("AnimationsPath") : props.get("AnimationPath");
+            LuaValue animationPath = firstNonNil(property(props, "AnimationPath"), property(props, "AnimationsPath"));
             if (animationPath.isstring() && !animationPath.tojstring().isBlank()) {
                 loadedAsset = loadedAsset.withAnimations(MLuaBBModelLoader.loadAnimations(animationPath.tojstring()));
             }
             final MLuaBBModelAsset asset = loadedAsset;
             int id = MLuaClientRenderManager.createBBModel(asset, owner());
             var object = requireObject(id);
-            applyProps(object, props);
+            applyProps(object, props, "AnimationPath", "AnimationsPath");
             LuaTable table = objectTable(id);
             table.set("__bbmodel", LuaValue.TRUE);
             table.set("FormatVersion", asset.formatVersion());
@@ -336,6 +341,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             operations.set("StopAnimation", fn(args -> { object.animationPlayer().stop(); return LuaValue.NONE; }));
             operations.set("GetAnimationTime", fn(args -> LuaValue.valueOf(object.animationPlayer().time())));
             return table;
+        } catch (LuaError error) {
+            throw error;
         } catch (IOException | RuntimeException exception) {
             throw new LuaError("[MLua] Failed to load BBModel '" + path + "': " + exception.getMessage());
         }
@@ -460,6 +467,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             requireObject(id).setScaleWithDistance(args.checkboolean(2));
             return LuaValue.NONE;
         }));
+        operations.set("GetModelScale", fn(args -> LuaValue.valueOf(requireObject(id).modelScale())));
+        operations.set("SetModelScale", fn(args -> {
+            requireObject(id).setModelScale((float) args.checkdouble(2));
+            return LuaValue.NONE;
+        }));
         operations.set("GetFollowEntity", fn(args -> {
             MLuaEntityScope scope = requireObject(id).followEntityScope();
             return scope != null ? LuaValue.valueOf(scope.entityId()) : LuaValue.NIL;
@@ -499,69 +511,119 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return context.mlua().registration().attachClassInstance(instance, "RenderObject", null);
     }
 
-    private void applyProps(MLuaClientRenderManager.RenderObject object, LuaTable props) {
-        LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
+    private void applyProps(MLuaClientRenderManager.RenderObject object, LuaTable props, String... extraProperties) {
+        try {
+            validateProperties(props, extraProperties);
+            applyPropertyValues(object, props);
+        } catch (RuntimeException | Error failure) {
+            MLuaClientRenderManager.remove(object.id(), owner());
+            throw failure;
+        }
+    }
+
+    private void validateProperties(LuaTable props, String... extraProperties) {
+        LuaTable classTable = context.mlua().registration().classTable("RenderObject");
+        LuaValue descriptorsValue = classTable == null ? LuaValue.NIL : classTable.rawget("__mlua_properties");
+        LuaTable descriptors = descriptorsValue.istable() ? descriptorsValue.checktable() : new LuaTable();
+        java.util.Set<String> extras = java.util.Set.of(extraProperties);
+        java.util.Set<String> provided = new java.util.HashSet<>();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = props.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            if (!key.isstring()) {
+                throw new LuaError("[MLua] RenderObject properties must use registered string names.");
+            }
+            String suppliedName = key.tojstring();
+            String canonicalName = suppliedName.isEmpty() ? suppliedName
+                : Character.toUpperCase(suppliedName.charAt(0)) + suppliedName.substring(1);
+            if (!provided.add(canonicalName)) {
+                throw new LuaError("[MLua] RenderObject property '" + canonicalName
+                    + "' was supplied more than once with different casing.");
+            }
+            if (extras.contains(canonicalName)) continue;
+            LuaValue descriptor = descriptors.rawget(canonicalName);
+            if (!descriptor.istable()) {
+                throw new LuaError("[MLua] Unknown RenderObject property '" + suppliedName
+                    + "'. Use a registered writable RenderObject property.");
+            }
+            if (!descriptor.checktable().rawget("set").isfunction()) {
+                throw new LuaError("[MLua] RenderObject property '" + canonicalName + "' is read-only.");
+            }
+        }
+    }
+
+    private void applyPropertyValues(MLuaClientRenderManager.RenderObject object, LuaTable props) {
+        LuaValue position = property(props, "Position");
         if (!position.isnil()) {
             double[] value = screenVector(position);
             object.setPosition(value[0], value[1]);
         }
-        LuaValue size = firstNonNil(props.get("Size"), props.get("size"));
+        LuaValue endPosition = property(props, "EndPosition");
+        if (!endPosition.isnil()) {
+            double[] value = screenVector(endPosition);
+            object.setEndPosition(value[0], value[1]);
+        }
+        LuaValue size = property(props, "Size");
         if (!size.isnil()) {
             double[] value = screenVector(size);
             object.setSize(value[0], value[1]);
         }
-        if (!props.get("Rotation").isnil()) {
-            object.setRotation(props.get("Rotation").todouble());
-        } else if (!props.get("rotation").isnil()) {
-            object.setRotation(props.get("rotation").todouble());
+        LuaValue rotation = property(props, "Rotation");
+        if (!rotation.isnil()) object.setRotation(rotation.checkdouble());
+        LuaValue visible = property(props, "Visible");
+        if (!visible.isnil()) object.setVisible(visible.checkboolean());
+        LuaValue transparency = property(props, "Transparency");
+        LuaValue alpha = property(props, "Alpha");
+        if (!transparency.isnil() && !alpha.isnil()) {
+            throw new LuaError("[MLua] RenderObject properties Alpha and Transparency describe the same value; provide only one.");
         }
-        if (!props.get("Visible").isnil()) {
-            object.setVisible(props.get("Visible").toboolean());
-        } else if (!props.get("visible").isnil()) {
-            object.setVisible(props.get("visible").toboolean());
-        }
-        if (!props.get("Transparency").isnil()) {
-            object.setTransparency(props.get("Transparency").todouble());
-        } else if (!props.get("transparency").isnil()) {
-            object.setTransparency(props.get("transparency").todouble());
-        }
-        if (!props.get("Color").isnil()) {
-            object.setColor(props.get("Color").toint());
-        } else if (!props.get("color").isnil()) {
-            object.setColor(props.get("color").toint());
-        }
-        if (!props.get("ZIndex").isnil()) {
-            object.setZIndex(props.get("ZIndex").toint());
-        } else if (!props.get("zIndex").isnil()) {
-            object.setZIndex(props.get("zIndex").toint());
-        }
-        LuaValue worldPosition = firstNonNil(props.get("WorldPosition"), props.get("worldPosition"));
+        if (!transparency.isnil()) object.setTransparency(transparency.checkdouble());
+        else if (!alpha.isnil()) object.setTransparency(1.0 - Math.max(0.0, Math.min(1.0, alpha.checkdouble())));
+        LuaValue color = property(props, "Color");
+        if (!color.isnil()) object.setColor(color.checkint());
+        LuaValue depth = property(props, "Depth");
+        if (!depth.isnil()) object.setDepth(depth.checkdouble());
+        LuaValue zIndex = property(props, "ZIndex");
+        if (!zIndex.isnil()) object.setZIndex(zIndex.checkint());
+        LuaValue worldPosition = property(props, "WorldPosition");
         if (!worldPosition.isnil()) {
             double[] value = worldVector(worldPosition);
-            object.setWorldSpace(true);
             object.setWorldPosition(value[0], value[1], value[2]);
         }
-        LuaValue endWorldPosition = firstNonNil(props.get("EndWorldPosition"), props.get("endWorldPosition"));
+        LuaValue endWorldPosition = property(props, "EndWorldPosition");
         if (!endWorldPosition.isnil()) {
             double[] value = worldVector(endWorldPosition);
             object.setEndWorldPosition(value[0], value[1], value[2]);
         }
-        if (!props.get("ScaleWithDistance").isnil()) {
-            object.setScaleWithDistance(props.get("ScaleWithDistance").toboolean());
-        } else if (!props.get("scaleWithDistance").isnil()) {
-            object.setScaleWithDistance(props.get("scaleWithDistance").toboolean());
-        }
-        LuaValue modelScale = firstNonNil(props.get("ModelScale"), props.get("modelScale"));
+        LuaValue worldSpace = property(props, "WorldSpace");
+        if (!worldSpace.isnil()) object.setWorldSpace(worldSpace.checkboolean());
+        else if (!worldPosition.isnil() || !endWorldPosition.isnil()) object.setWorldSpace(true);
+        LuaValue scaleWithDistance = property(props, "ScaleWithDistance");
+        if (!scaleWithDistance.isnil()) object.setScaleWithDistance(scaleWithDistance.checkboolean());
+        LuaValue modelScale = property(props, "ModelScale");
         if (!modelScale.isnil()) object.setModelScale((float) modelScale.todouble());
-        if (!props.get("Thickness").isnil()) {
-            object.setThickness(props.get("Thickness").todouble());
-        } else if (!props.get("thickness").isnil()) {
-            object.setThickness(props.get("thickness").todouble());
+        LuaValue thickness = property(props, "Thickness");
+        if (!thickness.isnil()) object.setThickness(thickness.checkdouble());
+        LuaValue resource = property(props, "Resource");
+        LuaValue text = property(props, "Text");
+        if (!resource.isnil() && !text.isnil() && !resource.eq_b(text)) {
+            throw new LuaError("[MLua] RenderObject properties Resource and Text refer to the same content value; provide only one.");
         }
-        LuaValue followEntity = firstNonNil(props.get("FollowEntity"), props.get("followEntity"));
+        LuaValue content = text.isnil() ? resource : text;
+        if (!content.isnil()) object.setResource(content.isnil() ? null : content.checkjstring());
+        LuaValue followEntity = property(props, "FollowEntity");
         if (!followEntity.isnil()) {
             object.setFollowEntityScope(resolveOptionalEntityScope(followEntity));
         }
+    }
+
+    private static LuaValue property(LuaTable props, String name) {
+        LuaValue value = props.get(name);
+        if (!value.isnil() || name.isEmpty()) return value;
+        String lowerCamel = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+        return props.get(lowerCamel);
     }
 
     private MLuaClientRenderManager.RenderObject requireObject(int id) {
