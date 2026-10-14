@@ -15,24 +15,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class MLuaClassRegistryTest {
     @Test
-    void customClassTablesLookUpMethodsAcrossParentsInDeclaredOrder() {
+    void customClassTablesInheritFromOneSuperclass() {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         LuaTable firstParent = registry.register("First", (String) null);
-        LuaTable secondParent = registry.register("Second", (String) null);
+        registry.register("Second", (String) null);
         firstParent.set("Shared", "first");
         firstParent.set("FirstOnly", "first-only");
-        secondParent.set("Shared", "second");
-        secondParent.set("SecondOnly", "second-only");
         LuaTable child = new LuaTable();
         child.set("Shared", "child");
 
-        registry.register("Child", child, "First", "Second");
+        registry.register("Child", child, "First");
 
         assertEquals("child", child.get("Shared").tojstring());
         child.set("Shared", LuaValue.NIL);
         assertEquals("first", child.get("Shared").tojstring());
-        assertEquals("second-only", child.get("SecondOnly").tojstring());
-        assertTrue(child.get("IsA").call(child, LuaValue.valueOf("Second")).toboolean());
+        assertEquals("first-only", child.get("FirstOnly").tojstring());
+        assertTrue(child.get("IsA").call(child, LuaValue.valueOf("First")).toboolean());
+        assertThrows(IllegalArgumentException.class,
+            () -> registry.register("Invalid", new LuaTable(), "First", "Second"));
     }
 
     @Test
