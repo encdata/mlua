@@ -110,7 +110,8 @@ public final class MLuaClassMethods {
       if (!registration.isInstanceOf(instance, className)) {
          throw new IllegalArgumentException("Live Lua instance does not belong to class '" + className + "'");
       }
-      if (!instance.rawget(methodName).isnil()) {
+      LuaValue existingInstanceMethod = instance.rawget(methodName);
+      if (!existingInstanceMethod.isnil() && existingInstanceMethod != implementation) {
          throw new IllegalStateException("Lua instance already has a field named '" + methodName + "'");
       }
       LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
@@ -136,6 +137,7 @@ public final class MLuaClassMethods {
       instanceDocs.rawset(methodName, LuaValue.valueOf(description));
       instance.rawset("__mlua_doc_methods", instanceDocs);
       setInstanceMethod(instance, methodName, implementation);
+      if (existingInstanceMethod == implementation) instance.rawset(methodName, LuaValue.NIL);
    }
 
    public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation) {
