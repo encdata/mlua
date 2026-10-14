@@ -39,7 +39,7 @@ public class MCEntityImpl implements MCEntity {
     }
 
     @Override
-    public MCVec3 position() {
+    public MCVec3 getPosition() {
         var p = inner.position();
         return MCVec3Impl.fromReal(p);
     }
@@ -71,12 +71,12 @@ public class MCEntityImpl implements MCEntity {
     }
 
     @Override
-    public MCBlockPos blockPosition() {
+    public MCBlockPos getBlockPosition() {
         return MCBlockPosImpl.fromReal(inner.blockPosition());
     }
 
     @Override
-    public MCLevel level() {
+    public MCLevel getLevel() {
         return new MCLevelImpl(inner.level());
     }
 

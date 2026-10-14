@@ -386,13 +386,13 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "SetOffhandSlot", varArg((args) -> {
          return invokeInstance(inventory, "SetOffhandSlot", args.arg(2));
       }));
-      bindLevelMethods(table, ((MCLevelImpl) player.level()).inner(), registration);
+      bindLevelMethods(table, ((MCLevelImpl) player.getLevel()).inner(), registration);
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {
          double radius = args.checkdouble(2);
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
          int i = 1;
-         for (MCEntity e : player.level().getEntities(player, box)) {
+         for (MCEntity e : player.getLevel().getEntities(player, box)) {
             if (e instanceof MCLivingEntity living) {
                list.set(i++, MLuaEntityWrapper.entityTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) living).inner(), registration));
             }
@@ -404,7 +404,7 @@ public final class MLuaPlayerWrapper {
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
          int i = 1;
-         net.minecraft.world.level.Level rawLevel = ((MCLevelImpl) player.level()).inner();
+         net.minecraft.world.level.Level rawLevel = ((MCLevelImpl) player.getLevel()).inner();
          net.minecraft.world.phys.AABB rawBox = new net.minecraft.world.phys.AABB(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ());
          for (net.minecraft.server.level.ServerPlayer e : rawLevel.getEntitiesOfClass(net.minecraft.server.level.ServerPlayer.class, rawBox, (p) -> {
             return p != raw;
@@ -528,7 +528,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> LuaValue.valueOf(player.isSwimming())));
       MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> MLuaPotionEffectsService.effectsTable(player)));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() ->
-         positionTable(player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ())));
+         positionTable(player.getBlockPosition().getX(), player.getBlockPosition().getY(), player.getBlockPosition().getZ())));
       MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(new MCEntityImpl(player));
          return positionTable(look.x(), look.y(), look.z());
@@ -667,7 +667,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(player.isAlive());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
-         return positionTable((double)player.blockPosition().getX(), (double)player.blockPosition().getY(), (double)player.blockPosition().getZ());
+         return positionTable((double)player.getBlockPosition().getX(), (double)player.getBlockPosition().getY(), (double)player.getBlockPosition().getZ());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
@@ -763,7 +763,7 @@ public final class MLuaPlayerWrapper {
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
          int i = 1;
-         for (MCEntity e : player.level().getEntities(player, box)) {
+         for (MCEntity e : player.getLevel().getEntities(player, box)) {
             if (e instanceof MCLivingEntity living) {
                list.set(i++, MLuaEntityWrapper.entityTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) living).inner(), registration));
             }

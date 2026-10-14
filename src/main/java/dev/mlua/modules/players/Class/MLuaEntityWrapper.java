@@ -147,7 +147,7 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(entity.level(), registration)));
       MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(entity.level().dimension().location().toString())));
       MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
-         MCVec3 p = wrapped.position();
+         MCVec3 p = wrapped.getPosition();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
@@ -712,7 +712,7 @@ public final class MLuaEntityWrapper {
    }
 
    public static MCVec3 position(MCEntity entity) {
-      return entity.position();
+      return entity.getPosition();
    }
 
    public static MCVec3 lookAngle(MCEntity entity) {
@@ -758,7 +758,7 @@ public final class MLuaEntityWrapper {
 
    public static MLuaCFrame cframe(MCEntity entity) {
       MCVec3 look = lookAngle(entity);
-      MCVec3 p = entity.position();
+      MCVec3 p = entity.getPosition();
       return MLuaCFrame.fromEntity(p.x(), p.y(), p.z(), look.x(), look.y(), look.z());
    }
 

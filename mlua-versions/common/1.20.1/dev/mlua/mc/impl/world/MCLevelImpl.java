@@ -91,7 +91,7 @@ public class MCLevelImpl implements MCLevel {
     }
 
     @Override
-    public Object dimension() {
+    public Object getDimension() {
         return inner.dimension();
     }
 
