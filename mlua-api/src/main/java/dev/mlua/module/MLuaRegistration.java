@@ -957,7 +957,7 @@ public interface MLuaRegistration {
             for (int index = 1; index <= mixins.length(); index++) {
                 String mixinName = mixins.get(index).optjstring("");
                 LuaTable mixin = registration.behaviorMixinTable(mixinName);
-                LuaValue initializer = mixin == null ? LuaValue.NIL : mixin.rawget("Init");
+                LuaValue initializer = mixin == null ? LuaValue.NIL : mixin.get("Init");
                 addClassInitializer(className, "mixin '" + mixinName + "'", mixin, initializer, initializers);
             }
         }
