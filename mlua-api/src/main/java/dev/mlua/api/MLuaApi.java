@@ -6,6 +6,7 @@ import dev.mlua.core.MLuaContextView;
 import dev.mlua.api.MLuaLuaCoercions.Adapter;
 import dev.mlua.api.MLuaLuaCoercions.AdapterRegistration;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.module.MLuaModule;
@@ -74,6 +75,24 @@ public final class MLuaApi {
       public ServiceBuilder description(String description) {
          ensureOpen();
          this.description = Objects.requireNonNull(description, "description");
+         return this;
+      }
+
+      public ServiceBuilder reflective(Class<? extends MLuaReflectiveService> serviceType) {
+         ensureOpen();
+         MLuaReflectiveService.ApiMetadata metadata = MLuaReflectiveService.apiMetadata(serviceType);
+         if (this.description != null && !this.description.equals(metadata.description())) {
+            throw new IllegalArgumentException("Reflective service '" + this.name
+               + "' has conflicting descriptions");
+         }
+         this.description = metadata.description();
+         metadata.functionDescriptions().forEach((method, description) -> {
+            String existing = this.functions.putIfAbsent(method, description);
+            if (existing != null && !existing.equals(description)) {
+               throw new IllegalArgumentException("Reflective service '" + this.name
+                  + "' method '" + method + "' has conflicting descriptions");
+            }
+         });
          return this;
       }
 
