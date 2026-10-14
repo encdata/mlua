@@ -12,8 +12,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.util.LinkedHashSet;
 
-@MLuaDescription("Service for creating tag builders.")
+@MLuaDescription("Creates mutable registry tag builders for items, blocks, and entity types.")
 public final class MLuaTagService extends MLuaReflectiveService {
     private static final String BUILDER_STATE = "__mlua_tag_builder_state";
 
@@ -52,6 +53,39 @@ public final class MLuaTagService extends MLuaReflectiveService {
                 return self;
             }
         });
+        MLuaClassMethods.setInstanceMethod(builder, "Remove", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.arg1().checktable();
+                String value = args.checkjstring(2);
+                MLuaResourceLocations.parse(value.startsWith("#") ? value.substring(1) : value);
+                return LuaValue.valueOf(state(self).values.remove(value));
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(builder, "Contains", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.arg1().checktable();
+                String value = args.checkjstring(2);
+                MLuaResourceLocations.parse(value.startsWith("#") ? value.substring(1) : value);
+                return LuaValue.valueOf(state(self).values.contains(value));
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(builder, "Clear", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.arg1().checktable();
+                state(self).values.clear();
+                return self;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(builder, "GetValues", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable values = new LuaTable();
+                int index = 1;
+                for (String value : state(args.arg1().checktable()).values) {
+                    values.set(index++, LuaValue.valueOf(value));
+                }
+                return values;
+            }
+        });
         MLuaClassMethods.setInstanceMethod(builder, "SetReplace", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 LuaTable self = args.arg1().checktable();
@@ -83,7 +117,7 @@ public final class MLuaTagService extends MLuaReflectiveService {
     }
 
     private static final class BuilderState {
-        private final java.util.List<String> values = new java.util.ArrayList<>();
+        private final LinkedHashSet<String> values = new LinkedHashSet<>();
         private boolean replace;
     }
 }
