@@ -22,7 +22,6 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.core.BlockPos;
 
-/** Version-specific item hooks backed by the shared scripted behavior registry. */
 public class MLuaScriptedItem extends Item {
     private final String behaviorKey;
 
@@ -134,8 +133,6 @@ public class MLuaScriptedItem extends Item {
                 context.set("Player", attackerTable);
             }
             Varargs result = callback.invoke(context);
-            // In 26.1 the hook no longer returns the vanilla durability flag.
-            // Keep MLua's false return behavior by skipping the superclass hook.
             if (result.arg1().isboolean() && !result.arg1().toboolean()) return;
         } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", behaviorKey, exception.getMessage());
