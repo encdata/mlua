@@ -26,21 +26,9 @@ public class QuestModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder quest = ServiceEntry.builder("Quest", MLuaQuestService::new)
-            .description("Service for creating and tracking quests.");
-        quest.function("CreateQuest", "Creates a quest definition for the calling mod.")
-            .function("RemoveQuest", "Removes a quest definition owned by the calling mod.")
-            .function("GetQuest", "Returns a quest definition by identifier.")
-            .function("GetQuests", "Returns quest definitions registered by the calling mod.")
-            .function("SetObjective", "Adds or updates an objective in a quest.")
-            .function("GetObjective", "Returns one objective from a quest.")
-            .function("GetObjectives", "Returns all objectives for a quest.")
-            .function("StartQuest", "Marks a quest as started for a player.")
-            .function("CompleteQuest", "Marks a quest as completed for a player.")
-            .function("IsQuestStarted", "Returns whether a player has started a quest.")
-            .function("IsQuestCompleted", "Returns whether a player has completed a quest.")
-            .function("GetPlayerQuests", "Returns quest progress recorded for a player.");
-        return List.of(quest.build());
+        return List.of(ServiceEntry.builder("Quest", MLuaQuestService::new)
+            .reflective(MLuaQuestService.class)
+            .build());
     }
 
     @Override
