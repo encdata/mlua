@@ -243,7 +243,7 @@ public final class MLuaDataManager {
 
    private static ListTag entityTagList(CompoundTag data) {
       //--version 26.1
-      return data.getList(ENTITY_TAGS_KEY);
+      return data.getList(ENTITY_TAGS_KEY).orElseGet(ListTag::new);
       //--endversion
       //--version 1.20.1,1.21.1
       return data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);

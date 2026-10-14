@@ -329,6 +329,36 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetArmor", luaFn(() -> {
          return LuaValue.valueOf(wrapped.getArmorValue());
       }));
+      MLuaClassMethods.setInstanceMethod(table, "GetAbsorption", luaFn(() -> LuaValue.valueOf(entity.getAbsorptionAmount())));
+      MLuaClassMethods.setInstanceMethod(table, "SetAbsorption", varArg((args) -> {
+         entity.setAbsorptionAmount(Math.max(0.0F, args.checkfloat(2)));
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GiveEffect", varArg((args) -> {
+         return dev.mlua.modules.effects.Service.MLuaPotionEffectsService.giveEffect(entity, args);
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "RemoveEffect", varArg((args) -> {
+         //--version 1.21.1,26.1
+         return LuaValue.valueOf(entity.removeEffect(dev.mlua.modules.effects.Service.MLuaPotionEffectsService.resolveHolderFromLua(args.arg(2))));
+         //--endversion
+         //--version 1.20.1
+         return LuaValue.valueOf(entity.removeEffect(dev.mlua.modules.effects.Service.MLuaPotionEffectsService.resolveFromLua(args.arg(2))));
+         //--endversion
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "HasEffect", varArg((args) -> {
+         //--version 1.21.1,26.1
+         return LuaValue.valueOf(entity.hasEffect(dev.mlua.modules.effects.Service.MLuaPotionEffectsService.resolveHolderFromLua(args.arg(2))));
+         //--endversion
+         //--version 1.20.1
+         return LuaValue.valueOf(entity.hasEffect(dev.mlua.modules.effects.Service.MLuaPotionEffectsService.resolveFromLua(args.arg(2))));
+         //--endversion
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() ->
+         dev.mlua.modules.effects.Service.MLuaPotionEffectsService.effectsTable(entity)));
+      MLuaClassMethods.setInstanceMethod(table, "ClearEffects", luaFn(() -> {
+         entity.removeAllEffects();
+         return LuaValue.NONE;
+      }));
       if (entity instanceof net.minecraft.world.entity.Mob mob) {
          MLuaClassMethods.setInstanceMethod(table, "GetTarget", luaFn(() -> {
             net.minecraft.world.entity.LivingEntity target = mob.getTarget();
@@ -728,9 +758,14 @@ public final class MLuaEntityWrapper {
             if (!rawTarget.isuserdata(net.minecraft.world.entity.Entity.class)) {
                throw new LuaError("[MLua] StartRiding expects a live Entity instance.");
             }
-            return LuaValue.valueOf(entity.startRiding(
-               (net.minecraft.world.entity.Entity)rawTarget.touserdata(net.minecraft.world.entity.Entity.class),
-               args.optboolean(3, false)));
+            net.minecraft.world.entity.Entity targetEntity =
+               (net.minecraft.world.entity.Entity)rawTarget.touserdata(net.minecraft.world.entity.Entity.class);
+            //--version 26.1
+            return LuaValue.valueOf(entity.startRiding(targetEntity, args.optboolean(3, false), true));
+            //--endversion
+            //--version 1.20.1,1.21.1
+            return LuaValue.valueOf(entity.startRiding(targetEntity, args.optboolean(3, false)));
+            //--endversion
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "StopRiding", new VarArgFunction() {
@@ -753,7 +788,7 @@ public final class MLuaEntityWrapper {
       });
       MLuaClassMethods.setInstanceMethod(table, "SetFallDistance", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
-            entity.fallDistance = Math.max(0.0F, args.checkfloat(2));
+            entity.fallDistance = Math.max(0.0F, (float)args.checkdouble(2));
             return LuaValue.NONE;
          }
       });
@@ -826,6 +861,9 @@ public final class MLuaEntityWrapper {
       });
       MLuaClassMethods.setInstanceMethod(table, "GetHeight", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getBbHeight()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetEyeHeight", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getEyeHeight()); }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetTags", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {

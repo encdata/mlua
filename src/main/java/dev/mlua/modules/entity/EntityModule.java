@@ -58,6 +58,7 @@ public final class EntityModule implements MLuaModule {
         docs.signature("Entity", "Entity:GetBoundingBox()", "EntityBounds");
         docs.signature("Entity", "Entity:GetWidth()", "number");
         docs.signature("Entity", "Entity:GetHeight()", "number");
+        docs.signature("Entity", "Entity:GetEyeHeight()", "number");
         docs.signature("Entity", "Entity:GetVehicle()", "Entity?");
         docs.signature("Entity", "Entity:GetRootVehicle()", "Entity");
         docs.signature("Entity", "Entity:GetPassengers()", "Entity[]");
@@ -85,10 +86,17 @@ public final class EntityModule implements MLuaModule {
         docs.signature("LivingEntity", "LivingEntity:SetHealth(value: number)", "void");
         docs.signature("LivingEntity", "LivingEntity:GetMaxHealth()", "number");
         docs.signature("LivingEntity", "LivingEntity:GetArmor()", "number");
+        docs.signature("LivingEntity", "LivingEntity:GetAbsorption()", "number");
+        docs.signature("LivingEntity", "LivingEntity:SetAbsorption(value: number)", "void");
         docs.signature("LivingEntity", "LivingEntity:Damage(amount: number, sourceName: string?, attacker: Entity?)", "void");
         docs.signature("LivingEntity", "LivingEntity:GetAttribute(name: string)", "number?");
         docs.signature("LivingEntity", "LivingEntity:SetAttribute(name: string, value: number)", "boolean");
         docs.signature("LivingEntity", "LivingEntity:GetAttributeInstance(name: string)", "AttributeInstance?");
+        docs.signature("LivingEntity", "LivingEntity:GiveEffect(effect: string|table, duration: number?, amplifier: number?, ambient: boolean?, showParticles: boolean?, showIcon: boolean?)", "boolean");
+        docs.signature("LivingEntity", "LivingEntity:RemoveEffect(effect: string|table)", "boolean");
+        docs.signature("LivingEntity", "LivingEntity:HasEffect(effect: string|table)", "boolean");
+        docs.signature("LivingEntity", "LivingEntity:GetEffects()", "table[]");
+        docs.signature("LivingEntity", "LivingEntity:ClearEffects()", "void");
         docs.signature("Mob", "Mob:GetTarget()", "LivingEntity?");
         docs.signature("Mob", "Mob:SetTarget(target: LivingEntity?)", "void");
         docs.signature("Mob", "Mob:CanSee(target: Entity)", "boolean");

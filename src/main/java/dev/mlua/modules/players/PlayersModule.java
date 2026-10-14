@@ -118,6 +118,7 @@ public class PlayersModule implements MLuaModule {
             {"GetBoundingBox", "Returns the minimum and maximum corners of this entity's bounds."},
             {"GetWidth", "Returns this entity's bounding-box width."},
             {"GetHeight", "Returns this entity's bounding-box height."},
+            {"GetEyeHeight", "Returns this entity's eye height above its position."},
             {"GetVehicle", "Returns the entity this entity is riding, or nil."},
             {"GetRootVehicle", "Returns the topmost vehicle in this entity's riding chain."},
             {"GetPassengers", "Returns the entities riding this entity."},
@@ -173,7 +174,8 @@ public class PlayersModule implements MLuaModule {
         registration.registerClass("LivingEntity", "Entity",
             "A living entity with health, damage, equipment, and attributes.");
         for (String method : List.of("GetHealth", "SetHealth", "GetMaxHealth", "GetArmor", "Damage",
-                "GetAttribute", "GetAttributeInstance", "SetAttribute", "GetEquipment", "SetEquipment", "GetIsJumping", "GetIsSwimming")) {
+                "GetAttribute", "GetAttributeInstance", "SetAttribute", "GetEquipment", "SetEquipment", "GetIsJumping", "GetIsSwimming",
+                "GetAbsorption", "SetAbsorption", "GiveEffect", "RemoveEffect", "HasEffect", "GetEffects", "ClearEffects")) {
             String description = switch (method) {
                 case "GetHealth" -> "Returns this entity's current health.";
                 case "SetHealth" -> "Sets this entity's current health.";
@@ -181,6 +183,13 @@ public class PlayersModule implements MLuaModule {
                 case "GetArmor" -> "Returns this entity's armor value.";
                 case "GetIsJumping" -> "Returns whether this entity is moving upward while airborne.";
                 case "GetIsSwimming" -> "Returns whether this entity is swimming.";
+                case "GetAbsorption" -> "Returns this entity's current absorption health.";
+                case "SetAbsorption" -> "Sets this entity's current absorption health.";
+                case "GiveEffect" -> "Applies a potion effect to this living entity.";
+                case "RemoveEffect" -> "Removes a potion effect from this living entity.";
+                case "HasEffect" -> "Checks whether this living entity has a potion effect.";
+                case "GetEffects" -> "Returns this living entity's active effects.";
+                case "ClearEffects" -> "Removes all potion effects from this living entity.";
                 case "Damage" -> "Applies damage, optionally using a registered damage source and attacker.";
                 case "GetAttribute" -> "Returns the value of a registered living entity attribute.";
                 case "GetAttributeInstance" -> "Returns a live AttributeInstance for a registered attribute.";
@@ -196,10 +205,14 @@ public class PlayersModule implements MLuaModule {
             "number", "shared:Shared", "This entity's maximum health.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "Armor", "GetArmor", null,
             "number", "shared:Shared", "This entity's armor value.");
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "Absorption", "GetAbsorption", "SetAbsorption",
+            "number", "shared:Shared", "This entity's current absorption health.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsJumping", "GetIsJumping", null,
             "boolean", "shared:Shared", "Whether this entity is moving upward while airborne.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsSwimming", "GetIsSwimming", null,
             "boolean", "shared:Shared", "Whether this entity is swimming.");
+        MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "ActiveEffects", "GetEffects", null,
+            "table[]", "shared:Shared", "The potion effects currently applied to this entity.");
 
         registration.registerClass("Mob", "LivingEntity",
             "A Minecraft mob with AI targeting, visibility checks, and persistence controls.");
@@ -367,6 +380,7 @@ public class PlayersModule implements MLuaModule {
             {"EyePosition", "GetEyePosition", null, "Vector3", "shared:Shared", "This entity's eye position."},
             {"Width", "GetWidth", null, "number", "shared:Shared", "This entity's bounding-box width."},
             {"Height", "GetHeight", null, "number", "shared:Shared", "This entity's bounding-box height."},
+            {"EyeHeight", "GetEyeHeight", null, "number", "shared:Shared", "This entity's eye height above its position."},
             {"Vehicle", "GetVehicle", null, "Entity|nil", "shared:Shared", "The entity this entity is riding, or nil."},
             {"RootVehicle", "GetRootVehicle", null, "Entity", "shared:Shared", "The topmost vehicle in this entity's riding chain."},
             {"Passengers", "GetPassengers", null, "Entity[]", "shared:Shared", "Entities currently riding this entity."},
@@ -538,9 +552,20 @@ public class PlayersModule implements MLuaModule {
         docs.property("Entity", "entity.EyePosition", "Vector3", "This entity's eye position.", "shared:Shared");
         docs.property("Entity", "entity.Width", "number", "This entity's bounding-box width.", "shared:Shared");
         docs.property("Entity", "entity.Height", "number", "This entity's bounding-box height.", "shared:Shared");
+        docs.property("Entity", "entity.EyeHeight", "number", "This entity's eye height above its position.", "shared:Shared");
+        docs.property("Entity", "entity.Vehicle", "Entity|nil", "The entity this entity is riding, or nil.", "shared:Shared");
+        docs.property("Entity", "entity.RootVehicle", "Entity", "The topmost vehicle in this entity's riding chain.", "shared:Shared");
+        docs.property("Entity", "entity.Passengers", "Entity[]", "Entities currently riding this entity.", "shared:Shared");
+        docs.property("Entity", "entity.IsPassenger", "boolean", "Whether this entity is riding another entity.", "shared:Shared");
+        docs.property("Entity", "entity.IsVehicle", "boolean", "Whether this entity has passengers.", "shared:Shared");
+        docs.property("Entity", "entity.IsInLava", "boolean", "Whether this entity is in lava.", "shared:Shared");
+        docs.property("Entity", "entity.IsUnderWater", "boolean", "Whether this entity is fully underwater.", "shared:Shared");
+        docs.property("Entity", "entity.FallDistance", "number", "The entity's current fall distance. Readable and writable.", "shared:Shared");
         docs.property("LivingEntity", "entity.Health", "number", "The entity's current health. Readable and writable.", "shared:Shared");
         docs.property("LivingEntity", "entity.MaxHealth", "number", "The entity's maximum health.", "shared:Shared");
+        docs.property("LivingEntity", "entity.ActiveEffects", "table[]", "Active potion effects with identifier, duration, amplifier, ambient, and visibility fields.", "shared:Shared");
         docs.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared");
+        docs.property("LivingEntity", "entity.Absorption", "number", "The entity's current absorption health. Readable and writable.", "shared:Shared");
         docs.clazz("Player", "MLuaPlayerWrapper",
                 "A live player instance with player identity, inventory, messaging, and player controls.",
                 "classes/player.html", "LivingEntity");
