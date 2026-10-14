@@ -842,7 +842,10 @@ public interface MLuaRegistration {
 
     default LuaTable registerFunction(LuaTable owner, String name, LuaValue function, String description) {
         if (owner == null) throw new NullPointerException("owner");
-        if (!owner.rawget("__class").toboolean()) throw new IllegalArgumentException("Function owner must be a registered Lua class");
+        String className = owner.rawget("__type").optjstring("");
+        if (!owner.rawget("__class").toboolean() || className.isBlank() || classTable(className) != owner) {
+            throw new IllegalArgumentException("Function owner must be a registered Lua class");
+        }
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Function name must be non-empty");
         requireUserFunctionName(name);
         if (function == null || !function.isfunction()) throw new IllegalArgumentException("Registered function must be a Lua function");
@@ -855,9 +858,9 @@ public interface MLuaRegistration {
             throw new IllegalStateException("Lua class already defines function '" + name
                 + "'; registration cannot replace an existing class method");
         }
-        LuaValue propertiesValue = owner.rawget("__mlua_properties");
-        if (propertiesValue.istable() && !propertiesValue.checktable().rawget(name).isnil()) {
-            throw new IllegalStateException("Lua class already defines property '" + name + "'");
+        if (hasClassProperty(className, name)) {
+            throw new IllegalStateException("Lua class '" + className
+                + "' already defines property '" + name + "' in its inheritance chain");
         }
         LuaValue docsValue = owner.rawget("__mlua_doc_methods");
         if (!docsValue.isnil() && !docsValue.istable()) {
