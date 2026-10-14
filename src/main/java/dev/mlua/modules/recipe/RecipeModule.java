@@ -75,7 +75,7 @@ public class RecipeModule implements MLuaModule {
         docs.signature("Recipe", "Recipe:CampfireCooking(input: string, output: string, experience?: number, cookTime?: number)", "string");
         docs.signature("Recipe", "Recipe:Stonecutting(input: string, output: string, count?: number)", "string");
         docs.guideStep("Recipe", "Build and register a shaped recipe",
-            "Recipe builders validate their pattern and ingredient keys, then Build returns a JSON definition accepted by Registry.Recipes:Register. Put both calls in a .registry.lua script so the recipe is available when the generated data pack loads.",
+            "Recipe builders validate their pattern and ingredient keys, then Build returns a JSON definition accepted by Registry.Recipes:Register. SetGroup is optional and assigns the recipe book group. Put both calls in a .registry.lua script so the recipe is available when the generated data pack loads.",
             "local Recipe = Minecraft:GetService(\"Recipe\")\nlocal Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nlocal definition = Recipe:Shaped(2, \"myaddon:signal_flare\")\n    :Row(\" I \", \"ISI\")\n    :WithTagKey(\"I\", \"minecraft:ingots/iron\")\n    :WithKey(\"S\", \"minecraft:stick\")\n    :Build()\n\nRecipes:Register(\"signal_flare\", definition)");
         docs.guideStep("Recipe", "Create cooking and stonecutting recipes",
             "Smelting, blasting, smoking, and campfire cooking share the same arguments. Their default cook times match the vanilla station. Each method returns a version-shaped JSON definition for Registry.Recipes:Register.",
