@@ -135,6 +135,10 @@ public class MLuaProjectileDefinition {
             throw new LuaError("[MLua] Fire requires a valid Owner entity");
          }
          Entity owner = (Entity)entityVal.checkuserdata(Entity.class);
+         MLuaRegistration registration = MLuaRuntime.registrationForLevel(owner.level());
+         if (registration == null || !registration.isInstanceOf(ownerVal, "Entity")) {
+            throw new LuaError("[MLua] Fire requires a registered Entity instance as Owner");
+         }
          Level level = owner.level();
          if (level.isClientSide) {
             throw new LuaError("[MLua] FireProjectile must be called on the server");

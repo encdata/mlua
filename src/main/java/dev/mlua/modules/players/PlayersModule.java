@@ -67,16 +67,16 @@ public class PlayersModule implements MLuaModule {
             "A live entity instance with position, movement, health, and interaction APIs.");
         registerEntityBoundsClass(registration);
         registration.registerClassFunction("Entity", "GetId",
-            entityMethod(entity -> LuaValue.valueOf(entity.getId())), "Returns this entity's runtime ID.");
-        LuaValue entityType = entityMethod(entity -> LuaValue.valueOf(MCApiRuntime.registryKey("entity_type", entity.getType())));
+            entityMethod(registration, entity -> LuaValue.valueOf(entity.getId())), "Returns this entity's runtime ID.");
+        LuaValue entityType = entityMethod(registration, entity -> LuaValue.valueOf(MCApiRuntime.registryKey("entity_type", entity.getType())));
         registration.registerClassFunction("Entity", "GetType", entityType, "Returns this entity's registered type.");
         registration.registerClassFunction("Entity", "GetEntityType", entityType, "Returns this entity's registered type.");
         registration.registerClassFunction("Entity", "GetName",
-            entityMethod(entity -> LuaValue.valueOf(entity.getName().getString())), "Returns this entity's current name.");
+            entityMethod(registration, entity -> LuaValue.valueOf(entity.getName().getString())), "Returns this entity's current name.");
         registration.registerClassFunction("Entity", "GetUUID",
-            entityMethod(entity -> LuaValue.valueOf(entity.getUUID().toString())), "Returns this entity's UUID.");
+            entityMethod(registration, entity -> LuaValue.valueOf(entity.getUUID().toString())), "Returns this entity's UUID.");
         registration.registerClassFunction("Entity", "GetIsRemoved",
-            entityMethod(entity -> LuaValue.valueOf(entity.isRemoved())), "Returns whether this entity has been removed from its world.");
+            entityMethod(registration, entity -> LuaValue.valueOf(entity.isRemoved())), "Returns whether this entity has been removed from its world.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLevel", "Returns the live world containing this entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetDimension", "Returns the dimension identifier containing this entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPosition", "Returns this entity's current position.");
@@ -642,11 +642,14 @@ public class PlayersModule implements MLuaModule {
         }
     }
 
-    private static VarArgFunction entityMethod(java.util.function.Function<Entity, LuaValue> getter) {
+    private static VarArgFunction entityMethod(MLuaRegistration registration, java.util.function.Function<Entity, LuaValue> getter) {
         return new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
                 LuaValue self = args.arg1();
+                if (!registration.isInstanceOf(self, "Entity")) {
+                    throw new LuaError("[MLua] Entity method called without an Entity instance.");
+                }
                 LuaValue raw = self.istable() ? self.checktable().rawget("__entity") : LuaValue.NIL;
                 if (!raw.isuserdata(Entity.class)) {
                     throw new LuaError("[MLua] Entity method called without a live entity instance.");
