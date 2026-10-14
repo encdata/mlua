@@ -1,8 +1,6 @@
 package dev.mlua.core.engine;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 
@@ -162,219 +160,77 @@ public final class MLuaLuauTranspiler {
       StringBuilder out = new StringBuilder();
       int i = 0;
       int n = code.length();
-      Deque<Integer> loopStack = new ArrayDeque();
-      int loopIdGen = 0;
-
-      while(true) {
-         while(true) {
-            while(i < n) {
-               int ca;
-               int ie;
-               int ta;
-               int nameEnd;
-               if (this.isKw(code, i, "for")) {
-                  ca = this.skipIdents(code, i + 3);
-                  ie = code.indexOf(61, ca);
-                  ta = code.indexOf("in", ca);
-                  boolean isNumeric = ie > 0 && (ta < 0 || ie < ta);
-                  if (isNumeric) {
-                     ++loopIdGen;
-                     loopStack.push(loopIdGen);
-                     out.append(code, i, ca);
-                     nameEnd = ca;
-
-                     while(true) {
-                        while(nameEnd < n && code.charAt(nameEnd) != '=') {
-                           if (code.charAt(nameEnd) == ':') {
-                              ++nameEnd;
-
-                              while(nameEnd < n && Character.isWhitespace(code.charAt(nameEnd))) {
-                                 ++nameEnd;
-                              }
-
-                              while(nameEnd < n && (Character.isJavaIdentifierPart(code.charAt(nameEnd)) || code.charAt(nameEnd) == '.')) {
-                                 ++nameEnd;
-                              }
-                           } else {
-                              out.append(code.charAt(nameEnd));
-                              ++nameEnd;
-                           }
-                        }
-
-                        out.append(code, nameEnd, n);
-                        i = n;
-                        break;
-                     }
-                  } else {
-                     ++loopIdGen;
-                     loopStack.push(loopIdGen);
-                     out.append(code, i, ca);
-                     nameEnd = ca;
-
-                     while(nameEnd < n && !code.substring(nameEnd).startsWith("in")) {
-                        if (code.charAt(nameEnd) == ':' && nameEnd + 1 < n && Character.isWhitespace(code.charAt(nameEnd + 1))) {
-                           nameEnd = this.skipTypeAnnotation(code, nameEnd);
-                        } else {
-                           out.append(code.charAt(nameEnd));
-                           ++nameEnd;
-                        }
-                     }
-
-                     out.append(code, nameEnd, n);
-                     i = n;
-                  }
-               } else if (this.isKw(code, i, "while")) {
-                  ++loopIdGen;
-                  loopStack.push(loopIdGen);
-                  out.append(code, i, i + 5);
-                  i += 5;
-               } else if (this.isKw(code, i, "repeat")) {
-                  ++loopIdGen;
-                  loopStack.push(loopIdGen);
-                  out.append(code, i, i + 6);
-                  i += 6;
-               } else if (this.isKw(code, i, "end")) {
-                  if (!loopStack.isEmpty()) {
-                     ca = (Integer)loopStack.pop();
-                     out.append("::__mlc_").append(ca).append("::");
-                  }
-
-                  out.append("end");
-                  i += 3;
-               } else if (this.isKw(code, i, "until")) {
-                  if (!loopStack.isEmpty()) {
-                     ca = (Integer)loopStack.pop();
-                     out.append("::__mlc_").append(ca).append("::").append('\n');
-                  }
-
-                  out.append(code, i, i + 5);
-                  i += 5;
-               } else if (this.isKw(code, i, "continue")) {
-                  if (!loopStack.isEmpty()) {
-                     out.append("goto __mlc_").append(loopStack.peek());
-                  } else {
-                     out.append("-- continue (no loop context)");
-                  }
-
-                  i += 8;
-               } else {
-                  ca = this.findCompound(code, i);
-                  int after;
-                  if (ca >= 0) {
-                     String lhs = this.extractLHS(code, ca);
-                     char var10000 = code.charAt(ca);
-                     String op = "" + var10000;
-                     after = ca + 1;
-                     if (code.charAt(ca) == '.' && after < n && code.charAt(after) == '.') {
-                        op = "..";
-                        ++after;
-                     }
-
-                     ++after;
-                     out.append(lhs).append(" = ").append(lhs).append(' ').append(op).append(' ');
-
-                     for(i = after; i < n && Character.isWhitespace(code.charAt(i)); ++i) {
-                        out.append(code.charAt(i));
-                     }
-
-                     out.append(code, i, n);
-                     i = n;
-                  } else {
-                     ie = this.findIfExpr(code, i);
-                     int afterName;
-                     int gt;
-                     if (ie >= 0) {
-                        for(ta = ie - 1; ta > i && Character.isWhitespace(code.charAt(ta - 1)); --ta) {
-                        }
-
-                        String prefix = code.substring(i, ie);
-                        int exprEnd = this.findIfExprEnd(code, ie);
-                        if (exprEnd < 0) {
-                           out.append(code.charAt(i));
-                           ++i;
-                        } else {
-                           String rewritten = this.rewriteIfExpression(code.substring(ie, exprEnd));
-                           if (rewritten == null) {
-                              out.append(code.charAt(i));
-                              ++i;
-                           } else {
-                              out.append(prefix).append(rewritten);
-                              i = exprEnd;
-                           }
-                        }
-                     } else {
-                        if (code.charAt(i) == ':' && i + 1 < n && code.charAt(i + 1) == ':' && i + 2 < n && code.charAt(i + 2) != ':') {
-                           ta = this.skipWs(code, i + 2);
-                           if (ta < n && (Character.isJavaIdentifierStart(code.charAt(ta)) || code.charAt(ta) == '(' || code.charAt(ta) == '{')) {
-                              after = this.readType(code, ta, n);
-                              i = after;
-                              continue;
-                           }
-                        }
-
-                        ta = this.findTypeColon(code, i);
-                        if (ta >= 0) {
-                           out.append(code, i, ta);
-                           i = this.skipTypeAnnotation(code, ta);
-                        } else {
-                           if (code.startsWith("export", i) && this.isKw(code, i, "export")) {
-                              after = this.skipWs(code, i + 6);
-                              if (after < n && code.startsWith("type", after) && this.isKw(code, after, "type")) {
-                                 nameEnd = code.indexOf(10, after);
-                                 if (nameEnd < 0) {
-                                    nameEnd = n;
-                                 }
-
-                                 i = nameEnd;
-                                 continue;
-                              }
-                           }
-
-                           if (code.startsWith("type", i) && this.isKw(code, i, "type")) {
-                              after = this.skipWs(code, i + 4);
-                              if (after >= n || code.charAt(after) != '=') {
-                                 nameEnd = code.indexOf(10, i + 4);
-                                 if (nameEnd < 0) {
-                                    nameEnd = n;
-                                 }
-
-                                 i = nameEnd;
-                                 continue;
-                              }
-                           }
-
-                           if (code.startsWith("function", i) && this.isKw(code, i, "function")) {
-                              after = this.skipWs(code, i + 8);
-                              out.append(code, i, after);
-                              if (after < n && Character.isJavaIdentifierStart(code.charAt(after))) {
-                                 nameEnd = this.skipIdent(code, after);
-                                 out.append(code, after, nameEnd);
-                                 afterName = this.skipWs(code, nameEnd);
-                                 if (afterName < n && code.charAt(afterName) == '<') {
-                                    gt = this.findMatching(code, afterName, '<', '>');
-                                    if (gt >= 0) {
-                                       i = gt + 1;
-                                       continue;
-                                    }
-                                 }
-
-                                 i = afterName;
-                              } else {
-                                 i = after;
-                              }
-                           } else {
-                              out.append(code.charAt(i));
-                              ++i;
-                           }
-                        }
-                     }
-                  }
-               }
+      while (i < n) {
+         int ifStart = this.findIfExpr(code, i);
+         if (ifStart >= 0) {
+            int exprEnd = this.findIfExprEnd(code, ifStart);
+            String rewritten = exprEnd < 0 ? null : this.rewriteIfExpression(code.substring(ifStart, exprEnd));
+            if (rewritten != null) {
+               out.append(code, i, ifStart).append(this.transform(rewritten));
+               i = exprEnd;
+               continue;
             }
-
-            return out.toString();
          }
+
+         if (code.charAt(i) == ':' && i + 1 < n && code.charAt(i + 1) == ':' && i + 2 < n && code.charAt(i + 2) != ':') {
+            int typeStart = this.skipWs(code, i + 2);
+            if (typeStart < n && (Character.isJavaIdentifierStart(code.charAt(typeStart)) || code.charAt(typeStart) == '(' || code.charAt(typeStart) == '{')) {
+               i = this.readType(code, typeStart, n);
+               continue;
+            }
+         }
+
+         int typeColon = this.findTypeColon(code, i);
+         if (typeColon >= 0) {
+            out.append(code, i, typeColon);
+            i = this.skipTypeAnnotation(code, typeColon);
+            continue;
+         }
+
+         int after;
+         if (code.startsWith("export", i) && this.isKw(code, i, "export")) {
+            after = this.skipWs(code, i + 6);
+            if (after < n && this.isKw(code, after, "type")) {
+               int lineEnd = code.indexOf('\n', after);
+               i = lineEnd < 0 ? n : lineEnd;
+               continue;
+            }
+         }
+
+         if (this.isKw(code, i, "type")) {
+            after = this.skipWs(code, i + 4);
+            if (after >= n || code.charAt(after) != '=') {
+               int lineEnd = code.indexOf('\n', i + 4);
+               i = lineEnd < 0 ? n : lineEnd;
+               continue;
+            }
+         }
+
+         if (this.isKw(code, i, "function")) {
+            int nameStart = this.skipWs(code, i + 8);
+            out.append(code, i, nameStart);
+            int genericStart;
+            if (nameStart < n && Character.isJavaIdentifierStart(code.charAt(nameStart))) {
+               int nameEnd = this.skipIdent(code, nameStart);
+               out.append(code, nameStart, nameEnd);
+               genericStart = this.skipWs(code, nameEnd);
+            } else {
+               genericStart = nameStart;
+            }
+            if (genericStart < n && code.charAt(genericStart) == '<') {
+               int genericEnd = this.findMatching(code, genericStart, '<', '>');
+               if (genericEnd >= 0) {
+                  i = genericEnd + 1;
+                  continue;
+            }
+            }
+            i = genericStart;
+            continue;
+         }
+
+         out.append(code.charAt(i++));
       }
+      return out.toString();
    }
 
    private boolean isKw(String s, int pos, String kw) {
@@ -406,30 +262,6 @@ public final class MLuaLuauTranspiler {
       return pos;
    }
 
-   private int skipIdents(String s, int pos) {
-      while(true) {
-         if (pos < s.length()) {
-            char c = s.charAt(pos);
-            if (Character.isJavaIdentifierPart(c) || c == '.' || c == ',' || c == ' ') {
-               ++pos;
-               continue;
-            }
-         }
-
-         return pos;
-      }
-   }
-
-   private int findKw(String s, int from, String kw) {
-      for(int i = from; i <= s.length() - kw.length(); ++i) {
-         if (this.isKw(s, i, kw)) {
-            return i;
-         }
-      }
-
-      return -1;
-   }
-
    private int findMatching(String s, int from, char open, char close) {
       int depth = 1;
 
@@ -445,78 +277,6 @@ public final class MLuaLuauTranspiler {
       }
 
       return -1;
-   }
-
-   private int findCompound(String code, int from) {
-      for(int i = from; i < code.length(); ++i) {
-         char c = code.charAt(i);
-         if (c == '.' && i + 2 < code.length() && code.charAt(i + 1) == '.' && code.charAt(i + 2) == '=' && this.hasValidLHS(code, i)) {
-            return i;
-         }
-
-         if ("+-*/%^".indexOf(c) >= 0 && i + 1 < code.length() && code.charAt(i + 1) == '=') {
-            if (c == '/' && i + 2 < code.length() && code.charAt(i + 2) == '/') {
-               continue;
-            }
-
-            if (this.hasValidLHS(code, i)) {
-               return i;
-            }
-         }
-
-         if (c == '/' && i + 2 < code.length() && code.charAt(i + 1) == '/' && code.charAt(i + 2) == '=' && this.hasValidLHS(code, i)) {
-            return i;
-         }
-      }
-
-      return -1;
-   }
-
-   private boolean hasValidLHS(String code, int opPos) {
-      int j;
-      for(j = opPos - 1; j >= 0 && Character.isWhitespace(code.charAt(j)); --j) {
-      }
-
-      if (j < 0) {
-         return false;
-      } else {
-         char c = code.charAt(j);
-         return Character.isJavaIdentifierStart(c) || c == ')' || c == ']' || c == '}';
-      }
-   }
-
-   private String extractLHS(String code, int opPos) {
-      int end;
-      for(end = opPos - 1; end >= 0 && Character.isWhitespace(code.charAt(end)); --end) {
-      }
-
-      if (end < 0) {
-         return "";
-      } else {
-         char closer = code.charAt(end);
-         int start;
-         if (closer != ')' && closer != ']' && closer != '}') {
-            for(start = end; start >= 0 && (Character.isJavaIdentifierPart(code.charAt(start)) || code.charAt(start) == '.' || code.charAt(start) == ':'); --start) {
-            }
-
-            ++start;
-         } else {
-            int depth = 1;
-
-            for(start = end - 1; start >= 0 && depth > 0; --start) {
-               char cc = code.charAt(start);
-               if (cc != closer && cc != ')' && cc != ']' && cc != '}') {
-                  if (closer == ')' && cc == '(' || closer == ']' && cc == '[' || closer == '}' && cc == '{') {
-                     --depth;
-                  }
-               } else {
-                  ++depth;
-               }
-            }
-         }
-
-         return code.substring(start, end + 1);
-      }
    }
 
    private int findIfExpr(String code, int from) {
