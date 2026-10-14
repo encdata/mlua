@@ -175,7 +175,21 @@ public class LuajavaLib extends VarArgFunction {
 
 	// load classes using app loader to allow luaj to be used as an extension
 	protected Class classForName(String name) throws ClassNotFoundException {
-		return Class.forName(name, true, ClassLoader.getSystemClassLoader());
+		ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
+		ClassLoader libraryLoader = getClass().getClassLoader();
+		ClassLoader systemLoader = ClassLoader.getSystemClassLoader();
+		ClassNotFoundException failure = null;
+		ClassLoader[] loaders = { contextLoader, libraryLoader, systemLoader };
+		for (ClassLoader loader : loaders) {
+			if (loader == null) continue;
+			try {
+				return Class.forName(name, true, loader);
+			} catch (ClassNotFoundException e) {
+				failure = e;
+			}
+		}
+		if (failure != null) throw failure;
+		return Class.forName(name);
 	}
 	
 	private static final class ProxyInvocationHandler implements InvocationHandler {
