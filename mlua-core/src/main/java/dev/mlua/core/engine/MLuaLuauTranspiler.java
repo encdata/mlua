@@ -295,36 +295,6 @@ public final class MLuaLuauTranspiler {
       return -1;
    }
 
-   private String extractVar(String code, int start, int eqEnd) {
-      int j;
-      for(j = eqEnd - 1; j >= start && Character.isWhitespace(code.charAt(j)); --j) {
-      }
-
-      if (j < start) {
-         return "";
-      } else if (!Character.isJavaIdentifierStart(code.charAt(j))) {
-         return "";
-      } else {
-         int k;
-         for(k = j; k >= start && (Character.isJavaIdentifierPart(code.charAt(k)) || code.charAt(k) == '.'); --k) {
-         }
-
-         return code.substring(k + 1, j + 1);
-      }
-   }
-
-   private int findEndOfExpr(String code, int from) {
-      int i = this.skipWs(code, from);
-      if (i >= code.length()) {
-         return code.length();
-      } else if (code.charAt(i) != ';' && code.charAt(i) != ')' && code.charAt(i) != ',') {
-         int end = code.indexOf(10, i);
-         return end < 0 ? code.length() : end;
-      } else {
-         return i + 1;
-      }
-   }
-
    private int findIfExprEnd(String code, int ifPos) {
       int depthParen = 0;
       int depthBracket = 0;
