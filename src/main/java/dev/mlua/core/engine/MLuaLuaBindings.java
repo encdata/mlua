@@ -81,8 +81,8 @@ public final class MLuaLuaBindings {
                 if (description.isBlank()) {
                     throw new LuaError("[MLua] RegisterClass requires a non-empty class description.");
                 }
-                List<String> parents = classParentNames(registration, parent);
-                LuaTable registered = registration.registerInstantiableClass(name, parents, description);
+                String parentName = classParentName(registration, parent);
+                LuaTable registered = registration.registerInstantiableClass(name, parentName, description);
                 classes.rawset(name, registered);
                 return registered;
             }
@@ -472,61 +472,24 @@ public final class MLuaLuaBindings {
       }
    }
 
-   private static List<String> classParentNames(MLuaRegistration registration, LuaValue value) {
-        if (value.isnil()) return List.of();
-        if (value.isstring()) return List.of(value.checkjstring());
-        if (!value.istable()) {
-            throw new LuaError("[MLua] RegisterClass parent must be a class name, registered class, single-entry parent list, or nil.");
-        }
-        LuaTable table = value.checktable();
-        LuaValue type = table.rawget("__type");
-        if (table.rawget("__class").toboolean() && type.isstring()) {
-            LuaTable registeredClass = registration.classTable(type.tojstring());
-            boolean registeredView = registeredClass != null
-                && registeredClassForView(registration, table) == registeredClass;
-            if (registeredClass == null || (registeredClass != table && !registeredView)) {
-                throw new LuaError("[MLua] RegisterClass parent must be a class registered in this runtime.");
-            }
-            return List.of(type.tojstring());
-        }
-        List<String> parents = new ArrayList<>();
-        for (int index = 1; ; index++) {
-            LuaValue parent = table.rawget(index);
-            if (parent.isnil()) break;
-            if (parent.isstring()) {
-                parents.add(parent.tojstring());
-            } else if (parent.istable() && parent.checktable().rawget("__class").toboolean()
-                && parent.checktable().rawget("__type").isstring()) {
-                LuaTable parentClass = parent.checktable();
-                String parentName = parentClass.rawget("__type").tojstring();
-                if (registration.classTable(parentName) != parentClass) {
-                    throw new LuaError("[MLua] RegisterClass parent lists may contain only registered class tables.");
-                }
-                parents.add(parentName);
-            } else {
-                throw new LuaError("[MLua] RegisterClass parent lists may contain only class names or registered class tables.");
-            }
-        }
-        int entries = 0;
-        int maximumIndex = 0;
-        LuaValue key = LuaValue.NIL;
-        while (true) {
-            Varargs entry = table.next(key);
-            key = entry.arg1();
-            if (key.isnil()) break;
-            if (!key.isnumber() || key.toint() < 1 || key.todouble() != key.toint()) {
-                throw new LuaError("[MLua] RegisterClass parent lists must use consecutive positive integer keys.");
-            }
-            entries++;
-            maximumIndex = Math.max(maximumIndex, key.toint());
-        }
-        if (entries != parents.size() || maximumIndex != parents.size()) {
-            throw new LuaError("[MLua] RegisterClass parent lists must not contain gaps.");
-        }
-        if (parents.size() > 1) {
-            throw new LuaError("[MLua] RegisterClass accepts one superclass. Use behavior mixins to compose shared behavior.");
-        }
-        return List.copyOf(parents);
+   private static String classParentName(MLuaRegistration registration, LuaValue value) {
+      if (value.isnil()) return null;
+      if (value.isstring()) return value.checkjstring();
+      if (!value.istable()) {
+         throw new LuaError("[MLua] RegisterClass parent must be one class name, registered class, or nil.");
+      }
+      LuaTable parentClass = value.checktable();
+      LuaValue type = parentClass.rawget("__type");
+      if (!parentClass.rawget("__class").toboolean() || !type.isstring()) {
+         throw new LuaError("[MLua] RegisterClass parent must be one registered class, not a parent list.");
+      }
+      LuaTable registeredClass = registration.classTable(type.tojstring());
+      boolean registeredView = registeredClass != null
+         && registeredClassForView(registration, parentClass) == registeredClass;
+      if (registeredClass == null || (registeredClass != parentClass && !registeredView)) {
+         throw new LuaError("[MLua] RegisterClass parent must be a class registered in this runtime.");
+      }
+      return type.tojstring();
     }
 
     private static LuaTable capabilitiesTable() {
