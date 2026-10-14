@@ -63,7 +63,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     public <T> RegistryHandle<T> get(RegistryKind registryKind, String modId, String name) {
         return (RegistryHandle<T>) registeredHandles
             .getOrDefault(registryKey(registryKind), Map.of())
-            .get(modId + ":" + name);
+            .get(metadataKey(modId, name));
     }
 
     @Override
@@ -78,10 +78,11 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     private <T> RegistryHandle<T> registerPending(RegistryKind kind, String modId, String name,
                                                   Supplier<T> supplier, Supplier<?> attributes) {
+        Objects.requireNonNull(kind, "registryKind");
+        MLuaResourceNameValidator.validate(modId);
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Invalid registry name: " + name);
+        MLuaResourceNameValidator.validate(name);
         if (frozen) throw new IllegalStateException("[MLua] Registries are frozen");
-        if (modId == null || modId.isBlank() || name == null || name.isBlank()) {
-            throw new IllegalArgumentException("[MLua] Registry mod id and name must be non-empty");
-        }
         PendingRegistration registration = new PendingRegistration(kind, modId, name, supplier, attributes);
         String key = registration.key();
         Map<String, RegistryHandle<?>> byKind = registeredHandles.computeIfAbsent(
@@ -346,6 +347,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     private RegistryKind registryKey(RegistryKind kind) {
+        Objects.requireNonNull(kind, "registryKind");
         return kind == RegistryKind.BLOCK_ITEM ? RegistryKind.ITEM : kind;
     }
 
