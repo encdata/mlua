@@ -596,8 +596,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
     }
 
     private static LuaTable listGameRules(Level level) {
-        ServerLevel serverLevel = requireServerWorld(level, "ListGameRules");
-        GameRules rules = serverLevel.getGameRules();
+        GameRules rules = level.getGameRules();
         LuaTable table = new LuaTable();
         int index = 1;
         List<GameRule<?>> availableRules = new ArrayList<>(rules.availableRules().toList());
@@ -616,8 +615,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
     }
 
     private static LuaValue getGameRule(Level level, String name) {
-        ServerLevel serverLevel = requireServerWorld(level, "GetGameRule");
-        GameRules rules = serverLevel.getGameRules();
+        GameRules rules = level.getGameRules();
         GameRule<?> rule = findGameRule(rules, name);
         if (rule == null) throw new LuaError("[MLua] Unknown gamerule: " + name);
         return gameRuleValue(rules, rule);

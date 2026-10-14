@@ -69,15 +69,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaWorldService extends MLuaServiceBase {
-   private static final Map<String, GameRules.Key<?>> GAME_RULE_KEYS = new HashMap<>();
    private final Map<Level, WeakReference<LuaTable>> worldInstances = new WeakHashMap<>();
-   static {
-      GameRules.visitGameRuleTypes(new GameRules.GameRuleTypeVisitor() {
-         public <T extends GameRules.Value<T>> void visit(GameRules.Key<T> key, GameRules.Type<T> type) {
-            GAME_RULE_KEYS.put(key.getId(), key);
-         }
-      });
-   }
 
    public MLuaWorldService(MLuaService.Context context) {
       super(context);
@@ -618,12 +610,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
    private LuaTable listGameRules(Level level) {
       LuaTable table = new LuaTable();
       int index = 1;
-      List<String> names = new ArrayList<>(GAME_RULE_KEYS.keySet());
+      Map<String, GameRules.Key<?>> keys = gameRuleKeys();
+      List<String> names = new ArrayList<>(keys.keySet());
       names.sort(String::compareTo);
       for (String name : names) {
          LuaTable entry = new LuaTable();
          entry.set("Name", LuaValue.valueOf(name));
-         entry.set("Value", this.getGameRule(level, name));
+         entry.set("Value", gameRuleValue(level.getGameRules(), keys.get(name)));
          table.set(index++, entry);
          table.set(name, entry.get("Value"));
       }
@@ -631,7 +624,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private LuaValue getGameRule(Level level, String name) {
-      GameRules.Key<?> key = GAME_RULE_KEYS.get(name);
+      GameRules.Key<?> key = gameRuleKeys().get(name);
       if (key == null) {
          throw new LuaError("[MLua] Unknown gamerule: " + name);
       }
@@ -640,7 +633,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    @SuppressWarnings({"rawtypes", "unchecked"})
    private void setGameRule(ServerLevel level, String name, LuaValue value) {
-      GameRules.Key<?> key = GAME_RULE_KEYS.get(name);
+      GameRules.Key<?> key = gameRuleKeys().get(name);
       if (key == null) {
          throw new LuaError("[MLua] Unknown gamerule: " + name);
       }
@@ -655,6 +648,17 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return;
       }
       throw new LuaError("[MLua] Unsupported gamerule type: " + name);
+   }
+
+   private static Map<String, GameRules.Key<?>> gameRuleKeys() {
+      Map<String, GameRules.Key<?>> keys = new HashMap<>();
+      GameRules.visitGameRuleTypes(new GameRules.GameRuleTypeVisitor() {
+         @Override
+         public <T extends GameRules.Value<T>> void visit(GameRules.Key<T> key, GameRules.Type<T> type) {
+            keys.put(key.getId(), key);
+         }
+      });
+      return keys;
    }
 
    @SuppressWarnings({"rawtypes", "unchecked"})
