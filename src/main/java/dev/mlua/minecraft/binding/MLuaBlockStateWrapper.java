@@ -1,6 +1,7 @@
 package dev.mlua.minecraft.binding;
 
 import dev.mlua.module.MLuaRegistration;
+import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.Level;
@@ -42,11 +43,11 @@ public final class MLuaBlockStateWrapper {
         registration.registerClassFunction("BlockState", "GetProperties", self((self, args) ->
             MLuaBlockStateProperties.read(state(self))), "Returns the current values of this state's properties.");
         registration.registerClassFunction("BlockState", "GetProperty", self((self, args) -> {
-            LuaValue value = MLuaBlockStateProperties.read(state(self)).get(args.checkjstring(2));
+            LuaValue value = MLuaBlockStateProperties.read(state(self)).get(args.checkjstring(2).toLowerCase(Locale.ROOT));
             return value.isnil() ? LuaValue.NIL : value;
         }), "Returns one state property value, or nil when the state has no such property.");
         registration.registerClassFunction("BlockState", "HasProperty", self((self, args) ->
-            LuaValue.valueOf(state(self).getBlock().getStateDefinition().getProperty(args.checkjstring(2)) != null)),
+            LuaValue.valueOf(state(self).getBlock().getStateDefinition().getProperty(args.checkjstring(2).toLowerCase(Locale.ROOT)) != null)),
             "Returns whether this block type defines the named state property.");
         registration.registerClassFunction("BlockState", "IsAir", self((self, args) -> LuaValue.valueOf(state(self).isAir())),
             "Returns whether this state is air.");
@@ -54,6 +55,16 @@ public final class MLuaBlockStateWrapper {
             "Returns whether this state is solid.");
         registration.registerClassFunction("BlockState", "IsReplaceable", self((self, args) -> LuaValue.valueOf(state(self).canBeReplaced())),
             "Returns whether this state can be replaced by another block.");
+        registration.registerClassFunction("BlockState", "GetFluid", self((self, args) -> {
+            var fluid = state(self).getFluidState();
+            if (fluid.isEmpty()) return LuaValue.NIL;
+            var id = BuiltInRegistries.FLUID.getKey(fluid.getType());
+            return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
+        }), "Returns the fluid identifier in this state, or nil when empty.");
+        registration.registerClassFunction("BlockState", "HasBlockEntity", self((self, args) ->
+            LuaValue.valueOf(state(self).hasBlockEntity())), "Returns whether this state has a block entity.");
+        registration.registerClassFunction("BlockState", "IsRandomlyTicking", self((self, args) ->
+            LuaValue.valueOf(state(self).isRandomlyTicking())), "Returns whether this state receives random game ticks.");
         registration.registerClassFunction("BlockState", "GetDestroySpeed", self((self, args) -> {
             BlockState state = state(self);
             return LuaValue.valueOf(state.getDestroySpeed(level(self), position(self)));
@@ -66,6 +77,8 @@ public final class MLuaBlockStateWrapper {
             {"Air", "IsAir", "boolean", "Whether this state is air."},
             {"Solid", "IsSolid", "boolean", "Whether this state is solid."},
             {"Replaceable", "IsReplaceable", "boolean", "Whether another block can replace this state."},
+            {"Fluid", "GetFluid", "string|nil", "The fluid identifier in this state, or nil when empty."},
+            {"RandomlyTicking", "IsRandomlyTicking", "boolean", "Whether this state receives random game ticks."},
             {"DestroySpeed", "GetDestroySpeed", "number", "The state destroy speed in its world context."}
         };
         for (String[] property : properties) {

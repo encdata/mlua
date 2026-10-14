@@ -323,6 +323,9 @@ public class WorldModule implements MLuaModule {
         docs.signature("BlockState", "BlockState:IsAir()", "boolean");
         docs.signature("BlockState", "BlockState:IsSolid()", "boolean");
         docs.signature("BlockState", "BlockState:IsReplaceable()", "boolean");
+        docs.signature("BlockState", "BlockState:GetFluid()", "string|nil");
+        docs.signature("BlockState", "BlockState:HasBlockEntity()", "boolean");
+        docs.signature("BlockState", "BlockState:IsRandomlyTicking()", "boolean");
         docs.signature("BlockState", "BlockState:GetDestroySpeed()", "number");
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("World", "World:ListGameRules()", "GameRuleList");
@@ -458,6 +461,8 @@ public class WorldModule implements MLuaModule {
         docs.property("BlockState", "state.Air", "boolean", "Whether this state is air.", "shared:Shared");
         docs.property("BlockState", "state.Solid", "boolean", "Whether this state is solid.", "shared:Shared");
         docs.property("BlockState", "state.Replaceable", "boolean", "Whether another block can replace this state.", "shared:Shared");
+        docs.property("BlockState", "state.Fluid", "string|nil", "The fluid identifier in this state, or nil when empty.", "shared:Shared");
+        docs.property("BlockState", "state.RandomlyTicking", "boolean", "Whether this state receives random game ticks.", "shared:Shared");
         docs.property("BlockState", "state.DestroySpeed", "number", "The state destroy speed in its world context.", "shared:Shared");
         docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
         docs.property("Chunk", "chunk.X", "number", "This chunk's X coordinate.", "shared:Shared");
@@ -492,6 +497,9 @@ public class WorldModule implements MLuaModule {
         docs.guideStep("World", "Reach a block entity and its container",
             "GetBlockEntity returns the live registered BlockEntity subclass at a position. Scripted block entities can expose their own methods and a shared Container instance.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal blockEntity = world:GetBlockEntity(Vector3.new(0, 64, 0))\nif blockEntity and blockEntity:HasContainer() then\n    local container = blockEntity:GetContainer()\n    print(\"Slots:\", container:GetSize())\n    for _, slot in ipairs(container:GetAll()) do\n        if not slot:IsEmpty() then\n            print(slot:GetItem():GetId(), slot:GetCount())\n        end\n    end\nend");
+        docs.guideStep("World", "Inspect a block state",
+            "GetBlockState returns an immutable BlockState instance, while GetBlock returns the live position-aware Block instance. Read typed state properties from BlockState.Properties and check for a property before querying optional values.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed)\n\nif state:HasProperty(\"facing\") then\n    print(\"Facing:\", state:GetProperty(\"facing\"))\nend\n\nlocal block = state:GetBlock()\nprint(block:GetClassName(), block:GetStateProperties().facing)");
     }
 
     @Override
