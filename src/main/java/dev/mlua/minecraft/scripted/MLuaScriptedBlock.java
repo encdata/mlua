@@ -67,7 +67,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
 
          try {
             if (!onRightClick.isnil()) {
-               LuaTable ctx = this.createContext(level, pos, player, hand);
+               LuaTable ctx = this.createContext(level, pos, player, hand, hit);
                Varargs result = onRightClick.invoke(ctx);
                if (result.arg1().isboolean() && result.arg1().toboolean()) {
                   return InteractionResult.sidedSuccess(false);
@@ -94,7 +94,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
 
          try {
             if (!onRightClick.isnil()) {
-               LuaTable ctx = this.createContext(level, pos, player, null);
+               LuaTable ctx = this.createContext(level, pos, player, null, hit);
                Varargs result = onRightClick.invoke(ctx);
                if (result.arg1().isboolean() && result.arg1().toboolean()) {
                   return InteractionResult.sidedSuccess(false);
@@ -118,7 +118,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
          if (level.isClientSide) return InteractionResult.sidedSuccess(true);
          try {
             if (!onRightClick.isnil()) {
-               Varargs result = onRightClick.invoke(this.createContext(level, pos, player, null));
+               Varargs result = onRightClick.invoke(this.createContext(level, pos, player, null, hit));
                if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.sidedSuccess(false);
             }
          } catch (Exception exception) {
@@ -316,7 +316,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
             ctx.set("World", level.dimension().location().toString());
             ctx.set("Position", MLuaPlayerWrapper.positionTable((double)hitResult.getBlockPos().getX() + 0.5, (double)hitResult.getBlockPos().getY() + 0.5, (double)hitResult.getBlockPos().getZ() + 0.5));
             ctx.set("Block", MLuaBlockWrapper.blockTable(level, hitResult.getBlockPos(), MLuaRuntime.registrationForLevel(level)));
-            ctx.set("Projectile", projectile.getStringUUID());
+            ctx.set("Projectile", MLuaEntityWrapper.entityTable(projectile, MLuaRuntime.registrationForLevel(level)));
             onProjectileHit.invoke(ctx);
          } catch (Exception var8) {
             MLuaLogger.LOGGER.error("MLua block onProjectileHit callback failed for '{}': {}", this.behaviorKey, var8.getMessage());
@@ -326,6 +326,10 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    }
 
    private LuaTable createContext(Level level, BlockPos pos, Player player, InteractionHand hand) {
+      return createContext(level, pos, player, hand, null);
+   }
+
+   private LuaTable createContext(Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
       LuaTable ctx = new LuaTable();
       if (player instanceof ServerPlayer sp) {
          ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaRuntime.registrationForLevel(level)));
@@ -344,6 +348,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
       if (hand != null) {
          ctx.set("Hand", hand.name().toLowerCase());
       }
+      if (hit != null) ctx.set("Face", hit.getDirection().getName());
 
       return ctx;
    }
@@ -354,11 +359,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
       ctx.set("Position", MLuaPlayerWrapper.positionTable((double)pos.getX() + 0.5, (double)pos.getY() + 0.5, (double)pos.getZ() + 0.5));
       ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
       Object var10002;
-      if (entity instanceof LivingEntity living) {
-         var10002 = MLuaEntityWrapper.entityTable(living, MLuaRuntime.registrationForLevel(level));
-      } else {
-         var10002 = LuaValue.valueOf(entity.getStringUUID());
-      }
+      var10002 = MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(level));
 
       ctx.set("Entity", (LuaValue)var10002);
       return ctx;

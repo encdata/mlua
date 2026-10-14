@@ -42,11 +42,8 @@ public class MLuaScriptedBlockItem extends BlockItem {
             var position = context.getClickedPos();
             LuaTable values = new LuaTable();
             values.set("World", context.getLevel().dimension().identifier().toString());
-            LuaTable coordinates = new LuaTable();
-            coordinates.set("X", position.getX());
-            coordinates.set("Y", position.getY());
-            coordinates.set("Z", position.getZ());
-            values.set("Position", coordinates);
+            values.set("Position", dev.mlua.modules.players.Class.MLuaPlayerWrapper.positionTable(
+                position.getX() + 0.5, position.getY() + 0.5, position.getZ() + 0.5));
             values.set("Face", context.getClickedFace().getName());
             values.set("Hand", context.getHand().name().toLowerCase(java.util.Locale.ROOT));
             values.set("Block", MLuaBlockWrapper.blockTable(context.getLevel(), position, registration));
