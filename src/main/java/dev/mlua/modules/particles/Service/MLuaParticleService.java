@@ -1,5 +1,6 @@
 package dev.mlua.modules.particles.Service;
 
+import dev.mlua.math.MLuaVector;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
@@ -296,14 +297,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     }
 
     private static LuaTable vector3(double x, double y, double z) {
-        LuaTable out = new LuaTable();
-        out.set("X", x);
-        out.set("Y", y);
-        out.set("Z", z);
-        out.set("x", x);
-        out.set("y", y);
-        out.set("z", z);
-        return out;
+        return MLuaVector.vector3(x, y, z);
     }
 
     private MLuaClientParticleManager.Emitter requireEmitter(int id) {

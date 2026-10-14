@@ -528,7 +528,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> LuaValue.valueOf(player.isSwimming())));
       MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> MLuaPotionEffectsService.effectsTable(player)));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() ->
-         positionTable(player.getBlockPosition().getX(), player.getBlockPosition().getY(), player.getBlockPosition().getZ())));
+         positionTable(player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ())));
       MLuaClassMethods.setInstanceMethod(table, "GetLookDirection", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(new MCEntityImpl(player));
          return positionTable(look.x(), look.y(), look.z());

@@ -1,5 +1,6 @@
 package dev.mlua.modules.sound.Service;
 
+import dev.mlua.math.MLuaVector;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
@@ -311,11 +312,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     }
 
     private static LuaTable vector3(double x, double y, double z) {
-        LuaTable out = new LuaTable();
-        out.set("X", x);
-        out.set("Y", y);
-        out.set("Z", z);
-        return out;
+        return MLuaVector.vector3(x, y, z);
     }
 
     private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
