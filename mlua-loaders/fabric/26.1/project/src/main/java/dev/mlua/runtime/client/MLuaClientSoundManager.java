@@ -26,7 +26,11 @@ public final class MLuaClientSoundManager {
     }
 
     public static boolean playLocal(String soundId, float volume, float pitch, MLuaSoundOwnershipRegistry.Owner owner) {
-        return play(soundId, volume, pitch, false, null, null, null, null, SoundSource.PLAYERS, 0.0, 0.0, 0.0, owner) >= 0;
+        return playLocalId(soundId, volume, pitch, owner) >= 0;
+    }
+
+    public static int playLocalId(String soundId, float volume, float pitch, MLuaSoundOwnershipRegistry.Owner owner) {
+        return play(soundId, volume, pitch, false, null, null, null, null, SoundSource.PLAYERS, 0.0, 0.0, 0.0, owner);
     }
 
     public static boolean playAtPlayer(String soundId, float volume, float pitch) {
@@ -34,11 +38,16 @@ public final class MLuaClientSoundManager {
     }
 
     public static boolean playAtPlayer(String soundId, float volume, float pitch, MLuaSoundOwnershipRegistry.Owner owner) {
+        return playAtPlayerId(soundId, volume, pitch, owner) >= 0;
+    }
+
+    public static int playAtPlayerId(String soundId, float volume, float pitch, MLuaSoundOwnershipRegistry.Owner owner) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
-            return false;
+            return -1;
         }
-        return play(soundId, volume, pitch, false, mc.player.getX(), mc.player.getY(), mc.player.getZ(), null, SoundSource.PLAYERS, 0.0, 0.0, 0.0, owner) >= 0;
+        return play(soundId, volume, pitch, false, mc.player.getX(), mc.player.getY(), mc.player.getZ(), null,
+            SoundSource.PLAYERS, 0.0, 0.0, 0.0, owner);
     }
 
     public static int play(String soundId, float volume, float pitch, boolean loop, Double x, Double y, Double z, MLuaEntityScope followEntityScope, SoundSource category, double followOffsetX, double followOffsetY, double followOffsetZ) {
