@@ -131,19 +131,30 @@ public abstract class GuiObject extends GuiBase2d {
 
     public boolean tweenPosition(UDim2 endPos, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, endPos, null, easingDir, easingStyle, time);
+        activeTween = new GuiObjectTween(this, endPos, null, null, null, null, easingDir, easingStyle, time);
         return true;
     }
 
     public boolean tweenSize(UDim2 endSize, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, null, endSize, easingDir, easingStyle, time);
+        activeTween = new GuiObjectTween(this, null, endSize, null, null, null, easingDir, easingStyle, time);
         return true;
     }
 
     public boolean tweenSizeAndPosition(UDim2 endSize, UDim2 endPos, String easingDir, String easingStyle, double time, boolean override) {
         if (!override && activeTween != null) return false;
-        activeTween = new GuiObjectTween(this, endPos, endSize, easingDir, easingStyle, time);
+        activeTween = new GuiObjectTween(this, endPos, endSize, null, null, null, easingDir, easingStyle, time);
+        return true;
+    }
+
+    public boolean tweenTo(UDim2 endPos, UDim2 endSize, Float endRotation, Float endTransparency,
+                           Integer endBackgroundColor, String easingDir, String easingStyle, double time,
+                           boolean override) {
+        if (!override && activeTween != null) return false;
+        if (endPos == null && endSize == null && endRotation == null && endTransparency == null
+            && endBackgroundColor == null) throw new LuaError("[MLua] AnimateTo requires at least one supported target property.");
+        activeTween = new GuiObjectTween(this, endPos, endSize, endRotation, endTransparency,
+            endBackgroundColor, easingDir, easingStyle, time);
         return true;
     }
 
@@ -169,18 +180,31 @@ public abstract class GuiObject extends GuiBase2d {
         public final UDim2 startSize;
         public final UDim2 endPos;
         public final UDim2 endSize;
+        public final float startRotation;
+        public final Float endRotation;
+        public final float startTransparency;
+        public final Float endTransparency;
+        public final int startBackgroundColor;
+        public final Integer endBackgroundColor;
         public final String easingDir;
         public final String easingStyle;
         public final double duration;
         public double elapsed;
         public boolean done;
 
-        GuiObjectTween(GuiObject target, UDim2 endPos, UDim2 endSize, String easingDir, String easingStyle, double duration) {
+        GuiObjectTween(GuiObject target, UDim2 endPos, UDim2 endSize, Float endRotation, Float endTransparency,
+                       Integer endBackgroundColor, String easingDir, String easingStyle, double duration) {
             this.target = target;
             this.startPos = target.position;
             this.startSize = target.size;
             this.endPos = endPos;
             this.endSize = endSize;
+            this.startRotation = target.rotation;
+            this.endRotation = endRotation;
+            this.startTransparency = target.backgroundTransparency;
+            this.endTransparency = endTransparency;
+            this.startBackgroundColor = target.backgroundColor3;
+            this.endBackgroundColor = endBackgroundColor;
             this.easingDir = easingDir;
             this.easingStyle = easingStyle;
             this.duration = duration;
@@ -202,14 +226,22 @@ public abstract class GuiObject extends GuiBase2d {
             if (endPos != null) {
                 UDim x = lerpUDim(startPos.x(), endPos.x(), e);
                 UDim y = lerpUDim(startPos.y(), endPos.y(), e);
-                target.position = new UDim2(x, y);
-                target.syncLuaProperty("Position", toLuaUDim2(target.position));
+                target.setPosition(new UDim2(x, y));
             }
             if (endSize != null) {
                 UDim x = lerpUDim(startSize.x(), endSize.x(), e);
                 UDim y = lerpUDim(startSize.y(), endSize.y(), e);
-                target.size = new UDim2(x, y);
-                target.syncLuaProperty("Size", toLuaUDim2(target.size));
+                target.setSize(new UDim2(x, y));
+            }
+            if (endRotation != null) {
+                target.setRotation((float) (startRotation + (endRotation - startRotation) * e));
+            }
+            if (endTransparency != null) {
+                double transparency = startTransparency + (endTransparency - startTransparency) * e;
+                target.setBackgroundTransparency((float) Math.max(0.0, Math.min(1.0, transparency)));
+            }
+            if (endBackgroundColor != null) {
+                target.setBackgroundColor3(lerpColor(startBackgroundColor, endBackgroundColor, e));
             }
 
             if (t >= 1.0) {
@@ -219,6 +251,17 @@ public abstract class GuiObject extends GuiBase2d {
 
         private static UDim lerpUDim(UDim a, UDim b, double t) {
             return new UDim(a.scale() + (b.scale() - a.scale()) * t, a.offset() + (int)((b.offset() - a.offset()) * t));
+        }
+
+        private static int lerpColor(int start, int end, double amount) {
+            int red = lerpChannel((start >>> 16) & 0xFF, (end >>> 16) & 0xFF, amount);
+            int green = lerpChannel((start >>> 8) & 0xFF, (end >>> 8) & 0xFF, amount);
+            int blue = lerpChannel(start & 0xFF, end & 0xFF, amount);
+            return 0xFF000000 | red << 16 | green << 8 | blue;
+        }
+
+        private static int lerpChannel(int start, int end, double amount) {
+            return (int) Math.max(0, Math.min(255, Math.round(start + (end - start) * amount)));
         }
 
         private static boolean isEasingStyle(String style) {

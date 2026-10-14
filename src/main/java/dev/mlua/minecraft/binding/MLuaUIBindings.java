@@ -258,6 +258,47 @@ public final class MLuaUIBindings {
                     args.arg(7).optboolean(true)));
             }
         }, "Animates both Position and Size to UDim2 targets and returns whether the animation started.");
+        registration.registerClassFunction("GuiObject", "AnimateTo", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                GuiObject object = requireGuiObject(args.arg1(), "AnimateTo");
+                LuaValue goalsValue = args.arg(2);
+                if (!goalsValue.istable()) throw new LuaError("[MLua] AnimateTo expects a table of target properties.");
+                LuaTable goals = goalsValue.checktable();
+                UDim2 position = null;
+                UDim2 size = null;
+                Float rotation = null;
+                Float transparency = null;
+                Integer backgroundColor = null;
+                LuaValue key = LuaValue.NIL;
+                while (true) {
+                    Varargs entry = goals.next(key);
+                    key = entry.arg1();
+                    if (key.isnil()) break;
+                    if (!key.isstring()) throw new LuaError("[MLua] AnimateTo target property names must be strings.");
+                    String name = key.tojstring();
+                    LuaValue value = entry.arg(2);
+                    switch (name) {
+                        case "Position" -> position = parseUDim2(value);
+                        case "Size" -> size = parseUDim2(value);
+                        case "Rotation" -> rotation = finiteFloat(value, "Rotation");
+                        case "BackgroundTransparency" -> {
+                            transparency = finiteFloat(value, "BackgroundTransparency");
+                            if (transparency < 0.0f || transparency > 1.0f) {
+                                throw new LuaError("[MLua] BackgroundTransparency animation target must be between zero and one.");
+                            }
+                        }
+                        case "BackgroundColor3" -> backgroundColor = value.checkint();
+                        default -> throw new LuaError("[MLua] AnimateTo does not support the UI property '" + name + "'.");
+                    }
+                }
+                if (position == null && size == null && rotation == null && transparency == null && backgroundColor == null) {
+                    throw new LuaError("[MLua] AnimateTo requires at least one supported target property.");
+                }
+                return LuaValue.valueOf(object.tweenTo(position, size, rotation, transparency, backgroundColor,
+                    easingDirection(args.arg(5)), easingStyle(args.arg(4)), positiveDuration(args.arg(3)),
+                    args.arg(6).optboolean(true)));
+            }
+        }, "Animates supported GuiObject properties toward a target table: Position, Size, Rotation, BackgroundTransparency, or BackgroundColor3.");
         registration.registerClassFunction("GuiObject", "CancelAnimation", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 requireGuiObject(args.arg1(), "CancelAnimation").cancelTween();
@@ -283,6 +324,32 @@ public final class MLuaUIBindings {
             throw new LuaError("[MLua] UI animation duration must be a finite number greater than zero.");
         }
         return duration;
+    }
+
+    private static dev.mlua.minecraft.ui.UDim2 parseUDim2(LuaValue value) {
+        if (!dev.mlua.core.engine.MLuaLuauTypes.isUDim2(value)) {
+            throw new LuaError("[MLua] Animation Position and Size targets require native UDim2 values.");
+        }
+        LuaTable table = value.checktable();
+        LuaValue x = table.get("X").isnil() ? table.get("x") : table.get("X");
+        LuaValue y = table.get("Y").isnil() ? table.get("y") : table.get("Y");
+        return new dev.mlua.minecraft.ui.UDim2(parseUDim(x), parseUDim(y));
+    }
+
+    private static dev.mlua.minecraft.ui.UDim parseUDim(LuaValue value) {
+        if (!dev.mlua.core.engine.MLuaLuauTypes.isUDim(value)) {
+            throw new LuaError("[MLua] Animation Position and Size axes require native UDim values.");
+        }
+        LuaTable table = value.checktable();
+        return new dev.mlua.minecraft.ui.UDim(table.get("Scale").checkdouble(), table.get("Offset").checkint());
+    }
+
+    private static float finiteFloat(LuaValue value, String property) {
+        double number = value.checkdouble();
+        if (!Double.isFinite(number) || number < -Float.MAX_VALUE || number > Float.MAX_VALUE) {
+            throw new LuaError("[MLua] " + property + " animation target must be a finite number.");
+        }
+        return (float) number;
     }
 
     private static String easingStyle(LuaValue value) {
