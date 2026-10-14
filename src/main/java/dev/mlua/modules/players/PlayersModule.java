@@ -99,6 +99,25 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnFire", "Returns whether this entity is on fire.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsMoving", "Returns whether this entity is moving.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsFalling", "Returns whether this entity is falling.");
+        String[][] entityStateMethods = {
+            {"GetCustomName", "Returns this entity's custom name, or nil."},
+            {"SetCustomName", "Sets or clears this entity's custom name."},
+            {"GetCustomNameVisible", "Returns whether the custom name is shown above this entity."},
+            {"SetCustomNameVisible", "Shows or hides this entity's custom name."},
+            {"GetGlowing", "Returns whether this entity has the glowing outline."},
+            {"SetGlowing", "Enables or disables this entity's glowing outline."},
+            {"GetNoGravity", "Returns whether gravity is disabled for this entity."},
+            {"SetNoGravity", "Enables or disables gravity for this entity."},
+            {"GetInvulnerable", "Returns whether this entity is invulnerable."},
+            {"SetInvulnerable", "Enables or disables this entity's invulnerability."},
+            {"GetSilent", "Returns whether this entity is silent."},
+            {"SetSilent", "Enables or disables this entity's silent state."},
+            {"GetFireTicks", "Returns the remaining fire duration in ticks."},
+            {"SetFireTicks", "Sets the remaining fire duration in ticks."}
+        };
+        for (String[] method : entityStateMethods) {
+            MLuaClassMethods.registerInstanceMethod(registration, "Entity", method[0], method[1]);
+        }
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Kill", "Kills this entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Remove", "Removes this entity from its world.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPersistentData",
@@ -312,7 +331,14 @@ public class PlayersModule implements MLuaModule {
             {"IsInWater", "GetIsInWater", null, "boolean", "shared:Shared", "Whether this entity is in water."},
             {"IsOnFire", "GetIsOnFire", null, "boolean", "shared:Shared", "Whether this entity is on fire."},
             {"IsMoving", "GetIsMoving", null, "boolean", "shared:Shared", "Whether this entity is moving."},
-            {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is falling."}
+            {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is falling."},
+            {"CustomName", "GetCustomName", "SetCustomName", "string|nil", "shared:Shared", "The entity's custom name."},
+            {"CustomNameVisible", "GetCustomNameVisible", "SetCustomNameVisible", "boolean", "shared:Shared", "Whether the custom name is visible."},
+            {"Glowing", "GetGlowing", "SetGlowing", "boolean", "shared:Shared", "Whether the entity has a glowing outline."},
+            {"NoGravity", "GetNoGravity", "SetNoGravity", "boolean", "shared:Shared", "Whether gravity is disabled."},
+            {"Invulnerable", "GetInvulnerable", "SetInvulnerable", "boolean", "shared:Shared", "Whether the entity is invulnerable."},
+            {"Silent", "GetSilent", "SetSilent", "boolean", "shared:Shared", "Whether the entity is silent."},
+            {"FireTicks", "GetFireTicks", "SetFireTicks", "number", "shared:Shared", "Remaining fire duration in ticks."}
         };
         for (String[] property : properties) {
             MLuaClassMethods.registerInstanceProperty(registration, "Entity", property[0], property[1], property[2],
@@ -380,15 +406,15 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Players", "Players:Broadcast(message: string)", null);
         docs.signature("Player", "Player:SendMessage(message: string)", null);
         docs.signature("Player", "Player:SendActionBar(message: string)", null);
-        docs.signature("Player", "Player:SendTitle(title: string, subtitle: string, fadeIn: number, stay: number, fadeOut: number)", null);
+        docs.signature("Player", "Player:SendTitle(title: string)", null);
         docs.signature("Player", "Player:GiveItem(item: Item)", null);
         docs.signature("Player", "Player:GiveEffect(effect: string, duration: number, amplifier: number, showParticles: boolean)", null);
         docs.signature("Player", "Player:GiveExperience(amount: number)", null);
         docs.signature("Player", "Player:GiveExperienceLevels(levels: number)", null);
         docs.signature("Player", "Player:SetGameMode(mode: string)", null);
-        docs.signature("Player", "Player:SetPosition(x: number, y: number, z: number)", null);
-        docs.signature("Player", "Player:Teleport(x: number, y: number, z: number)", null);
-        docs.signature("Player", "Player:LookAt(x: number, y: number, z: number)", null);
+        docs.signature("Player", "Player:SetPosition(position: Vector3|CFrame)", null);
+        docs.signature("Player", "Player:Teleport(position: Vector3|CFrame)", null);
+        docs.signature("Player", "Player:LookAt(target: Vector3|CFrame)", null);
         docs.signature("Player", "Player:PlaySound(sound: string, volume: number, pitch: number)", null);
         docs.signature("Player", "Player:SetData(key: string, value: any)", null);
         docs.signature("Player", "Player:GetData(key: string)", null);
@@ -400,7 +426,7 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Player", "Player:SetInventory(items: Item[])", null);
         docs.signature("Player", "Player:SetViewMode(mode: string)", null);
         docs.signature("Player", "Player:HasPermission(level: number)", null);
-        docs.signature("Player", "Player:DistanceTo(entityOrPosition: any)", null);
+        docs.signature("Player", "Player:DistanceTo(position: Vector3|CFrame)", null);
         docs.signature("Player", "Player:HasEffect(effect: string)", null);
         docs.signature("Player", "Player:RemoveEffect(effect: string)", null);
         docs.signature("Player", "Player:SetFood(food: number)", null);
@@ -408,6 +434,14 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Player", "Player:SetSaturation(saturation: number)", null);
         docs.signature("Player", "Player:SetHealth(health: number)", null);
         docs.signature("Player", "Player:SetSelectedSlot(slot: number)", null);
+        docs.signature("Players", "Players:GetLocalPlayer()", "Player?");
+        docs.signature("Players", "Players:GetPlayers()", "Player[]");
+        docs.signature("Players", "Players:GetPlayerByName(name: string)", "Player?");
+        docs.signature("Players", "Players:GetPlayerByUUID(uuid: string)", "Player?");
+        docs.signature("Players", "Players:GetPlayerById(id: number)", "Player?");
+        docs.signature("Players", "Players:GetPlayerCount()", "number");
+        docs.signature("Players", "Players:GetMaxPlayers()", "number");
+        docs.signature("Players", "Players:Broadcast(message: string)", "void");
         docs.service("Players", "MLuaPlayersService",
                 "Manages player connections and provides player instances.",
                 "services/players.html");
@@ -445,6 +479,13 @@ public class PlayersModule implements MLuaModule {
         docs.property("Entity", "entity.IsOnGround", "boolean", "Whether the entity is on the ground.", "shared:Shared");
         docs.property("Entity", "entity.IsInWater", "boolean", "Whether the entity is in water.", "shared:Shared");
         docs.property("Entity", "entity.IsOnFire", "boolean", "Whether the entity is on fire.", "shared:Shared");
+        docs.property("Entity", "entity.CustomName", "string|nil", "The entity's custom name. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.CustomNameVisible", "boolean", "Whether the custom name is shown above this entity. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.Glowing", "boolean", "Whether this entity has a glowing outline. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.NoGravity", "boolean", "Whether gravity is disabled. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.Invulnerable", "boolean", "Whether this entity is invulnerable. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.Silent", "boolean", "Whether this entity is silent. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.FireTicks", "number", "Remaining fire duration in ticks. Readable and writable.", "shared:Shared");
         docs.property("LivingEntity", "entity.Health", "number", "The entity's current health. Readable and writable.", "shared:Shared");
         docs.property("LivingEntity", "entity.MaxHealth", "number", "The entity's maximum health.", "shared:Shared");
         docs.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared");

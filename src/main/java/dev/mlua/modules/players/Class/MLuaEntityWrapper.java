@@ -651,12 +651,68 @@ public final class MLuaEntityWrapper {
    }
 
    public static LuaTable attachEntityProperties(LuaTable table) {
+      attachEntityControlMethods(table);
       Map<String, LuaValue> getters = new java.util.HashMap<>();
       for (String property : new String[]{"Id", "Type", "EntityType", "Name", "UUID"}) {
          LuaValue getter = table.get("Get" + property);
          if (getter.isfunction()) getters.put(property, getter);
       }
       return MLuaServiceProperties.attach(table, getters, java.util.Map.of());
+   }
+
+   private static void attachEntityControlMethods(LuaTable table) {
+      LuaValue value = table.rawget("__entity");
+      if (!value.isuserdata(net.minecraft.world.entity.Entity.class)) return;
+      net.minecraft.world.entity.Entity entity = (net.minecraft.world.entity.Entity)value.touserdata(net.minecraft.world.entity.Entity.class);
+      MLuaClassMethods.setInstanceMethod(table, "GetCustomName", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            net.minecraft.network.chat.Component name = entity.getCustomName();
+            return name == null ? LuaValue.NIL : LuaValue.valueOf(name.getString());
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetCustomName", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaValue name = args.arg(2);
+            entity.setCustomName(name.isnil() ? null : net.minecraft.network.chat.Component.literal(name.checkjstring()));
+            return LuaValue.NONE;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetCustomNameVisible", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isCustomNameVisible()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetCustomNameVisible", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.setCustomNameVisible(args.checkboolean(2)); return LuaValue.NONE; }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetGlowing", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.hasGlowingTag()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetGlowing", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.setGlowingTag(args.checkboolean(2)); return LuaValue.NONE; }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetNoGravity", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isNoGravity()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetNoGravity", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.setNoGravity(args.checkboolean(2)); return LuaValue.NONE; }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetInvulnerable", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isInvulnerable()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetInvulnerable", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.setInvulnerable(args.checkboolean(2)); return LuaValue.NONE; }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetSilent", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isSilent()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetSilent", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.setSilent(args.checkboolean(2)); return LuaValue.NONE; }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetFireTicks", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getRemainingFireTicks()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetFireTicks", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.setRemainingFireTicks(Math.max(0, args.checkint(2))); return LuaValue.NONE; }
+      });
    }
 
    private static void attachEntityClass(MLuaRegistration registration, LuaTable table) {
