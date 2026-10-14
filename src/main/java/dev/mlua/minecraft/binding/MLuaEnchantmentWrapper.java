@@ -41,13 +41,15 @@ public final class MLuaEnchantmentWrapper {
    }
 
    public static void removeEnchantment(MCItemStack stack, String idStr) {
+      net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
+      if (id == null) return;
       net.minecraft.world.item.ItemStack rawStack = ((MCItemStackImpl)stack).inner();
       if (!rawStack.hasTag() || !rawStack.getTag().contains("Enchantments", 9)) return;
       net.minecraft.nbt.ListTag enchList = rawStack.getTag().getList("Enchantments", 10);
       net.minecraft.nbt.ListTag newList = new net.minecraft.nbt.ListTag();
       for (int i = 0; i < enchList.size(); i++) {
          net.minecraft.nbt.CompoundTag entry = enchList.getCompound(i);
-         if (!entry.getString("id").equals(idStr)) {
+         if (!entry.getString("id").equals(id.toString())) {
             newList.add(entry);
          }
       }
@@ -73,7 +75,9 @@ public final class MLuaEnchantmentWrapper {
    }
 
    public static void addEnchantment(MCItemStack stack, String idStr, int level) {
-      Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(MLuaResourceLocations.parse(idStr)).orElse(null);
+      net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
+      if (id == null) return;
+      Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(id).orElse(null);
       if (enchantment == null) {
          return;
       }
@@ -81,7 +85,9 @@ public final class MLuaEnchantmentWrapper {
    }
 
    public static void removeEnchantment(MCItemStack stack, String idStr) {
-      Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(MLuaResourceLocations.parse(idStr)).orElse(null);
+      net.minecraft.resources.ResourceLocation id = MLuaResourceLocations.tryParseOrNull(idStr);
+      if (id == null) return;
+      Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(id).orElse(null);
       if (enchantment == null) {
          return;
       }
