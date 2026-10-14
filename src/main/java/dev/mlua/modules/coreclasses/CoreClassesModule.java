@@ -76,6 +76,20 @@ public final class CoreClassesModule implements MLuaModule {
                 return classTable == null ? LuaValue.NIL : classTable;
             }
         }, "Returns the registered class table that defines this instance's behavior.");
+        registerInstanceFunction(registration, "GetSuperclass", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                String type = registration.classNameOf(args.arg1());
+                if (type == null) return LuaValue.NIL;
+                LuaTable classTable = registration.classTable(type);
+                LuaValue parents = classTable == null ? LuaValue.NIL : classTable.rawget("__mlua_doc_parents");
+                if (!parents.istable()) return LuaValue.NIL;
+                String parentName = parents.checktable().get(1).optjstring("");
+                if (parentName.isBlank()) return LuaValue.NIL;
+                LuaTable superclass = registration.classTable(parentName);
+                return superclass == null ? LuaValue.NIL : superclass;
+            }
+        }, "Returns the immediate superclass table, or nil when this class has no superclass.");
         registerInstanceFunction(registration, "GetType", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
