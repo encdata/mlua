@@ -43,6 +43,7 @@ import java.nio.file.Path;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.Font;
@@ -1101,7 +1102,7 @@ public final class MLuaGuiService implements MLuaService {
                 LuaValue fieldsValue = args.arg(4);
                 if (!fieldsValue.isnil() && !fieldsValue.istable()) throw new LuaError("[MLua] Gui:OpenScreen fields must be a table.");
                 if (fieldsValue.istable()) {
-                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "AddEditBox", "SetOnClose", "SetOnRender");
+                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "AddEditBox", "AddRenderableWidget", "SetOnClose", "SetOnRender");
                     for (LuaValue key : fieldsValue.checktable().keys()) {
                         if (key.isstring() && reserved.contains(key.tojstring())) {
                             throw new LuaError("[MLua] Gui:OpenScreen fields cannot replace the native screen member '" + key.tojstring() + "'.");
@@ -1569,6 +1570,19 @@ public final class MLuaGuiService implements MLuaService {
                     return MLuaScriptScreen.this.addNativeEditBox(position, size, initialText, changed);
                 }
             });
+            builder.set("AddRenderableWidget", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) {
+                    Object widget = nativeWidget(args.arg(2));
+                    if (!(widget instanceof AbstractWidget abstractWidget)) {
+                        throw new LuaError("[MLua] Screen:AddRenderableWidget expects a Minecraft AbstractWidget instance.");
+                    }
+                    AbstractWidget added = MLuaScriptScreen.this.addRenderableWidget(abstractWidget);
+                    int index = MLuaScriptScreen.this.nextNativeControlIndex++;
+                    return MLuaNativeControl.instance(MLuaScriptScreen.this.registration,
+                        new MLuaNativeControl.Backing(added, MLuaScriptScreen.this,
+                            MLuaScriptScreen.this.getClass().getName(), index));
+                }
+            });
             try {
                 if (this.luaInstance == null) {
                     this.initialize.invoke(builder);
@@ -1576,6 +1590,7 @@ public final class MLuaGuiService implements MLuaService {
                     this.luaInstance.rawset("AddText", builder.get("AddText"));
                     this.luaInstance.rawset("AddButton", builder.get("AddButton"));
                     this.luaInstance.rawset("AddEditBox", builder.get("AddEditBox"));
+                    this.luaInstance.rawset("AddRenderableWidget", builder.get("AddRenderableWidget"));
                     this.luaInstance.rawset("SetOnClose", builder.get("SetOnClose"));
                     this.luaInstance.rawset("SetOnRender", builder.get("SetOnRender"));
                     if (!this.classInitialized) {
@@ -1590,6 +1605,13 @@ public final class MLuaGuiService implements MLuaService {
             } catch (RuntimeException failure) {
                 MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure);
             }
+        }
+
+        private static Object nativeWidget(LuaValue value) {
+            LuaValue wrapped = value.istable() ? value.checktable().rawget("__javaObject") : LuaValue.NIL;
+            if (!wrapped.isnil() && wrapped.isuserdata()) return wrapped.touserdata();
+            if (value.isuserdata()) return value.touserdata();
+            throw new LuaError("[MLua] Screen:AddRenderableWidget expects a live Java widget from Java:New or a Java method.");
         }
 
         private LuaTable addNativeButton(Object label, LuaTable position, LuaTable size, LuaValue callback) {
