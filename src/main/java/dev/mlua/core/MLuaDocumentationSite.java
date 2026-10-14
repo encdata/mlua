@@ -109,28 +109,36 @@ final class MLuaDocumentationSite {
    }
 
    private static String entryContent(MLuaDocBuilder.DocEntry entry, MLuaDocBuilder builder) {
-      StringBuilder body = new StringBuilder();
+      List<SectionChunk> sections = new ArrayList<>();
       List<MLuaDocBuilder.MethodDoc> methods = builder.methods().stream().filter(item -> item.receiver().equals(entry.name())).toList();
       List<MLuaDocBuilder.SignatureDoc> signatureOnly = builder.signatures().stream()
          .filter(item -> item.receiver().equals(entry.name()))
          .filter(item -> methods.stream().noneMatch(method -> method.signature().equals(item.signature())))
          .toList();
       if (!methods.isEmpty() || !signatureOnly.isEmpty()) {
-         body.append(sectionStart(builder, entry.name(), "methods", "Methods"));
-         for (MLuaDocBuilder.MethodDoc method : methods) body.append(apiCard("METHOD", method.signature(), method.description(), method.parameters(), method.returns(), method.side(), method.example()));
+         StringBuilder cards = new StringBuilder();
+         for (MLuaDocBuilder.MethodDoc method : methods) cards.append(apiCard("METHOD", method.signature(), method.description(), method.parameters(), method.returns(), method.side(), method.example()));
          for (MLuaDocBuilder.SignatureDoc signature : signatureOnly) {
-            body.append(apiCard("METHOD", signature.signature(), "", null, signature.returns(), null, null));
+            cards.append(apiCard("METHOD", signature.signature(), "", null, signature.returns(), null, null));
          }
-         body.append("</div>");
+         sections.add(section(builder, entry.name(), "methods", "Methods", 0, cards));
       }
       List<MLuaDocBuilder.ServiceFunctionDoc> serviceFunctions = builder.serviceFunctions().stream().filter(item -> item.service().equals(entry.name())).toList();
-      if (!serviceFunctions.isEmpty()) {
-         body.append(sectionStart(builder, entry.name(), "functions", "Functions"));
-         for (MLuaDocBuilder.ServiceFunctionDoc function : serviceFunctions) {
-            String signature = builder.signatures().stream().filter(item -> (item.receiver().equals(entry.name()) || item.receiver().equals(function.className())) && item.signature().contains(function.name() + "(")).map(MLuaDocBuilder.SignatureDoc::signature).findFirst().orElse(entry.name() + ":" + function.name() + "()");
-            body.append(apiCard("FUNCTION", signature, function.description(), null, null, null, null));
+      List<MLuaDocBuilder.ServiceFunctionDoc> remainingFunctions = serviceFunctions.stream()
+         .filter(function -> methods.stream().noneMatch(method -> method.signature().contains(function.name() + "(")))
+         .toList();
+      if (!remainingFunctions.isEmpty()) {
+         StringBuilder cards = new StringBuilder();
+         for (MLuaDocBuilder.ServiceFunctionDoc function : remainingFunctions) {
+            MLuaDocBuilder.SignatureDoc metadata = builder.signatures().stream()
+               .filter(item -> (item.receiver().equals(entry.name()) || item.receiver().equals(function.className()))
+                  && item.signature().contains(function.name() + "("))
+               .findFirst().orElse(null);
+            String signature = metadata == null ? entry.name() + ":" + function.name() + "()" : metadata.signature();
+            cards.append(apiCard("FUNCTION", signature, function.description(), null,
+               metadata == null ? null : metadata.returns(), null, null));
          }
-         body.append("</div>");
+         sections.add(section(builder, entry.name(), "functions", "Functions", 1, cards));
       }
       List<MLuaDocBuilder.MemberDoc> members = builder.members().stream().filter(item -> item.receiver().equals(entry.name())).toList();
       for (MLuaDocBuilder.MemberKind kind : MLuaDocBuilder.MemberKind.values()) {
@@ -138,27 +146,55 @@ final class MLuaDocumentationSite {
          if (selected.isEmpty()) continue;
          String sectionKind = kind == MLuaDocBuilder.MemberKind.PROPERTY ? "properties" : "events";
          String fallbackTitle = kind == MLuaDocBuilder.MemberKind.PROPERTY ? "Properties" : "Events";
-         body.append(sectionStart(builder, entry.name(), sectionKind, fallbackTitle));
+         StringBuilder cards = new StringBuilder();
          for (MLuaDocBuilder.MemberDoc member : selected) {
-            body.append(apiCard(kind == MLuaDocBuilder.MemberKind.PROPERTY ? "PROPERTY" : "EVENT",
+            cards.append(apiCard(kind == MLuaDocBuilder.MemberKind.PROPERTY ? "PROPERTY" : "EVENT",
                member.signature(), member.description(), null, member.type(), member.side(), null));
          }
-         body.append("</div>");
+         sections.add(section(builder, entry.name(), sectionKind, fallbackTitle,
+            kind == MLuaDocBuilder.MemberKind.PROPERTY ? 2 : 3, cards));
       }
       List<MLuaDocBuilder.FieldDoc> fields = builder.fields().stream().filter(item -> item.typeName().equals(entry.name())).toList();
       if (!fields.isEmpty()) {
-         body.append(sectionStart(builder, entry.name(), "fields", "Fields"));
-         for (MLuaDocBuilder.FieldDoc field : fields) body.append(apiCard("FIELD", field.name(), field.description(), null, field.valueType(), null, null));
-         body.append("</div>");
+         StringBuilder cards = new StringBuilder();
+         for (MLuaDocBuilder.FieldDoc field : fields) cards.append(apiCard("FIELD", field.name(), field.description(), null, field.valueType(), null, null));
+         sections.add(section(builder, entry.name(), "fields", "Fields", 4, cards));
       }
       List<MLuaDocBuilder.GuideStep> steps = builder.guideSteps().stream().filter(item -> item.receiver().equals(entry.name())).toList();
       if (!steps.isEmpty()) {
-         body.append(sectionStart(builder, entry.name(), "examples", "Examples"));
-         for (MLuaDocBuilder.GuideStep step : steps) body.append("<section class=\"card\"><h3>").append(MLuaDocumentation.escape(step.title())).append("</h3><p>").append(MLuaDocumentation.escape(step.explanation())).append("</p>").append(code(step.example())).append("</section>");
-         body.append("</div>");
+         StringBuilder cards = new StringBuilder();
+         for (MLuaDocBuilder.GuideStep step : steps) cards.append("<section class=\"card\"><h3>").append(MLuaDocumentation.escape(step.title())).append("</h3><p>").append(MLuaDocumentation.escape(step.explanation())).append("</p>").append(code(step.example())).append("</section>");
+         sections.add(section(builder, entry.name(), "examples", "Examples", 5, cards));
       }
+      sections.sort(Comparator.comparingInt(SectionChunk::order));
+      StringBuilder body = new StringBuilder();
+      if (entry.parentClass() != null && !entry.parentClass().isBlank()) {
+         String route = MLuaDocumentation.typeHref(entry.parentClass());
+         body.append("<p class=\"meta\">Inherits from: ");
+         if (route == null) body.append(MLuaDocumentation.escape(entry.parentClass()));
+         else body.append("<a href=\"").append(MLuaDocumentation.escape(route)).append("\">")
+            .append(MLuaDocumentation.escape(entry.parentClass())).append("</a>");
+         body.append("</p>");
+      }
+      sections.forEach(section -> body.append(section.html()));
       if (body.length() == 0) body.append("<div class=\"empty\">No registered members for this entry.</div>");
       return body.toString();
+   }
+
+   private static SectionChunk section(MLuaDocBuilder builder, String receiver, String kind,
+                                       String fallbackTitle, int fallbackOrder, StringBuilder cards) {
+      MLuaDocBuilder.SectionDoc registration = builder.sections().stream()
+         .filter(item -> item.receiver().equals(receiver) && item.kind().equalsIgnoreCase(kind))
+         .findFirst().orElse(null);
+      String title = registration == null ? fallbackTitle : registration.title();
+      String description = registration == null ? null : registration.description();
+      int order = registration == null ? fallbackOrder : registration.order();
+      StringBuilder html = new StringBuilder("<h2>").append(MLuaDocumentation.escape(title)).append("</h2>");
+      if (description != null && !description.isBlank()) {
+         html.append("<p class=\"section-note\">").append(MLuaDocumentation.escape(description)).append("</p>");
+      }
+      html.append("<div class=\"cards\">").append(cards).append("</div>");
+      return new SectionChunk(order, html.toString());
    }
 
    private static String gettingStarted(MLuaDocBuilder builder) {
@@ -181,19 +217,6 @@ final class MLuaDocumentationSite {
       return body.toString();
    }
 
-   private static String sectionStart(MLuaDocBuilder builder, String receiver, String kind, String fallbackTitle) {
-      MLuaDocBuilder.SectionDoc section = builder.sections().stream()
-         .filter(item -> item.receiver().equals(receiver) && item.kind().equalsIgnoreCase(kind))
-         .findFirst().orElse(null);
-      String title = section == null ? fallbackTitle : section.title();
-      String description = section == null ? null : section.description();
-      StringBuilder html = new StringBuilder("<h2>").append(MLuaDocumentation.escape(title)).append("</h2>");
-      if (description != null && !description.isBlank()) {
-         html.append("<p class=\"section-note\">").append(MLuaDocumentation.escape(description)).append("</p>");
-      }
-      return html.append("<div class=\"cards\">").toString();
-   }
-
    private static String apiCard(String kind, String signature, String description, String parameters,
                                  String returns, String side, String example) {
       StringBuilder card = new StringBuilder("<article class=\"card\"><span class=\"kind\">")
@@ -201,14 +224,24 @@ final class MLuaDocumentationSite {
          .append("</span><code class=\"signature\">").append(linkTypes(signature)).append("</code>");
       if (description != null && !description.isBlank()) card.append("<p>").append(MLuaDocumentation.escape(description)).append("</p>");
       if (parameters != null && !parameters.isBlank()) card.append("<p class=\"meta\"><strong>Parameters:</strong> ").append(MLuaDocumentation.escape(parameters)).append("</p>");
-      if (returns != null && !returns.isBlank()) card.append("<p class=\"meta\"><strong>Returns:</strong> ").append(MLuaDocumentation.linkType(returns)).append("</p>");
+      if (returns != null && !returns.isBlank()) {
+         String label = switch (kind) {
+            case "PROPERTY", "FIELD" -> "Type:";
+            case "EVENT" -> "Arguments:";
+            default -> "Returns:";
+         };
+         card.append("<p class=\"meta\"><strong>").append(label).append("</strong> ")
+            .append(kind.equals("EVENT") ? linkTypes(returns) : MLuaDocumentation.linkType(returns)).append("</p>");
+      }
       if (example != null && !example.isBlank()) card.append(code(example));
       return card.append("</article>").toString();
    }
 
    private static String linkTypes(String text) {
       String escaped = MLuaDocumentation.escape(text == null ? "" : text);
-      for (String type : List.of("Vector2", "Vector3", "CFrame", "Color3", "UDim", "UDim2", "Player", "Entity", "Block", "World", "Chunk", "ItemStack", "Inventory")) {
+      java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>(MLuaDocumentation.typeNames());
+      names.addAll(List.of("Vector2", "Vector3", "CFrame", "Color3", "UDim", "UDim2", "Player", "Entity", "Block", "World", "Chunk", "ItemStack", "Inventory"));
+      for (String type : names) {
          String route = MLuaDocumentation.typeHref(type);
          if (route != null) escaped = escaped.replaceAll("\\b" + type + "\\b", "<a href=\"" + route + "\">" + type + "</a>");
       }
@@ -245,7 +278,8 @@ final class MLuaDocumentationSite {
    private static Map<String, String> typeRoutes(List<Page> pages) {
       Map<String, String> routes = new LinkedHashMap<>();
       for (Page page : pages) {
-         if (page.route().startsWith("/api/types/") || page.route().startsWith("/api/classes/")) {
+         if (page.route().startsWith("/api/types/") || page.route().startsWith("/api/classes/")
+             || page.route().startsWith("/api/services/") || page.route().startsWith("/api/enums/")) {
             routes.put(page.title(), "#" + page.route());
          }
       }
@@ -291,4 +325,5 @@ final class MLuaDocumentationSite {
       """;
 
    private record Page(String route, String title, String category, String description, String body) { }
+   private record SectionChunk(int order, String html) { }
 }

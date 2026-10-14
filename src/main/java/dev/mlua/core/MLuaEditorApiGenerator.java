@@ -62,7 +62,9 @@ final class MLuaEditorApiGenerator {
       }
       for (MLuaDocBuilder.MethodDoc method : builder.methods()) addReferencedType(types, method.returns());
       for (MLuaDocBuilder.SignatureDoc signature : builder.signatures()) addReferencedType(types, signature.returns());
-      for (MLuaDocBuilder.MemberDoc member : builder.members()) addReferencedType(types, member.type());
+      for (MLuaDocBuilder.MemberDoc member : builder.members()) {
+         if (member.kind() == MLuaDocBuilder.MemberKind.PROPERTY) addReferencedType(types, member.type());
+      }
       for (Map.Entry<String, MLuaDocBuilder.DocEntry> pair : types.entrySet()) {
          String name = pair.getKey();
          MLuaDocBuilder.DocEntry entry = pair.getValue();
@@ -77,9 +79,9 @@ final class MLuaEditorApiGenerator {
             appendDoc(out, field.description());
          }
          for (MLuaDocBuilder.MemberDoc member : builder.members()) {
-            if (!member.receiver().equals(entry.name()) || member.kind() != MLuaDocBuilder.MemberKind.PROPERTY) continue;
+            if (!member.receiver().equals(entry.name())) continue;
             out.append("---@field ").append(memberName(member.signature(), entry.name())).append(' ')
-               .append(luaType(member.type())).append('\n');
+               .append(member.kind() == MLuaDocBuilder.MemberKind.EVENT ? "Signal" : luaType(member.type())).append('\n');
             appendDoc(out, member.description());
          }
          out.append(name).append(" = {}\n");
@@ -168,6 +170,7 @@ final class MLuaEditorApiGenerator {
       if (sep < 0) methodName = value.substring(0, open).trim();
       if (!methodName.matches("[A-Za-z_][A-Za-z0-9_]*")) return;
       String args = value.substring(open + 1, close).trim();
+      if (!args.contains(":")) args = args.replace("[", "").replace("]", "");
       appendDoc(out, description);
       List<String> parameters = splitTypes(args);
       List<String> luaParameters = new ArrayList<>();
@@ -356,7 +359,8 @@ final class MLuaEditorApiGenerator {
 
    private static String luaType(String value) {
       if (value == null || value.isBlank()) return "any";
-      return value.replace("void", "nil").replace("string?", "string|nil").replace("boolean?", "boolean|nil");
+      return value.trim().replaceAll("(?i)\\bvoid\\b", "nil").replaceAll("\\s+or\\s+", "|")
+         .replace("?", "|nil").replaceAll("\\s*\\|\\s*", "|");
    }
 
    private static List<String> splitTypes(String arguments) {

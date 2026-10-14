@@ -22,6 +22,7 @@ public final class MLuaDocumentation {
    private static volatile List<String> generatedGlobalNames = List.of();
    private static volatile List<String> generatedEnumNames = List.of();
    private static final Map<String, String> TYPE_ROUTES = new ConcurrentHashMap<>();
+   private static final Map<String, String> TYPE_NAMES = new ConcurrentHashMap<>();
 
    private MLuaDocumentation() { }
 
@@ -160,6 +161,8 @@ public final class MLuaDocumentation {
 
    static String typeHref(String type) { return routeForType(type); }
 
+   static List<String> typeNames() { return List.copyOf(TYPE_NAMES.values()); }
+
    private static String routeForType(String type) {
       if (type == null) return null;
       String route = TYPE_ROUTES.get(type.toLowerCase(Locale.ROOT));
@@ -182,6 +185,10 @@ public final class MLuaDocumentation {
 
    static void replaceTypeRoutes(Map<String, String> routes) {
       TYPE_ROUTES.clear();
-      routes.forEach((name, route) -> TYPE_ROUTES.put(name.toLowerCase(Locale.ROOT), route));
+      TYPE_NAMES.clear();
+      routes.forEach((name, route) -> {
+         TYPE_ROUTES.put(name.toLowerCase(Locale.ROOT), route);
+         TYPE_NAMES.put(name.toLowerCase(Locale.ROOT), name);
+      });
    }
 }
