@@ -51,7 +51,12 @@ public final class MLuaMixinCallbackRegistry {
    }
 
    static void register(String id, LuaValue callback) {
-      CALLBACKS.put(id, callback);
+      if (id == null || id.isBlank()) throw new IllegalArgumentException("Mixin callback ID must be non-empty");
+      if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Mixin callback must be a function");
+      LuaValue existing = CALLBACKS.putIfAbsent(id, callback);
+      if (existing != null && existing != callback) {
+         throw new IllegalStateException("Mixin callback ID '" + id + "' is already registered to another callback");
+      }
    }
 
    static LuaValue get(String id) {

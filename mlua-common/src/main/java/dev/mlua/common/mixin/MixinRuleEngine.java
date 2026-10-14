@@ -75,10 +75,10 @@ public final class MixinRuleEngine {
                 }
                 if (!existing.callbackId().equals(rule.callbackId())) rejectDuplicateOverwrite(existing, rule);
             }
-            if (this.rules.stream().noneMatch(existing -> existing.callbackId().equals(rule.callbackId()))) {
-                this.rules.add(rule);
-            }
+            boolean alreadyRegistered = this.rules.stream()
+                .anyMatch(existing -> existing.callbackId().equals(rule.callbackId()));
             MLuaMixinCallbackRegistry.register(rule.callbackId(), callback);
+            if (!alreadyRegistered) this.rules.add(rule);
         }
     }
 
