@@ -105,7 +105,6 @@ def forgeRootExcludes = [
     'dev/mlua/loader/impl/forge/ForgePlatformBridge.java',
     'dev/mlua/loader/impl/forge/ForgeClientBridge.java',
     'dev/mlua/loader/impl/forge/ForgeNetworkContext.java',
-    'dev/mlua/api/RuntimeMLuaApiBridge.java',
     'dev/mlua/minecraft/MLuaResourceLocations.java',
 ]
 
