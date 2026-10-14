@@ -268,7 +268,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int directionIndex = 2 + coordinateWidth(args, 2);
          double[] direction = dev.mlua.math.MLuaVector.components3(args.arg(directionIndex));
          int distanceIndex = directionIndex + coordinateWidth(args, directionIndex);
-         double distance = args.optdouble(distanceIndex, 100.0);
+         double distance = MLuaLuaArguments.optionalFiniteNumber(args, distanceIndex, 100.0, "World:Raycast", "distance");
          if (!Double.isFinite(distance) || distance < 0) {
             throw new LuaError("[MLua] World:Raycast distance must be finite and non-negative.");
          }
@@ -312,7 +312,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int directionIndex = 2 + coordinateWidth(args, 2);
          double[] direction = dev.mlua.math.MLuaVector.components3(args.arg(directionIndex));
          int distanceIndex = directionIndex + coordinateWidth(args, directionIndex);
-         double distance = args.optdouble(distanceIndex, 100.0);
+         double distance = MLuaLuaArguments.optionalFiniteNumber(
+            args, distanceIndex, 100.0, "World:RaycastEntity", "distance");
          if (!Double.isFinite(distance) || distance < 0) {
             throw new LuaError("[MLua] World:RaycastEntity distance must be finite and non-negative.");
          }
@@ -397,7 +398,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          }
 
          double[] pos = checkedQueryPosition(positionArgs(args, 2));
-         double maxDistance = args.optdouble(2 + coordinateWidth(args, 2), Double.MAX_VALUE);
+         double maxDistance = MLuaLuaArguments.optionalFiniteNumber(
+            args, 2 + coordinateWidth(args, 2), Double.MAX_VALUE, "World:FindNearestPlayer", "maxDistance");
          maxDistance = checkedQueryRadius(maxDistance);
          ServerPlayer nearest = null;
          double nearestDistance = maxDistance * maxDistance;
@@ -415,7 +417,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("FindNearestEntity", levelFn(supplier, (level, args) -> {
          double[] pos = checkedQueryPosition(positionArgs(args, 2));
          int distanceIndex = 2 + coordinateWidth(args, 2);
-         double maxDistance = checkedQueryRadius(args.optdouble(distanceIndex, Double.MAX_VALUE));
+         double maxDistance = checkedQueryRadius(MLuaLuaArguments.optionalFiniteNumber(
+            args, distanceIndex, Double.MAX_VALUE, "World:FindNearestEntity", "maxDistance"));
          LuaValue filter = args.arg(distanceIndex + 1);
          Entity nearest = null;
          double nearestDistance = maxDistance * maxDistance;
@@ -479,8 +482,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (sound == null) {
             throw new LuaError("[MLua] Unknown sound: " + soundName);
          }
-         float volume = (float)args.optdouble(soundIndex + 1, 1.0);
-         float pitch = (float)args.optdouble(soundIndex + 2, 1.0);
+         float volume = MLuaLuaArguments.optionalFiniteFloat(args, soundIndex + 1, 1.0f, "World:PlaySound", "volume");
+         float pitch = MLuaLuaArguments.optionalFiniteFloat(args, soundIndex + 2, 1.0f, "World:PlaySound", "pitch");
+         if (volume < 0.0f || pitch < 0.0f) {
+            throw new LuaError("[MLua] World:PlaySound volume and pitch must be non-negative.");
+         }
          level.playSound((Player)null, pos[0], pos[1], pos[2], sound, SoundSource.PLAYERS, volume, pitch);
          return LuaValue.NONE;
       }));
@@ -507,8 +513,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          String entityId = args.checkjstring(2);
          double[] pos = positionArgs(args, 3);
          int rotationIndex = 3 + coordinateWidth(args, 3);
-         double yaw = args.optdouble(rotationIndex, 0.0);
-         double pitch = args.optdouble(rotationIndex + 1, 0.0);
+         float yaw = MLuaLuaArguments.optionalFiniteFloat(args, rotationIndex, 0.0f, "World:SpawnEntity", "yaw");
+         float pitch = MLuaLuaArguments.optionalFiniteFloat(args, rotationIndex + 1, 0.0f, "World:SpawnEntity", "pitch");
          if (!entityId.contains(":")) {
             entityId = this.context.mlua().ownerModId() + ":" + entityId;
          }
@@ -528,10 +534,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
             throw new LuaError("[MLua] Failed to spawn entity: " + entityId);
          }
          entity.setPos(pos[0], pos[1], pos[2]);
-         entity.setYRot((float)yaw);
-         entity.setXRot((float)pitch);
-         entity.setYHeadRot((float)yaw);
-         entity.setYBodyRot((float)yaw);
+         entity.setYRot(yaw);
+         entity.setXRot(pitch);
+         entity.setYHeadRot(yaw);
+         entity.setYBodyRot(yaw);
          if (!level.addFreshEntity(entity)) return LuaValue.NIL;
          return wrapEntity(entity);
       }));
@@ -557,7 +563,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("Explode", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          int powerIndex = 2 + coordinateWidth(args, 2);
-         float power = (float)args.optdouble(powerIndex, 4.0);
+         float power = MLuaLuaArguments.optionalFiniteFloat(args, powerIndex, 4.0f, "World:Explode", "power");
+         if (power < 0.0f) throw new LuaError("[MLua] World:Explode power must be non-negative.");
          boolean fire = MLuaLuaArguments.optionalBoolean(args, powerIndex + 1, false, "World:Explode", "fire");
          level.explode((Entity)null, pos[0], pos[1], pos[2], power, fire, Level.ExplosionInteraction.BLOCK);
          return LuaValue.NONE;

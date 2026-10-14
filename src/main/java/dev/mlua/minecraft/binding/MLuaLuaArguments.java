@@ -29,4 +29,28 @@ public final class MLuaLuaArguments {
         }
         return coordinates;
     }
+
+    public static double optionalFiniteNumber(Varargs args, int index, double fallback,
+                                              String method, String parameter) {
+        LuaValue value = args.arg(index);
+        if (value.isnil()) return fallback;
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a number.");
+        }
+        double number = value.todouble();
+        if (!Double.isFinite(number)) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be finite.");
+        }
+        return number;
+    }
+
+    public static float optionalFiniteFloat(Varargs args, int index, float fallback,
+                                            String method, String parameter) {
+        double number = optionalFiniteNumber(args, index, fallback, method, parameter);
+        float converted = (float)number;
+        if (!Float.isFinite(converted)) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " exceeds the supported range.");
+        }
+        return converted;
+    }
 }
