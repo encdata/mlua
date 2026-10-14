@@ -291,9 +291,11 @@ public final class MLuaBlockWrapper {
             if (newBlock == null) {
                throw new LuaError("[MLua] Unknown block: " + blockId);
             }
-            level(self).setBlock(pos(self), newBlock.defaultBlockState(), 3);
+            net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(
+               newBlock.defaultBlockState(), args.arg(3));
+            level(self).setBlock(pos(self), state, 3);
             return LuaValue.TRUE;
-         }), "Replaces this block with a registered block identifier.");
+         }), "Replaces this block with a registered block identifier and optional state properties.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "ScheduleTick", selfBlock((self, args) -> {
             int delay = args.checkint(2);
             if (delay < 1) throw new LuaError("[MLua] Block:ScheduleTick delay must be at least one tick");

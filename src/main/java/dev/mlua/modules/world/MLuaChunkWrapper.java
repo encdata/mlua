@@ -4,6 +4,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
@@ -93,7 +94,7 @@ public final class MLuaChunkWrapper {
             Level world = level(args.arg1());
             BlockPos pos = requirePosition(args, 2, args.arg1());
             if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
-            ResourceLocation id = world.registryAccess().registryOrThrow(Registries.BIOME).getKey(world.getBiome(pos).value());
+            ResourceLocation id = biomeId(world, pos);
             return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
         });
         bind(chunk, "GetFluidAt", args -> {
@@ -119,7 +120,8 @@ public final class MLuaChunkWrapper {
             Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
             if (block == null) throw new LuaError("[MLua] Unknown block: " + id);
             if (!ensureLoaded(server, args.arg1())) return LuaValue.FALSE;
-            return LuaValue.valueOf(server.setBlock(pos, block.defaultBlockState(), 3));
+            LuaValue properties = args.arg(3 + coordinateWidth(args, 2));
+            return LuaValue.valueOf(server.setBlock(pos, MLuaBlockStateProperties.apply(block.defaultBlockState(), properties), 3));
         });
         bind(chunk, "GetEntities", args -> {
             Level world = level(args.arg1());
@@ -242,6 +244,15 @@ public final class MLuaChunkWrapper {
         //--endversion
         //--version 1.20.1,1.21.1
         return world.getMaxBuildHeight();
+        //--endversion
+    }
+
+    private static ResourceLocation biomeId(Level world, BlockPos pos) {
+        //--version 26.1
+        return world.registryAccess().lookupOrThrow(Registries.BIOME).getKey(world.getBiome(pos).value());
+        //--endversion
+        //--version 1.20.1,1.21.1
+        return world.registryAccess().registryOrThrow(Registries.BIOME).getKey(world.getBiome(pos).value());
         //--endversion
     }
 

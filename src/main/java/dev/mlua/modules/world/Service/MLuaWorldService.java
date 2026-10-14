@@ -13,6 +13,7 @@ import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
@@ -263,7 +264,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetBiome", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          Biome biome = level.getBiome(BlockPos.containing(pos[0], pos[1], pos[2])).value();
-         ResourceLocation id = level.registryAccess().registryOrThrow(Registries.BIOME).getKey(biome);
+         ResourceLocation id = biomeId(level, biome);
          return LuaValue.valueOf(id == null ? "unknown" : id.toString());
       }));
       table.set("GetLightLevel", levelFn(supplier, (level, args) -> {
@@ -392,8 +393,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (block == null) {
             throw new LuaError("[MLua] Unknown block: " + blockId);
          }
-         if (!ensureChunkLoaded(level, blockPos, args.optboolean(blockIndex + 1, true))) return LuaValue.FALSE;
-         level.setBlock(blockPos, block.defaultBlockState(), 3);
+         LuaValue properties = args.arg(blockIndex + 1).istable() ? args.arg(blockIndex + 1) : LuaValue.NIL;
+         int loadIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 2;
+         if (!ensureChunkLoaded(level, blockPos, args.optboolean(loadIndex, true))) return LuaValue.FALSE;
+         level.setBlock(blockPos, MLuaBlockStateProperties.apply(block.defaultBlockState(), properties), 3);
          return LuaValue.TRUE;
       }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
@@ -832,6 +835,15 @@ public final class MLuaWorldService extends MLuaServiceBase {
       //--endversion
       //--version 1.20.1,1.21.1
       return level.getMaxBuildHeight();
+      //--endversion
+   }
+
+   private static ResourceLocation biomeId(Level level, Biome biome) {
+      //--version 26.1
+      return level.registryAccess().lookupOrThrow(Registries.BIOME).getKey(biome);
+      //--endversion
+      //--version 1.20.1,1.21.1
+      return level.registryAccess().registryOrThrow(Registries.BIOME).getKey(biome);
       //--endversion
    }
 
