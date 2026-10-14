@@ -712,6 +712,12 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Player", "Player:SetPosition(position: Vector3|CFrame)", null);
         docs.signature("Player", "Player:Teleport(position: Vector3|CFrame)", null);
         docs.signature("Player", "Player:LookAt(target: Vector3|CFrame)", null);
+        docs.signature("Entity", "Entity:GetRotation()", "Vector2");
+        docs.signature("Entity", "Entity:GetRotationRadians()", "Vector2");
+        docs.signature("Entity", "Entity:SetRotation(pitch: number, yaw: number)", "void");
+        docs.signature("Entity", "Entity:SetRotationRadians(rotation: Vector2)", "void");
+        docs.signature("Entity", "Entity:GetCFrame()", "CFrame");
+        docs.signature("Entity", "Entity:SetCFrame(transform: CFrame)", "void");
         docs.signature("Player", "Player:PlaySound(sound: string, volume: number, pitch: number)", null);
         docs.signature("Player", "Player:SetData(key: string, value: any)", null);
         docs.signature("Player", "Player:GetData(key: string)", null);

@@ -311,8 +311,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         if (!MLuaVector.isVector3(value)) {
             throw new LuaError("[MLua] Particle " + property + " requires a native Vector3 value.");
         }
-        LuaTable vector = value.checktable();
-        return new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
+        return MLuaVector.components3(value);
     }
 
     private MLuaClientParticleManager.Emitter requireEmitter(int id) {

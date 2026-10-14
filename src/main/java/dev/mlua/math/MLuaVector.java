@@ -97,6 +97,11 @@ public final class MLuaVector {
       return new double[] {vector.get("X").checkdouble(), vector.get("Y").checkdouble()};
    }
 
+   public static double[] components3(LuaValue value) {
+      LuaTable vector = checkVector3(value);
+      return new double[] {vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
+   }
+
    private static LuaTable checkVector3(LuaValue value) {
       if (!isVector3(value)) {
          throw new LuaError("Vector3 operations require values created by Vector3.new");

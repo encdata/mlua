@@ -101,7 +101,7 @@ public final class MLuaBlockStateWrapper {
             "Returns whether this state's collision shape fills its block space.");
         registration.registerClassFunction("BlockState", "GetAnalogOutputSignal", self((self, args) ->
 //--version 26.1,26.1.1,26.1.2
-            LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self), args.arg(2).isnil() ? Direction.UP : MLuaMinecraftEnums.resolveDirection(args.arg(2))))),
+            LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self), Direction.UP))),
 //--endversion
 //--version 1.20.1,1.21.1
             LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self)))),

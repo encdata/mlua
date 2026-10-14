@@ -347,7 +347,7 @@ public class WorldModule implements MLuaModule {
         docs.signature("BlockState", "BlockState:HasAnalogOutputSignal()", "boolean");
         docs.signature("BlockState", "BlockState:IsFaceSturdy(direction: Enum.Direction|string)", "boolean");
         docs.signature("BlockState", "BlockState:IsCollisionShapeFullBlock()", "boolean");
-        docs.signature("BlockState", "BlockState:GetAnalogOutputSignal(direction: Enum.Direction|string?)", "number");
+        docs.signature("BlockState", "BlockState:GetAnalogOutputSignal()", "number");
         docs.signature("BlockState", "BlockState:GetSignal(direction: Enum.Direction|string)", "number");
         docs.signature("BlockState", "BlockState:GetDirectSignal(direction: Enum.Direction|string)", "number");
         docs.signature("BlockState", "BlockState:CanOcclude()", "boolean");

@@ -266,8 +266,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     private static double[] vector3(LuaValue value, String name) {
         if (!MLuaVector.isVector3(value)) throw new LuaError("[MLua] Sound " + name + " requires a native Vector3 value.");
-        LuaTable vector = value.checktable();
-        return new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
+        return MLuaVector.components3(value);
     }
 
     private MLuaEntityScope resolveOptionalEntityScope(LuaValue value) {

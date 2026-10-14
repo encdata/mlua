@@ -162,8 +162,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         if (!MLuaVector.isVector3(vectorValue)) {
             throw new LuaError("[MLua] EntityService:SetVelocity expects a native Vector3 value.");
         }
-        LuaTable vector = vectorValue.checktable();
-        double[] velocity = new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
+        double[] velocity = MLuaVector.components3(vectorValue);
         entity.setDeltaMovement(velocity[0], velocity[1], velocity[2]);
         entity.hurtMarked = true;
     }
