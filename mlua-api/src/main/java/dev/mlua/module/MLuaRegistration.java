@@ -39,19 +39,18 @@ public interface MLuaRegistration {
     LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
 
     default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
-        if (parentNames != null && parentNames.stream().filter(parent -> parent != null && !parent.isBlank()).count() > 1) {
-            throw new IllegalArgumentException("Lua classes support one superclass; use behavior mixins for shared behavior");
-        }
+        java.util.Objects.requireNonNull(parentNames, "parentNames");
+        java.util.List<String> parents = normalizeParentNames(parentNames);
         validateClassDescription(this.classTable(name), name, description);
         validateClassDescription(classTable, name, description);
-        LuaTable table = registerClass(name, classTable, parentNames.toArray(String[]::new));
+        LuaTable table = registerClass(name, classTable, parents.toArray(String[]::new));
         recordClassDescription(table, name, description);
         refreshClassMetadata(name);
         return table;
     }
 
     default LuaTable registerClassWithParents(String name, java.util.List<String> parentNames, String description) {
-        if (parentNames == null) throw new NullPointerException("parentNames");
+        java.util.Objects.requireNonNull(parentNames, "parentNames");
         LuaTable classTable = classTable(name);
         if (classTable == null) classTable = new LuaTable();
         return registerClass(name, classTable, parentNames, description);
@@ -61,15 +60,7 @@ public interface MLuaRegistration {
                                                String description) {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Class name must be non-empty");
         if (description == null || description.isBlank()) throw new IllegalArgumentException("Class description must be non-empty");
-        java.util.List<String> parents = new java.util.ArrayList<>();
-        if (parentNames != null) {
-            for (String parent : parentNames) {
-                if (parent != null && !parent.isBlank()) parents.add(parent);
-            }
-        }
-        if (parents.size() > 1) {
-            throw new IllegalArgumentException("Instantiable Lua classes support one superclass; use behavior mixins for shared behavior");
-        }
+        java.util.List<String> parents = normalizeParentNames(parentNames == null ? java.util.List.of() : parentNames);
         String instanceBase = requireInstanceBaseClassName();
         if (name.equals(instanceBase)) {
             throw new IllegalArgumentException("The shared instance base class cannot be registered as a concrete instance class");
@@ -151,6 +142,21 @@ public interface MLuaRegistration {
             return hasInheritedGenericConstructor(registration, parent, expectedConstructor, visited);
         }
         return false;
+    }
+
+    private static java.util.List<String> normalizeParentNames(java.util.List<String> parentNames) {
+        java.util.List<String> parents = new java.util.ArrayList<>();
+        for (String parent : parentNames) {
+            if (parent == null || parent.isBlank()) continue;
+            if (parents.contains(parent)) {
+                throw new IllegalArgumentException("Lua class parent is listed more than once: " + parent);
+            }
+            parents.add(parent);
+        }
+        if (parents.size() > 1) {
+            throw new IllegalArgumentException("Lua classes support one superclass; use behavior mixins for shared behavior");
+        }
+        return parents;
     }
 
     private static void recordClassDescription(LuaTable table, String name, String description) {
