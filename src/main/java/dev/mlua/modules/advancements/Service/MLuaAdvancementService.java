@@ -40,7 +40,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(id);
       if (adv == null) return LuaValue.NIL;
-      LuaTable info = new LuaTable();
+      LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
       info.set("Id", LuaValue.valueOf(id));
       var raw = ((MCAdvancementImpl)adv).inner();
       if (raw.getDisplay() != null) {
@@ -66,7 +66,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 //--version 1.21.1,26.1
       var raw = this.resolveAdvancementHolder(id);
       if (raw == null) return LuaValue.NIL;
-      LuaTable info = new LuaTable();
+      LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
       info.set("Id", LuaValue.valueOf(id));
       var display = raw.display().orElse(null);
       info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
@@ -96,8 +96,17 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       var rawServer = ((MCMinecraftServerImpl)this.server()).inner();
       for (var adv : rawServer.getAdvancements().getAllAdvancements()) {
          var progress = rawPa.getOrStartProgress(adv);
-         LuaTable advTable = new LuaTable();
+         LuaTable advTable = this.context.mlua().registration().createClassInstance("AdvancementProgress");
+         String advancementId;
+//--version 1.20.1
+         advancementId = adv.getId().toString();
+//--endversion
+//--version 1.21.1,26.1
+         advancementId = adv.id().toString();
+//--endversion
+         advTable.set("Id", LuaValue.valueOf(advancementId));
          advTable.set("Done", LuaValue.valueOf(progress.isDone()));
+         advTable.set("IsDone", LuaValue.valueOf(progress.isDone()));
          LuaTable criteria = new LuaTable();
          for (String criterion : progress.getCompletedCriteria()) {
             LuaTable criterionTable = new LuaTable();
@@ -112,12 +121,8 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
             }
          }
          advTable.set("Progress", criteria);
-//--version 1.20.1
-         result.set(adv.getId().toString(), advTable);
-//--endversion
-//--version 1.21.1,26.1
-         result.set(adv.id().toString(), advTable);
-//--endversion
+         advTable.set("Criteria", criteria);
+         result.set(advancementId, advTable);
       }
       return result;
    }
@@ -214,16 +219,45 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       int index = 1;
       var rawServer = ((MCMinecraftServerImpl)this.server()).inner();
       for (var adv : rawServer.getAdvancements().getAllAdvancements()) {
-         LuaTable info = new LuaTable();
+         LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
 //--version 1.20.1
          info.set("Id", LuaValue.valueOf(adv.getId().toString()));
-         if (adv.getDisplay() != null) info.set("Title", LuaValue.valueOf(adv.getDisplay().getTitle().getString()));
-         else info.set("Title", LuaValue.valueOf(""));
+         var display = adv.getDisplay();
+         info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
+         info.set("Description", LuaValue.valueOf(display == null ? "" : display.getDescription().getString()));
+         info.set("Parent", adv.getParent() == null ? LuaValue.NIL : LuaValue.valueOf(adv.getParent().getId().toString()));
+         LuaTable requirements = new LuaTable();
+         String[][] groups = adv.getRequirements();
+         if (groups != null) {
+            for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+               LuaTable group = new LuaTable();
+               for (int criterionIndex = 0; criterionIndex < groups[groupIndex].length; criterionIndex++) {
+                  group.set(criterionIndex + 1, LuaValue.valueOf(groups[groupIndex][criterionIndex]));
+               }
+               requirements.set(groupIndex + 1, group);
+            }
+         }
+         info.set("Requirements", requirements);
 //--endversion
 //--version 1.21.1,26.1
          info.set("Id", LuaValue.valueOf(adv.id().toString()));
-         var display = adv.value().display().orElse(null);
+         var advancement = adv.value();
+         var display = advancement.display().orElse(null);
          info.set("Title", LuaValue.valueOf(display != null ? display.getTitle().getString() : ""));
+         info.set("Description", LuaValue.valueOf(display != null ? display.getDescription().getString() : ""));
+         info.set("Parent", advancement.parent().isPresent()
+            ? LuaValue.valueOf(advancement.parent().get().toString()) : LuaValue.NIL);
+         LuaTable requirements = new LuaTable();
+         var groups = advancement.requirements().requirements();
+         for (int groupIndex = 0; groupIndex < groups.size(); groupIndex++) {
+            LuaTable group = new LuaTable();
+            var criteria = groups.get(groupIndex);
+            for (int criterionIndex = 0; criterionIndex < criteria.size(); criterionIndex++) {
+               group.set(criterionIndex + 1, LuaValue.valueOf(criteria.get(criterionIndex)));
+            }
+            requirements.set(groupIndex + 1, group);
+         }
+         info.set("Requirements", requirements);
 //--endversion
          list.set(index++, info);
       }
