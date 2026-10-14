@@ -30,7 +30,7 @@ public final class MLuaBlockStateProperties {
             if (!(value.isstring() || value.isnumber() || value.isboolean())) {
                 throw new LuaError("[MLua] Block state property '" + name + "' must be a string, number, or boolean.");
             }
-            state = withProperty(state, property, value.tojstring());
+            state = withProperty(state, property, propertyValue(value));
         }
         return state;
     }
@@ -60,6 +60,17 @@ public final class MLuaBlockStateProperties {
             throw new LuaError("[MLua] Invalid value '" + value + "' for block state property '" + property.getName() + "'.");
         }
         return state.setValue(property, parsed.get());
+    }
+
+    private static String propertyValue(LuaValue value) {
+        if (value.isnumber()) {
+            double number = value.todouble();
+            if (Double.isFinite(number) && number == Math.rint(number)
+                    && number >= Integer.MIN_VALUE && number <= Integer.MAX_VALUE) {
+                return Integer.toString((int)number);
+            }
+        }
+        return value.tojstring();
     }
 
 }

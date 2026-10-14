@@ -51,9 +51,10 @@ public final class MLuaBlockStateWrapper {
             property.set(args.checkjstring(2), args.arg(3));
             return wrap(MLuaBlockStateProperties.apply(state(self), property), level(self), position(self), registration);
         }), "Returns a new BlockState with one validated property value changed.");
-        registration.registerClassFunction("BlockState", "WithProperties", self((self, args) ->
-            wrap(MLuaBlockStateProperties.apply(state(self), args.arg(2)), level(self), position(self), registration)),
-            "Returns a new BlockState with the supplied validated property values changed.");
+        registration.registerClassFunction("BlockState", "WithProperties", self((self, args) -> {
+            if (!args.arg(2).istable()) throw new LuaError("BlockState:WithProperties expects a property table.");
+            return wrap(MLuaBlockStateProperties.apply(state(self), args.arg(2)), level(self), position(self), registration);
+        }), "Returns a new BlockState with the supplied validated property values changed.");
         registration.registerClassFunction("BlockState", "HasProperty", self((self, args) ->
             LuaValue.valueOf(state(self).getBlock().getStateDefinition().getProperty(args.checkjstring(2).toLowerCase(Locale.ROOT)) != null)),
             "Returns whether this block type defines the named state property.");
@@ -73,6 +74,16 @@ public final class MLuaBlockStateWrapper {
             LuaValue.valueOf(state(self).hasBlockEntity())), "Returns whether this state has a block entity.");
         registration.registerClassFunction("BlockState", "IsRandomlyTicking", self((self, args) ->
             LuaValue.valueOf(state(self).isRandomlyTicking())), "Returns whether this state receives random game ticks.");
+        registration.registerClassFunction("BlockState", "CanSurvive", self((self, args) ->
+            LuaValue.valueOf(state(self).canSurvive(level(self), position(self)))),
+            "Checks whether this state can remain at its world position.");
+        registration.registerClassFunction("BlockState", "GetLightEmission", self((self, args) ->
+            LuaValue.valueOf(state(self).getLightEmission())), "Returns the light level emitted by this state.");
+        registration.registerClassFunction("BlockState", "IsSignalSource", self((self, args) ->
+            LuaValue.valueOf(state(self).isSignalSource())), "Returns whether this state can provide a redstone signal.");
+        registration.registerClassFunction("BlockState", "GetAnalogOutputSignal", self((self, args) ->
+            LuaValue.valueOf(state(self).getAnalogOutputSignal(level(self), position(self)))),
+            "Returns this state's analog redstone output at its world position.");
         registration.registerClassFunction("BlockState", "GetDestroySpeed", self((self, args) -> {
             BlockState state = state(self);
             return LuaValue.valueOf(state.getDestroySpeed(level(self), position(self)));
@@ -87,6 +98,9 @@ public final class MLuaBlockStateWrapper {
             {"Replaceable", "IsReplaceable", "boolean", "Whether another block can replace this state."},
             {"Fluid", "GetFluid", "string|nil", "The fluid identifier in this state, or nil when empty."},
             {"RandomlyTicking", "IsRandomlyTicking", "boolean", "Whether this state receives random game ticks."},
+            {"Survivable", "CanSurvive", "boolean", "Whether this state can remain at its world position."},
+            {"LightEmission", "GetLightEmission", "number", "The light level emitted by this state."},
+            {"SignalSource", "IsSignalSource", "boolean", "Whether this state can provide a redstone signal."},
             {"DestroySpeed", "GetDestroySpeed", "number", "The state destroy speed in its world context."}
         };
         for (String[] property : properties) {
