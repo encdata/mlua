@@ -20,10 +20,7 @@ public class TagModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder tag = ServiceEntry.builder("Tag", MLuaTagService::new)
-            .description("Service for creating tag builders.");
-        tag.function("Items", "Creates a builder for an item tag.")
-            .function("Blocks", "Creates a builder for a block tag.")
-            .function("EntityTypes", "Creates a builder for an entity type tag.");
+            .reflective(MLuaTagService.class);
         return List.of(tag.build());
     }
 

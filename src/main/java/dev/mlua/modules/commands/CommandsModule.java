@@ -42,10 +42,7 @@ public class CommandsModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder commands = ServiceEntry.builder("Commands", MLuaCommandsService::new)
-            .description("Registers, inspects, and executes MLua commands.");
-        commands.function("Register", "Registers a command definition during the command registration phase.")
-            .function("GetRegisteredCommands", "Returns the command names registered with MLua.")
-            .function("Execute", "Executes a command as the server.");
+            .reflective(MLuaCommandsService.class);
         return List.of(commands.build());
     }
 

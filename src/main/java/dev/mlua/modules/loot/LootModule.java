@@ -12,9 +12,7 @@ public class LootModule implements MLuaModule {
     @Override public List<String> dependencies() { return List.of("core-classes"); }
     @Override public List<ServiceEntry> services() {
         ServiceEntry.Builder loot = ServiceEntry.builder("LootTable", MLuaLootTableService::new)
-            .description("Service for creating loot table builders.");
-        loot.function("Create", "Creates a live LootTableBuilder with the requested number of pools.")
-            .function("Empty", "Returns the serialized JSON for an empty loot table.");
+            .reflective(MLuaLootTableService.class);
         return List.of(loot.build());
     }
     @Override public void registerClasses(MLuaRegistration registration) {

@@ -41,13 +41,7 @@ public final class InventoryModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder inventory = ServiceEntry.builder("InventoryService", MLuaInventoryService::new)
-            .description("Access player inventories and common container operations from Lua.");
-        inventory.function("GetPlayerInventory", "Returns the same live Inventory instance exposed by Player.Inventory.")
-            .function("GetEnderChest", "Returns the same live ender chest Container exposed by Player.EnderChest.")
-            .function("GetSlot", "Returns the same live Slot exposed by Player.Inventory:GetSlot(index).")
-            .function("SetSlot", "Sets an item in the same live Slot exposed by Player.Inventory:GetSlot(index).")
-            .function("AddItem", "Adds an item stack to a player's inventory.")
-            .function("Clear", "Removes all items from a player's inventory.");
+            .reflective(MLuaInventoryService.class);
         return List.of(inventory.build());
     }
 

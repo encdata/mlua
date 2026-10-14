@@ -72,10 +72,7 @@ public class CombatModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder combat = ServiceEntry.builder("Combat", MLuaCombatService::new)
-            .description("Provides combat queries and registered damage source information.");
-        combat.function("GetDamageSourceNames", "Returns the registered damage source identifiers.")
-            .function("DamageSourceExists", "Returns whether a damage source identifier is registered.")
-            .function("GetDamageSourceInfo", "Returns properties for a registered damage source.");
+            .reflective(MLuaCombatService.class);
         return List.of(combat.build());
     }
 

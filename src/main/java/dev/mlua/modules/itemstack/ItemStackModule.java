@@ -26,17 +26,7 @@ public final class ItemStackModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder itemStack = ServiceEntry.builder("ItemStackService", MLuaItemStackService::new)
-            .description("Create, clone, inspect, and mutate Minecraft ItemStack values.");
-        itemStack.function("Create", "Creates an item stack by registry identifier and optional count, defaulting to one.")
-            .function("Of", "Creates an item stack by registry identifier and optional count, defaulting to one.")
-            .function("Empty", "Returns an empty item stack instance.")
-            .function("Clone", "Returns a copy of an item stack.")
-            .function("IsEmpty", "Returns whether an item stack is empty.")
-            .function("GetId", "Returns an item stack's registered item identifier.")
-            .function("GetCount", "Returns the number of items in a stack.")
-            .function("SetCount", "Sets the number of items in a stack.")
-            .function("GetNbt", "Returns an item stack's NBT data or one value by key.")
-            .function("SetNbt", "Sets one NBT value in an item stack's NBT data.");
+            .reflective(MLuaItemStackService.class);
         return List.of(itemStack.build());
     }
 

@@ -14,18 +14,7 @@ public final class EntityModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder entity = ServiceEntry.builder("EntityService", MLuaEntityService::new)
-            .description("Query, spawn, move, damage, and remove Minecraft entities from Lua.");
-        entity.function("GetById", "Returns a live entity instance by runtime ID, or nil when absent.")
-            .function("FindByUUID", "Returns a live entity instance by UUID, or nil when absent.")
-            .function("GetByUUID", "Returns a live entity instance by UUID, or nil when absent.")
-            .function("GetAll", "Returns all entities currently loaded on this side.")
-            .function("GetNearby", "Returns entities near a Vector3, CFrame, or entity within a radius. Coordinates may also be supplied as x, y, z, radius.")
-            .function("Spawn", "Creates an entity at a position in a world.")
-            .function("Remove", "Removes an entity from its world.")
-            .function("Kill", "Kills a living entity.")
-            .function("Teleport", "Moves an entity to a position.")
-            .function("SetVelocity", "Sets an entity's motion vector.")
-            .function("Damage", "Applies generic damage to a living entity and returns whether it was applied.");
+            .reflective(MLuaEntityService.class);
         return List.of(entity.build());
     }
 

@@ -14,9 +14,7 @@ public class FilesModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder files = ServiceEntry.builder("Files", MLuaFilesService::new)
-            .description("Provides file read/write operations in the MLua data directory.");
-        files.function("ReadText", "Reads a UTF-8 text file from the calling mod's data directory.")
-            .function("WriteText", "Writes UTF-8 text to a file in the calling mod's data directory.");
+            .reflective(MLuaFilesService.class);
         return List.of(files.build());
     }
 

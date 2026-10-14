@@ -30,19 +30,7 @@ public final class ModelModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder model = ServiceEntry.builder("ModelService", MLuaModelService::new)
-            .description("Client-side model part overrides for humanoid and layered cosmetic parts.");
-        model.function("ResolvePartName", "Normalizes a model part name for the active renderer.")
-            .function("SetPartCFrame", "Sets a model part transform override.")
-            .function("SetPartOffset", "Sets a model part position and rotation offset.")
-            .function("SetPartScale", "Sets a model part scale override.")
-            .function("SetPartVisible", "Sets whether a model part is rendered.")
-            .function("SetPart", "Sets multiple model part overrides from a definition table.")
-            .function("ClearPart", "Clears overrides for one model part.")
-            .function("ClearModel", "Clears overrides for one entity model.")
-            .function("ClearAll", "Clears model overrides owned by the calling script.")
-            .function("Clear", "Clears model overrides owned by the calling script.")
-            .function("GetModelState", "Returns current override state for an entity model.")
-            .function("GetPartNames", "Returns the model part names supported by the active renderer.");
+            .reflective(MLuaModelService.class);
         return List.of(model.build());
     }
 

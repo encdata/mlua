@@ -50,13 +50,7 @@ public class TextureModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder texture = ServiceEntry.builder("TextureService", MLuaTextureService::new)
-            .description("Service for registering and managing textures.");
-        texture.function("RegisterTexture", "Registers a texture from the calling mod's texture directory.")
-            .function("GetTexture", "Returns a live texture handle by identifier.")
-            .function("RemoveTexture", "Removes a texture registered by the calling mod.")
-            .function("HasTexture", "Returns whether a texture identifier is registered.")
-            .function("GetRegisteredTextures", "Returns texture identifiers registered by the calling mod.")
-            .function("ClearTextures", "Removes all textures registered by the calling mod.");
+            .reflective(MLuaTextureService.class);
         return List.of(texture.build());
     }
 
