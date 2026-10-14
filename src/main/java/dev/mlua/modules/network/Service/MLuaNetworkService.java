@@ -5,6 +5,7 @@ import com.google.gson.reflect.TypeToken;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
@@ -202,45 +203,70 @@ public final class MLuaNetworkService extends MLuaServiceBase {
 
    private LuaTable remoteTable(final MLuaRemoteEvent remote, final MLuaContextView mlua) {
       LuaTable table = new LuaTable();
-      table.set("OnServerEvent", MLuaLuaBindings.signalInstance(remote.serverEvent(), mlua.globals(), mlua.scheduler(), mlua.ownerModId(), mlua.side()));
-      table.set("OnClientEvent", MLuaLuaBindings.signalInstance(remote.clientEvent(), mlua.globals(), mlua.scheduler(), mlua.ownerModId(), mlua.side()));
-      table.set("FireServer", new VarArgFunction() {
+      LuaTable serverSignal = MLuaLuaBindings.signalInstance(remote.serverEvent(), mlua.globals(), mlua.scheduler(), mlua.ownerModId(), mlua.side());
+      LuaTable clientSignal = MLuaLuaBindings.signalInstance(remote.clientEvent(), mlua.globals(), mlua.scheduler(), mlua.ownerModId(), mlua.side());
+      LuaTable instance = mlua.registration().attachClassInstance(table, "RemoteEvent", null);
+      MLuaClassMethods.setInstanceMethod(instance, "GetName", new VarArgFunction() {
+         @Override
+         public Varargs invoke(Varargs args) {
+            return LuaValue.valueOf(remote.name());
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(instance, "GetOnServerEvent", new VarArgFunction() {
+         @Override
+         public Varargs invoke(Varargs args) {
+            return serverSignal;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(instance, "GetOnClientEvent", new VarArgFunction() {
+         @Override
+         public Varargs invoke(Varargs args) {
+            return clientSignal;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(instance, "FireServer", new VarArgFunction() {
+         @Override
          public Varargs invoke(Varargs args) {
             MLuaRemoteEvent.requireSide(mlua.side(), Side.CLIENT, "FireServer");
             return LuaValue.valueOf(remote.fireServer(args));
          }
       });
-      table.set("FireServerOptional", new VarArgFunction() {
+      MLuaClassMethods.setInstanceMethod(instance, "FireServerOptional", new VarArgFunction() {
+         @Override
          public Varargs invoke(Varargs args) {
             MLuaRemoteEvent.requireSide(mlua.side(), Side.CLIENT, "FireServerOptional");
             return LuaValue.valueOf(remote.fireServer(args, true));
          }
       });
-      table.set("FireClient", new VarArgFunction() {
+      MLuaClassMethods.setInstanceMethod(instance, "FireClient", new VarArgFunction() {
+         @Override
          public Varargs invoke(Varargs args) {
             MLuaRemoteEvent.requireSide(mlua.side(), Side.SERVER, "FireClient");
             return LuaValue.valueOf(remote.fireClient(MLuaNetworkService.this.resolvePlayer(mlua, args.arg(2)), args));
          }
       });
-      table.set("FireClientOptional", new VarArgFunction() {
+      MLuaClassMethods.setInstanceMethod(instance, "FireClientOptional", new VarArgFunction() {
+         @Override
          public Varargs invoke(Varargs args) {
             MLuaRemoteEvent.requireSide(mlua.side(), Side.SERVER, "FireClientOptional");
             return LuaValue.valueOf(remote.fireClient(MLuaNetworkService.this.resolvePlayer(mlua, args.arg(2)), args, true));
          }
       });
-      table.set("FireAllClients", new VarArgFunction() {
+      MLuaClassMethods.setInstanceMethod(instance, "FireAllClients", new VarArgFunction() {
+         @Override
          public Varargs invoke(Varargs args) {
             MLuaRemoteEvent.requireSide(mlua.side(), Side.SERVER, "FireAllClients");
             return LuaValue.valueOf(remote.fireAllClients(args, false, mlua.server()));
          }
       });
-      table.set("FireAllClientsOptional", new VarArgFunction() {
+      MLuaClassMethods.setInstanceMethod(instance, "FireAllClientsOptional", new VarArgFunction() {
+         @Override
          public Varargs invoke(Varargs args) {
             MLuaRemoteEvent.requireSide(mlua.side(), Side.SERVER, "FireAllClientsOptional");
             return LuaValue.valueOf(remote.fireAllClients(args, true, mlua.server()));
          }
       });
-      return table;
+      return instance;
    }
 
    private ServerPlayer resolvePlayer(MLuaContextView mlua, LuaValue value) {
