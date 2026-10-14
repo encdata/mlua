@@ -490,14 +490,18 @@ public final class MLuaForgeRegistry {
    }
 
    public RegistryObject<ParticleType<?>> registerParticle(String modId, String name, boolean overrideLimiter) {
+      return this.registerParticle(modId, name, () -> new SimpleParticleType(overrideLimiter));
+   }
+
+   public RegistryObject<ParticleType<?>> registerParticle(String modId, String name,
+                                                           Supplier<ParticleType<?>> supplier) {
       this.ensureOpen(modId, "particle", name);
+      Objects.requireNonNull(supplier, "supplier");
       String key = this.key(modId, name);
       if (this.particles.containsKey(key)) {
          throw this.duplicate("particle", key);
       } else {
-         RegistryObject<ParticleType<?>> object = this.particleRegister(modId).register(name, () -> {
-            return new SimpleParticleType(overrideLimiter);
-         });
+         RegistryObject<ParticleType<?>> object = this.particleRegister(modId).register(name, supplier);
          this.particles.put(key, object);
          return object;
       }

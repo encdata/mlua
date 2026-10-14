@@ -82,6 +82,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
         MLuaResourceNameValidator.validate(modId);
         if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Invalid registry name: " + name);
         MLuaResourceNameValidator.validate(name);
+        if (kind != RegistryKind.BLOCK_ITEM) Objects.requireNonNull(supplier, "supplier");
         if (frozen) throw new IllegalStateException("[MLua] Registries are frozen");
         PendingRegistration registration = new PendingRegistration(kind, modId, name, supplier, attributes);
         String key = registration.key();

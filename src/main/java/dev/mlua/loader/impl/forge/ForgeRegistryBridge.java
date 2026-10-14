@@ -8,6 +8,7 @@ import dev.mlua.loaderapi.RegistryBridge;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.runtime.registry.MLuaForgeRegistry;
+import dev.mlua.runtime.registry.MLuaResourceNameValidator;
 import dev.mlua.runtime.registry.MLuaTextureDescriptor;
 import java.util.List;
 import java.util.Map;
@@ -23,12 +24,19 @@ public class ForgeRegistryBridge implements RegistryBridge {
     @Override
     @SuppressWarnings("unchecked")
     public <T> RegistryHandle<T> register(RegistryKind registryKind, String modId, String name, Supplier<T> supplier) {
+        Objects.requireNonNull(registryKind, "registryKind");
+        MLuaResourceNameValidator.validate(modId);
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Invalid registry name: " + name);
+        MLuaResourceNameValidator.validate(name);
+        if (registryKind != RegistryKind.BLOCK_ITEM) Objects.requireNonNull(supplier, "supplier");
         return (RegistryHandle<T>) switch (registryKind) {
             case ITEM -> wrap(forgeRegistry.registerItem(modId, name, (Supplier) supplier));
             case BLOCK -> wrap(forgeRegistry.registerBlock(modId, name, (Supplier) supplier));
-            case BLOCK_ITEM -> wrap(forgeRegistry.registerBlockItem(modId, name));
+            case BLOCK_ITEM -> wrap(supplier == null
+                ? forgeRegistry.registerBlockItem(modId, name)
+                : forgeRegistry.registerItem(modId, name, (Supplier) supplier));
             case ENTITY -> wrap(forgeRegistry.registerEntity(modId, name, (Supplier) supplier, () -> null));
-            case PARTICLE -> wrap(forgeRegistry.registerParticle(modId, name, false));
+            case PARTICLE -> wrap(forgeRegistry.registerParticle(modId, name, (Supplier) supplier));
             case POTION -> wrap(forgeRegistry.registerPotion(modId, name, (Supplier) supplier));
             case MOB_EFFECT -> wrap(forgeRegistry.registerMobEffect(modId, name, (Supplier) supplier));
             case CREATIVE_TAB -> wrap(forgeRegistry.registerCreativeTab(modId, name, (Supplier) supplier));
