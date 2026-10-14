@@ -221,24 +221,28 @@ public final class MLuaForgeRegistry {
 
     public void setItemDescription(String modId, String name, List<String> description) {
         String key = this.key(modId, name);
-        if (description != null && !description.isEmpty()) {
+        if (description == null) {
+            this.itemDescriptions.remove(key);
+        } else {
             this.itemDescriptions.put(key, List.copyOf(description));
         }
     }
 
     public List<String> getItemDescription(String modId, String name) {
-        return this.itemDescriptions.get(this.key(modId, name));
+        return this.getVisual(this.itemDescriptions, modId, name, null);
     }
 
     public void setBlockDescription(String modId, String name, List<String> description) {
         String key = this.key(modId, name);
-        if (description != null && !description.isEmpty()) {
+        if (description == null) {
+            this.blockDescriptions.remove(key);
+        } else {
             this.blockDescriptions.put(key, List.copyOf(description));
         }
     }
 
     public List<String> getBlockDescription(String modId, String name) {
-        return this.blockDescriptions.get(this.key(modId, name));
+        return this.getVisual(this.blockDescriptions, modId, name, null);
     }
 
     public Supplier<BlockEntityType<MLuaVisualBlockEntity>> visualBlockEntitySupplier(String modId) {
