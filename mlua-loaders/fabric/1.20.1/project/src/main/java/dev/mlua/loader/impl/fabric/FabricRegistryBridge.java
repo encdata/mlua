@@ -348,7 +348,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     private <T> T getByPathOrName(Map<String, T> values, String namespace, String path) {
         String direct = namespace + ":" + path;
-        String value = values.get(direct);
+        T value = values.get(direct);
         if (value != null) {
             return value;
         }

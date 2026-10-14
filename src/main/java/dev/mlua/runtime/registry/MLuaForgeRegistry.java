@@ -222,7 +222,7 @@ public final class MLuaForgeRegistry {
     public void setItemDescription(String modId, String name, List<String> description) {
         String key = this.key(modId, name);
         if (description != null && !description.isEmpty()) {
-            this.itemDescriptions.put(key, description);
+            this.itemDescriptions.put(key, List.copyOf(description));
         }
     }
 
@@ -233,7 +233,7 @@ public final class MLuaForgeRegistry {
     public void setBlockDescription(String modId, String name, List<String> description) {
         String key = this.key(modId, name);
         if (description != null && !description.isEmpty()) {
-            this.blockDescriptions.put(key, description);
+            this.blockDescriptions.put(key, List.copyOf(description));
         }
     }
 
