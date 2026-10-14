@@ -1662,9 +1662,16 @@ public final class MLuaJavaService extends MLuaServiceBase {
             throw new LuaError("[MLua] Cannot coerce " + rawValue.getClass().getName() + " to String");
         }
         if (boxedType.isEnum() && rawValue instanceof String name) {
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            Object value = Enum.valueOf((Class<? extends Enum>) boxedType.asSubclass(Enum.class), name);
-            return value;
+            Object[] constants = boxedType.getEnumConstants();
+            for (Object constant : constants) {
+                if (((Enum<?>) constant).name().equals(name)) {
+                    return constant;
+                }
+            }
+            List<String> names = new ArrayList<>(constants.length);
+            for (Object constant : constants) names.add(((Enum<?>) constant).name());
+            throw new LuaError("[MLua] Unknown " + boxedType.getName() + " value '" + name
+                + "'. Expected one of: " + names);
         }
         if (boxedType == Character.class) {
             return convertCharacter(rawValue);
