@@ -115,12 +115,14 @@ public final class MLuaEnchantmentService extends MLuaReflectiveService {
     public boolean RemoveEnchantment(LuaValue itemValue, String id) {
         ItemStack stack = extractItemStack(itemValue);
         //--version 1.20.1
-        if (!stack.hasTag() || !stack.getTag().contains("Enchantments", 9)) return false;
+        Enchantment enchantment = resolveEnchantment(id);
+        ResourceLocation enchantmentId = BuiltInRegistries.ENCHANTMENT.getKey(enchantment);
+        if (!stack.hasTag() || !stack.getTag().contains("Enchantments", 9)) return true;
         ListTag enchantments = stack.getTag().getList("Enchantments", 10);
         ListTag remaining = new ListTag();
         for (int index = 0; index < enchantments.size(); index++) {
             CompoundTag entry = enchantments.getCompound(index);
-            if (!entry.getString("id").equals(id)) remaining.add(entry);
+            if (!entry.getString("id").equals(enchantmentId.toString())) remaining.add(entry);
         }
         stack.getTag().put("Enchantments", remaining);
         return true;
@@ -169,16 +171,22 @@ public final class MLuaEnchantmentService extends MLuaReflectiveService {
     public boolean HasEnchantment(LuaValue itemValue, String id) {
         ItemStack stack = extractItemStack(itemValue);
         //--version 1.20.1
+        ResourceLocation enchantmentId = MLuaResourceLocations.tryParseOrNull(id);
+        if (enchantmentId == null || BuiltInRegistries.ENCHANTMENT.get(enchantmentId) == null) return false;
         if (stack.hasTag() && stack.getTag().contains("Enchantments", 9)) {
             ListTag enchantments = stack.getTag().getList("Enchantments", 10);
             for (int index = 0; index < enchantments.size(); index++) {
-                if (enchantments.getCompound(index).getString("id").equals(id)) return true;
+                CompoundTag enchantment = enchantments.getCompound(index);
+                if (enchantment.getString("id").equals(enchantmentId.toString()) && enchantment.getInt("lvl") > 0) return true;
             }
         }
         return false;
         //--endversion
         //--version 1.21.1
-        return stack.getEnchantments().getLevel(resolveEnchantment(id)) > 0;
+        ResourceLocation enchantmentId = MLuaResourceLocations.tryParseOrNull(id);
+        if (enchantmentId == null) return false;
+        Holder.Reference<Enchantment> enchantment = enchantmentRegistry().getHolder(enchantmentId).orElse(null);
+        return enchantment != null && stack.getEnchantments().getLevel(enchantment) > 0;
         //--endversion
         //--version 26.1
         return MLuaEnchantmentWrapper.hasEnchantment(stack, id);
