@@ -261,11 +261,65 @@ public final class MLuaWorldService extends MLuaServiceBase {
             return LuaValue.NIL;
          }
 
-         LuaTable result = new LuaTable();
+         LuaTable result = this.context.mlua().registration().createClassInstance("BlockRaycastResult");
+         result.set("HitType", LuaValue.valueOf("block"));
          result.set("Type", LuaValue.valueOf("block"));
-         result.set("Position", MLuaPlayerWrapper.positionTable(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z));
+         result.set("Position", dev.mlua.math.MLuaVector.vector3(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z));
+         result.set("Distance", LuaValue.valueOf(Math.sqrt(from.distanceToSqr(hitResult.getLocation()))));
          result.set("Block", LuaValue.valueOf(String.valueOf(BuiltInRegistries.BLOCK.getKey(level.getBlockState(hitResult.getBlockPos()).getBlock()))));
          result.set("Face", LuaValue.valueOf(hitResult.getDirection().getName()));
+         return result;
+      }));
+      table.set("RaycastEntity", levelFn(supplier, (level, args) -> {
+         double[] origin = positionArgs(args, 2);
+         int directionIndex = 2 + coordinateWidth(args, 2);
+         double[] direction = positionArgs(args, directionIndex);
+         int distanceIndex = directionIndex + coordinateWidth(args, directionIndex);
+         double distance = args.optdouble(distanceIndex, 100.0);
+         if (!Double.isFinite(distance) || distance < 0) {
+            throw new LuaError("[MLua] World:RaycastEntity distance must be finite and non-negative.");
+         }
+         for (double component : origin) {
+            if (!Double.isFinite(component)) throw new LuaError("[MLua] World:RaycastEntity origin must be finite.");
+         }
+         for (double component : direction) {
+            if (!Double.isFinite(component)) throw new LuaError("[MLua] World:RaycastEntity direction must be finite.");
+         }
+         Vec3 from = new Vec3(origin[0], origin[1], origin[2]);
+         double directionScale = Math.max(Math.abs(direction[0]), Math.max(Math.abs(direction[1]), Math.abs(direction[2])));
+         if (directionScale == 0) return LuaValue.NIL;
+         Vec3 rayDirection = new Vec3(direction[0] / directionScale, direction[1] / directionScale, direction[2] / directionScale).normalize();
+         Vec3 to = from.add(rayDirection.scale(distance));
+         if (!Double.isFinite(to.x) || !Double.isFinite(to.y) || !Double.isFinite(to.z)) {
+            throw new LuaError("[MLua] World:RaycastEntity endpoint must be finite.");
+         }
+         BlockHitResult blockHit = level.clip(new ClipContext(from, to,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (Entity)null));
+         double nearestDistance = blockHit.getType() == net.minecraft.world.phys.HitResult.Type.MISS
+            ? Double.POSITIVE_INFINITY : from.distanceToSqr(blockHit.getLocation());
+         AABB search = new AABB(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.min(from.z, to.z),
+            Math.max(from.x, to.x), Math.max(from.y, to.y), Math.max(from.z, to.z)).inflate(1.0);
+         LuaValue filter = args.arg(distanceIndex + 1);
+         Entity nearest = null;
+         Vec3 nearestHit = null;
+         for (Entity candidate : level.getEntities((Entity)null, search)) {
+            if (candidate.isRemoved() || !candidate.isPickable() || !matchesFilter(candidate, filter)) continue;
+            var hit = candidate.getBoundingBox().inflate(candidate.getPickRadius()).clip(from, to);
+            if (hit.isEmpty()) continue;
+            double hitDistance = from.distanceToSqr(hit.get());
+            if (hitDistance < nearestDistance) {
+               nearest = candidate;
+               nearestHit = hit.get();
+               nearestDistance = hitDistance;
+            }
+         }
+         if (nearest == null) return LuaValue.NIL;
+         LuaTable result = this.context.mlua().registration().createClassInstance("EntityRaycastResult");
+         result.set("HitType", LuaValue.valueOf("entity"));
+         result.set("Type", LuaValue.valueOf("entity"));
+         result.set("Entity", this.wrapEntity(nearest));
+         result.set("Position", dev.mlua.math.MLuaVector.vector3(nearestHit.x, nearestHit.y, nearestHit.z));
+         result.set("Distance", LuaValue.valueOf(Math.sqrt(nearestDistance)));
          return result;
       }));
 
