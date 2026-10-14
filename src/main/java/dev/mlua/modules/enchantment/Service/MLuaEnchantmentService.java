@@ -3,13 +3,12 @@ package dev.mlua.modules.enchantment.Service;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.api.MLuaDescription;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import java.util.Iterator;
-import java.util.function.Function;
+import java.util.Optional;
 //--version 26.1
 import dev.mlua.minecraft.binding.MLuaEnchantmentWrapper;
 //--endversion
@@ -24,7 +23,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 
-public final class MLuaEnchantmentService extends MLuaServiceBase {
+@MLuaDescription("Service for managing enchantments on items.")
+public final class MLuaEnchantmentService extends MLuaReflectiveService {
     public MLuaEnchantmentService(MLuaService.Context context) {
         super(context);
     }
@@ -36,183 +36,152 @@ public final class MLuaEnchantmentService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        //--version 1.20.1
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Both");
-
-        table.set("GetEnchantment", fn((args) -> {
-            String id = args.checkjstring(2);
-            return enchantmentTable(id);
-        }));
-
-        table.set("GetAllEnchantments", fn((args) -> {
-            LuaTable list = new LuaTable();
-            int index = 1;
-            Iterator<Enchantment> iter = BuiltInRegistries.ENCHANTMENT.iterator();
-            while (iter.hasNext()) {
-                Enchantment ench = iter.next();
-                ResourceLocation key = BuiltInRegistries.ENCHANTMENT.getKey(ench);
-                if (key != null) {
-                    LuaTable entry = new LuaTable();
-                    entry.set("Id", LuaValue.valueOf(key.toString()));
-                    entry.set("Name", LuaValue.valueOf(net.minecraft.network.chat.Component.translatable(ench.getDescriptionId()).getString()));
-                    list.set(index++, entry);
-                }
-            }
-            return list;
-        }));
-
-        table.set("AddEnchantment", fn((args) -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            Enchantment ench = resolveEnchantment(args.checkjstring(3));
-            int level = args.optint(4, 1);
-            stack.enchant(ench, level);
-            return LuaValue.TRUE;
-        }));
-
-        table.set("RemoveEnchantment", fn((args) -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            String enchId = args.checkjstring(3);
-            if (!stack.hasTag() || !stack.getTag().contains("Enchantments", 9)) {
-                return LuaValue.FALSE;
-            }
-            ListTag enchList = stack.getTag().getList("Enchantments", 10);
-            ListTag newList = new ListTag();
-            for (int i = 0; i < enchList.size(); i++) {
-                CompoundTag entry = enchList.getCompound(i);
-                if (!entry.getString("id").equals(enchId)) {
-                    newList.add(entry);
-                }
-            }
-            stack.getTag().put("Enchantments", newList);
-            return LuaValue.TRUE;
-        }));
-
-        table.set("GetEnchantments", fn((args) -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            LuaTable result = new LuaTable();
-            if (stack.hasTag() && stack.getTag().contains("Enchantments", 9)) {
-                ListTag enchList = stack.getTag().getList("Enchantments", 10);
-                for (int i = 0; i < enchList.size(); i++) {
-                    CompoundTag entry = enchList.getCompound(i);
-                    String id = entry.getString("id");
-                    int level = entry.getInt("lvl");
-                    result.set(id, LuaValue.valueOf(level));
-                }
-            }
-            return result;
-        }));
-
-        table.set("HasEnchantment", fn((args) -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            String enchId = args.checkjstring(3);
-            if (stack.hasTag() && stack.getTag().contains("Enchantments", 9)) {
-                ListTag enchList = stack.getTag().getList("Enchantments", 10);
-                for (int i = 0; i < enchList.size(); i++) {
-                    CompoundTag entry = enchList.getCompound(i);
-                    if (entry.getString("id").equals(enchId)) {
-                        return LuaValue.TRUE;
-                    }
-                }
-            }
-            return LuaValue.FALSE;
-        }));
-
         return table;
+    }
+
+    @MLuaDescription("Returns details for an enchantment by identifier.")
+    public LuaTable GetEnchantment(String id) {
+        //--version 26.1
+        return enchantmentTable26(id);
+        //--endversion
+        //--version 1.20.1,1.21.1
+        return enchantmentTable(id);
+        //--endversion
+    }
+
+    @MLuaDescription("Returns the registered enchantments.")
+    public LuaTable GetAllEnchantments() {
+        LuaTable list = new LuaTable();
+        int index = 1;
+        //--version 1.20.1
+        Iterator<Enchantment> iter = BuiltInRegistries.ENCHANTMENT.iterator();
+        while (iter.hasNext()) {
+            Enchantment enchantment = iter.next();
+            ResourceLocation key = BuiltInRegistries.ENCHANTMENT.getKey(enchantment);
+            if (key != null) {
+                LuaTable entry = new LuaTable();
+                entry.set("Id", key.toString());
+                entry.set("Name", net.minecraft.network.chat.Component.translatable(enchantment.getDescriptionId()).getString());
+                list.set(index++, entry);
+            }
+        }
         //--endversion
         //--version 26.1
-        LuaTable table = new LuaTable();
-        table.set("__side", "Both");
-        table.set("GetEnchantment", fn(args -> enchantmentTable26(args.checkjstring(2))));
-        table.set("GetAllEnchantments", fn(args -> {
-            LuaTable list = new LuaTable();
-            int index = 1;
-            for (Enchantment enchantment : enchantmentRegistry26()) {
-                var id = enchantmentRegistry26().getKey(enchantment);
-                if (id != null) {
-                    LuaTable entry = new LuaTable();
-                    entry.set("Id", id.toString());
-                    entry.set("Name", enchantment.description().getString());
-                    list.set(index++, entry);
-                }
+        for (Enchantment enchantment : enchantmentRegistry26()) {
+            var id = enchantmentRegistry26().getKey(enchantment);
+            if (id != null) {
+                LuaTable entry = new LuaTable();
+                entry.set("Id", id.toString());
+                entry.set("Name", enchantment.description().getString());
+                list.set(index++, entry);
             }
-            return list;
-        }));
-        table.set("AddEnchantment", fn(args -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            String id = args.checkjstring(3);
-            int level = args.optint(4, 1);
-            if (!MLuaEnchantmentWrapper.addEnchantment(stack, id, level)) {
-                throw new LuaError("[MLua] Unknown enchantment: " + id);
-            }
-            return LuaValue.TRUE;
-        }));
-        table.set("RemoveEnchantment", fn(args -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            String id = args.checkjstring(3);
-            if (!MLuaEnchantmentWrapper.removeEnchantment(stack, id)) {
-                throw new LuaError("[MLua] Unknown enchantment: " + id);
-            }
-            return LuaValue.TRUE;
-        }));
-        table.set("GetEnchantments", fn(args -> MLuaEnchantmentWrapper.getEnchantments(extractItemStack(args.arg(2)))));
-        table.set("HasEnchantment", fn(args -> LuaValue.valueOf(
-            MLuaEnchantmentWrapper.hasEnchantment(extractItemStack(args.arg(2)), args.checkjstring(3)))));
-        return table;
+        }
         //--endversion
         //--version 1.21.1
-        LuaTable table = new LuaTable();
-        table.set("__side", "Both");
-
-        table.set("GetEnchantment", fn(args -> enchantmentTable(args.checkjstring(2))));
-
-        table.set("GetAllEnchantments", fn(args -> {
-            LuaTable list = new LuaTable();
-            int index = 1;
-            for (Enchantment ench : enchantmentRegistry()) {
-                ResourceLocation key = enchantmentRegistry().getKey(ench);
-                if (key != null) {
-                    LuaTable entry = new LuaTable();
-                    entry.set("Id", LuaValue.valueOf(key.toString()));
-                    entry.set("Name", LuaValue.valueOf(ComponentName(ench)));
-                    list.set(index++, entry);
-                }
+        for (Enchantment enchantment : enchantmentRegistry()) {
+            ResourceLocation key = enchantmentRegistry().getKey(enchantment);
+            if (key != null) {
+                LuaTable entry = new LuaTable();
+                entry.set("Id", key.toString());
+                entry.set("Name", ComponentName(enchantment));
+                list.set(index++, entry);
             }
-            return list;
-        }));
+        }
+        //--endversion
+        return list;
+    }
 
-        table.set("AddEnchantment", fn(args -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            Holder.Reference<Enchantment> ench = resolveEnchantment(args.checkjstring(3));
-            int level = args.optint(4, 1);
-            stack.enchant(ench, level);
-            return LuaValue.TRUE;
-        }));
+    @MLuaDescription("Adds an enchantment and level to an item stack.")
+    public boolean AddEnchantment(LuaValue itemValue, String id, Optional<Integer> requestedLevel) {
+        ItemStack stack = extractItemStack(itemValue);
+        int level = requestedLevel.orElse(1);
+        //--version 1.20.1
+        stack.enchant(resolveEnchantment(id), level);
+        //--endversion
+        //--version 1.21.1
+        stack.enchant(resolveEnchantment(id), level);
+        //--endversion
+        //--version 26.1
+        if (!MLuaEnchantmentWrapper.addEnchantment(stack, id, level)) {
+            throw new LuaError("[MLua] Unknown enchantment: " + id);
+        }
+        //--endversion
+        return true;
+    }
 
-        table.set("RemoveEnchantment", fn(args -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            Holder.Reference<Enchantment> ench = resolveEnchantment(args.checkjstring(3));
-            EnchantmentHelper.updateEnchantments(stack, mutable -> mutable.removeIf(holder -> holder.equals(ench)));
-            return LuaValue.TRUE;
-        }));
+    @MLuaDescription("Removes an enchantment from an item stack.")
+    public boolean RemoveEnchantment(LuaValue itemValue, String id) {
+        ItemStack stack = extractItemStack(itemValue);
+        //--version 1.20.1
+        if (!stack.hasTag() || !stack.getTag().contains("Enchantments", 9)) return false;
+        ListTag enchantments = stack.getTag().getList("Enchantments", 10);
+        ListTag remaining = new ListTag();
+        for (int index = 0; index < enchantments.size(); index++) {
+            CompoundTag entry = enchantments.getCompound(index);
+            if (!entry.getString("id").equals(id)) remaining.add(entry);
+        }
+        stack.getTag().put("Enchantments", remaining);
+        return true;
+        //--endversion
+        //--version 1.21.1
+        Holder.Reference<Enchantment> enchantment = resolveEnchantment(id);
+        EnchantmentHelper.updateEnchantments(stack, mutable -> mutable.removeIf(holder -> holder.equals(enchantment)));
+        return true;
+        //--endversion
+        //--version 26.1
+        if (!MLuaEnchantmentWrapper.removeEnchantment(stack, id)) {
+            throw new LuaError("[MLua] Unknown enchantment: " + id);
+        }
+        return true;
+        //--endversion
+    }
 
-        table.set("GetEnchantments", fn(args -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            LuaTable result = new LuaTable();
-            for (var entry : stack.getEnchantments().entrySet()) {
-                String id = entry.getKey().unwrapKey().map(key -> key.location().toString()).orElse("unknown");
-                result.set(id, LuaValue.valueOf(entry.getIntValue()));
+    @MLuaDescription("Returns enchantments currently on an item stack.")
+    public LuaTable GetEnchantments(LuaValue itemValue) {
+        ItemStack stack = extractItemStack(itemValue);
+        LuaTable result = new LuaTable();
+        //--version 1.20.1
+        if (stack.hasTag() && stack.getTag().contains("Enchantments", 9)) {
+            ListTag enchantments = stack.getTag().getList("Enchantments", 10);
+            for (int index = 0; index < enchantments.size(); index++) {
+                CompoundTag entry = enchantments.getCompound(index);
+                result.set(entry.getString("id"), entry.getInt("lvl"));
             }
-            return result;
-        }));
+        }
+        //--endversion
+        //--version 1.21.1
+        for (var entry : stack.getEnchantments().entrySet()) {
+            String enchantmentId = entry.getKey().unwrapKey().map(key -> key.location().toString()).orElse("unknown");
+            result.set(enchantmentId, entry.getIntValue());
+        }
+        //--endversion
+        //--version 26.1
+        return MLuaEnchantmentWrapper.getEnchantments(stack);
+        //--endversion
+        //--version 1.20.1,1.21.1
+        return result;
+        //--endversion
+    }
 
-        table.set("HasEnchantment", fn(args -> {
-            ItemStack stack = extractItemStack(args.arg(2));
-            Holder.Reference<Enchantment> ench = resolveEnchantment(args.checkjstring(3));
-            return LuaValue.valueOf(stack.getEnchantments().getLevel(ench) > 0);
-        }));
-
-        return table;
+    @MLuaDescription("Returns whether an item stack has an enchantment.")
+    public boolean HasEnchantment(LuaValue itemValue, String id) {
+        ItemStack stack = extractItemStack(itemValue);
+        //--version 1.20.1
+        if (stack.hasTag() && stack.getTag().contains("Enchantments", 9)) {
+            ListTag enchantments = stack.getTag().getList("Enchantments", 10);
+            for (int index = 0; index < enchantments.size(); index++) {
+                if (enchantments.getCompound(index).getString("id").equals(id)) return true;
+            }
+        }
+        return false;
+        //--endversion
+        //--version 1.21.1
+        return stack.getEnchantments().getLevel(resolveEnchantment(id)) > 0;
+        //--endversion
+        //--version 26.1
+        return MLuaEnchantmentWrapper.hasEnchantment(stack, id);
         //--endversion
     }
 
@@ -300,19 +269,4 @@ public final class MLuaEnchantmentService extends MLuaServiceBase {
     }
     //--endversion
 
-    private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    LuaValue result = body.apply(args);
-                    return result != null ? result : LuaValue.NONE;
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new LuaError("[MLua] " + e.toString());
-                }
-            }
-        };
-    }
 }
