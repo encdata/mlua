@@ -82,7 +82,7 @@ final class MLuaEntityWrapperCacheTest {
     private static MLuaRegistration registration() {
         return new MLuaRegistration() {
             @Override public LuaTable registerClass(String name, String parentName) { return new LuaTable(); }
-            @Override public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) { return classTable; }
+            @Override public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) { return classTable; }
             @Override public LuaTable classTable(String name) { return null; }
         };
     }

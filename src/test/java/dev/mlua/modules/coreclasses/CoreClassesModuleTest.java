@@ -30,8 +30,8 @@ final class CoreClassesModuleTest {
         }
 
         @Override
-        public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
-            return classes.register(name, classTable, parentNames);
+        public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
+            return classes.register(name, classTable, parentName);
         }
 
         @Override

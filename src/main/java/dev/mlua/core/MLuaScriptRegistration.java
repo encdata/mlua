@@ -59,15 +59,6 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    @Override
-   @Deprecated(forRemoval = false)
-   public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
-      boolean added = delegate.classTable(name) == null;
-      LuaTable type = delegate.registerClass(name, classTable, parentNames);
-      if (added) classes.add(name);
-      return type;
-   }
-
-   @Override
    public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
       boolean added = delegate.classTable(name) == null;
       LuaTable type = delegate.registerClassTable(name, classTable, parentName);

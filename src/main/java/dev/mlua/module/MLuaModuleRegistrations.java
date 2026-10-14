@@ -260,16 +260,6 @@ final class MLuaModuleRegistrations {
             }
 
             @Override
-            @Deprecated(forRemoval = false)
-            public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
-                boolean isNew = registration.classTable(name) == null;
-                if (!isNew) snapshotClass(registration, name, snapshots);
-                LuaTable table = registration.registerClass(name, classTable, parentNames);
-                if (isNew) added.add(name);
-                return table;
-            }
-
-            @Override
             public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
                 boolean isNew = registration.classTable(name) == null;
                 if (!isNew) snapshotClass(registration, name, snapshots);

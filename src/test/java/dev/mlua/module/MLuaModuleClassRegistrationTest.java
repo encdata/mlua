@@ -62,7 +62,7 @@ final class MLuaModuleClassRegistrationTest {
         }
 
         @Override
-        public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
+        public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
             names.add(name);
             return classTable;
         }

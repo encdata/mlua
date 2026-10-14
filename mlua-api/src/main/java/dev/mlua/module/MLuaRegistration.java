@@ -35,12 +35,13 @@ public interface MLuaRegistration {
         return table;
     }
 
-    @Deprecated(forRemoval = false)
-    LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
+    LuaTable registerClassTable(String name, LuaTable classTable, String parentName);
 
-    default LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
-        return registerClass(name, classTable, parentName == null || parentName.isBlank()
-            ? new String[0] : new String[]{parentName});
+    @Deprecated(forRemoval = false)
+    default LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
+        java.util.List<String> parents = normalizeParentNames(parentNames == null
+            ? java.util.List.of() : java.util.Arrays.asList(parentNames));
+        return registerClassTable(name, classTable, parents.isEmpty() ? null : parents.get(0));
     }
 
     default LuaTable registerClassTable(String name, LuaTable classTable, String parentName,

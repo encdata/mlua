@@ -395,12 +395,6 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    @Override
-   @Deprecated(forRemoval = false)
-   public LuaTable registerClass(String name, LuaTable classTable, String... parentNames) {
-      return this.classes.register(name, classTable, parentNames);
-   }
-
-   @Override
    public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
       return this.classes.register(name, classTable, parentName);
    }
