@@ -14,7 +14,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-@MLuaDescription("Service for creating loot table builders.")
+@MLuaDescription("Builds loader-independent Minecraft loot table definitions for generated loot resources.")
 public final class MLuaLootTableService extends MLuaReflectiveService {
     private static final String BUILDER_STATE = "__loot_builder_state";
     private final MLuaRegistration registration;
@@ -35,6 +35,7 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
                     throw new LuaError("[MLua] LootTable pool index must be between 1 and " + state.poolCount);
                 }
                 state.currentPool = index - 1;
+                state.currentEntry = null;
                 return args.arg1();
             }
         }, "Selects the one-based pool that receives subsequent entry and roll changes.");
@@ -52,9 +53,81 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
                 entry.addProperty("weight", weight);
                 if (quality != 0) entry.addProperty("quality", quality);
                 state.currentEntries().add(entry);
+                state.currentEntry = entry;
                 return args.arg1();
             }
         }, "Adds an item entry to the selected pool with its weight and optional quality.");
+        registerBuilderFunction(registration, "AddTagEntry", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                BuilderState state = state(args.arg1());
+                String tagId = args.checkjstring(2);
+                int weight = args.arg(3).optint(1);
+                int quality = args.arg(4).optint(0);
+                boolean expand = args.arg(5).optboolean(true);
+                MLuaResourceLocations.parse(tagId);
+                if (weight < 1) throw new LuaError("[MLua] LootTable entry weight must be at least 1");
+                JsonObject entry = new JsonObject();
+                entry.addProperty("type", "minecraft:tag");
+                entry.addProperty("name", tagId);
+                entry.addProperty("expand", expand);
+                entry.addProperty("weight", weight);
+                if (quality != 0) entry.addProperty("quality", quality);
+                state.currentEntries().add(entry);
+                state.currentEntry = entry;
+                return args.arg1();
+            }
+        }, "Adds a weighted entry that expands an item tag into its matching items.");
+        registerBuilderFunction(registration, "AddEmptyEntry", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                BuilderState state = state(args.arg1());
+                int weight = args.arg(2).optint(1);
+                int quality = args.arg(3).optint(0);
+                if (weight < 1) throw new LuaError("[MLua] LootTable entry weight must be at least 1");
+                JsonObject entry = new JsonObject();
+                entry.addProperty("type", "minecraft:empty");
+                entry.addProperty("weight", weight);
+                if (quality != 0) entry.addProperty("quality", quality);
+                state.currentEntries().add(entry);
+                state.currentEntry = entry;
+                return args.arg1();
+            }
+        }, "Adds a weighted empty outcome to the selected pool.");
+        registerBuilderFunction(registration, "SetEntryCount", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                BuilderState state = state(args.arg1());
+                JsonObject entry = state.currentEntry;
+                if (entry == null) throw new LuaError("[MLua] Add an entry before setting its count");
+                if ("minecraft:empty".equals(entry.get("type").getAsString())) {
+                    throw new LuaError("[MLua] Empty loot entries do not produce item counts");
+                }
+                int minimum = args.checkint(2);
+                int maximum = args.arg(3).isnil() ? minimum : args.checkint(3);
+                if (minimum < 0 || maximum < minimum) {
+                    throw new LuaError("[MLua] LootTable entry count requires 0 <= min <= max");
+                }
+                JsonObject count = new JsonObject();
+                if (minimum == maximum) {
+                    count.addProperty("count", minimum);
+                } else {
+                    JsonObject range = new JsonObject();
+                    range.addProperty("type", "minecraft:uniform");
+                    range.addProperty("min", minimum);
+                    range.addProperty("max", maximum);
+                    count.add("count", range);
+                }
+                count.addProperty("function", "minecraft:set_count");
+                JsonArray functions = entry.has("functions") ? entry.getAsJsonArray("functions") : new JsonArray();
+                for (int index = functions.size() - 1; index >= 0; index--) {
+                    JsonObject function = functions.get(index).getAsJsonObject();
+                    if ("minecraft:set_count".equals(function.get("function").getAsString())) {
+                        functions.remove(index);
+                    }
+                }
+                functions.add(count);
+                entry.add("functions", functions);
+                return args.arg1();
+            }
+        }, "Sets the most recently added entry's item count or random count range.");
         registerBuilderFunction(registration, "SetRolls", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
@@ -150,6 +223,7 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
         private final int poolCount;
         private final JsonArray pools;
         private int currentPool;
+        private JsonObject currentEntry;
 
         private BuilderState(int poolCount, JsonArray pools) {
             this.poolCount = poolCount;
