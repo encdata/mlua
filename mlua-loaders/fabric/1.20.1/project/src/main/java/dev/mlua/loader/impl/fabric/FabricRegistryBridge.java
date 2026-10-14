@@ -222,7 +222,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
-        return Map.copyOf(generatedAssets.getOrDefault(kind, Map.of()));
+        return RegistryBridge.snapshotGeneratedAssets(generatedAssets.getOrDefault(kind, Map.of()));
     }
 
     @Override

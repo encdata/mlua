@@ -192,7 +192,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
-        return switch (kind) {
+        Map<String, JsonObject> assets = switch (kind) {
             case RECIPE -> forgeRegistry.getRecipes();
             case LOOT_TABLE -> forgeRegistry.getLootTables();
             case BLOCKSTATE -> forgeRegistry.getBlockStates();
@@ -200,6 +200,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
             case BLOCK_TAG -> forgeRegistry.getBlockTags();
             case ENTITY_TYPE_TAG -> forgeRegistry.getEntityTypeTags();
         };
+        return RegistryBridge.snapshotGeneratedAssets(assets);
     }
 
     @Override
@@ -226,7 +227,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public Map<String, RegistryHandle<?>> getRegisteredHandles(RegistryKind registryKind) {
-        return switch (registryKind) {
+        Map<String, RegistryHandle<?>> handles = switch (registryKind) {
             case ITEM, BLOCK_ITEM -> forgeRegistry.getRegisteredItems().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> wrap(entry.getValue())));
             case BLOCK -> forgeRegistry.getRegisteredBlocks().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> wrap(entry.getValue())));
             case ENTITY -> forgeRegistry.getEntities().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> wrap(entry.getValue())));
@@ -235,6 +236,7 @@ public class ForgeRegistryBridge implements RegistryBridge {
             case MOB_EFFECT -> forgeRegistry.getMobEffects().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> wrap(entry.getValue())));
             case CREATIVE_TAB -> forgeRegistry.getCreativeTabs().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> wrap(entry.getValue())));
         };
+        return Map.copyOf(handles);
     }
 
     @Override

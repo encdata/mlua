@@ -2,12 +2,20 @@ package dev.mlua.loaderapi;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
 public interface RegistryBridge {
+    static Map<String, JsonObject> snapshotGeneratedAssets(Map<String, JsonObject> assets) {
+        Map<String, JsonObject> snapshot = new LinkedHashMap<>();
+        assets.forEach((id, definition) -> snapshot.put(id, definition.deepCopy()));
+        return Collections.unmodifiableMap(snapshot);
+    }
+
     static RegistryKind normalizeVisualRegistry(RegistryKind registryKind) {
         if (registryKind == RegistryKind.BLOCK_ITEM) return RegistryKind.ITEM;
         if (registryKind == RegistryKind.ITEM || registryKind == RegistryKind.BLOCK) return registryKind;
