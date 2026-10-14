@@ -4,6 +4,7 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.loaderapi.EventBridge;
 import java.util.List;
 import java.util.Collections;
@@ -172,6 +173,23 @@ public interface MLuaModule extends MLuaReloadable {
 
             public Builder description(String description) {
                 this.description = description;
+                return this;
+            }
+
+            public Builder reflective(Class<? extends MLuaReflectiveService> serviceType) {
+                MLuaReflectiveService.ApiMetadata metadata = MLuaReflectiveService.apiMetadata(serviceType);
+                if (this.description != null && !this.description.equals(metadata.description())) {
+                    throw new IllegalArgumentException("Reflective service '" + this.name
+                        + "' has conflicting descriptions");
+                }
+                this.description = metadata.description();
+                metadata.functionDescriptions().forEach((method, description) -> {
+                    String existing = this.functions.putIfAbsent(method, description);
+                    if (existing != null && !existing.equals(description)) {
+                        throw new IllegalArgumentException("Reflective service '" + this.name
+                            + "' method '" + method + "' has conflicting descriptions");
+                    }
+                });
                 return this;
             }
 

@@ -88,13 +88,9 @@ public class EventsModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder events = ServiceEntry.builder("Events", MLuaEventsService::new)
-            .description("Provides lifecycle and gameplay signals. Each signal receives one event table containing the values available for that event.")
-            .function("GetUnavailableSignals", "Returns event signal names that the active loader does not support.")
-            .function("GetSignalNames", "Returns registered event signal names, including signals added by addon modules.")
-            .function("RegisterSignal", "Registers a described addon signal from a registry script.")
-            .function("UnregisterSignal", "Removes an event signal owned by the current addon.");
-        return List.of(events.build());
+        return List.of(ServiceEntry.builder("Events", MLuaEventsService::new)
+            .reflective(MLuaEventsService.class)
+            .build());
     }
 
     @Override

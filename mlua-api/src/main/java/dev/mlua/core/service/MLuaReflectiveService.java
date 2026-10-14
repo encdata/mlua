@@ -11,6 +11,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
 import org.luaj.vm2.LuaTable;
@@ -20,8 +22,52 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public abstract class MLuaReflectiveService extends MLuaServiceBase {
+   public record ApiMetadata(String description, Map<String, String> functionDescriptions) {
+      public ApiMetadata {
+         functionDescriptions = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(functionDescriptions));
+      }
+   }
+
    public MLuaReflectiveService(Context context) {
       super(context);
+   }
+
+   public static ApiMetadata apiMetadata(Class<? extends MLuaReflectiveService> serviceType) {
+      MLuaDescription serviceDescription = serviceType.getAnnotation(MLuaDescription.class);
+      if (serviceDescription == null || serviceDescription.value().isBlank()) {
+         throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
+            + "' requires a non-empty @MLuaDescription");
+      }
+      Method[] methods = serviceType.getMethods();
+      Arrays.sort(methods, java.util.Comparator.comparing(Method::getName)
+         .thenComparing(method -> Arrays.toString(method.getParameterTypes())));
+      Map<String, String> functions = new LinkedHashMap<>();
+      for (Method method : methods) {
+         int modifiers = method.getModifiers();
+         Class<?> declaring = method.getDeclaringClass();
+         if (!Modifier.isPublic(modifiers) || Modifier.isStatic(modifiers)
+            || method.isBridge() || method.isSynthetic() || method.isAnnotationPresent(MLuaServiceIgnore.class)
+            || declaring == Object.class || declaring == MLuaReflectiveService.class
+            || declaring == LuaBackedService.class || declaring == MLuaService.class
+            || (method.getParameterCount() == 0 && (method.getName().equals("name") || method.getName().equals("toLua")))) {
+            continue;
+         }
+         if (MLuaRegistration.isReservedFunctionName(method.getName())) {
+            throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
+               + "' uses reserved function name '" + method.getName() + "'");
+         }
+         MLuaDescription description = findMethodDescription(method);
+         if (description == null || description.value().isBlank()) continue;
+         if (functions.putIfAbsent(method.getName(), description.value()) != null) {
+            throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
+               + "' overloads Lua method '" + method.getName() + "'");
+         }
+      }
+      if (functions.isEmpty()) {
+         throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
+            + "' has no described Lua methods");
+      }
+      return new ApiMetadata(serviceDescription.value(), functions);
    }
 
    @Override
