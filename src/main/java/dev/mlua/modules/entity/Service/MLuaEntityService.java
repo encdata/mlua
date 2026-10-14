@@ -168,12 +168,14 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         entity.hurtMarked = true;
     }
 
-    @MLuaDescription("Applies generic damage to a living entity and returns whether it was applied.")
+    @MLuaDescription("Applies generic damage to a living entity. Returns false when the target is not living or Minecraft rejects the damage.")
     public boolean Damage(LuaValue entityValue, double amount) {
+        if (!Double.isFinite(amount) || amount < 0.0 || amount > Float.MAX_VALUE) {
+            throw new LuaError("[MLua] EntityService:Damage amount must be a finite, non-negative number within Minecraft's damage range.");
+        }
         Entity entity = requireEntity(entityValue);
         if (!(entity instanceof LivingEntity living)) return false;
-        living.hurt(living.level().damageSources().generic(), (float) amount);
-        return true;
+        return living.hurt(living.level().damageSources().generic(), (float) amount);
     }
 
     private LuaTable allEntities() {
