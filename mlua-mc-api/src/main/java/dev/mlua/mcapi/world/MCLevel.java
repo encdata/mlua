@@ -31,8 +31,6 @@ public interface MCLevel {
     MCDifficulty getDifficulty();
 
     Object getDimension();
-    @Deprecated(forRemoval = false)
-    default Object dimension() { return getDimension(); }
 
     void sendBlockUpdated(MCBlockPos pos, MCBlockState oldState, MCBlockState newState, int flags);
 

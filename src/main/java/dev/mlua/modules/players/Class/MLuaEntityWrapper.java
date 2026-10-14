@@ -150,9 +150,9 @@ public final class MLuaEntityWrapper {
          MCVec3 p = wrapped.getPosition();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.position().y())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.position().z())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().x())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().y())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().z())));
       MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
          ((MCEntityImpl)wrapped).inner().setPos(pos[0], pos[1], pos[2]);
@@ -202,7 +202,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
          double[] target = targetPosition(args.arg(2));
-         MCVec3 p = wrapped.position();
+         MCVec3 p = wrapped.getPosition();
          applyCFrame(wrapped, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
          return LuaValue.NONE;
       }));
@@ -216,7 +216,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
          double[] other = MLuaPlayerWrapper.positionArgs(args, 2);
-         MCVec3 p = wrapped.position();
+         MCVec3 p = wrapped.getPosition();
          double dx = p.x() - other[0];
          double dy = p.y() - other[1];
          double dz = p.z() - other[2];
@@ -290,12 +290,12 @@ public final class MLuaEntityWrapper {
        attachLivingEntityClass(registration, table);
        if (cached == null) cache.put(cacheKey, table);
       MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
-         MCVec3 p = wrapped.position();
+         MCVec3 p = wrapped.getPosition();
          return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.position().x())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.position().y())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.position().z())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().x())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().y())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().z())));
       MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
          double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
          ((MCEntityImpl)wrapped).inner().setPos(pos[0], pos[1], pos[2]);
@@ -365,7 +365,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
          double[] target = targetPosition(args.arg(2));
-         MCVec3 p = wrapped.position();
+         MCVec3 p = wrapped.getPosition();
          applyCFrame(wrapped, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
          return LuaValue.NONE;
       }));
@@ -465,7 +465,7 @@ public final class MLuaEntityWrapper {
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
          double[] other = MLuaPlayerWrapper.positionArgs(args, 2);
-         MCVec3 p = wrapped.position();
+         MCVec3 p = wrapped.getPosition();
          double dx = p.x() - other[0];
          double dy = p.y() - other[1];
          double dz = p.z() - other[2];

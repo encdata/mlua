@@ -14,12 +14,8 @@ public interface MCPlayer extends MCLivingEntity {
     MCFoodData getFoodData();
     MCConnection getConnection();
     int getExperienceLevel();
-    @Deprecated(forRemoval = false)
-    default int experienceLevel() { return getExperienceLevel(); }
     void setExperienceLevel(int level);
     float getExperienceProgress();
-    @Deprecated(forRemoval = false)
-    default float experienceProgress() { return getExperienceProgress(); }
     void setExperienceProgress(float progress);
     boolean addItem(MCItemStack stack);
     void giveExperiencePoints(int points);
