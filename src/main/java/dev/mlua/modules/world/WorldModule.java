@@ -202,8 +202,8 @@ public class WorldModule implements MLuaModule {
             Map.entry("SetSpawnPosition", "Sets this world's shared respawn position and yaw. This method is server-side only."),
             Map.entry("IsDay", "Returns whether it is daytime in this world."),
             Map.entry("IsNight", "Returns whether it is nighttime in this world."),
-            Map.entry("SetTime", "Sets this world's day time. This method is server-side only."),
-            Map.entry("AddTime", "Adds ticks to this world's day time. This method is server-side only."),
+            Map.entry("SetTime", "Sets this world's day time using a whole-number tick value. This method is server-side only."),
+            Map.entry("AddTime", "Adds a whole-number tick delta and errors if the result overflows. This method is server-side only."),
             Map.entry("GetWeather", "Returns this world's current weather."),
             Map.entry("SetWeather", "Sets this world's weather for an optional whole-number duration in ticks (default 6000). This method is server-side only."),
             Map.entry("GetDifficulty", "Returns this world's difficulty."),
@@ -315,6 +315,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetChunkAt(coordinates: Vector2|Vector3|CFrame)", "Chunk"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:LoadChunk(coordinates: Vector2|Vector3|CFrame)", "Chunk"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetChunk(coordinates: Vector2|Vector3|CFrame)", "Chunk"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetTime(ticks: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:AddTime(ticks: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:UnloadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetChunkForced(coordinates: Vector2|Vector3|CFrame, forced: boolean)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:ForceLoadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
@@ -406,6 +408,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:LoadChunk(coordinates: Vector2|Vector3|CFrame)", "Chunk"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetChunk(coordinates: Vector2|Vector3|CFrame)", "Chunk"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetChunkAt(coordinates: Vector2|Vector3|CFrame)", "Chunk"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetTime(ticks: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:AddTime(ticks: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:UnloadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetChunkForced(coordinates: Vector2|Vector3|CFrame, forced: boolean)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:ForceLoadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
