@@ -113,7 +113,15 @@ public class PlayersModule implements MLuaModule {
             {"GetSilent", "Returns whether this entity is silent."},
             {"SetSilent", "Enables or disables this entity's silent state."},
             {"GetFireTicks", "Returns the remaining fire duration in ticks."},
-            {"SetFireTicks", "Sets the remaining fire duration in ticks."}
+            {"SetFireTicks", "Sets the remaining fire duration in ticks."},
+            {"GetEyePosition", "Returns this entity's eye position as a Vector3."},
+            {"GetBoundingBox", "Returns the minimum and maximum corners of this entity's bounds."},
+            {"GetWidth", "Returns this entity's bounding-box width."},
+            {"GetHeight", "Returns this entity's bounding-box height."},
+            {"GetTags", "Returns the Minecraft tags assigned to this entity."},
+            {"HasTag", "Returns whether this entity has a Minecraft tag."},
+            {"AddTag", "Adds a Minecraft tag to this entity."},
+            {"RemoveTag", "Removes a Minecraft tag from this entity."}
         };
         for (String[] method : entityStateMethods) {
             MLuaClassMethods.registerInstanceMethod(registration, "Entity", method[0], method[1]);
@@ -332,6 +340,9 @@ public class PlayersModule implements MLuaModule {
             {"IsOnFire", "GetIsOnFire", null, "boolean", "shared:Shared", "Whether this entity is on fire."},
             {"IsMoving", "GetIsMoving", null, "boolean", "shared:Shared", "Whether this entity is moving."},
             {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is falling."},
+            {"EyePosition", "GetEyePosition", null, "Vector3", "shared:Shared", "This entity's eye position."},
+            {"Width", "GetWidth", null, "number", "shared:Shared", "This entity's bounding-box width."},
+            {"Height", "GetHeight", null, "number", "shared:Shared", "This entity's bounding-box height."},
             {"CustomName", "GetCustomName", "SetCustomName", "string|nil", "shared:Shared", "The entity's custom name."},
             {"CustomNameVisible", "GetCustomNameVisible", "SetCustomNameVisible", "boolean", "shared:Shared", "Whether the custom name is visible."},
             {"Glowing", "GetGlowing", "SetGlowing", "boolean", "shared:Shared", "Whether the entity has a glowing outline."},
@@ -486,6 +497,9 @@ public class PlayersModule implements MLuaModule {
         docs.property("Entity", "entity.Invulnerable", "boolean", "Whether this entity is invulnerable. Readable and writable.", "shared:Shared");
         docs.property("Entity", "entity.Silent", "boolean", "Whether this entity is silent. Readable and writable.", "shared:Shared");
         docs.property("Entity", "entity.FireTicks", "number", "Remaining fire duration in ticks. Readable and writable.", "shared:Shared");
+        docs.property("Entity", "entity.EyePosition", "Vector3", "This entity's eye position.", "shared:Shared");
+        docs.property("Entity", "entity.Width", "number", "This entity's bounding-box width.", "shared:Shared");
+        docs.property("Entity", "entity.Height", "number", "This entity's bounding-box height.", "shared:Shared");
         docs.property("LivingEntity", "entity.Health", "number", "The entity's current health. Readable and writable.", "shared:Shared");
         docs.property("LivingEntity", "entity.MaxHealth", "number", "The entity's maximum health.", "shared:Shared");
         docs.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared");

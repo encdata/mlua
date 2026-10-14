@@ -713,6 +713,44 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "SetFireTicks", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) { entity.setRemainingFireTicks(Math.max(0, args.checkint(2))); return LuaValue.NONE; }
       });
+      MLuaClassMethods.setInstanceMethod(table, "GetEyePosition", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            net.minecraft.world.phys.Vec3 position = entity.getEyePosition();
+            return MLuaVector.vector3(position.x, position.y, position.z);
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetBoundingBox", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            net.minecraft.world.phys.AABB bounds = entity.getBoundingBox();
+            LuaTable result = new LuaTable();
+            result.set("Minimum", MLuaVector.vector3(bounds.minX, bounds.minY, bounds.minZ));
+            result.set("Maximum", MLuaVector.vector3(bounds.maxX, bounds.maxY, bounds.maxZ));
+            return result;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetWidth", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getBbWidth()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetHeight", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getBbHeight()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetTags", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaTable tags = new LuaTable();
+            int index = 1;
+            for (String tag : entity.getTags()) tags.set(index++, LuaValue.valueOf(tag));
+            return tags;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "HasTag", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getTags().contains(args.checkjstring(2))); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "AddTag", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.addTag(args.checkjstring(2))); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "RemoveTag", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.removeTag(args.checkjstring(2))); }
+      });
    }
 
    private static void attachEntityClass(MLuaRegistration registration, LuaTable table) {

@@ -54,6 +54,14 @@ public final class EntityModule implements MLuaModule {
         docs.signature("Entity", "Entity:SetSilent(enabled: boolean)", "void");
         docs.signature("Entity", "Entity:GetFireTicks()", "number");
         docs.signature("Entity", "Entity:SetFireTicks(ticks: number)", "void");
+        docs.signature("Entity", "Entity:GetEyePosition()", "Vector3");
+        docs.signature("Entity", "Entity:GetBoundingBox()", "EntityBounds");
+        docs.signature("Entity", "Entity:GetWidth()", "number");
+        docs.signature("Entity", "Entity:GetHeight()", "number");
+        docs.signature("Entity", "Entity:GetTags()", "string[]");
+        docs.signature("Entity", "Entity:HasTag(tag: string)", "boolean");
+        docs.signature("Entity", "Entity:AddTag(tag: string)", "boolean");
+        docs.signature("Entity", "Entity:RemoveTag(tag: string)", "boolean");
         docs.signature("Entity", "Entity:Kill()", "void");
         docs.signature("Entity", "Entity:Remove()", "void");
         docs.signature("LivingEntity", "LivingEntity:GetHealth()", "number");
@@ -91,6 +99,12 @@ public final class EntityModule implements MLuaModule {
         docs.signature("EntityService", "EntityService:Damage(entity: Entity, amount: number)", "boolean");
         docs.signature("EntityService", "EntityService:Kill(entity: Entity)", "void");
         docs.signature("EntityService", "EntityService:Remove(entity: Entity)", "void");
+        docs.type("EntityBounds", null, "Minimum and maximum corners of an entity bounding box.");
+        docs.field("EntityBounds", "Minimum", "Vector3", "Minimum corner of the entity bounds.");
+        docs.field("EntityBounds", "Maximum", "Vector3", "Maximum corner of the entity bounds.");
+        docs.guideStep("Entity", "Tag entities and query them in the world",
+            "Use Minecraft entity tags to mark targets, then pass an EntityQuery to a world's spatial search method.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal target = world:FindNearestEntity(Vector3.new(0, 64, 0), 16, { type = \"minecraft:zombie\" })\n\nif target then\n    target:AddTag(\"encounter_target\")\n    print(target.EyePosition, target:GetBoundingBox().Minimum)\nend\n\nlocal targets = world:FindEntitiesInRadius(Vector3.new(0, 64, 0), 24, { tags = { \"encounter_target\" }, alive = true })\nfor _, entity in ipairs(targets) do\n    entity:SetGlowing(true)\nend");
         docs.service("EntityService", "MLuaEntityService",
             "Query, spawn, move, damage, and remove Minecraft entities from Lua.",
             "services/entity-service.html");
