@@ -1,6 +1,9 @@
 package dev.mlua.core.service;
 
 import java.util.Objects;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -34,5 +37,45 @@ public abstract class MLuaServiceBase implements MLuaService {
          }
       }
       return logicalIndex;
+   }
+
+   /**
+    * Normalizes Lua functions on a service table and its nested API tables so both
+    * {@code service:Call(value)} and {@code service.Call(value)} reach the same
+    * implementation argument layout.
+    */
+   protected final LuaTable supportColonAndDotCalls(LuaTable serviceTable) {
+      Set<LuaTable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+      normalizeCalls(serviceTable, serviceTable, visited);
+      return serviceTable;
+   }
+
+   private void normalizeCalls(LuaTable serviceTable, LuaTable table, Set<LuaTable> visited) {
+      if (!visited.add(table)) return;
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = table.next(key);
+         key = entry.arg1();
+         if (key.isnil()) return;
+         if (key.isstring() && key.tojstring().startsWith("__mlua")) continue;
+         LuaValue value = entry.arg(2);
+         if (value.istable()) {
+            normalizeCalls(serviceTable, value.checktable(), visited);
+         } else if (value.isfunction()) {
+            LuaTable receiverTable = table;
+            LuaValue implementation = value;
+            table.rawset(key, new VarArgFunction() {
+               @Override public Varargs invoke(Varargs args) {
+                  if (serviceArgumentIndex(args, receiverTable, 1) == 2) {
+                     return implementation.invoke(args);
+                  }
+                  LuaValue[] shifted = new LuaValue[args.narg() + 1];
+                  shifted[0] = receiverTable;
+                  for (int index = 1; index < shifted.length; index++) shifted[index] = args.arg(index);
+                  return implementation.invoke(LuaValue.varargsOf(shifted));
+               }
+            });
+         }
+      }
    }
 }

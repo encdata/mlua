@@ -1099,7 +1099,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       MLuaServiceMetadata.attachMethodDescriptions(worldGeneration, worldGenerationDescriptions);
        wrapTypedDefinition(entities, "item", "RegisterSpawnEgg:3");
        wrapTypedDefinition(blocks, "item", "RegisterItem:3");
-       return table;
+       return supportColonAndDotCalls(table);
     }
 
    private static LuaTable registryTable() {
