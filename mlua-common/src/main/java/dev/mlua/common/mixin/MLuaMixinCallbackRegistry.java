@@ -50,15 +50,15 @@ public final class MLuaMixinCallbackRegistry {
          + ":" + type + ":" + detail;
    }
 
-   public static void register(String id, LuaValue callback) {
+   static void register(String id, LuaValue callback) {
       CALLBACKS.put(id, callback);
    }
 
-   public static LuaValue get(String id) {
+   static LuaValue get(String id) {
       return CALLBACKS.get(id);
    }
 
-   public static Map<String, LuaValue> snapshot() {
+   static Map<String, LuaValue> snapshot() {
       return Map.copyOf(CALLBACKS);
    }
 
