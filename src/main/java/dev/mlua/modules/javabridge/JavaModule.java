@@ -15,29 +15,7 @@ public final class JavaModule implements MLuaModule {
     public List<ServiceEntry> services() {
         ServiceEntry.Builder java = ServiceEntry.builder("Java", MLuaJavaService::new)
             .description("Raw Java package and class bridge for loading classes, calling methods, and creating interface proxies.");
-        java.function("LoadClass", "Loads a JVM class by fully qualified name.")
-            .function("Import", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.")
-            .function("import", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.")
-            .function("bindClass", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.")
-            .function("Package", "Returns a lazy proxy for navigating a Java package.")
-            .function("package", "Returns a lazy proxy for navigating a Java package; alias for Package.")
-            .function("New", "Constructs an object using a compatible public Java constructor.")
-            .function("newInstance", "Constructs an object using a compatible public Java constructor; alias for New.")
-            .function("Proxy", "Creates a Java interface implementation backed by Lua functions.")
-            .function("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy.")
-            .function("IsInstance", "Checks whether a Java object matches a class or interface.")
-            .function("Cast", "Checks a Java object's type and returns its live proxy.")
-            .function("TypeOf", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.")
-            .function("GetMethods", "Lists Java method names, signatures, return types, and static status.")
-            .function("GetFields", "Lists Java fields, types, and whether they are static or final.")
-            .function("GetField", "Reads a Java instance or static field by its exact Java name.")
-            .function("SetField", "Writes a non-final Java instance or static field and returns its new value.")
-            .function("Inspect", "Returns structured metadata for a Java class.")
-            .function("ViewClass", "Returns a Lua-oriented textual view of a Java class.")
-            .function("ClassViewer", "Returns a Lua-oriented textual view of a Java class; alias for ViewClass.")
-            .function("GetEnumConstants", "Returns the constants of a Java enum class.")
-            .function("ToTable", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, or keys that collide after conversion.")
-            .function("FromTable", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps.");
+        MLuaJavaService.serviceMethodDescriptions().forEach(java::function);
         return List.of(java.build());
     }
 

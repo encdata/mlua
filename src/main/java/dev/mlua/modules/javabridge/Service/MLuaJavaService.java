@@ -44,6 +44,7 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 public final class MLuaJavaService extends MLuaServiceBase {
+    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = serviceMethodDescriptions();
     private final Map<String, Class<?>> resolvedClasses = new ConcurrentHashMap<>();
     private final Map<MethodCacheKey, List<Method>> resolvedMethods = new ConcurrentHashMap<>();
     private final Map<Class<?>, List<Method>> collectedMethods = new ConcurrentHashMap<>();
@@ -52,6 +53,34 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     public MLuaJavaService(MLuaService.Context context) {
         super(context);
+    }
+
+    public static Map<String, String> serviceMethodDescriptions() {
+        Map<String, String> descriptions = new LinkedHashMap<>();
+        descriptions.put("LoadClass", "Loads a JVM class by fully qualified name.");
+        descriptions.put("Import", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.");
+        descriptions.put("import", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.");
+        descriptions.put("bindClass", "Loads a JVM class by fully qualified name; compatibility alias for LoadClass.");
+        descriptions.put("Package", "Returns a lazy proxy for navigating a Java package.");
+        descriptions.put("package", "Returns a lazy proxy for navigating a Java package; alias for Package.");
+        descriptions.put("New", "Constructs an object using a compatible public Java constructor.");
+        descriptions.put("newInstance", "Constructs an object using a compatible public Java constructor; alias for New.");
+        descriptions.put("Proxy", "Creates a Java interface implementation backed by Lua functions.");
+        descriptions.put("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy.");
+        descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
+        descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
+        descriptions.put("TypeOf", "Returns the runtime Java class name for a proxied object or class. Returns nil for nil.");
+        descriptions.put("GetMethods", "Lists Java method names, signatures, return types, and static status.");
+        descriptions.put("GetFields", "Lists Java fields, types, and whether they are static or final.");
+        descriptions.put("GetField", "Reads a Java instance or static field by its exact Java name.");
+        descriptions.put("SetField", "Writes a non-final Java instance or static field and returns its new value.");
+        descriptions.put("Inspect", "Returns structured metadata for a Java class.");
+        descriptions.put("ViewClass", "Returns a Lua-oriented textual view of a Java class.");
+        descriptions.put("ClassViewer", "Returns a Lua-oriented textual view of a Java class; alias for ViewClass.");
+        descriptions.put("GetEnumConstants", "Returns the constants of a Java enum class.");
+        descriptions.put("ToTable", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, or keys that collide after conversion.");
+        descriptions.put("FromTable", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps.");
+        return java.util.Collections.unmodifiableMap(descriptions);
     }
 
     @Override
@@ -321,6 +350,13 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 return wrapJavaValue(convertLuaValue(source, conversionType), conversionType);
             }
         });
+        LuaTable methodDescriptions = new LuaTable();
+        SERVICE_METHOD_DESCRIPTIONS.forEach((name, description) -> {
+            if (table.rawget(name).isfunction()) {
+                methodDescriptions.rawset(name, LuaValue.valueOf(description));
+            }
+        });
+        table.set("__mlua_doc_methods", methodDescriptions);
         return table;
     }
 
