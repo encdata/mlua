@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
+import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -65,6 +65,7 @@ public class PlayersModule implements MLuaModule {
     public void registerClasses(MLuaRegistration registration) {
         registration.registerClass("Entity", registration.requireInstanceBaseClassName(),
             "A live entity instance with position, movement, health, and interaction APIs.");
+        registerEntityBoundsClass(registration);
         registration.registerClassFunction("Entity", "GetId",
             entityMethod(entity -> LuaValue.valueOf(entity.getId())), "Returns this entity's runtime ID.");
         LuaValue entityType = entityMethod(entity -> LuaValue.valueOf(MCApiRuntime.registryKey("entity_type", entity.getType())));
@@ -356,6 +357,87 @@ public class PlayersModule implements MLuaModule {
             "ViewMode", "client:Client", "The local player's view mode; client-side only.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "SelectedSlot", "GetSelectedSlot", null,
             "number", "shared:Shared", "The selected hotbar slot using a one-based index.");
+    }
+
+    private static void registerEntityBoundsClass(MLuaRegistration registration) {
+        registration.registerClass("EntityBounds", registration.requireInstanceBaseClassName(),
+            "An axis-aligned entity bounding box with Vector3 corners and spatial queries.");
+        for (String name : List.of("Minimum", "Maximum")) {
+            String getter = "Get" + name;
+            registration.registerClassFunction("EntityBounds", getter, new org.luaj.vm2.lib.OneArgFunction() {
+                @Override public LuaValue call(LuaValue self) { return self.checktable().get(name); }
+            }, "Returns the " + name.toLowerCase() + " corner as a Vector3.");
+            MLuaClassMethods.registerInstanceProperty(registration, "EntityBounds", name, getter, null,
+                "Vector3", "shared:Shared", "The " + name.toLowerCase() + " corner of the bounds.");
+        }
+        registration.registerClassFunction("EntityBounds", "GetCenter", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                return dev.mlua.math.MLuaVector.vector3(
+                    (min.get("X").todouble() + max.get("X").todouble()) * 0.5,
+                    (min.get("Y").todouble() + max.get("Y").todouble()) * 0.5,
+                    (min.get("Z").todouble() + max.get("Z").todouble()) * 0.5);
+            }
+        }, "Returns the center point as a Vector3.");
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityBounds", "Center", "GetCenter", null,
+            "Vector3", "shared:Shared", "The center point of the bounds.");
+        registration.registerClassFunction("EntityBounds", "GetSize", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                return dev.mlua.math.MLuaVector.vector3(
+                    max.get("X").todouble() - min.get("X").todouble(),
+                    max.get("Y").todouble() - min.get("Y").todouble(),
+                    max.get("Z").todouble() - min.get("Z").todouble());
+            }
+        }, "Returns the box dimensions as a Vector3.");
+        MLuaClassMethods.registerInstanceProperty(registration, "EntityBounds", "Size", "GetSize", null,
+            "Vector3", "shared:Shared", "The dimensions of the bounds.");
+        registration.registerClassFunction("EntityBounds", "Contains", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue point = args.arg(2);
+                if (!dev.mlua.math.MLuaVector.isVector3(point)) {
+                    throw new LuaError("[MLua] EntityBounds:Contains expects a Vector3.");
+                }
+                LuaTable self = args.checktable(1);
+                LuaTable min = self.get("Minimum").checktable();
+                LuaTable max = self.get("Maximum").checktable();
+                LuaTable position = point.checktable();
+                return LuaValue.valueOf(position.get("X").todouble() >= min.get("X").todouble()
+                    && position.get("X").todouble() <= max.get("X").todouble()
+                    && position.get("Y").todouble() >= min.get("Y").todouble()
+                    && position.get("Y").todouble() <= max.get("Y").todouble()
+                    && position.get("Z").todouble() >= min.get("Z").todouble()
+                    && position.get("Z").todouble() <= max.get("Z").todouble());
+            }
+        }, "Returns whether a Vector3 point lies inside or on the box.");
+        registration.registerClassFunction("EntityBounds", "Intersects", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue other = args.arg(2);
+                if (!other.istable()) {
+                    throw new LuaError("[MLua] EntityBounds:Intersects expects an EntityBounds instance.");
+                }
+                LuaTable otherBounds = other.checktable();
+                LuaValue type = otherBounds.get("__type");
+                if (!type.isstring() || !type.checkjstring().equals("EntityBounds")) {
+                    throw new LuaError("[MLua] EntityBounds:Intersects expects an EntityBounds instance.");
+                }
+                LuaTable self = args.checktable(1);
+                LuaTable firstMin = self.get("Minimum").checktable();
+                LuaTable firstMax = self.get("Maximum").checktable();
+                LuaTable secondMin = otherBounds.get("Minimum").checktable();
+                LuaTable secondMax = otherBounds.get("Maximum").checktable();
+                return LuaValue.valueOf(firstMax.get("X").todouble() >= secondMin.get("X").todouble()
+                    && firstMin.get("X").todouble() <= secondMax.get("X").todouble()
+                    && firstMax.get("Y").todouble() >= secondMin.get("Y").todouble()
+                    && firstMin.get("Y").todouble() <= secondMax.get("Y").todouble()
+                    && firstMax.get("Z").todouble() >= secondMin.get("Z").todouble()
+                    && firstMin.get("Z").todouble() <= secondMax.get("Z").todouble());
+            }
+        }, "Returns whether this box overlaps another EntityBounds instance.");
     }
 
     private static void registerEntityProperties(MLuaRegistration registration) {

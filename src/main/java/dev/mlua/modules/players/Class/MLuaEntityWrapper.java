@@ -850,7 +850,7 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetBoundingBox", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             net.minecraft.world.phys.AABB bounds = entity.getBoundingBox();
-            LuaTable result = new LuaTable();
+            LuaTable result = registration.createClassInstance("EntityBounds");
             result.set("Minimum", MLuaVector.vector3(bounds.minX, bounds.minY, bounds.minZ));
             result.set("Maximum", MLuaVector.vector3(bounds.maxX, bounds.maxY, bounds.maxZ));
             return result;
