@@ -46,18 +46,9 @@ public class RegionModule implements MLuaModule {
 
    @Override
    public List<ServiceEntry> services() {
-      ServiceEntry.Builder region = ServiceEntry.builder("Region", MLuaRegionService::new)
-         .description("Spatial trigger system for defining regions and detecting entity enter/exit/within events.");
-      region.function("CreateRegion", "Creates a spherical region from a center position and radius.")
-         .function("CreateBoxRegion", "Creates an axis-aligned box region from two corner positions.")
-         .function("RemoveRegion", "Removes a region by identifier.")
-         .function("GetRegion", "Returns a region by identifier, or nil when missing.")
-         .function("GetRegions", "Returns the regions registered by the calling mod.")
-         .function("OnEnter", "Returns the signal fired for entities entering a region.")
-         .function("OnExit", "Returns the signal fired for entities leaving a region.")
-         .function("OnWithin", "Returns the signal fired for entities inside a region.")
-         .function("GetEntitiesInRegion", "Returns entities currently inside a region.");
-      return List.of(region.build());
+      return List.of(ServiceEntry.builder("Region", MLuaRegionService::new)
+         .reflective(MLuaRegionService.class)
+         .build());
    }
 
    @Override

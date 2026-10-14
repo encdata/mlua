@@ -7,7 +7,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.signal.MLuaSignal;
@@ -30,7 +30,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-public final class MLuaRegionService extends MLuaServiceBase {
+@dev.mlua.api.MLuaDescription("Spatial trigger system for defining regions and detecting entity enter/exit/within events.")
+public final class MLuaRegionService extends MLuaReflectiveService {
    private record RegionHandle(MLuaRegionService service, RegionKey key) { }
 
    public static void registerRegionClass(MLuaRegistration registration) {
@@ -348,88 +349,65 @@ public final class MLuaRegionService extends MLuaServiceBase {
     }
 
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Both");
-
-      table.set("CreateRegion", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            String name = args.checkjstring(2);
-            double cx = args.checkdouble(3);
-            double cy = args.checkdouble(4);
-            double cz = args.checkdouble(5);
-            double radius = args.checkdouble(6);
-            return MLuaRegionService.this.createRegion(name, cx, cy, cz, radius);
-         }
-      });
-
-      table.set("CreateBoxRegion", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            String name = args.checkjstring(2);
-            double minX = args.checkdouble(3);
-            double minY = args.checkdouble(4);
-            double minZ = args.checkdouble(5);
-            double maxX = args.checkdouble(6);
-            double maxY = args.checkdouble(7);
-            double maxZ = args.checkdouble(8);
-            return MLuaRegionService.this.createBoxRegion(name, minX, minY, minZ, maxX, maxY, maxZ);
-         }
-      });
-
-      table.set("RemoveRegion", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            MLuaRegionService.this.removeRegion(MLuaRegionService.this.key(args.checkjstring(2)));
-            return LuaValue.NONE;
-         }
-      });
-
-      table.set("GetRegion", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            RegionKey key = MLuaRegionService.this.key(args.checkjstring(2));
-            return MLuaRegionService.this.state.regions.containsKey(key)
-               ? MLuaRegionService.this.regionHandle(key) : LuaValue.NIL;
-         }
-      });
-
-      table.set("GetRegions", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LuaTable result = new LuaTable();
-            int i = 1;
-            String ownerModId = MLuaRegionService.this.context.mlua().ownerModId();
-            Side side = MLuaRegionService.this.context.mlua().side();
-            for (RegionKey key : MLuaRegionService.this.state.regions.keySet()) {
-               if (key.ownerModId().equals(ownerModId) && key.side() == side) {
-                  result.set(i++, LuaValue.valueOf(key.name()));
-               }
-            }
-            return result;
-         }
-      });
-
-      table.set("OnEnter", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaRegionService.this.signalInstance(MLuaRegionService.this.key(args.checkjstring(2)), "onEnter");
-         }
-      });
-
-      table.set("OnExit", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaRegionService.this.signalInstance(MLuaRegionService.this.key(args.checkjstring(2)), "onExit");
-         }
-      });
-
-      table.set("OnWithin", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaRegionService.this.signalInstance(MLuaRegionService.this.key(args.checkjstring(2)), "onWithin");
-         }
-      });
-
-      table.set("GetEntitiesInRegion", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaRegionService.this.entitiesInRegion(MLuaRegionService.this.key(args.checkjstring(2)));
-         }
-      });
-
       return table;
+   }
+
+   @dev.mlua.api.MLuaDescription("Creates a spherical region from a center position and radius.")
+   public LuaValue CreateRegion(String name, double centerX, double centerY, double centerZ, double radius) {
+      return this.createRegion(name, centerX, centerY, centerZ, radius);
+   }
+
+   @dev.mlua.api.MLuaDescription("Creates an axis-aligned box region from two corner positions.")
+   public LuaValue CreateBoxRegion(String name, double minX, double minY, double minZ,
+                                   double maxX, double maxY, double maxZ) {
+      return this.createBoxRegion(name, minX, minY, minZ, maxX, maxY, maxZ);
+   }
+
+   @dev.mlua.api.MLuaDescription("Removes a region by identifier.")
+   public void RemoveRegion(String name) {
+      this.removeRegion(this.key(name));
+   }
+
+   @dev.mlua.api.MLuaDescription("Returns a region by identifier, or nil when missing.")
+   public LuaValue GetRegion(String name) {
+      RegionKey key = this.key(name);
+      return this.state.regions.containsKey(key) ? this.regionHandle(key) : LuaValue.NIL;
+   }
+
+   @dev.mlua.api.MLuaDescription("Returns the regions registered by the calling mod.")
+   public LuaTable GetRegions() {
+      LuaTable result = new LuaTable();
+      int index = 1;
+      String ownerModId = this.context.mlua().ownerModId();
+      Side side = this.context.mlua().side();
+      for (RegionKey key : this.state.regions.keySet()) {
+         if (key.ownerModId().equals(ownerModId) && key.side() == side) {
+            result.set(index++, LuaValue.valueOf(key.name()));
+         }
+      }
+      return result;
+   }
+
+   @dev.mlua.api.MLuaDescription("Returns the signal fired for entities entering a region.")
+   public LuaValue OnEnter(String name) {
+      return this.signalInstance(this.key(name), "onEnter");
+   }
+
+   @dev.mlua.api.MLuaDescription("Returns the signal fired for entities leaving a region.")
+   public LuaValue OnExit(String name) {
+      return this.signalInstance(this.key(name), "onExit");
+   }
+
+   @dev.mlua.api.MLuaDescription("Returns the signal fired for entities inside a region.")
+   public LuaValue OnWithin(String name) {
+      return this.signalInstance(this.key(name), "onWithin");
+   }
+
+   @dev.mlua.api.MLuaDescription("Returns entities currently inside a region.")
+   public LuaValue GetEntitiesInRegion(String name) {
+      return this.entitiesInRegion(this.key(name));
    }
 
    private LuaValue createRegion(String name, double centerX, double centerY, double centerZ, double radius) {
