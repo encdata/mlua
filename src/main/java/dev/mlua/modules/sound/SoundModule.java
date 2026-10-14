@@ -50,8 +50,8 @@ public final class SoundModule implements MLuaModule {
             "A live client sound instance returned by SoundService playback functions. It exposes playback state, position, looping, volume, pitch, and entity-follow settings.",
             "classes/sound-handle.html", "Instance");
         docs.signature("SoundService", "SoundService:Play(soundId: string, properties: SoundPlayOptions?)", "SoundHandle?");
-        docs.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "boolean");
-        docs.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "boolean");
+        docs.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "SoundHandle?");
+        docs.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "SoundHandle?");
         docs.signature("SoundHandle", "SoundHandle:SetPosition(position: Vector3|CFrame)", null);
         docs.signature("SoundHandle", "SoundHandle:SetFollowOffset(offset: Vector3)", null);
         docs.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null);

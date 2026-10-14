@@ -122,18 +122,20 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         return table;
     }
 
-    @MLuaDescription("Plays a sound at the local player.")
-    public boolean PlayLocal(String soundId, Optional<Double> volume, Optional<Double> pitch) {
+    @MLuaDescription("Plays a non-spatial sound and returns its live SoundHandle.")
+    public LuaValue PlayLocal(String soundId, Optional<Double> volume, Optional<Double> pitch) {
         ensureClient();
-        return MLuaClientSoundManager.playLocal(soundId, volume.orElse(1.0).floatValue(),
+        int id = MLuaClientSoundManager.playLocalId(soundId, volume.orElse(1.0).floatValue(),
             pitch.orElse(1.0).floatValue(), owner());
+        return id >= 0 ? soundTable(id, owner()) : LuaValue.NIL;
     }
 
-    @MLuaDescription("Plays a sound at the local player's position.")
-    public boolean PlayAtPlayer(String soundId, Optional<Double> volume, Optional<Double> pitch) {
+    @MLuaDescription("Plays a sound at the local player's position and returns its live SoundHandle.")
+    public LuaValue PlayAtPlayer(String soundId, Optional<Double> volume, Optional<Double> pitch) {
         ensureClient();
-        return MLuaClientSoundManager.playAtPlayer(soundId, volume.orElse(1.0).floatValue(),
+        int id = MLuaClientSoundManager.playAtPlayerId(soundId, volume.orElse(1.0).floatValue(),
             pitch.orElse(1.0).floatValue(), owner());
+        return id >= 0 ? soundTable(id, owner()) : LuaValue.NIL;
     }
 
     @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings.")
