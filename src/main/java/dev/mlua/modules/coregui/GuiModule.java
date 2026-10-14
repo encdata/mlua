@@ -40,7 +40,7 @@ public class GuiModule implements MLuaModule {
             .function("SetEnabled", "Enables or disables all MLua GUI overlays.")
             .function("GetScreens", "Returns live ScreenGui instances attached to the overlay.")
             .function("CreateScreen", "Creates and attaches a ScreenGui; parent UIObject instances to it to compose a screen.")
-            .function("OpenNativeScreen", "Opens a real Minecraft Screen. The initialization callback receives a builder with AddButton(label, position, size, callback); positions and sizes are UDim2 values.")
+            .function("OpenNativeScreen", "Opens a real Minecraft Screen. Its init callback receives AddText(text, position, color), AddButton(label, position, size, callback), and SetOnClose(callback); positions and sizes are UDim2 values.")
             .function("RemoveScreen", "Removes and destroys the first screen matching an instance or name.")
             .function("SetCoreGuiEnabled", "Shows or hides MLua overlays associated with a CoreGuiType channel.")
             .function("GetCoreGuiEnabled", "Returns whether MLua overlays associated with a CoreGuiType channel are enabled.")
@@ -66,8 +66,8 @@ public class GuiModule implements MLuaModule {
         docs.event("Gui", "Gui.ScreenOpened", "screenClass: string, controls: NativeControl[], screen: NativeScreen",
                 "Fires after Minecraft creates a screen's widgets. The third argument is a live NativeScreen instance; check CanInspectControls when an empty controls list could mean the screen does not expose Minecraft's standard child-widget API.", "client:Client");
         docs.guideStep("Gui", "Build a native Minecraft screen",
-                "OpenNativeScreen creates and opens a real Minecraft Screen. Its callback runs during the screen's init lifecycle, where AddButton adds native Minecraft buttons. The returned NativeScreen can inspect controls and close the screen.",
-                "local Gui = Minecraft:GetService(\"Gui\")\nlocal screen = Gui:OpenNativeScreen(\"Radio Console\", function(screen)\n    screen:AddButton(\"Tune\", UDim2.fromOffset(40, 60), UDim2.fromOffset(120, 20), function()\n        print(\"Radio tuned\")\n    end)\nend)\n\nprint(screen.IsOpen)");
+                "OpenNativeScreen creates and opens a real Minecraft Screen. Its callback runs during the screen's init lifecycle. AddText draws through Minecraft's screen graphics callback, and AddButton adds a native Minecraft button. The returned NativeScreen can inspect controls and close the screen.",
+                "local Gui = Minecraft:GetService(\"Gui\")\nlocal screen = Gui:OpenNativeScreen(\"Radio Console\", function(screen)\n    screen:AddText(\"Emergency channel\", UDim2.fromOffset(40, 32), 0xFFFFFF)\n    screen:AddButton(\"Tune\", UDim2.fromOffset(40, 60), UDim2.fromOffset(120, 20), function()\n        print(\"Radio tuned\")\n    end)\n    screen:SetOnClose(function()\n        print(\"Radio console closed\")\n    end)\nend)\n\nprint(screen.IsOpen)");
         docs.guideStep("Gui", "Build a screen from live UI instances",
                 "Create a ScreenGui, then parent normal UIObject instances into it. The instances use inherited properties and signals, so a TextButton can be composed inside a Frame like any other GuiObject.",
             "local Gui = Minecraft:GetService(\"Gui\")\nlocal screen = Gui:CreateScreen(\"HorrorHUD\", { DisplayOrder = 20 })\nlocal panel = UIObject.new(\"Frame\", \"FearPanel\")\nlocal title = UIObject.new(\"TextLabel\", \"Title\")\nlocal button = UIObject.new(\"TextButton\", \"StartButton\")\n\npanel.Size = UDim2.fromOffset(220, 110)\ntitle.Text = \"Something is nearby\"\nbutton.Text = \"Hide\"\nbutton.Activated:Connect(function()\n    print(\"Hide button activated\")\nend)\n\ntitle.Parent = panel\nbutton.Parent = panel\npanel.Parent = screen");

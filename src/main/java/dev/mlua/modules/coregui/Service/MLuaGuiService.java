@@ -240,6 +240,8 @@ public final class MLuaGuiService implements MLuaService {
         return (int) Math.round(dimension.get("Scale").todouble() * extent + dimension.get("Offset").toint());
     }
 
+    private record ScreenText(String text, int x, int y, int color) { }
+
     private static void replaceProperties(LuaTable target, LuaTable source) {
         for (LuaValue key : target.keys()) target.set(key, LuaValue.NIL);
         for (LuaValue key : source.keys()) target.set(key, source.get(key));
@@ -933,53 +935,7 @@ public final class MLuaGuiService implements MLuaService {
                 if (!initialize.isfunction()) throw new LuaError("[MLua] Gui:OpenNativeScreen expects an initialization function.");
                 Minecraft minecraft = Minecraft.getInstance();
                 if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
-                Screen screen = new Screen(Component.literal(title)) {
-                    @Override protected void init() {
-                        super.init();
-                        Screen activeScreen = this;
-                        LuaTable builder = new LuaTable();
-                        builder.set("AddButton", new VarArgFunction() {
-                            @Override public Varargs invoke(Varargs buttonArgs) {
-                                String label = buttonArgs.arg(2).checkjstring();
-                                LuaTable position = requireScreenUDim2(buttonArgs.arg(3), "Position");
-                                LuaTable size = requireScreenUDim2(buttonArgs.arg(4), "Size");
-                                LuaValue pressed = buttonArgs.arg(5);
-                                if (!pressed.isfunction()) throw new LuaError("[MLua] Screen:AddButton expects a callback function.");
-                                int x = screenCoordinate(position, "X", activeScreen.width);
-                                int y = screenCoordinate(position, "Y", activeScreen.height);
-                                int w = screenCoordinate(size, "X", activeScreen.width);
-                                int h = screenCoordinate(size, "Y", activeScreen.height);
-                                if (w < 1 || h < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
-                                activeScreen.addRenderableWidget(Button.builder(Component.literal(label), button -> {
-                                    try { pressed.invoke(LuaValue.NONE); }
-                                    catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen button callback failed", failure); }
-                                }).bounds(x, y, w, h).build());
-                                return LuaValue.NONE;
-                            }
-                        });
-                        try { initialize.invoke(builder); }
-                        catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure); }
-                    }
-
-                    @Override
-                    //--version 26.1
-                    public void extractRenderState(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-                        this.extractBackground(graphics, mouseX, mouseY, delta);
-                        super.extractRenderState(graphics, mouseX, mouseY, delta);
-                    }
-                    //--endversion
-                    //--version 1.20.1,1.21.1
-                    public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-                        //--version 1.20.1
-                        this.renderBackground(graphics);
-                        //--endversion
-                        //--version 1.21.1
-                        this.renderBackground(graphics, mouseX, mouseY, delta);
-                        //--endversion
-                        super.render(graphics, mouseX, mouseY, delta);
-                    }
-                    //--endversion
-                };
+                Screen screen = new MLuaScriptScreen(title, initialize);
                 minecraft.setScreen(screen);
                 return MLuaNativeScreen.instance(MLuaRuntime.get(), screen);
             }
@@ -1308,6 +1264,101 @@ public final class MLuaGuiService implements MLuaService {
         if (value.isfunction()) obj.getInputEnded().connectOwned(value, obj.ownerModId(), obj.ownerSide(), obj.ownerGlobals(), obj.scheduler(), MLuaLuaBindings.boundContext(obj.ownerGlobals()));
         obj.applyDefinitionProperties(definition);
     }
+
+    private static final class MLuaScriptScreen extends Screen {
+        private final LuaValue initialize;
+        private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
+        private LuaValue closed = LuaValue.NIL;
+
+        private MLuaScriptScreen(String title, LuaValue initialize) {
+            super(Component.literal(title));
+            this.initialize = initialize;
+        }
+
+        @Override protected void init() {
+            super.init();
+            LuaTable builder = new LuaTable();
+            builder.set("SetOnClose", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) {
+                    LuaValue callback = args.arg(2);
+                    if (!callback.isfunction()) throw new LuaError("[MLua] Screen:SetOnClose expects a callback function.");
+                    MLuaScriptScreen.this.closed = callback;
+                    return LuaValue.NONE;
+                }
+            });
+            builder.set("AddText", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) {
+                    String text = args.arg(2).checkjstring();
+                    LuaTable position = requireScreenUDim2(args.arg(3), "Position");
+                    int color = args.arg(4).optint(0xFFFFFF);
+                    MLuaScriptScreen.this.textLines.add(new ScreenText(text,
+                        screenCoordinate(position, "X", MLuaScriptScreen.this.width),
+                        screenCoordinate(position, "Y", MLuaScriptScreen.this.height), color));
+                    return LuaValue.NONE;
+                }
+            });
+            builder.set("AddButton", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) {
+                    String label = args.arg(2).checkjstring();
+                    LuaTable position = requireScreenUDim2(args.arg(3), "Position");
+                    LuaTable size = requireScreenUDim2(args.arg(4), "Size");
+                    LuaValue callback = args.arg(5);
+                    if (!callback.isfunction()) throw new LuaError("[MLua] Screen:AddButton expects a callback function.");
+                    MLuaScriptScreen.this.addNativeButton(label, position, size, callback);
+                    return LuaValue.NONE;
+                }
+            });
+            try { this.initialize.invoke(builder); }
+            catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure); }
+        }
+
+        private void addNativeButton(String label, LuaTable position, LuaTable size, LuaValue callback) {
+            int x = screenCoordinate(position, "X", this.width);
+            int y = screenCoordinate(position, "Y", this.height);
+            int width = screenCoordinate(size, "X", this.width);
+            int height = screenCoordinate(size, "Y", this.height);
+            if (width < 1 || height < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
+            this.addRenderableWidget(Button.builder(Component.literal(label), button -> {
+                try { callback.invoke(LuaValue.NONE); }
+                catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen button callback failed", failure); }
+            }).bounds(x, y, width, height).build());
+        }
+
+        @Override public void onClose() {
+            if (this.closed.isfunction()) {
+                try { this.closed.invoke(LuaValue.NONE); }
+                catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen close callback failed", failure); }
+            }
+            super.onClose();
+        }
+
+        @Override
+        //--version 26.1
+        public void extractRenderState(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+            this.extractBackground(graphics, mouseX, mouseY, delta);
+            super.extractRenderState(graphics, mouseX, mouseY, delta);
+            for (ScreenText line : this.textLines) graphics.text(this.font, line.text(), line.x(), line.y(), line.color(), true);
+        }
+        //--endversion
+
+        //--version 1.20.1
+        public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+            this.renderBackground(graphics);
+            super.render(graphics, mouseX, mouseY, delta);
+            for (ScreenText line : this.textLines) graphics.drawString(this.font, line.text(), line.x(), line.y(), line.color(), true);
+        }
+        //--endversion
+
+        //--version 1.21.1
+        public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+            this.renderBackground(graphics, mouseX, mouseY, delta);
+            super.render(graphics, mouseX, mouseY, delta);
+            for (ScreenText line : this.textLines) graphics.drawString(this.font, line.text(), line.x(), line.y(), line.color(), true);
+        }
+        //--endversion
+    }
+
+    private record ScreenText(String text, int x, int y, int color) { }
 
     private static final class GuiState {
         private final List<ScreenGui> screens = new CopyOnWriteArrayList<>();
