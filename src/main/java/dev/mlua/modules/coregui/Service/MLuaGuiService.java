@@ -1478,6 +1478,7 @@ public final class MLuaGuiService implements MLuaService {
         private final GuiState state;
         private final String ownerModId;
         private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
+        private final Set<String> failedInputMethods = ConcurrentHashMap.newKeySet();
         private LuaValue closed = LuaValue.NIL;
         private LuaValue renderCallback = LuaValue.NIL;
         private boolean classInitialized;
@@ -1654,6 +1655,51 @@ public final class MLuaGuiService implements MLuaService {
             catch (RuntimeException failure) {
                 MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
             }
+        }
+
+        private boolean invokeClassInputMethod(String methodName, LuaValue... parameters) {
+            if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains(methodName)) return false;
+            LuaValue method = this.luaInstance.get(methodName);
+            if (!method.isfunction()) return false;
+            LuaValue[] arguments = new LuaValue[parameters.length + 1];
+            arguments[0] = this.luaInstance;
+            System.arraycopy(parameters, 0, arguments, 1, parameters.length);
+            try { return method.invoke(LuaValue.varargsOf(arguments)).arg1().toboolean(); }
+            catch (RuntimeException failure) {
+                this.failedInputMethods.add(methodName);
+                MLuaLogger.LOGGER.error("Lua screen input method '{}' failed", methodName, failure);
+                return false;
+            }
+        }
+
+        @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (this.invokeClassInputMethod("KeyPressed", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
+                LuaValue.valueOf(modifiers))) return true;
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override public boolean charTyped(char character, int modifiers) {
+            if (this.invokeClassInputMethod("CharTyped", LuaValue.valueOf(String.valueOf(character)),
+                LuaValue.valueOf(modifiers))) return true;
+            return super.charTyped(character, modifiers);
+        }
+
+        @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (this.invokeClassInputMethod("MouseClicked", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+                LuaValue.valueOf(button))) return true;
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        @Override public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            if (this.invokeClassInputMethod("MouseReleased", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+                LuaValue.valueOf(button))) return true;
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
+
+        @Override public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+            if (this.invokeClassInputMethod("MouseDragged", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+                LuaValue.valueOf(button), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         }
 
         private void renderLua(ScreenDrawing drawing, int mouseX, int mouseY, float delta) {
