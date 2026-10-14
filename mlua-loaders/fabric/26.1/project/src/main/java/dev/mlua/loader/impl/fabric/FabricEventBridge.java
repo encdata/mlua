@@ -34,6 +34,8 @@ public final class FabricEventBridge implements EventBridge {
     private static final List<ItemStackCallback> itemPickupCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ContainerCallback> containerOpenCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ContainerCallback> containerCloseCallbacks = new CopyOnWriteArrayList<>();
+    private static final List<ItemStackCallback> itemCraftCallbacks = new CopyOnWriteArrayList<>();
+    private static final List<ExplosionCallback> explosionCallbacks = new CopyOnWriteArrayList<>();
     private static final List<ProjectileCallback> projectileHitCallbacks = new CopyOnWriteArrayList<>();
     private final List<BlockPlaceCallback> blockPlaceCallbacks = new ArrayList<>();
     @Override public void onClientTickEnd(Runnable callback) { ClientTickEvents.END_CLIENT_TICK.register(client -> callback.run()); }
@@ -63,10 +65,14 @@ public final class FabricEventBridge implements EventBridge {
     @Override public void onItemPickup(ItemStackCallback callback) { itemPickupCallbacks.add(callback); }
     @Override public void onContainerOpen(ContainerCallback callback) { containerOpenCallbacks.add(callback); }
     @Override public void onContainerClose(ContainerCallback callback) { containerCloseCallbacks.add(callback); }
+    @Override public void onItemCraft(ItemStackCallback callback) { itemCraftCallbacks.add(callback); }
+    @Override public void onExplosion(ExplosionCallback callback) { explosionCallbacks.add(callback); }
     public static void fireItemDrop(Object player, Object stack) { itemDropCallbacks.forEach(callback -> callback.handle(player, stack)); }
     public static void fireItemPickup(Object player, Object stack) { itemPickupCallbacks.forEach(callback -> callback.handle(player, stack)); }
     public static void fireContainerOpen(Object player, Object container) { containerOpenCallbacks.forEach(callback -> callback.handle(player, container)); }
     public static void fireContainerClose(Object player, Object container) { containerCloseCallbacks.forEach(callback -> callback.handle(player, container)); }
+    public static void fireItemCraft(Object player, Object stack) { itemCraftCallbacks.forEach(callback -> callback.handle(player, stack)); }
+    public static void fireExplosion(Object level, Object position) { explosionCallbacks.forEach(callback -> callback.handle(level, position)); }
     public static void fireProjectileHit(Object projectile, Object hitResult) { projectileHitCallbacks.forEach(callback -> callback.handle(projectile, hitResult)); }
     public void fireBlockPlace(Entity entity, Level level, BlockPos pos) { blockPlaceCallbacks.forEach(callback -> callback.handle(entity, level, pos)); }
 }
