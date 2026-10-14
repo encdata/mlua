@@ -37,7 +37,13 @@ public final class FabricRegistryWiring {
                     bridge.bindHandle(reg.kind(), reg.key(), () -> block);
                 }
                 case BLOCK_ITEM -> {
-                    BlockItem blockItem = reg.supplier() != null ? (BlockItem) reg.supplier().get() : createBlockItem(bridge, reg.modId(), reg.name());
+                    Object item = reg.supplier() != null
+                        ? reg.supplier().get()
+                        : createBlockItem(bridge, reg.modId(), reg.name());
+                    if (!(item instanceof BlockItem blockItem)) {
+                        throw new IllegalStateException("[MLua] Block item for '" + reg.key()
+                            + "' must be a BlockItem");
+                    }
                     Registry.register(BuiltInRegistries.ITEM, id, blockItem);
                     bridge.bindHandle(reg.kind(), reg.key(), () -> blockItem);
                 }

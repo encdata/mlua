@@ -18,6 +18,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 
 public class ForgeRegistryBridge implements RegistryBridge {
     private final MLuaForgeRegistry forgeRegistry = MLuaForgeRegistry.get();
@@ -35,7 +37,14 @@ public class ForgeRegistryBridge implements RegistryBridge {
             case BLOCK -> wrap(forgeRegistry.registerBlock(modId, name, (Supplier) supplier));
             case BLOCK_ITEM -> wrap(supplier == null
                 ? forgeRegistry.registerBlockItem(modId, name)
-                : forgeRegistry.registerItem(modId, name, (Supplier) supplier));
+                : forgeRegistry.registerItem(modId, name, (Supplier<Item>) () -> {
+                    Object item = supplier.get();
+                    if (!(item instanceof BlockItem blockItem)) {
+                        throw new IllegalStateException("[MLua] Block item for '" + modId + ":" + name
+                            + "' must be a BlockItem");
+                    }
+                    return blockItem;
+                }));
             case ENTITY -> wrap(forgeRegistry.registerEntity(modId, name, (Supplier) supplier, null));
             case PARTICLE -> wrap(forgeRegistry.registerParticle(modId, name, (Supplier) supplier));
             case POTION -> wrap(forgeRegistry.registerPotion(modId, name, (Supplier) supplier));
