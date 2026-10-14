@@ -26,7 +26,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -48,7 +47,11 @@ import org.luaj.vm2.LuaValue;
  */
 class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 
-	static final Map classes = Collections.synchronizedMap(new HashMap());
+	private static final ClassValue<JavaClass> CLASSES = new ClassValue<JavaClass>() {
+		protected JavaClass computeValue(Class<?> type) {
+			return new JavaClass(type);
+		}
+	};
 
 	static final LuaValue NEW = valueOf("new");
 	
@@ -57,10 +60,7 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 	Map innerclasses;
 	
 	static JavaClass forClass(Class c) {
-		JavaClass j = (JavaClass) classes.get(c);
-		if ( j == null )
-			classes.put( c, j = new JavaClass(c) );
-		return j;
+		return CLASSES.get(c);
 	}
 	
 	JavaClass(Class c) {

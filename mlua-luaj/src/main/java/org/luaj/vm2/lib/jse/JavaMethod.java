@@ -23,9 +23,6 @@ package org.luaj.vm2.lib.jse;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaFunction;
@@ -45,13 +42,8 @@ import org.luaj.vm2.Varargs;
  */
 class JavaMethod extends JavaMember {
 
-	static final Map methods = Collections.synchronizedMap(new HashMap());
-	
 	static JavaMethod forMethod(Method m) {
-		JavaMethod j = (JavaMethod) methods.get(m);
-		if ( j == null )
-			methods.put( m, j = new JavaMethod(m) );
-		return j;
+		return new JavaMethod(m);
 	}
 	
 	static LuaFunction forMethods(JavaMethod[] m) {

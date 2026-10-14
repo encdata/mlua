@@ -23,9 +23,6 @@ package org.luaj.vm2.lib.jse;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -46,13 +43,8 @@ import org.luaj.vm2.lib.VarArgFunction;
  */
 class JavaConstructor extends JavaMember {
 
-	static final Map constructors = Collections.synchronizedMap(new HashMap());
-	
 	static JavaConstructor forConstructor(Constructor c) {
-		JavaConstructor j = (JavaConstructor) constructors.get(c);
-		if ( j == null )
-			constructors.put( c, j = new JavaConstructor(c) );
-		return j;
+		return new JavaConstructor(c);
 	}
 	
 	public static LuaValue forConstructors(JavaConstructor[] array) {
