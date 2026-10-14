@@ -799,6 +799,9 @@ public final class MLuaClassRegistry {
          }
          normalized.add(parent);
       }
+      if (normalized.size() > 1) {
+         throw new IllegalArgumentException("Lua class inheritance supports one superclass; use behavior mixins for shared behavior");
+      }
       return List.copyOf(normalized);
    }
 

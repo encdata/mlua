@@ -476,7 +476,7 @@ public final class MLuaLuaBindings {
         if (value.isnil()) return List.of();
         if (value.isstring()) return List.of(value.checkjstring());
         if (!value.istable()) {
-            throw new LuaError("[MLua] RegisterClass parent must be a class name, class, ordered parent list, or nil.");
+            throw new LuaError("[MLua] RegisterClass parent must be a class name, registered class, single-entry parent list, or nil.");
         }
         LuaTable table = value.checktable();
         LuaValue type = table.rawget("__type");
@@ -522,6 +522,9 @@ public final class MLuaLuaBindings {
         }
         if (entries != parents.size() || maximumIndex != parents.size()) {
             throw new LuaError("[MLua] RegisterClass parent lists must not contain gaps.");
+        }
+        if (parents.size() > 1) {
+            throw new LuaError("[MLua] RegisterClass accepts one superclass. Use behavior mixins to compose shared behavior.");
         }
         return List.copyOf(parents);
     }

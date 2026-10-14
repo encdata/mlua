@@ -64,6 +64,9 @@ public interface MLuaRegistration {
                 if (parent != null && !parent.isBlank()) parents.add(parent);
             }
         }
+        if (parents.size() > 1) {
+            throw new IllegalArgumentException("Instantiable Lua classes support one superclass; use behavior mixins for shared behavior");
+        }
         String instanceBase = requireInstanceBaseClassName();
         if (name.equals(instanceBase)) {
             throw new IllegalArgumentException("The shared instance base class cannot be registered as a concrete instance class");

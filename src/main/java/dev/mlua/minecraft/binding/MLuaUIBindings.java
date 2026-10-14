@@ -64,6 +64,9 @@ public final class MLuaUIBindings {
         if (selectedParents.length == 0) {
             throw new IllegalArgumentException("Native UI classes must declare a parent class");
         }
+        if (selectedParents.length > 1) {
+            throw new IllegalArgumentException("Native UI classes support one superclass; use behavior mixins for shared behavior");
+        }
         LuaTable[] parentTables = new LuaTable[selectedParents.length];
         for (int index = 0; index < selectedParents.length; index++) {
             String parentName = selectedParents[index];
