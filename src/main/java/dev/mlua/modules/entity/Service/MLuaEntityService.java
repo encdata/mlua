@@ -175,7 +175,15 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         }
         Entity entity = requireEntity(entityValue);
         if (!(entity instanceof LivingEntity living)) return false;
+        //--version 26.1
+        float healthBefore = living.getHealth();
+        float absorptionBefore = living.getAbsorptionAmount();
+        living.hurt(living.level().damageSources().generic(), (float) amount);
+        return living.getHealth() < healthBefore || living.getAbsorptionAmount() < absorptionBefore;
+        //--endversion
+        //--version 1.20.1,1.21.1
         return living.hurt(living.level().damageSources().generic(), (float) amount);
+        //--endversion
     }
 
     private LuaTable allEntities() {

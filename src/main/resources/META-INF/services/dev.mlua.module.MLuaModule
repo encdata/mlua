@@ -38,5 +38,6 @@ dev.mlua.modules.sound.SoundModule
 dev.mlua.modules.tag.TagModule
 dev.mlua.modules.texture.TextureModule
 dev.mlua.modules.title.TitleModule
+dev.mlua.modules.toast.ToastModule
 dev.mlua.modules.ui.UIModule
 dev.mlua.modules.world.WorldModule
