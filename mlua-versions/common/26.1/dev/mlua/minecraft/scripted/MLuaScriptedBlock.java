@@ -42,7 +42,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
         LuaValue callback = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRightClick");
         MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
         if (!callback.isnil() || container != null) {
-            if (level.isClientSide) return InteractionResult.sidedSuccess(true);
+            if (level.isClientSide) return InteractionResult.SUCCESS;
             try {
                 if (!callback.isnil()) {
                     var registration = MLuaRuntime.registrationForLevel(level);
@@ -57,7 +57,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
                     }
                     ctx.set("Face", hit.getDirection().getName());
                     Varargs result = callback.invoke(ctx);
-                    if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.sidedSuccess(false);
+                    if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.SUCCESS;
                 }
             } catch (Exception exception) {
                 MLuaLogger.LOGGER.error("MLua block onRightClick callback failed for '{}': {}", this.behaviorKey, exception.getMessage());
@@ -103,29 +103,6 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
         super.stepOn(level, pos, state, entity);
     }
     @Override
-    protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity,
-                                net.minecraft.world.level.block.InsideBlockEffectApplier effectApplier,
-                                boolean movedByPiston) {
-        MLuaBlockCallbackDispatcher.fireCallback("onEntityInside", level, pos,
-            MLuaBlockCallbackDispatcher.entityContext(level, pos, entity));
-        super.entityInside(state, level, pos, entity, effectApplier, movedByPiston);
-    }
-    @Override
-    protected void neighborChanged(BlockState state, Level level, BlockPos pos, net.minecraft.world.level.block.Block block,
-                                   net.minecraft.world.redstone.Orientation orientation, boolean movedByPiston) {
-        MLuaBlockCallbackDispatcher.fireCallback("onNeighborChanged", level, pos,
-            MLuaBlockCallbackDispatcher.eventContext(level, pos));
-        super.neighborChanged(state, level, pos, block, orientation, movedByPiston);
-    }
-    @Override
-    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-        if (!state.is(newState.getBlock())) {
-            MLuaBlockCallbackDispatcher.fireCallback("onRemove", level, pos,
-                MLuaBlockCallbackDispatcher.eventContext(level, pos));
-        }
-        super.onRemove(state, level, pos, newState, movedByPiston);
-    }
-    @Override
     public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         MLuaBlockCallbackDispatcher.fireCallback("onRandomTick", level, pos,
             MLuaBlockCallbackDispatcher.eventContext(level, pos));
@@ -136,13 +113,6 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
         MLuaBlockCallbackDispatcher.fireCallback("onTick", level, pos,
             MLuaBlockCallbackDispatcher.eventContext(level, pos));
         super.tick(state, level, pos, random);
-    }
-    @Override
-    public void fallOn(Level level, BlockState state, BlockPos pos, Entity entity, float fallDistance) {
-        LuaTable context = MLuaBlockCallbackDispatcher.entityContext(level, pos, entity);
-        context.set("FallDistance", LuaValue.valueOf(fallDistance));
-        MLuaBlockCallbackDispatcher.fireCallback("onFallOn", level, pos, context);
-        super.fallOn(level, state, pos, entity, fallDistance);
     }
     @Override
     public void onProjectileHit(Level level, BlockState state, BlockHitResult hitResult, Projectile projectile) {
