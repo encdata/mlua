@@ -72,7 +72,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("New", "Constructs an object using a compatible public Java constructor.");
         descriptions.put("newInstance", "Constructs an object using a compatible public Java constructor; alias for New.");
         descriptions.put("Proxy", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions.");
-        descriptions.put("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy.");
+        descriptions.put("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy. Required abstract methods are checked at creation; default and static methods do not need Lua functions.");
         descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
         descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
         descriptions.put("TypeOf", "Returns the runtime Java class name of a Java value, object proxy, or class proxy. Returns nil for nil.");
