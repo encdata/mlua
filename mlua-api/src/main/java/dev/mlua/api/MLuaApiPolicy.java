@@ -4,14 +4,13 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 
-/** Runtime-readable API compatibility and capability contract. */
 @MLuaApiStatus(since = "1.0.0")
 public final class MLuaApiPolicy {
     public static final String VERSION = "1.0.0";
     private static final Set<String> CAPABILITIES = Set.of(
         "api.stable_v1", "class.registry", "class.registry_lifecycle", "class.instance_identity",
         "class.protected_instance_metatables",
-        "class.multiple_inheritance",
+        "class.single_inheritance",
         "class.lookup", "class.discovery", "class.behavior_mixins",
         "service.registry", "service.described_functions", "service.typed_reflective_arguments",
         "service.reflective_varargs", "service.reflective_collections", "service.optional_values",
