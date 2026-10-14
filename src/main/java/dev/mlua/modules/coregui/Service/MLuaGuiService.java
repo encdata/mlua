@@ -1650,6 +1650,30 @@ public final class MLuaGuiService implements MLuaService {
             if (!this.disposed) this.invokeClassMethod("Tick");
         }
 
+        @Override public boolean isPauseScreen() {
+            if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains("IsPauseScreen")) return true;
+            LuaValue method = this.luaInstance.get("IsPauseScreen");
+            if (!method.isfunction()) return true;
+            try {
+                LuaValue result = method.invoke(this.luaInstance).arg1();
+                return result.isnil() || result.toboolean();
+            } catch (RuntimeException failure) {
+                this.failedInputMethods.add("IsPauseScreen");
+                MLuaLogger.LOGGER.error("Lua screen method 'IsPauseScreen' failed; using Minecraft's pause-screen default", failure);
+                return true;
+            }
+        }
+
+        @Override public boolean shouldCloseOnEsc() {
+            if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains("ShouldCloseOnEsc")) {
+                return super.shouldCloseOnEsc();
+            }
+            LuaValue method = this.luaInstance.get("ShouldCloseOnEsc");
+            if (!method.isfunction()) return super.shouldCloseOnEsc();
+            boolean shouldClose = this.invokeClassInputMethod("ShouldCloseOnEsc");
+            return this.failedInputMethods.contains("ShouldCloseOnEsc") ? super.shouldCloseOnEsc() : shouldClose;
+        }
+
         private void invokeClassMethod(String methodName) {
             if (this.luaInstance == null) return;
             LuaValue method = this.luaInstance.get(methodName);
