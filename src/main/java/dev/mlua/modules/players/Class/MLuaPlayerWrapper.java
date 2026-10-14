@@ -156,9 +156,9 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf((double)player.getHealth());
       }), "Returns this player's current health.");
       MLuaClassMethods.setInstanceMethod(table, "SetHealth", varArg((args) -> {
-         player.setHealth((float)args.checkdouble(2));
+         MLuaEntityWrapper.setHealth(player, (float)args.checkdouble(2));
          return LuaValue.NONE;
-      }), "Sets this player's current health.");
+      }), "Sets this player's health to a finite, non-negative value.");
       MLuaClassMethods.setInstanceMethod(table, "GetMaxHealth", luaFn(() -> {
          return LuaValue.valueOf((double)player.getMaxHealth());
       }), "Returns this player's maximum health.");

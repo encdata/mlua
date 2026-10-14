@@ -181,7 +181,7 @@ public class PlayersModule implements MLuaModule {
                 "GetAbsorption", "SetAbsorption", "GiveEffect", "RemoveEffect", "HasEffect", "GetEffects", "ClearEffects")) {
             String description = switch (method) {
                 case "GetHealth" -> "Returns this entity's current health.";
-                case "SetHealth" -> "Sets this entity's current health.";
+                case "SetHealth" -> "Sets this entity's health to a finite, non-negative value.";
                 case "GetMaxHealth" -> "Returns this entity's maximum health.";
                 case "GetArmor" -> "Returns this entity's armor value.";
                 case "GetIsJumping" -> "Returns whether this entity is moving upward while airborne.";

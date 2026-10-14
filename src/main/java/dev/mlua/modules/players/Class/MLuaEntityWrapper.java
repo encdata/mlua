@@ -308,7 +308,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.valueOf((double)wrapped.getHealth());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetHealth", varArg((args) -> {
-         wrapped.setHealth((float)args.checkdouble(2));
+         setHealth(wrapped, (float)args.checkdouble(2));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetMaxHealth", luaFn(() -> {
@@ -982,6 +982,9 @@ public final class MLuaEntityWrapper {
    }
 
    public static void setHealth(MCLivingEntity entity, float value) {
+      if (!Float.isFinite(value) || value < 0.0F) {
+         throw new LuaError("[MLua] LivingEntity:SetHealth requires a finite, non-negative health value.");
+      }
       entity.setHealth(value);
    }
 
