@@ -280,19 +280,14 @@ public final class MLuaLuauTranspiler {
    }
 
    private int findIfExpr(String code, int from) {
-      for(int i = from; i < code.length() - 2; ++i) {
-         if (this.isKw(code, i, "if")) {
-            int j;
-            for(j = i - 1; j >= from && Character.isWhitespace(code.charAt(j)); --j) {
-            }
-
-            if (j >= from && code.charAt(j) == '=') {
-               return i;
-            }
-         }
+      if (!this.isKw(code, from, "if")) {
+         return -1;
       }
-
-      return -1;
+      int previous = from - 1;
+      while(previous >= 0 && Character.isWhitespace(code.charAt(previous))) {
+         --previous;
+      }
+      return previous >= 0 && code.charAt(previous) == '=' ? from : -1;
    }
 
    private int findIfExprEnd(String code, int ifPos) {
@@ -420,30 +415,24 @@ public final class MLuaLuauTranspiler {
    }
 
    private int findTypeColon(String code, int from) {
-      for(int i = from; i < code.length(); ++i) {
-         if (code.charAt(i) == ':' && i + 1 < code.length()) {
-            if (code.charAt(i + 1) == ':') {
-               ++i;
-            } else {
-               int after = this.skipWs(code, i + 1);
-               if (after < code.length() && Character.isJavaIdentifierStart(code.charAt(after))) {
-                  int identEnd = this.skipIdent(code, after);
-                  int afterIdent = this.skipWs(code, identEnd);
-                  if (afterIdent >= code.length() || code.charAt(afterIdent) != '(') {
-                     int before;
-                     for(before = i - 1; before >= from && Character.isWhitespace(code.charAt(before)); --before) {
-                     }
-
-                     if (before >= from && (Character.isJavaIdentifierPart(code.charAt(before)) || code.charAt(before) == ')' || code.charAt(before) == ']')) {
-                        return i;
-                     }
-                  }
-               }
-            }
-         }
+      if (code.charAt(from) != ':' || from + 1 >= code.length() || code.charAt(from + 1) == ':') {
+         return -1;
       }
-
-      return -1;
+      int after = this.skipWs(code, from + 1);
+      if (after >= code.length() || !Character.isJavaIdentifierStart(code.charAt(after))) {
+         return -1;
+      }
+      int identEnd = this.skipIdent(code, after);
+      int afterIdent = this.skipWs(code, identEnd);
+      if (afterIdent < code.length() && code.charAt(afterIdent) == '(') {
+         return -1;
+      }
+      int before = from - 1;
+      while(before >= 0 && Character.isWhitespace(code.charAt(before))) {
+         --before;
+      }
+      return before >= 0 && (Character.isJavaIdentifierPart(code.charAt(before))
+         || code.charAt(before) == ')' || code.charAt(before) == ']') ? from : -1;
    }
 
    private int skipTypeAnnotation(String code, int colonPos) {
