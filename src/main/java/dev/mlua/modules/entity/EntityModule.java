@@ -58,6 +58,20 @@ public final class EntityModule implements MLuaModule {
         docs.signature("Entity", "Entity:GetBoundingBox()", "EntityBounds");
         docs.signature("Entity", "Entity:GetWidth()", "number");
         docs.signature("Entity", "Entity:GetHeight()", "number");
+        docs.signature("Entity", "Entity:GetVehicle()", "Entity?");
+        docs.signature("Entity", "Entity:GetRootVehicle()", "Entity");
+        docs.signature("Entity", "Entity:GetPassengers()", "Entity[]");
+        docs.signature("Entity", "Entity:StartRiding(vehicle: Entity, force: boolean?)", "boolean");
+        docs.signature("Entity", "Entity:StopRiding()", "void");
+        docs.signature("Entity", "Entity:GetIsPassenger()", "boolean");
+        docs.signature("Entity", "Entity:GetIsVehicle()", "boolean");
+        docs.signature("Entity", "Entity:GetIsInLava()", "boolean");
+        docs.signature("Entity", "Entity:GetIsUnderWater()", "boolean");
+        docs.signature("Entity", "Entity:GetFallDistance()", "number");
+        docs.signature("Entity", "Entity:SetFallDistance(distance: number)", "void");
+        docs.guideStep("Entity", "Ride an entity and inspect its passengers",
+            "Entity ride relationships use Minecraft's passenger rules. StartRiding returns false if the mount is rejected; GetPassengers returns live Entity instances.",
+            "local entityService = Minecraft:GetService(\"EntityService\")\nlocal world = Minecraft:GetService(\"World\"):Current()\nlocal spawnPosition = Vector3.new(0, 64, 0)\nlocal horse = entityService:Spawn(\"minecraft:horse\", spawnPosition, world)\nlocal rider = entityService:Spawn(\"minecraft:zombie\", spawnPosition, world)\nif rider:StartRiding(horse) then\n    for _, passenger in ipairs(horse.Passengers) do\n        print(passenger.Name, passenger.Vehicle.Name)\n    end\nend");
         docs.signature("Entity", "Entity:GetTags()", "string[]");
         docs.signature("Entity", "Entity:HasTag(tag: string)", "boolean");
         docs.signature("Entity", "Entity:AddTag(tag: string)", "boolean");
@@ -75,6 +89,15 @@ public final class EntityModule implements MLuaModule {
         docs.signature("LivingEntity", "LivingEntity:GetAttribute(name: string)", "number?");
         docs.signature("LivingEntity", "LivingEntity:SetAttribute(name: string, value: number)", "boolean");
         docs.signature("LivingEntity", "LivingEntity:GetAttributeInstance(name: string)", "AttributeInstance?");
+        docs.signature("Mob", "Mob:GetTarget()", "LivingEntity?");
+        docs.signature("Mob", "Mob:SetTarget(target: LivingEntity?)", "void");
+        docs.signature("Mob", "Mob:CanSee(target: Entity)", "boolean");
+        docs.signature("Mob", "Mob:CanAttack(target: LivingEntity)", "boolean");
+        docs.signature("Mob", "Mob:GetPersistenceRequired()", "boolean");
+        docs.signature("Mob", "Mob:SetPersistenceRequired()", "void");
+        docs.guideStep("Mob", "Drive a mob's target from a script",
+            "Mob is the class for Minecraft mobs, between LivingEntity and concrete mob types. Use CanSee and CanAttack before assigning the mob's target.",
+            "local function updateTarget(mob, player)\n    if mob:CanSee(player) and mob:CanAttack(player) then\n        mob.Target = player\n    end\nend");
         docs.signature("Entity", "Entity:GetNbt(key: string?)", "any");
         docs.signature("Entity", "Entity:SetNbt(key: string, value: any)", "void");
         docs.signature("Entity", "Entity:GetPersistentData()", "DataStore");
@@ -106,7 +129,7 @@ public final class EntityModule implements MLuaModule {
         docs.field("EntityBounds", "Minimum", "Vector3", "Minimum corner of the entity bounds.");
         docs.field("EntityBounds", "Maximum", "Vector3", "Maximum corner of the entity bounds.");
         docs.guideStep("Entity", "Tag entities and query them in the world",
-            "Use Minecraft entity tags to mark targets, then pass an EntityQuery to a world's spatial search method.",
+            "Use saved MLua entity tags to mark targets, then pass an entity query to a world's spatial search method.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal target = world:FindNearestEntity(Vector3.new(0, 64, 0), 16, { type = \"minecraft:zombie\" })\n\nif target then\n    target:AddTag(\"encounter_target\")\n    print(target.EyePosition, target:GetBoundingBox().Minimum)\nend\n\nlocal targets = world:FindEntitiesInRadius(Vector3.new(0, 64, 0), 24, { tags = { \"encounter_target\" }, alive = true })\nfor _, entity in ipairs(targets) do\n    entity:SetGlowing(true)\nend");
         docs.service("EntityService", "MLuaEntityService",
             "Query, spawn, move, damage, and remove Minecraft entities from Lua.",

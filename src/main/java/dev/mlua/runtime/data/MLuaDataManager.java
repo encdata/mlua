@@ -198,7 +198,7 @@ public final class MLuaDataManager {
    public static java.util.List<String> entityTags(Entity entity) {
       if (entity.level().isClientSide) return List.of();
       CompoundTag data = entityPersistentTag(entity);
-      ListTag tags = data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      ListTag tags = entityTagList(data);
       ArrayList<String> result = new ArrayList<>(tags.size());
       for (int index = 0; index < tags.size(); index++) result.add(tags.getString(index));
       return List.copyOf(result);
@@ -212,7 +212,7 @@ public final class MLuaDataManager {
    public static boolean addEntityTag(Entity entity, String value) {
       String tag = validateEntityTag(value);
       CompoundTag data = entityPersistentTag(entity);
-      ListTag tags = data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      ListTag tags = entityTagList(data);
       for (int index = 0; index < tags.size(); index++) {
          if (tag.equals(tags.getString(index))) return false;
       }
@@ -225,7 +225,7 @@ public final class MLuaDataManager {
    public static boolean removeEntityTag(Entity entity, String value) {
       String tag = validateEntityTag(value);
       CompoundTag data = entityPersistentTag(entity);
-      ListTag tags = data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      ListTag tags = entityTagList(data);
       boolean removed = false;
       for (int index = tags.size() - 1; index >= 0; index--) {
          if (tag.equals(tags.getString(index))) {
@@ -239,6 +239,15 @@ public final class MLuaDataManager {
          setEntityPersistentTag(entity, data);
       }
       return removed;
+   }
+
+   private static ListTag entityTagList(CompoundTag data) {
+      //--version 26.1
+      return data.getList(ENTITY_TAGS_KEY);
+      //--endversion
+      //--version 1.20.1,1.21.1
+      return data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      //--endversion
    }
 
    private static String validateEntityTag(String value) {

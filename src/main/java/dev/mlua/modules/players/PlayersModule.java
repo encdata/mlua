@@ -118,6 +118,17 @@ public class PlayersModule implements MLuaModule {
             {"GetBoundingBox", "Returns the minimum and maximum corners of this entity's bounds."},
             {"GetWidth", "Returns this entity's bounding-box width."},
             {"GetHeight", "Returns this entity's bounding-box height."},
+            {"GetVehicle", "Returns the entity this entity is riding, or nil."},
+            {"GetRootVehicle", "Returns the topmost vehicle in this entity's riding chain."},
+            {"GetPassengers", "Returns the entities riding this entity."},
+            {"StartRiding", "Attempts to mount this entity onto another entity."},
+            {"StopRiding", "Dismounts this entity from its current vehicle."},
+            {"GetIsPassenger", "Returns whether this entity is riding another entity."},
+            {"GetIsVehicle", "Returns whether this entity has passengers."},
+            {"GetIsInLava", "Returns whether this entity is in lava."},
+            {"GetIsUnderWater", "Returns whether this entity is fully underwater."},
+            {"GetFallDistance", "Returns this entity's current fall distance."},
+            {"SetFallDistance", "Sets this entity's fall distance."},
             {"GetTags", "Returns this entity's saved MLua tags."},
             {"HasTag", "Returns whether this entity has the given saved MLua tag."},
             {"AddTag", "Adds a persistent MLua tag to this entity."},
@@ -189,6 +200,19 @@ public class PlayersModule implements MLuaModule {
             "boolean", "shared:Shared", "Whether this entity is moving upward while airborne.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsSwimming", "GetIsSwimming", null,
             "boolean", "shared:Shared", "Whether this entity is swimming.");
+
+        registration.registerClass("Mob", "LivingEntity",
+            "A Minecraft mob with AI targeting, visibility checks, and persistence controls.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "GetTarget", "Returns the living entity this mob currently targets, or nil.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "SetTarget", "Sets or clears this mob's AI target.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "CanSee", "Returns whether this mob has line of sight to an entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "CanAttack", "Returns whether Minecraft allows this mob to attack a living entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "GetPersistenceRequired", "Returns whether this mob is marked to persist without despawning.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Mob", "SetPersistenceRequired", "Marks this mob to persist without despawning.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Mob", "Target", "GetTarget", "SetTarget",
+            "LivingEntity|nil", "server:Server", "This mob's current AI target.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Mob", "PersistenceRequired", "GetPersistenceRequired", null,
+            "boolean", "shared:Shared", "Whether this mob is marked to persist without despawning.");
 
         LuaTable playerClass = registration.registerClass("Player", "LivingEntity",
             "A live player instance with player identity, inventory, messaging, and player controls.");
@@ -343,6 +367,14 @@ public class PlayersModule implements MLuaModule {
             {"EyePosition", "GetEyePosition", null, "Vector3", "shared:Shared", "This entity's eye position."},
             {"Width", "GetWidth", null, "number", "shared:Shared", "This entity's bounding-box width."},
             {"Height", "GetHeight", null, "number", "shared:Shared", "This entity's bounding-box height."},
+            {"Vehicle", "GetVehicle", null, "Entity|nil", "shared:Shared", "The entity this entity is riding, or nil."},
+            {"RootVehicle", "GetRootVehicle", null, "Entity", "shared:Shared", "The topmost vehicle in this entity's riding chain."},
+            {"Passengers", "GetPassengers", null, "Entity[]", "shared:Shared", "Entities currently riding this entity."},
+            {"IsPassenger", "GetIsPassenger", null, "boolean", "shared:Shared", "Whether this entity is riding another entity."},
+            {"IsVehicle", "GetIsVehicle", null, "boolean", "shared:Shared", "Whether this entity has passengers."},
+            {"IsInLava", "GetIsInLava", null, "boolean", "shared:Shared", "Whether this entity is in lava."},
+            {"IsUnderWater", "GetIsUnderWater", null, "boolean", "shared:Shared", "Whether this entity is fully underwater."},
+            {"FallDistance", "GetFallDistance", "SetFallDistance", "number", "shared:Shared", "This entity's current fall distance."},
             {"CustomName", "GetCustomName", "SetCustomName", "string|nil", "shared:Shared", "The entity's custom name."},
             {"CustomNameVisible", "GetCustomNameVisible", "SetCustomNameVisible", "boolean", "shared:Shared", "Whether the custom name is visible."},
             {"Glowing", "GetGlowing", "SetGlowing", "boolean", "shared:Shared", "Whether the entity has a glowing outline."},
@@ -375,6 +407,7 @@ public class PlayersModule implements MLuaModule {
     public void contributeGlobals(Globals globals, MLuaContextView context) {
         globals.set("Entity", context.registration().classTable("Entity"));
         globals.set("LivingEntity", context.registration().classTable("LivingEntity"));
+        globals.set("Mob", context.registration().classTable("Mob"));
         globals.set("Player", context.registration().classTable("Player"));
     }
 
@@ -480,6 +513,11 @@ public class PlayersModule implements MLuaModule {
         docs.clazz("LivingEntity", "MLuaEntityWrapper",
                 "A living entity with health, damage, equipment, and attributes.",
                 "classes/living-entity.html", "Entity");
+        docs.clazz("Mob", "MLuaEntityWrapper",
+                "A Minecraft mob with AI targeting, visibility checks, and persistence controls.",
+                "classes/mob.html", "LivingEntity");
+        docs.property("Mob", "mob.Target", "LivingEntity|nil", "This mob's current AI target. Readable and writable.", "server:Server");
+        docs.property("Mob", "mob.PersistenceRequired", "boolean", "Whether this mob is marked to persist without despawning.", "shared:Shared");
         docs.property("Entity", "entity.Name", "string", "The entity's current name.", "shared:Shared");
         docs.property("Entity", "entity.UUID", "string", "The entity's UUID.", "shared:Shared");
         docs.property("Entity", "entity.Nbt", "Nbt|table", "The entity's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server");

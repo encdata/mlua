@@ -329,6 +329,42 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetArmor", luaFn(() -> {
          return LuaValue.valueOf(wrapped.getArmorValue());
       }));
+      if (entity instanceof net.minecraft.world.entity.Mob mob) {
+         MLuaClassMethods.setInstanceMethod(table, "GetTarget", luaFn(() -> {
+            net.minecraft.world.entity.LivingEntity target = mob.getTarget();
+            return target == null ? LuaValue.NIL : entityTable(target, registration);
+         }));
+         MLuaClassMethods.setInstanceMethod(table, "SetTarget", varArg((args) -> {
+            LuaValue targetValue = args.arg(2);
+            if (targetValue.isnil()) {
+               mob.setTarget(null);
+               return LuaValue.NONE;
+            }
+            if (!targetValue.istable()) throw new LuaError("[MLua] Mob:SetTarget expects a LivingEntity or nil.");
+            LuaValue rawTarget = targetValue.checktable().rawget("__entity");
+            if (!rawTarget.isuserdata(net.minecraft.world.entity.LivingEntity.class)) {
+               throw new LuaError("[MLua] Mob:SetTarget expects a LivingEntity or nil.");
+            }
+            mob.setTarget((net.minecraft.world.entity.LivingEntity)rawTarget.touserdata(net.minecraft.world.entity.LivingEntity.class));
+            return LuaValue.NONE;
+         }));
+         MLuaClassMethods.setInstanceMethod(table, "CanSee", varArg((args) -> {
+            net.minecraft.world.entity.Entity target = entityFromLua(args.arg(2));
+            return LuaValue.valueOf(target != null && mob.hasLineOfSight(target));
+         }));
+         MLuaClassMethods.setInstanceMethod(table, "CanAttack", varArg((args) -> {
+            LuaValue targetValue = args.arg(2);
+            if (!targetValue.istable()) return LuaValue.FALSE;
+            LuaValue rawTarget = targetValue.checktable().rawget("__entity");
+            return LuaValue.valueOf(rawTarget.isuserdata(net.minecraft.world.entity.LivingEntity.class)
+               && mob.canAttack((net.minecraft.world.entity.LivingEntity)rawTarget.touserdata(net.minecraft.world.entity.LivingEntity.class)));
+         }));
+         MLuaClassMethods.setInstanceMethod(table, "GetPersistenceRequired", luaFn(() -> LuaValue.valueOf(mob.isPersistenceRequired())));
+         MLuaClassMethods.setInstanceMethod(table, "SetPersistenceRequired", luaFn(() -> {
+            mob.setPersistenceRequired();
+            return LuaValue.NONE;
+         }));
+      }
       MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> {
          return MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot());
       }));
@@ -664,6 +700,63 @@ public final class MLuaEntityWrapper {
       LuaValue value = table.rawget("__entity");
       if (!value.isuserdata(net.minecraft.world.entity.Entity.class)) return;
       net.minecraft.world.entity.Entity entity = (net.minecraft.world.entity.Entity)value.touserdata(net.minecraft.world.entity.Entity.class);
+      MLuaRegistration registration = MLuaRuntime.registrationForLevel(entity.level());
+      MLuaClassMethods.setInstanceMethod(table, "GetVehicle", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            net.minecraft.world.entity.Entity vehicle = entity.getVehicle();
+            return vehicle == null ? LuaValue.NIL : entityTable(vehicle, registration);
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetRootVehicle", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return entityTable(entity.getRootVehicle(), registration); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetPassengers", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaTable passengers = new LuaTable();
+            int index = 1;
+            for (net.minecraft.world.entity.Entity passenger : entity.getPassengers()) {
+               passengers.set(index++, entityTable(passenger, registration));
+            }
+            return passengers;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "StartRiding", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaValue target = args.arg(2);
+            if (!target.istable()) throw new LuaError("[MLua] StartRiding expects a live Entity instance.");
+            LuaValue rawTarget = target.checktable().rawget("__entity");
+            if (!rawTarget.isuserdata(net.minecraft.world.entity.Entity.class)) {
+               throw new LuaError("[MLua] StartRiding expects a live Entity instance.");
+            }
+            return LuaValue.valueOf(entity.startRiding(
+               (net.minecraft.world.entity.Entity)rawTarget.touserdata(net.minecraft.world.entity.Entity.class),
+               args.optboolean(3, false)));
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "StopRiding", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { entity.stopRiding(); return LuaValue.NONE; }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetIsPassenger", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isPassenger()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetIsVehicle", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isVehicle()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetIsInLava", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isInLava()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetIsUnderWater", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.isUnderWater()); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetFallDistance", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.fallDistance); }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "SetFallDistance", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            entity.fallDistance = Math.max(0.0F, args.checkfloat(2));
+            return LuaValue.NONE;
+         }
+      });
       MLuaClassMethods.setInstanceMethod(table, "GetCustomName", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             net.minecraft.network.chat.Component name = entity.getCustomName();
@@ -760,7 +853,12 @@ public final class MLuaEntityWrapper {
 
    private static void attachLivingEntityClass(MLuaRegistration registration, LuaTable table) {
       if (registration == null) throw new IllegalStateException("Lua registration is required for LivingEntity instances");
-      registration.attachClassInstance(table, "LivingEntity", "Entity");
+      LuaValue value = table.rawget("__entity");
+      if (value.isuserdata(net.minecraft.world.entity.Mob.class)) {
+         registration.attachClassInstance(table, "Mob", "LivingEntity");
+      } else {
+         registration.attachClassInstance(table, "LivingEntity", "Entity");
+      }
    }
 
    private static boolean hasEntity(LuaTable table, net.minecraft.world.entity.Entity entity) {
