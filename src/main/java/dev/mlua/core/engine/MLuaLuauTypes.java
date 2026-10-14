@@ -17,6 +17,8 @@ import dev.mlua.math.MLuaVector;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.Collections;
 import java.util.Set;
@@ -545,16 +547,17 @@ public final class MLuaLuauTypes {
          public LuaValue call(LuaValue tbl) {
             LuaTable t = tbl.checktable();
             if (t.isfrozen()) throw new LuaError("attempt to modify a frozen table");
+            List<LuaValue> keys = new ArrayList<>();
             LuaValue key = LuaValue.NIL;
 
             while(true) {
                Varargs next = t.next(key);
                key = next.arg1();
                if (key.isnil()) {
+                  for (LuaValue entry : keys) t.rawset(entry, LuaValue.NIL);
                   return LuaValue.NONE;
                }
-
-               t.set(key, LuaValue.NIL);
+               keys.add(key);
             }
          }
       });
@@ -633,6 +636,14 @@ public final class MLuaLuauTypes {
             String sep = separator.checkjstring();
             LuaTable result = new LuaTable();
             int index = 1;
+            if (sep.isEmpty()) {
+               for (int offset = 0; offset < s.length();) {
+                  int codePoint = s.codePointAt(offset);
+                  result.set(index++, LuaValue.valueOf(new String(Character.toChars(codePoint))));
+                  offset += Character.charCount(codePoint);
+               }
+               return result;
+            }
 
             int start;
             int pos;
@@ -679,7 +690,8 @@ public final class MLuaLuauTypes {
                public Varargs invoke(Varargs inner) {
                   int min = inner.checkint(2);
                   int max = inner.checkint(3);
-                  return LuaValue.valueOf(rng.nextInt(max - min + 1) + min);
+                  if (min > max) throw new LuaError("Random.NextInteger minimum must not exceed maximum");
+                  return LuaValue.valueOf((int)rng.nextLong(min, (long)max + 1));
                }
             });
             return inst;
