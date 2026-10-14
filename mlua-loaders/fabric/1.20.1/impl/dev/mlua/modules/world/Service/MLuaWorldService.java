@@ -454,8 +454,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NONE;
       }));
 
-      bindWorldMethod(table, implementations, "ListGameRules", levelFn(supplier, (level, args) -> this.listGameRules(level)));
-      bindWorldMethod(table, implementations, "GetGameRule", levelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
+      bindWorldMethod(table, implementations, "ListGameRules", serverLevelFn(supplier, (level, args) -> this.listGameRules(level)));
+      bindWorldMethod(table, implementations, "GetGameRule", serverLevelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
       bindWorldMethod(table, implementations, "SetGameRule", serverLevelFn(supplier, (level, args) -> {
          this.setGameRule(level, args.checkjstring(2), args.arg(3));
          return LuaValue.NONE;

@@ -483,8 +483,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NONE;
       }));
 
-      table.set("ListGameRules", levelFn(supplier, (level, args) -> this.listGameRules(level)));
-      table.set("GetGameRule", levelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
+      table.set("ListGameRules", serverLevelFn(supplier, (level, args) -> this.listGameRules(level)));
+      table.set("GetGameRule", serverLevelFn(supplier, (level, args) -> this.getGameRule(level, args.checkjstring(2))));
       table.set("SetGameRule", serverLevelFn(supplier, (level, args) -> {
          this.setGameRule(level, args.checkjstring(2), args.arg(3));
          return LuaValue.NONE;

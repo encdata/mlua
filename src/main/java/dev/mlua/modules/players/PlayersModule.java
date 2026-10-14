@@ -275,6 +275,8 @@ public class PlayersModule implements MLuaModule {
             "Returns this player's food saturation.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetSaturation",
             "Sets this player's food saturation.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Player", "CauseFoodExhaustion",
+            "Adds food exhaustion to this player; server-side only for authoritative changes.");
         for (String method : List.of("GetDisplayName", "SendMessage", "SendTitle", "SendActionBar",
                 "GetEyeCFrame", "GetCameraCFrame", "GiveItem", "ClearInventory", "GiveEffect",
                 "RemoveEffect", "HasEffect", "ClearEffects", "PlaySound", "GetNearbyEntities",
@@ -490,6 +492,7 @@ public class PlayersModule implements MLuaModule {
         docs.signature("Player", "Player:SetFood(food: number)", null);
         docs.signature("Player", "Player:SetFoodLevel(level: number)", null);
         docs.signature("Player", "Player:SetSaturation(saturation: number)", null);
+        docs.signature("Player", "Player:CauseFoodExhaustion(amount: number)", null);
         docs.signature("Player", "Player:SetHealth(health: number)", null);
         docs.signature("Player", "Player:SetSelectedSlot(slot: number)", null);
         docs.signature("Players", "Players:GetLocalPlayer()", "Player?");
@@ -595,5 +598,8 @@ public class PlayersModule implements MLuaModule {
             "    print(player.Name, player.Position)\n" +
             "    player:SendMessage(\"Hello!\")\n" +
             "end");
+        docs.guideStep("Player", "Charge food exhaustion for a custom action",
+            "CauseFoodExhaustion adds to Minecraft's normal exhaustion meter, so custom sprinting, heavy attacks, or tools can share the vanilla hunger system.",
+            "local function spendStamina(player, exhaustion)\n    player:CauseFoodExhaustion(exhaustion)\nend\n\nspendStamina(player, 0.5)");
     }
 }

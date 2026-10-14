@@ -187,6 +187,10 @@ public final class MLuaPlayerWrapper {
          player.getFoodData().setSaturation((float)args.checkdouble(2));
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
+      MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
+         player.causeFoodExhaustion((float)args.checkdouble(2));
+         return LuaValue.NONE;
+      }), "Adds food exhaustion to this player; server-side only for authoritative changes.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.getExperienceLevel());
       }));
@@ -513,6 +517,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg(args -> unavailableRemotePlayerState("food")));
       MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> LuaValue.NIL));
       MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg(args -> unavailableRemotePlayerState("food")));
+      MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg(args -> unavailableRemotePlayerState("food")));
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> LuaValue.NIL));
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceProgress", luaFn(() -> LuaValue.NIL));
       MLuaClassMethods.setInstanceMethod(table, "GetSelectedSlot", luaFn(() -> LuaValue.NIL));
@@ -639,6 +644,10 @@ public final class MLuaPlayerWrapper {
          player.getFoodData().setSaturation((float)args.checkdouble(2));
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
+      MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
+         player.causeFoodExhaustion((float)args.checkdouble(2));
+         return LuaValue.NONE;
+      }), "Adds food exhaustion to this player.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.getExperienceLevel());
       }));

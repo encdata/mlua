@@ -172,8 +172,8 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetData", "Returns persistent world data by key."),
             Map.entry("SetData", "Sets persistent world data by key. This method is server-side only."),
             Map.entry("RemoveData", "Removes a persistent world data key. This method is server-side only."),
-            Map.entry("ListGameRules", "Returns the names and current values of this world's gamerules."),
-            Map.entry("GetGameRule", "Returns a world gamerule value by name."),
+            Map.entry("ListGameRules", "Returns the names and current values of this world's gamerules. This method is server-side only."),
+            Map.entry("GetGameRule", "Returns a world gamerule value by name. This method is server-side only."),
             Map.entry("SetGameRule", "Sets a world gamerule. This method is server-side only.")
         );
     }
