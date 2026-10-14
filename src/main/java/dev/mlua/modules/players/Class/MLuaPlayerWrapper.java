@@ -254,16 +254,9 @@ public final class MLuaPlayerWrapper {
          return MLuaVector.vector2(Math.toRadians((double)player.getXRot()), Math.toRadians((double)player.getYRot()));
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         LuaValue value = args.arg(2);
-         if (!value.istable()) {
-            throw new LuaError("[MLua] SetRotationRadians expects Vector2(pitch, yaw)");
-         } else {
-            LuaTable rotation = value.checktable();
-            double pitch = rotation.get("X").isnumber() ? rotation.get("X").todouble() : rotation.get("x").checkdouble();
-            double yaw = rotation.get("Y").isnumber() ? rotation.get("Y").todouble() : rotation.get("y").checkdouble();
-            MLuaEntityWrapper.applyRotation(player, MLuaVector.vector2(Math.toDegrees(pitch), Math.toDegrees(yaw)));
-            return LuaValue.NONE;
-         }
+         double[] rotation = MLuaVector.components2(args.arg(2));
+         MLuaEntityWrapper.applyRotation(player, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
+         return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
          player.setYRot((float)args.checkdouble(2));
@@ -693,16 +686,9 @@ public final class MLuaPlayerWrapper {
          return MLuaVector.vector2(Math.toRadians((double)player.getXRot()), Math.toRadians((double)player.getYRot()));
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         LuaValue value = args.arg(2);
-         if (!value.istable()) {
-            throw new LuaError("[MLua] SetRotationRadians expects Vector2(pitch, yaw)");
-         } else {
-            LuaTable rotation = value.checktable();
-            double pitch = rotation.get("X").isnumber() ? rotation.get("X").todouble() : rotation.get("x").checkdouble();
-            double yaw = rotation.get("Y").isnumber() ? rotation.get("Y").todouble() : rotation.get("y").checkdouble();
-            MLuaEntityWrapper.applyRotation(player, MLuaVector.vector2(Math.toDegrees(pitch), Math.toDegrees(yaw)));
-            return LuaValue.NONE;
-         }
+         double[] rotation = MLuaVector.components2(args.arg(2));
+         MLuaEntityWrapper.applyRotation(player, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
+         return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
          MLuaEntityWrapper.applyRotation(player, args.arg(2));

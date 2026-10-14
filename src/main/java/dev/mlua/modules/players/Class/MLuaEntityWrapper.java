@@ -176,14 +176,8 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot())));
       MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()))));
       MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         LuaValue value = args.arg(2);
-         if (!value.istable()) {
-            throw new LuaError("[MLua] SetRotationRadians expects Vector2(pitch, yaw)");
-         }
-         LuaTable rotation = value.checktable();
-         double pitch = rotation.get("X").isnumber() ? rotation.get("X").todouble() : rotation.get("x").checkdouble();
-         double yaw = rotation.get("Y").isnumber() ? rotation.get("Y").todouble() : rotation.get("y").checkdouble();
-         applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(pitch), Math.toDegrees(yaw)));
+         double[] rotation = MLuaVector.components2(args.arg(2));
+         applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> cframe(wrapped).toLua()));
@@ -419,16 +413,9 @@ public final class MLuaEntityWrapper {
          return MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()));
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         LuaValue value = args.arg(2);
-         if (!value.istable()) {
-            throw new LuaError("[MLua] SetRotationRadians expects Vector2(pitch, yaw)");
-         } else {
-            LuaTable rotation = value.checktable();
-            double pitch = rotation.get("X").isnumber() ? rotation.get("X").todouble() : rotation.get("x").checkdouble();
-            double yaw = rotation.get("Y").isnumber() ? rotation.get("Y").todouble() : rotation.get("y").checkdouble();
-            applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(pitch), Math.toDegrees(yaw)));
-            return LuaValue.NONE;
-         }
+         double[] rotation = MLuaVector.components2(args.arg(2));
+         applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
+         return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> {
          return cframe(wrapped).toLua();
