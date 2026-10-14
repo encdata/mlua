@@ -6,7 +6,7 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.runtime.registry.MLuaNamedBlockItem;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.Registry;
-import net.minecraft.core.particles.SimpleParticleType;
+import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
@@ -53,11 +53,9 @@ public final class FabricRegistryWiring {
                     bridge.bindHandle(reg.kind(), reg.key(), () -> entityType);
                 }
                 case PARTICLE -> {
-                    Object particle = reg.supplier().get();
-                    if (particle instanceof SimpleParticleType spt) {
-                        Registry.register(BuiltInRegistries.PARTICLE_TYPE, id, spt);
-                        bridge.bindHandle(reg.kind(), reg.key(), () -> spt);
-                    }
+                    ParticleType<?> particle = (ParticleType<?>) reg.supplier().get();
+                    Registry.register(BuiltInRegistries.PARTICLE_TYPE, id, particle);
+                    bridge.bindHandle(reg.kind(), reg.key(), () -> particle);
                 }
                 case POTION -> {
                     Potion potion = (Potion) reg.supplier().get();
