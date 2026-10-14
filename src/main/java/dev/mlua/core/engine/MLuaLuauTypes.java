@@ -58,11 +58,24 @@ public final class MLuaLuauTypes {
       if (value.istable()) {
          LuaValue type = value.checktable().get("__type");
          if (type.isstring()) {
+            if (!isRegisteredValue(type.checkjstring(), value)) return LuaValue.valueOf("table");
             return type;
          }
       }
 
       return LuaValue.valueOf(value.typename());
+   }
+
+   private static boolean isRegisteredValue(String type, LuaValue value) {
+      return switch (type) {
+         case "Vector2" -> MLuaVector.isVector2(value);
+         case "Vector3" -> MLuaVector.isVector3(value);
+         case "CFrame" -> MLuaCFrame.isCFrame(value);
+         case "UDim" -> isUDim(value);
+         case "UDim2" -> isUDim2(value);
+         case "Color3" -> isColor3(value);
+         default -> true;
+      };
    }
 
    private static LuaTable vector2Library() {
