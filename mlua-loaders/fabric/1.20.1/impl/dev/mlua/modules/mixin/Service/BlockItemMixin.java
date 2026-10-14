@@ -15,7 +15,7 @@ public abstract class BlockItemMixin {
     private void mlua$afterPlace(BlockPlaceContext context, CallbackInfoReturnable<InteractionResult> cir) {
         InteractionResult result = cir.getReturnValue();
         var provider = MLuaFabricMod.provider();
-        if (result != null && result.consumesAction() && context.getPlayer() != null && provider != null) {
+        if (result != null && result.consumesAction() && provider != null) {
             provider.fabricEvents().fireBlockPlace(context.getPlayer(), context.getLevel(), context.getClickedPos());
         }
     }
