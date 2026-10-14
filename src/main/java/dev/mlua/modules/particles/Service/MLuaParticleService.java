@@ -2,13 +2,15 @@ package dev.mlua.modules.particles.Service;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.api.MLuaDescription;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientParticleManager;
 import dev.mlua.runtime.client.MLuaParticleOwnershipRegistry;
+import java.util.Optional;
 import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -18,7 +20,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 
-public final class MLuaParticleService extends MLuaServiceBase {
+@MLuaDescription("Client-side particles, typed particle specs, and persistent emitters.")
+public final class MLuaParticleService extends MLuaReflectiveService {
     private static final String EMITTER_OPERATIONS = "__particle_emitter_operations";
     private static final String EMITTER_ID = "__particle_emitter_id";
     public static void registerEmitterClass(MLuaRegistration registration) {
@@ -115,103 +118,95 @@ public final class MLuaParticleService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Client");
-        table.set("SpawnLocal", fn(args -> {
-            ensureClient();
-            String particleId = args.checkjstring(2);
-            double x = args.checkdouble(3);
-            double y = args.checkdouble(4);
-            double z = args.checkdouble(5);
-            int count = args.optint(6, 1);
-            double spread = args.optdouble(7, 0.2);
-            double speed = args.optdouble(8, 0.0);
-            MLuaClientParticleManager.spawnOnce(particleId, x, y, z, count, spread, speed);
-            return LuaValue.NONE;
-        }));
-        table.set("Spawn", fn(args -> {
-            ensureClient();
-            MLuaClientParticleManager.ParticleSpec spec = specFromLua(args.arg(2));
-            LuaTable pos = args.checktable(3);
-            int count = args.optint(4, 1);
-            double spread = args.optdouble(5, 0.2);
-            double speed = args.optdouble(6, 0.0);
-            MLuaClientParticleManager.spawnOnce(spec, component(pos, "X"), component(pos, "Y"), component(pos, "Z"), count, spread, speed);
-            return LuaValue.NONE;
-        }));
-        table.set("SpawnBurst", fn(args -> {
-            ensureClient();
-            MLuaClientParticleManager.ParticleSpec spec = specFromLua(args.arg(2));
-            LuaTable pos = args.checktable(3);
-            LuaTable props = args.arg(4).opttable(new LuaTable());
-            int count = firstNonNil(props.get("Count"), props.get("count")).optint(12);
-            double spreadX = firstNonNil(props.get("SpreadX"), props.get("spreadX")).optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
-            double spreadY = firstNonNil(props.get("SpreadY"), props.get("spreadY")).optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
-            double spreadZ = firstNonNil(props.get("SpreadZ"), props.get("spreadZ")).optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
-            LuaValue velocity = firstNonNil(props.get("Velocity"), props.get("velocity"));
-            double velocityX = velocity.istable() ? component(velocity.checktable(), "X") : 0.0;
-            double velocityY = velocity.istable() ? component(velocity.checktable(), "Y") : 0.0;
-            double velocityZ = velocity.istable() ? component(velocity.checktable(), "Z") : 0.0;
-            MLuaClientParticleManager.spawnBurst(spec, component(pos, "X"), component(pos, "Y"), component(pos, "Z"), count, spreadX, spreadY, spreadZ, velocityX, velocityY, velocityZ);
-            return LuaValue.NONE;
-        }));
-        table.set("SpawnRing", fn(args -> {
-            ensureClient();
-            MLuaClientParticleManager.ParticleSpec spec = specFromLua(args.arg(2));
-            LuaTable pos = args.checktable(3);
-            int count = args.optint(4, 16);
-            double radius = args.optdouble(5, 1.0);
-            double speed = args.optdouble(6, 0.05);
-            MLuaClientParticleManager.spawnRing(spec, component(pos, "X"), component(pos, "Y"), component(pos, "Z"), count, radius, speed);
-            return LuaValue.NONE;
-        }));
-        table.set("SpawnCone", fn(args -> {
-            ensureClient();
-            MLuaClientParticleManager.ParticleSpec spec = specFromLua(args.arg(2));
-            LuaTable pos = args.checktable(3);
-            LuaTable direction = args.checktable(4);
-            int count = args.optint(5, 10);
-            double angle = args.optdouble(6, 15.0);
-            double speed = args.optdouble(7, 0.1);
-            MLuaClientParticleManager.spawnCone(spec, component(pos, "X"), component(pos, "Y"), component(pos, "Z"), component(direction, "X"), component(direction, "Y"), component(direction, "Z"), count, angle, speed);
-            return LuaValue.NONE;
-        }));
-        table.set("CreateEmitter", fn(args -> {
-            ensureClient();
-            int id = MLuaClientParticleManager.createEmitter(
-                args.checkjstring(2),
-                args.checkdouble(3),
-                args.checkdouble(4),
-                args.checkdouble(5),
-                args.optdouble(6, 8.0),
-                args.optdouble(7, 0.2),
-                args.optdouble(8, 0.0),
-                owner()
-            );
-            return emitterTable(id, owner());
-        }));
-        table.set("CreateTypedEmitter", fn(args -> {
-            ensureClient();
-            MLuaClientParticleManager.ParticleSpec spec = specFromLua(args.arg(2));
-            LuaTable pos = args.checktable(3);
-            int id = MLuaClientParticleManager.createEmitter(
-                spec,
-                component(pos, "X"),
-                component(pos, "Y"),
-                component(pos, "Z"),
-                args.optdouble(4, 8.0),
-                args.optdouble(5, 0.2),
-                args.optdouble(6, 0.0),
-                owner()
-            );
-            return emitterTable(id, owner());
-        }));
-        table.set("Clear", fn(args -> {
-            ensureClient();
-            MLuaClientParticleManager.clearOwned(owner());
-            return LuaValue.NONE;
-        }));
         return table;
+    }
+
+    @MLuaDescription("Spawns one or more particles by registry identifier at a position.")
+    public void SpawnLocal(String particleId, double x, double y, double z, Optional<Integer> requestedCount,
+                           Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
+        ensureClient();
+        MLuaClientParticleManager.spawnOnce(particleId, x, y, z, requestedCount.orElse(1),
+            requestedSpread.orElse(0.2), requestedSpeed.orElse(0.0));
+    }
+
+    @MLuaDescription("Spawns particles from a typed particle specification.")
+    public void Spawn(LuaValue specValue, LuaTable position, Optional<Integer> requestedCount,
+                      Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
+        ensureClient();
+        MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
+        MLuaClientParticleManager.spawnOnce(spec, component(position, "X"), component(position, "Y"),
+            component(position, "Z"), requestedCount.orElse(1), requestedSpread.orElse(0.2),
+            requestedSpeed.orElse(0.0));
+    }
+
+    @MLuaDescription("Spawns a burst of particles with spread and velocity options.")
+    public void SpawnBurst(LuaValue specValue, LuaTable position, Optional<LuaValue> properties) {
+        ensureClient();
+        MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
+        LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
+        int count = firstNonNil(props.get("Count"), props.get("count")).optint(12);
+        double spreadX = firstNonNil(props.get("SpreadX"), props.get("spreadX"))
+            .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
+        double spreadY = firstNonNil(props.get("SpreadY"), props.get("spreadY"))
+            .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
+        double spreadZ = firstNonNil(props.get("SpreadZ"), props.get("spreadZ"))
+            .optdouble(firstNonNil(props.get("Spread"), props.get("spread")).optdouble(0.2));
+        LuaValue velocity = firstNonNil(props.get("Velocity"), props.get("velocity"));
+        double velocityX = velocity.istable() ? component(velocity.checktable(), "X") : 0.0;
+        double velocityY = velocity.istable() ? component(velocity.checktable(), "Y") : 0.0;
+        double velocityZ = velocity.istable() ? component(velocity.checktable(), "Z") : 0.0;
+        MLuaClientParticleManager.spawnBurst(spec, component(position, "X"), component(position, "Y"),
+            component(position, "Z"), count, spreadX, spreadY, spreadZ, velocityX, velocityY, velocityZ);
+    }
+
+    @MLuaDescription("Spawns particles in a ring around a position.")
+    public void SpawnRing(LuaValue specValue, LuaTable position, Optional<Integer> requestedCount,
+                          Optional<Double> requestedRadius, Optional<Double> requestedSpeed) {
+        ensureClient();
+        MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
+        MLuaClientParticleManager.spawnRing(spec, component(position, "X"), component(position, "Y"),
+            component(position, "Z"), requestedCount.orElse(16), requestedRadius.orElse(1.0),
+            requestedSpeed.orElse(0.05));
+    }
+
+    @MLuaDescription("Spawns particles in a cone along a direction.")
+    public void SpawnCone(LuaValue specValue, LuaTable position, LuaTable direction,
+                          Optional<Integer> requestedCount, Optional<Double> requestedAngle,
+                          Optional<Double> requestedSpeed) {
+        ensureClient();
+        MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
+        MLuaClientParticleManager.spawnCone(spec, component(position, "X"), component(position, "Y"),
+            component(position, "Z"), component(direction, "X"), component(direction, "Y"),
+            component(direction, "Z"), requestedCount.orElse(10), requestedAngle.orElse(15.0),
+            requestedSpeed.orElse(0.1));
+    }
+
+    @MLuaDescription("Creates a persistent emitter using a particle identifier.")
+    public LuaTable CreateEmitter(String particleId, double x, double y, double z, Optional<Double> requestedRate,
+                                  Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
+        ensureClient();
+        int id = MLuaClientParticleManager.createEmitter(particleId, x, y, z, requestedRate.orElse(8.0),
+            requestedSpread.orElse(0.2), requestedSpeed.orElse(0.0), owner());
+        return emitterTable(id, owner());
+    }
+
+    @MLuaDescription("Creates a persistent emitter from a typed particle specification.")
+    public LuaTable CreateTypedEmitter(LuaValue specValue, LuaTable position, Optional<Double> requestedRate,
+                                       Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
+        ensureClient();
+        MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
+        int id = MLuaClientParticleManager.createEmitter(spec, component(position, "X"), component(position, "Y"),
+            component(position, "Z"), requestedRate.orElse(8.0), requestedSpread.orElse(0.2),
+            requestedSpeed.orElse(0.0), owner());
+        return emitterTable(id, owner());
+    }
+
+    @MLuaDescription("Removes particle emitters owned by the calling mod.")
+    public void Clear() {
+        ensureClient();
+        MLuaClientParticleManager.clearOwned(owner());
     }
 
     private LuaTable emitterTable(int id, MLuaParticleOwnershipRegistry.Owner owner) {

@@ -36,17 +36,9 @@ public final class ParticleModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder particles = ServiceEntry.builder("ParticleService", MLuaParticleService::new)
-            .description("Client-side particles, typed particle specs, and persistent emitters.");
-        particles.function("SpawnLocal", "Spawns one or more particles by registry identifier at a position.")
-            .function("Spawn", "Spawns particles from a typed particle specification.")
-            .function("SpawnBurst", "Spawns a burst of particles with spread and velocity options.")
-            .function("SpawnRing", "Spawns particles in a ring around a position.")
-            .function("SpawnCone", "Spawns particles in a cone along a direction.")
-            .function("CreateEmitter", "Creates a persistent emitter using a particle identifier.")
-            .function("CreateTypedEmitter", "Creates a persistent emitter from a typed particle specification.")
-            .function("Clear", "Removes particle emitters owned by the calling mod.");
-        return List.of(particles.build());
+        return List.of(ServiceEntry.builder("ParticleService", MLuaParticleService::new)
+            .reflective(MLuaParticleService.class)
+            .build());
     }
 
     @Override
