@@ -41,6 +41,7 @@ if (is26Family) {
     neoForgeProjectExcludes += 'dev/mlua/runtime/client/MLuaClientModels.java'
     neoForgeProjectExcludes += 'dev/mlua/runtime/client/MLuaConfigClientHooks.java'
     neoForgeProjectExcludes += 'dev/mlua/transformer/MLuaTransformer.java'
+    neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
 } else {
     neoForgeProjectExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
     neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java'
