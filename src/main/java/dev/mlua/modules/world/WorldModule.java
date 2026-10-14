@@ -6,6 +6,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
+import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule.ServiceEntry;
 import java.util.List;
@@ -52,6 +53,7 @@ public class WorldModule implements MLuaModule {
         worldMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "World", name, description));
         registerWorldProperties(registration);
+        MLuaBlockStateWrapper.classTable(registration);
         registration.registerClass("Chunk", "Instance", "A dimension-scoped chunk handle whose data methods load the chunk when needed.");
         chunkMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "Chunk", name, description));
@@ -204,7 +206,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("SetDifficulty", "Sets the server difficulty."),
             Map.entry("GetBlock", "Returns the live block instance at a position."),
             Map.entry("GetBlockEntity", "Returns the live block entity at a position, or nil."),
-            Map.entry("GetBlockState", "Returns the live block instance at a position."),
+            Map.entry("GetBlockState", "Returns a BlockState instance with the block type, position, and current state properties."),
             Map.entry("GetFluid", "Returns the fluid identifier at a position, or nil when empty."),
             Map.entry("GetBiome", "Returns the biome identifier at a position."),
             Map.entry("GetLightLevel", "Returns the maximum local light level at a position."),
@@ -311,6 +313,17 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean");
         docs.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
+        docs.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState");
+        docs.signature("BlockState", "BlockState:GetId()", "string");
+        docs.signature("BlockState", "BlockState:GetBlock()", "Block");
+        docs.signature("BlockState", "BlockState:GetPosition()", "Vector3");
+        docs.signature("BlockState", "BlockState:GetProperties()", "BlockStateProperties");
+        docs.signature("BlockState", "BlockState:GetProperty(name: string)", "string|nil");
+        docs.signature("BlockState", "BlockState:HasProperty(name: string)", "boolean");
+        docs.signature("BlockState", "BlockState:IsAir()", "boolean");
+        docs.signature("BlockState", "BlockState:IsSolid()", "boolean");
+        docs.signature("BlockState", "BlockState:IsReplaceable()", "boolean");
+        docs.signature("BlockState", "BlockState:GetDestroySpeed()", "number");
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
         docs.signature("World", "World:ListGameRules()", "GameRuleList");
         docs.signature("World", "World:GetGameRule(name: string)", "boolean|number|string");
@@ -437,6 +450,15 @@ public class WorldModule implements MLuaModule {
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal hostiles = world:FindEntitiesInRadius(player.Position, 24, {\n    types = { \"minecraft:zombie\", \"minecraft:skeleton\", \"minecraft:creeper\" },\n    exclude_entities = { player, projectile }\n})\n\nfor _, entity in ipairs(hostiles) do\n    print(entity.Name, entity.Position)\nend");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance for one dimension, with time, block, entity, and chunk APIs.", "classes/world.html", "Level");
+        docs.clazz("BlockState", "MLuaBlockStateWrapper", "An immutable Minecraft block state at a world position, with typed state queries.", "classes/block-state.html", "Instance");
+        docs.property("BlockState", "state.Id", "string", "The block identifier for this state.", "shared:Shared");
+        docs.property("BlockState", "state.Block", "Block", "The live block instance at this state's position.", "shared:Shared");
+        docs.property("BlockState", "state.Position", "Vector3", "This state's world position.", "shared:Shared");
+        docs.property("BlockState", "state.Properties", "BlockStateProperties", "The current values of this state's properties.", "shared:Shared");
+        docs.property("BlockState", "state.Air", "boolean", "Whether this state is air.", "shared:Shared");
+        docs.property("BlockState", "state.Solid", "boolean", "Whether this state is solid.", "shared:Shared");
+        docs.property("BlockState", "state.Replaceable", "boolean", "Whether another block can replace this state.", "shared:Shared");
+        docs.property("BlockState", "state.DestroySpeed", "number", "The state destroy speed in its world context.", "shared:Shared");
         docs.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance");
         docs.property("Chunk", "chunk.X", "number", "This chunk's X coordinate.", "shared:Shared");
         docs.property("Chunk", "chunk.Z", "number", "This chunk's Z coordinate.", "shared:Shared");

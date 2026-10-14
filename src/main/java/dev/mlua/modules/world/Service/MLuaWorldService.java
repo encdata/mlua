@@ -12,6 +12,7 @@ import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
@@ -202,7 +203,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
          LuaTable block = MLuaBlockWrapper.blockTable(level, BlockPos.containing(pos[0], pos[1], pos[2]), context.mlua().registration());
          return block.get("BlockEntity");
       }));
-      table.set("GetBlockState", table.get("GetBlock"));
+      table.set("GetBlockState", levelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         return MLuaBlockStateWrapper.wrap(level.getBlockState(blockPos), level, blockPos, context.mlua().registration());
+      }));
       table.set("GetFluid", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          FluidState state = level.getFluidState(BlockPos.containing(pos[0], pos[1], pos[2]));

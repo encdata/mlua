@@ -319,6 +319,11 @@ public final class MLuaBlockWrapper {
          }), "Returns this block's position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsAir", selfBlock((self, ignored) -> LuaValue.valueOf(level(self).getBlockState(pos(self)).isAir())), "Returns whether this block position contains air.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsSolid", selfBlock((self, ignored) -> LuaValue.valueOf(level(self).getBlockState(pos(self)).isSolid())), "Returns whether this block state is solid.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetState", selfBlock((self, ignored) -> {
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
+            return MLuaBlockStateWrapper.wrap(rawLevel.getBlockState(rawPos), rawLevel, rawPos, registration);
+         }), "Returns the immutable Minecraft BlockState at this position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetStateProperties", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
