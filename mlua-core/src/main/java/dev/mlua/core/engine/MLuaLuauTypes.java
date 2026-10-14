@@ -10,6 +10,9 @@ import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 import dev.mlua.math.MLuaCFrame;
+import dev.mlua.math.MLuaMat3;
+import dev.mlua.math.MLuaMat4;
+import dev.mlua.math.MLuaVec4;
 import dev.mlua.math.MLuaVector;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -28,6 +31,9 @@ public final class MLuaLuauTypes {
       globals.set("Vector3", vector3);
       globals.set("vector", vectorAlias(vector3));
       globals.set("CFrame", MLuaCFrame.library());
+      globals.set("Vec4", vec4Library());
+      globals.set("Mat3", mat3Library());
+      globals.set("Mat4", mat4Library());
       globals.set("Color3", color3Library());
       globals.set("UDim", udimLibrary());
       globals.set("UDim2", udim2Library());
@@ -77,6 +83,110 @@ public final class MLuaLuauTypes {
       table.set("XAxis", table.get("xAxis"));
       table.set("YAxis", table.get("yAxis"));
       table.set("ZAxis", table.get("zAxis"));
+      return table;
+   }
+
+   private static LuaTable vec4Library() {
+      LuaTable table = new LuaTable();
+      table.set("new", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaVec4.vec4(args.optdouble(1, 0.0), args.optdouble(2, 0.0), args.optdouble(3, 0.0), args.optdouble(4, 0.0));
+         }
+      });
+      table.set("zero", MLuaVec4.vec4(0.0, 0.0, 0.0, 0.0));
+      table.set("one", MLuaVec4.vec4(1.0, 1.0, 1.0, 1.0));
+      table.set("Zero", table.get("zero"));
+      table.set("One", table.get("one"));
+      return table;
+   }
+
+   private static LuaTable mat3Library() {
+      LuaTable table = new LuaTable();
+      table.set("new", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            if (args.narg() == 0) {
+               return MLuaMat3.identity();
+            } else if (args.narg() == 3 && args.arg(1).istable() && args.arg(2).istable() && args.arg(3).istable()) {
+               return MLuaMat3.fromColumns(args.checktable(1), args.checktable(2), args.checktable(3));
+            } else if (args.narg() == 9) {
+               return MLuaMat3.mat3(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3), args.checkdouble(4), args.checkdouble(5), args.checkdouble(6), args.checkdouble(7), args.checkdouble(8), args.checkdouble(9));
+            } else {
+               throw new LuaError("[MLua] Mat3.new expects 0 args, 3 column vectors, or 9 numbers");
+            }
+         }
+      });
+      table.set("identity", MLuaMat3.identity());
+      table.set("Identity", table.get("identity"));
+      table.set("fromColumns", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaMat3.fromColumns(args.checktable(1), args.checktable(2), args.checktable(3));
+         }
+      });
+      table.set("rotationX", new OneArgFunction() {
+         public LuaValue call(LuaValue degrees) {
+            return MLuaMat3.rotationX(degrees.checkdouble());
+         }
+      });
+      table.set("rotationY", new OneArgFunction() {
+         public LuaValue call(LuaValue degrees) {
+            return MLuaMat3.rotationY(degrees.checkdouble());
+         }
+      });
+      table.set("rotationZ", new OneArgFunction() {
+         public LuaValue call(LuaValue degrees) {
+            return MLuaMat3.rotationZ(degrees.checkdouble());
+         }
+      });
+      return table;
+   }
+
+   private static LuaTable mat4Library() {
+      LuaTable table = new LuaTable();
+      table.set("new", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            if (args.narg() == 0) {
+               return MLuaMat4.identity();
+            } else if (args.narg() == 4 && args.arg(1).istable() && args.arg(2).istable() && args.arg(3).istable() && args.arg(4).istable()) {
+               return MLuaMat4.fromColumns(args.checktable(1), args.checktable(2), args.checktable(3), args.checktable(4));
+            } else if (args.narg() == 16) {
+               return MLuaMat4.mat4(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3), args.checkdouble(4), args.checkdouble(5), args.checkdouble(6), args.checkdouble(7), args.checkdouble(8), args.checkdouble(9), args.checkdouble(10), args.checkdouble(11), args.checkdouble(12), args.checkdouble(13), args.checkdouble(14), args.checkdouble(15), args.checkdouble(16));
+            } else {
+               throw new LuaError("[MLua] Mat4.new expects 0 args, 4 column vectors, or 16 numbers");
+            }
+         }
+      });
+      table.set("identity", MLuaMat4.identity());
+      table.set("Identity", table.get("identity"));
+      table.set("fromColumns", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaMat4.fromColumns(args.checktable(1), args.checktable(2), args.checktable(3), args.checktable(4));
+         }
+      });
+      table.set("translation", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaMat4.translationMatrix(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3));
+         }
+      });
+      table.set("scale", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaMat4.scaleMatrix(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3));
+         }
+      });
+      table.set("rotationX", new OneArgFunction() {
+         public LuaValue call(LuaValue degrees) {
+            return MLuaMat4.rotationXMatrix(degrees.checkdouble());
+         }
+      });
+      table.set("rotationY", new OneArgFunction() {
+         public LuaValue call(LuaValue degrees) {
+            return MLuaMat4.rotationYMatrix(degrees.checkdouble());
+         }
+      });
+      table.set("rotationZ", new OneArgFunction() {
+         public LuaValue call(LuaValue degrees) {
+            return MLuaMat4.rotationZMatrix(degrees.checkdouble());
+         }
+      });
       return table;
    }
 
@@ -265,24 +375,24 @@ public final class MLuaLuauTypes {
       LuaTable value = typed("UDim");
       value.set("Scale", scale);
       value.set("Offset", offset);
-      return value;
+      return value.freeze();
    }
 
    public static LuaTable udim2(double xScale, int xOffset, double yScale, int yOffset) {
       LuaTable value = typed("UDim2");
       value.set("X", udim(xScale, xOffset));
       value.set("Y", udim(yScale, yOffset));
-      return value;
+      return value.freeze();
    }
 
    public static LuaTable udim2(LuaValue x, LuaValue y) {
-      if (!"UDim".equals(x.get("__type").optjstring(null)) || !"UDim".equals(y.get("__type").optjstring(null))) {
+      if (!x.istable() || !y.istable() || !x.checktable().isfrozen() || !y.checktable().isfrozen() || !"UDim".equals(x.get("__type").optjstring(null)) || !"UDim".equals(y.get("__type").optjstring(null))) {
          throw new LuaError("UDim2.new expects two UDim values or four numeric scale and offset values");
       }
       LuaTable value = typed("UDim2");
       value.set("X", x);
       value.set("Y", y);
-      return value;
+      return value.freeze();
    }
 
    private static LuaTable typed(String type) {
@@ -339,22 +449,35 @@ public final class MLuaLuauTypes {
          public LuaValue call(LuaValue tbl) {
             LuaTable source = tbl.checktable();
             LuaTable dest = new LuaTable();
+            LuaValue metatable = source.getmetatable();
             LuaValue key = LuaValue.NIL;
 
             while(true) {
                Varargs next = source.next(key);
                key = next.arg1();
                if (key.isnil()) {
+                  if (metatable != null) dest.setmetatable(metatable);
                   return dest;
                }
 
-               dest.set(key, next.arg(2));
+               dest.rawset(key, next.arg(2));
             }
+         }
+      });
+      table.set("freeze", new OneArgFunction() {
+         public LuaValue call(LuaValue value) {
+            return value.checktable().freeze();
+         }
+      });
+      table.set("isfrozen", new OneArgFunction() {
+         public LuaValue call(LuaValue value) {
+            return LuaValue.valueOf(value.checktable().isfrozen());
          }
       });
       table.set("clear", new OneArgFunction() {
          public LuaValue call(LuaValue tbl) {
             LuaTable t = tbl.checktable();
+            if (t.isfrozen()) throw new LuaError("attempt to modify a frozen table");
             LuaValue key = LuaValue.NIL;
 
             while(true) {

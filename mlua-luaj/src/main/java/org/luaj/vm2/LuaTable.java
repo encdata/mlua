@@ -93,6 +93,7 @@ public class LuaTable extends LuaValue implements Metatable {
 	
 	/** metatable for this table, or null */
 	protected Metatable m_metatable;
+	private boolean frozen;
 	
 	/** Construct empty table */
 	public LuaTable() {
@@ -323,11 +324,13 @@ public class LuaTable extends LuaValue implements Metatable {
 	};
 	
 	public void presize( int narray ) {
+		checkMutable();
 		if ( narray > array.length )
 			array = resize( array, 1 << log2(narray) );
 	}
 
 	public void presize(int narray, int nhash) {
+		checkMutable();
 		if ( nhash > 0 && nhash < MIN_HASH_CAPACITY )
 			nhash = MIN_HASH_CAPACITY;
 		// Size of both parts must be a power of two.
@@ -364,6 +367,7 @@ public class LuaTable extends LuaValue implements Metatable {
 	}
 	
 	public LuaValue setmetatable(LuaValue metatable) {
+		checkMutable();
 		boolean hadWeakKeys = m_metatable != null && m_metatable.useWeakKeys();
 		boolean hadWeakValues = m_metatable != null && m_metatable.useWeakValues();
 		m_metatable = metatableOf( metatable );
@@ -418,12 +422,14 @@ public class LuaTable extends LuaValue implements Metatable {
 	}
 
 	public void set( int key, LuaValue value ) {
+		checkMutable();
 		if ( m_metatable==null || ! rawget(key).isnil() || ! settable(this,LuaInteger.valueOf(key),value) )
 			rawset(key, value);
 	}
 
 	/** caller must ensure key is not nil */
 	public void set( LuaValue key, LuaValue value ) {
+		checkMutable();
 		if (key == null || !key.isvalidkey() && !metatag(NEWINDEX).isfunction())
 			throw new LuaError("value ('" + key + "') can not be used as a table index");
 		if ( m_metatable==null || ! rawget(key).isnil() ||  ! settable(this,key,value) )
@@ -431,14 +437,30 @@ public class LuaTable extends LuaValue implements Metatable {
 	}
 
 	public void rawset( int key, LuaValue value ) {
+		checkMutable();
 		if ( ! arrayset(key, value) )
 			hashset( LuaInteger.valueOf(key), value );
 	}
 
 	/** caller must ensure key is not nil */
 	public void rawset( LuaValue key, LuaValue value ) {
+		checkMutable();
 		if ( !key.isinttype() || !arrayset(key.toint(), value) )
 			hashset( key, value );
+	}
+
+	public LuaTable freeze() {
+		frozen = true;
+		return this;
+	}
+
+	public boolean isfrozen() {
+		return frozen;
+	}
+
+	private void checkMutable() {
+		if (frozen)
+			throw new LuaError("attempt to modify a frozen table");
 	}
 
 	/** Set an array element */
@@ -457,6 +479,7 @@ public class LuaTable extends LuaValue implements Metatable {
 	 * @return The removed item, or {@link #NONE} if not removed
 	 */
 	public LuaValue remove(int pos) {
+		checkMutable();
 		int n = length();
 		if ( pos == 0 )
 			pos = n;
@@ -476,6 +499,7 @@ public class LuaTable extends LuaValue implements Metatable {
 	 * @param value The value to insert
 	 */
 	public void insert(int pos, LuaValue value) {
+		checkMutable();
 		if ( pos == 0 )
 			pos = length()+1;
 		while ( ! value.isnil() ) {
@@ -615,6 +639,7 @@ public class LuaTable extends LuaValue implements Metatable {
 	 * @param value value to set
 	 */
 	public void hashset(LuaValue key, LuaValue value) {
+		checkMutable();
 		if ( value.isnil() )
 			hashRemove(key);
 		else {
@@ -944,6 +969,7 @@ public class LuaTable extends LuaValue implements Metatable {
 	 * @param comparator {@link LuaValue} to be called to compare elements.
 	 */
 	public void sort(LuaValue comparator) {
+		checkMutable();
 		if (len().tolong() >= (long)Integer.MAX_VALUE) throw new LuaError("array too big: " + len().tolong());
 		if (m_metatable != null && m_metatable.useWeakValues()) {
 			dropWeakArrayValues();

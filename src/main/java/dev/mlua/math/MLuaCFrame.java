@@ -11,6 +11,7 @@ import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaCFrame {
+   private static final LuaTable SHARED_METATABLE = metatable().freeze();
    public static final MLuaCFrame IDENTITY = new MLuaCFrame(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
    private final double x;
    private final double y;
@@ -233,8 +234,8 @@ public final class MLuaCFrame {
             return LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(angles[0]), LuaValue.valueOf(angles[1]), LuaValue.valueOf(angles[2])});
          }
       });
-      table.setmetatable(metatable());
-      return table;
+      table.setmetatable(SHARED_METATABLE);
+      return table.freeze();
    }
 
    public static MLuaCFrame fromLua(LuaValue value) {
@@ -251,7 +252,7 @@ public final class MLuaCFrame {
    }
 
    public static boolean isCFrame(LuaValue value) {
-      return value.istable() && value.checktable().rawget("__cframe").isuserdata(MLuaCFrame.class);
+      return value.istable() && value.checktable().isfrozen() && value.checktable().rawget("__cframe").isuserdata(MLuaCFrame.class);
    }
 
    public static double[] vector(LuaValue value) {
@@ -263,7 +264,7 @@ public final class MLuaCFrame {
          return new double[]{cframe.x(), cframe.y(), cframe.z()};
       }
       LuaTable table = value.checktable();
-      if (!"Vector3".equals(table.get("__type").optjstring(null))) {
+      if (!table.isfrozen() || !"Vector3".equals(table.get("__type").optjstring(null))) {
          throw new LuaError("[MLua] Expected a Vector3 or CFrame value; coordinate tables are not accepted");
       }
       return new double[]{component(table, "X", "x"), component(table, "Y", "y"), component(table, "Z", "z")};

@@ -11,6 +11,9 @@ public final class MLuaVector {
    private MLuaVector() {
    }
 
+   private static final LuaTable VECTOR3_METATABLE = vector3Metatable().freeze();
+   private static final LuaTable VECTOR2_METATABLE = vector2Metatable().freeze();
+
    public static LuaTable vector3(double x, double y, double z) {
       LuaTable table = new LuaTable();
       table.set("__type", "Vector3");
@@ -93,8 +96,8 @@ public final class MLuaVector {
          }
       });
       table.set("abs", table.get("Abs"));
-      table.setmetatable(vector3Metatable());
-      return table;
+      table.setmetatable(VECTOR3_METATABLE);
+      return table.freeze();
    }
 
    public static LuaTable vector2(double x, double y) {
@@ -130,8 +133,8 @@ public final class MLuaVector {
          }
       });
       table.set("lerp", table.get("Lerp"));
-      table.setmetatable(vector2Metatable());
-      return table;
+      table.setmetatable(VECTOR2_METATABLE);
+      return table.freeze();
    }
 
    private static LuaTable vector3Bare(double x, double y, double z) {
@@ -146,18 +149,18 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y + z * z);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
-      return table;
+      return table.freeze();
    }
 
    private static LuaTable checkVector3(LuaValue value) {
-      if (!value.istable() || !"Vector3".equals(value.get("__type").optjstring(null))) {
+      if (!value.istable() || !"Vector3".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen()) {
          throw new LuaError("Vector3 operations require values created by Vector3.new");
       }
       return value.checktable();
    }
 
    private static LuaTable checkVector2(LuaValue value) {
-      if (!value.istable() || !"Vector2".equals(value.get("__type").optjstring(null))) {
+      if (!value.istable() || !"Vector2".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen()) {
          throw new LuaError("Vector2 operations require values created by Vector2.new");
       }
       return value.checktable();
@@ -173,7 +176,7 @@ public final class MLuaVector {
       double mag = Math.sqrt(x * x + y * y);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
-      return table;
+      return table.freeze();
    }
 
    private static LuaTable vector3Metatable() {

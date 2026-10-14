@@ -375,24 +375,24 @@ public final class MLuaLuauTypes {
       LuaTable value = typed("UDim");
       value.set("Scale", scale);
       value.set("Offset", offset);
-      return value;
+      return value.freeze();
    }
 
    public static LuaTable udim2(double xScale, int xOffset, double yScale, int yOffset) {
       LuaTable value = typed("UDim2");
       value.set("X", udim(xScale, xOffset));
       value.set("Y", udim(yScale, yOffset));
-      return value;
+      return value.freeze();
    }
 
    public static LuaTable udim2(LuaValue x, LuaValue y) {
-      if (!"UDim".equals(x.get("__type").optjstring(null)) || !"UDim".equals(y.get("__type").optjstring(null))) {
+      if (!x.istable() || !y.istable() || !x.checktable().isfrozen() || !y.checktable().isfrozen() || !"UDim".equals(x.get("__type").optjstring(null)) || !"UDim".equals(y.get("__type").optjstring(null))) {
          throw new LuaError("UDim2.new expects two UDim values or four numeric scale and offset values");
       }
       LuaTable value = typed("UDim2");
       value.set("X", x);
       value.set("Y", y);
-      return value;
+      return value.freeze();
    }
 
    private static LuaTable typed(String type) {
@@ -449,22 +449,35 @@ public final class MLuaLuauTypes {
          public LuaValue call(LuaValue tbl) {
             LuaTable source = tbl.checktable();
             LuaTable dest = new LuaTable();
+            LuaValue metatable = source.getmetatable();
             LuaValue key = LuaValue.NIL;
 
             while(true) {
                Varargs next = source.next(key);
                key = next.arg1();
                if (key.isnil()) {
+                  if (metatable != null) dest.setmetatable(metatable);
                   return dest;
                }
 
-               dest.set(key, next.arg(2));
+               dest.rawset(key, next.arg(2));
             }
+         }
+      });
+      table.set("freeze", new OneArgFunction() {
+         public LuaValue call(LuaValue value) {
+            return value.checktable().freeze();
+         }
+      });
+      table.set("isfrozen", new OneArgFunction() {
+         public LuaValue call(LuaValue value) {
+            return LuaValue.valueOf(value.checktable().isfrozen());
          }
       });
       table.set("clear", new OneArgFunction() {
          public LuaValue call(LuaValue tbl) {
             LuaTable t = tbl.checktable();
+            if (t.isfrozen()) throw new LuaError("attempt to modify a frozen table");
             LuaValue key = LuaValue.NIL;
 
             while(true) {
