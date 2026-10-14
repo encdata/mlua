@@ -237,18 +237,6 @@ public final class MLuaMixinClassWriter {
    }
 
    private record InvocationTarget(String owner, String name, String descriptor) {
-      private static InvocationTarget parse(String value) {
-         if (value == null) throw new IllegalArgumentException("Invoke injection requires an exact invocation target");
-         int ownerEnd = value.indexOf(';');
-         int descriptorStart = value.indexOf('(', ownerEnd + 1);
-         if (!value.startsWith("L") || ownerEnd < 2 || descriptorStart <= ownerEnd + 1) {
-            throw new IllegalArgumentException("Invalid exact invocation target: " + value);
-         }
-         if ("<init>".equals(value.substring(ownerEnd + 1, descriptorStart))) {
-            throw new IllegalArgumentException("Invoke injection cannot target a constructor invocation");
-         }
-         return new InvocationTarget(value.substring(1, ownerEnd), value.substring(ownerEnd + 1, descriptorStart), value.substring(descriptorStart));
-      }
    }
 
    private static void injectAfterInitSuper(MethodNode method, String callbackId) {
@@ -516,6 +504,9 @@ public final class MLuaMixinClassWriter {
       int ownerEnd = target.indexOf(';');
       int descriptorStart = target.indexOf('(', ownerEnd + 1);
       if (ownerEnd <= 1 || descriptorStart <= ownerEnd + 1) return null;
+      if ("<init>".equals(target.substring(ownerEnd + 1, descriptorStart))) {
+         throw new IllegalArgumentException("Mixin invocation hooks cannot target constructors");
+      }
       String descriptor = target.substring(descriptorStart);
       if (descriptor.indexOf(')') < 0 || descriptor.length() <= descriptor.indexOf(')') + 1) return null;
       return new InvocationTarget(target.substring(1, ownerEnd),
