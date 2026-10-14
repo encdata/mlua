@@ -29,13 +29,13 @@ public final class MLuaServiceRegistry {
 
    public synchronized void register(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                      String description, Map<String, String> functionDescriptions) {
-      this.register(new Registration(name, factory, description, functionDescriptions), side);
+      this.registerBatch(side, List.of(new Registration(name, factory, description, functionDescriptions)));
    }
 
    public synchronized void register(String name, String className, Side side,
                                      Function<MLuaService.Context, MLuaService> factory,
                                      String description, Map<String, String> functionDescriptions) {
-      this.register(new Registration(name, className, factory, description, functionDescriptions), side);
+      this.registerBatch(side, List.of(new Registration(name, className, factory, description, functionDescriptions)));
    }
 
    public synchronized void register(String name, String className,
@@ -44,20 +44,19 @@ public final class MLuaServiceRegistry {
       this.register(name, className, Side.BOTH, factory, description, functionDescriptions);
    }
 
-   private void register(Registration registration, Side side) {
-      requireServiceName(registration.name());
-      Objects.requireNonNull(side, "side");
-      validateClassName(this.explicitClassNames, registration);
-      Map<Side, Registration> bySide = this.registrations.computeIfAbsent(
-         registration.name(), ignored -> new EnumMap<>(Side.class));
-      validateAddition(bySide, registration, side);
-      if (bySide.putIfAbsent(side, registration) != null) {
-         throw new IllegalStateException("MLua service '" + registration.name() + "' is already registered for " + side);
-      }
-      recordClassName(this.explicitClassNames, registration);
+   public synchronized void validateBatch(Side side, List<Registration> registrations) {
+      this.stageBatch(side, registrations);
    }
 
-   public synchronized void validateBatch(Side side, List<Registration> registrations) {
+   public synchronized void registerBatch(Side side, List<Registration> registrations) {
+      StagedRegistrations staged = this.stageBatch(side, registrations);
+      this.registrations.clear();
+      this.registrations.putAll(staged.registrations());
+      this.explicitClassNames.clear();
+      this.explicitClassNames.putAll(staged.classNames());
+   }
+
+   private StagedRegistrations stageBatch(Side side, List<Registration> registrations) {
       Objects.requireNonNull(side, "side");
       List<Registration> additions = List.copyOf(Objects.requireNonNull(registrations, "registrations"));
       Map<String, Map<Side, Registration>> staged = new LinkedHashMap<>();
@@ -74,27 +73,29 @@ public final class MLuaServiceRegistry {
          }
          recordClassName(stagedClassNames, registration);
       }
-   }
-
-   public synchronized void registerBatch(Side side, List<Registration> registrations) {
-      List<Registration> additions = List.copyOf(Objects.requireNonNull(registrations, "registrations"));
-      this.validateBatch(side, additions);
-      for (Registration registration : additions) this.register(registration, side);
+      return new StagedRegistrations(staged, stagedClassNames);
    }
 
    public synchronized void unregisterBatch(Side side, List<Registration> registrations) {
       Objects.requireNonNull(side, "side");
       List<Registration> removals = List.copyOf(Objects.requireNonNull(registrations, "registrations"));
+      Map<String, Map<Side, Registration>> staged = new LinkedHashMap<>();
+      this.registrations.forEach((name, bySide) -> staged.put(name, new EnumMap<>(bySide)));
+      Map<String, String> stagedClassNames = new LinkedHashMap<>(this.explicitClassNames);
       for (Registration registration : removals) {
-         Map<Side, Registration> bySide = this.registrations.get(registration.name());
+         Map<Side, Registration> bySide = staged.get(registration.name());
          if (bySide != null && bySide.get(side) == registration) {
             bySide.remove(side);
             if (bySide.isEmpty()) {
-               this.registrations.remove(registration.name());
-               this.explicitClassNames.remove(registration.name());
+               staged.remove(registration.name());
+               stagedClassNames.remove(registration.name());
             }
          }
       }
+      this.registrations.clear();
+      this.registrations.putAll(staged);
+      this.explicitClassNames.clear();
+      this.explicitClassNames.putAll(stagedClassNames);
    }
 
    public MLuaService create(String name, MLuaContext context) {
@@ -289,5 +290,9 @@ public final class MLuaServiceRegistry {
          functionDescriptions = Collections.unmodifiableMap(
             new LinkedHashMap<>(Objects.requireNonNull(functionDescriptions, "functionDescriptions")));
       }
+   }
+
+   private record StagedRegistrations(Map<String, Map<Side, Registration>> registrations,
+                                      Map<String, String> classNames) {
    }
 }
