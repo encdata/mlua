@@ -40,18 +40,7 @@ public class RegistryModule implements MLuaModule {
     public List<ServiceEntry> services() {
         ServiceEntry.Builder registry = ServiceEntry.builder("Registry", MLuaRegistryService::new)
             .description("Registers and queries addon content, generated data pack resources, Minecraft registries, and reusable inherited content types.");
-        registry.function("Register", "Routes a named content definition through its typed registry.")
-            .function("RegisterCategory", "Adds an addon-owned category that uses the shared registry and inherited content type APIs.")
-            .function("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults.")
-            .function("ResolveType", "Returns a definition with its reusable type defaults merged in.")
-            .function("GetKinds", "Lists the registry kinds supported by this loader.")
-            .function("GetCategories", "Lists the built-in and addon-owned registration categories.")
-            .function("Get", "Returns one copied definition from an addon-owned category.")
-            .function("GetAll", "Returns definitions keyed by namespaced identifier from an addon-owned category.")
-            .function("GetTypes", "Lists reusable implementation and addon-defined content types for a category.")
-            .function("GetRegistered", "Returns identifiers registered in a supported Minecraft registry.")
-            .function("GetEntry", "Creates a live RegistryEntry view for a kind and namespaced identifier.")
-            .function("Exists", "Checks whether an identifier currently resolves in its registry.");
+        MLuaRegistryService.serviceMethodDescriptions().forEach(registry::function);
         return List.of(registry.build());
     }
 

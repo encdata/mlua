@@ -65,6 +65,10 @@ import net.minecraft.world.level.block.Block;
 
 public final class MLuaRegistryService extends MLuaServiceBase {
    private static final Map<String, RegistryEndpoint> REGISTRY_ENDPOINTS = registryEndpoints();
+   private static final Map<String, String> METHOD_DESCRIPTIONS = registryMethodDescriptions();
+   private static final List<String> SERVICE_METHODS = List.of(
+      "Register", "RegisterCategory", "RegisterType", "ResolveType", "GetKinds", "GetCategories",
+      "Get", "GetAll", "GetTypes", "GetRegistered", "GetEntry", "Exists");
    private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
    private final DynamicRegistryState dynamicRegistry = this.sharedState(
       "dynamic-categories", DynamicRegistryState.class, DynamicRegistryState::new);
@@ -74,6 +78,31 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    public MLuaRegistryService(MLuaService.Context context) {
       super(context);
+   }
+
+   public static Map<String, String> serviceMethodDescriptions() {
+      Map<String, String> methods = new java.util.LinkedHashMap<>();
+      for (String name : SERVICE_METHODS) methods.put(name, METHOD_DESCRIPTIONS.get(name));
+      return java.util.Collections.unmodifiableMap(methods);
+   }
+
+   private static Map<String, String> registryMethodDescriptions() {
+      Map<String, String> descriptions = new java.util.LinkedHashMap<>();
+      descriptions.put("Register", "Routes a named content definition through its typed registry.");
+      descriptions.put("RegisterCategory", "Adds an addon-owned category that uses the shared registry and inherited content type APIs.");
+      descriptions.put("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults.");
+      descriptions.put("ResolveType", "Returns a definition with its reusable type defaults merged in.");
+      descriptions.put("GetKinds", "Lists the registry kinds supported by this loader.");
+      descriptions.put("GetCategories", "Lists the built-in and addon-owned registration categories.");
+      descriptions.put("Get", "Returns one copied definition from an addon-owned category.");
+      descriptions.put("GetAll", "Returns definitions keyed by namespaced identifier from an addon-owned category.");
+      descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
+      descriptions.put("GetRegistered", "Returns identifiers registered in a supported Minecraft registry.");
+      descriptions.put("GetEntry", "Creates a live RegistryEntry view for a kind and namespaced identifier.");
+      descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
+      descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
+      descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
+      return java.util.Collections.unmodifiableMap(descriptions);
    }
 
    private static Map<String, RegistryEndpoint> registryEndpoints() {
@@ -1104,21 +1133,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             ? "The central registry service for built-in Minecraft content and addon-owned categories."
             : "Registry." + category + " provides the registration and lookup operations available for this content category."));
       LuaTable methods = new LuaTable();
-      Map<String, String> descriptions = Map.ofEntries(
-         Map.entry("Register", "Registers a definition during the registry phase; accepted fields depend on the content category."),
-         Map.entry("RegisterCategory", "Registers an addon-owned category with a handler for resolved definitions."),
-         Map.entry("GetCategories", "Lists the built-in and addon-owned registration categories."),
-         Map.entry("GetKinds", "Lists the native Minecraft registry kinds."),
-         Map.entry("Get", "Returns a copy of one definition from an addon-owned category."),
-         Map.entry("GetAll", "Returns copied definitions keyed by namespaced identifier from an addon-owned category."),
-         Map.entry("RegisterType", "Defines addon-owned reusable defaults that other definitions in this category can inherit."),
-         Map.entry("ResolveType", "Returns a copy of the definition with its registered type defaults merged in."),
-         Map.entry("GetTypes", "Lists the reusable types available to this addon for the category."),
-         Map.entry("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier."),
-         Map.entry("GetEntry", "Creates a RegistryEntry view for the resolved identifier."),
-         Map.entry("Exists", "Checks whether the resolved identifier exists in Minecraft's live registry."),
-         Map.entry("RegisterItem", "Registers an item form for a previously registered block."));
-      descriptions.forEach((name, description) -> {
+      METHOD_DESCRIPTIONS.forEach((name, description) -> {
          if (target.rawget(name).isfunction()) methods.rawset(name, LuaValue.valueOf(description));
       });
       target.rawset("__mlua_doc_methods", methods);
