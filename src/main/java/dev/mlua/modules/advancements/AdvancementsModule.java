@@ -82,13 +82,17 @@ public final class AdvancementsModule implements MLuaModule {
             @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
                 LuaValue criteria = args.checktable(1).get("Criteria");
                 org.luaj.vm2.LuaTable result = new org.luaj.vm2.LuaTable();
+                if (!criteria.istable()) return result;
                 int index = 1;
+                java.util.List<String> names = new java.util.ArrayList<>();
                 for (LuaValue key : criteria.checktable().keys()) {
                     LuaValue value = criteria.get(key);
                     if (value.istable() && value.get("Done").toboolean() == completed) {
-                        result.set(index++, key);
+                        names.add(key.checkjstring());
                     }
                 }
+                java.util.Collections.sort(names);
+                for (String name : names) result.set(index++, LuaValue.valueOf(name));
                 return result;
             }
         };

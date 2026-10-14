@@ -29,14 +29,14 @@ public final class MLuaMixinLuaApi {
 
    private static Map<String, String> createFunctionDescriptions() {
       Map<String, String> descriptions = new LinkedHashMap<>();
-      descriptions.put("CallOriginal", "Calls the original method from the matching overwrite callback.");
+      descriptions.put("CallOriginal", "Calls the original implementation from the matching Overwrite callback and returns its result. The original exception is reported with its cause.");
       descriptions.put("Target", "Binds a Java target class and returns target-scoped Inject, Overwrite, Redirect, and ModifyArg methods.");
       descriptions.put("GetRules", "Returns mixin rules registered by the current script.");
       descriptions.put("GetFailures", "Returns target classes whose registered mixin rules could not be applied.");
-      descriptions.put("Inject", "Injects a callback at HEAD, before every RETURN, or at the final RETURN of a target method.");
-      descriptions.put("Overwrite", "Replaces a target method with a Lua callback.");
-      descriptions.put("Redirect", "Replaces an exact invocation selected by target = 'Lowner;method(descriptor)returnType'; nil preserves the original call.");
-      descriptions.put("ModifyArg", "Changes a zero-based argument at the exact invocation selected by target = 'Lowner;method(descriptor)returnType'.");
+      descriptions.put("Inject", "Injects a callback at HEAD, before every RETURN, or at the final RETURN. The callback receives self followed by the target method arguments. For non-void methods, return nil to keep execution or return a compatible value to override; at HEAD, false cancels a void method.");
+      descriptions.put("Overwrite", "Replaces a target method with a Lua callback that receives self followed by the target method arguments. Return a value compatible with the Java method; Java object and array returns are converted from Lua values.");
+      descriptions.put("Redirect", "Replaces an exact invocation selected by target = 'Lowner;method(descriptor)returnType'. The callback receives the enclosing self, invocation receiver (nil for static calls), invocation arguments, then enclosing method arguments. Return nil to execute the original invocation.");
+      descriptions.put("ModifyArg", "Changes a zero-based argument at the exact invocation selected by target = 'Lowner;method(descriptor)returnType'. The callback receives self, the old argument, then enclosing method arguments; return nil to keep the old value.");
       return Collections.unmodifiableMap(descriptions);
    }
 

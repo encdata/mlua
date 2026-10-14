@@ -802,10 +802,18 @@ public final class MLuaMixinClassWriter {
             insns.add(new InsnNode(Opcodes.DRETURN));
          }
          default -> {
+            insns.add(new LdcInsnNode(callbackId));
+            pushClassLiteral(insns, returnType);
+            pushSelf(insns, method);
+            pushPackedArgs(insns, method, null, -1);
             insns.add(new MethodInsnNode(
-               Opcodes.INVOKESTATIC, REGISTRY, "invokeObj",
-               "(Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false));
-            insns.add(new TypeInsnNode(Opcodes.CHECKCAST, returnType.getInternalName()));
+               Opcodes.INVOKESTATIC, REGISTRY, "invokeObject",
+               "(Ljava/lang/String;Ljava/lang/Class;Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false));
+            if (returnType.getSort() == Type.ARRAY) {
+               insns.add(new TypeInsnNode(Opcodes.CHECKCAST, returnType.getDescriptor()));
+            } else {
+               insns.add(new TypeInsnNode(Opcodes.CHECKCAST, returnType.getInternalName()));
+            }
             insns.add(new InsnNode(Opcodes.ARETURN));
          }
       }

@@ -1,5 +1,6 @@
 package dev.mlua.common.mixin;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -153,6 +154,16 @@ public final class MLuaMixinCallbackRegistry {
       return result.isnil() ? null : result;
    }
 
+   public static Object invokeObject(String id, Class<?> returnType, Object self, Object... args) {
+      LuaValue result = invokeMulti(id, self, args).arg1();
+      if (result.isnil()) return null;
+      try {
+         return CoerceLuaToJava.coerce(result, returnType);
+      } catch (RuntimeException failure) {
+         throw callbackFailure(id, "invokeObject for " + returnType.getName(), failure);
+      }
+   }
+
    public static Varargs invokeMulti(String id, Object self, Object... args) {
       LuaValue fn = requireCallback(id);
       try {
@@ -221,6 +232,10 @@ public final class MLuaMixinCallbackRegistry {
             }
          }
          throw new NoSuchMethodException(original.method() + original.descriptor());
+      } catch (InvocationTargetException exception) {
+         Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+         throw new IllegalStateException("[MLua] Original method " + original.method()
+            + " failed during Mixin:CallOriginal()", cause);
       } catch (Exception exception) {
          throw new IllegalStateException("[MLua] Failed to call original mixin method " + original.method(), exception);
       }
