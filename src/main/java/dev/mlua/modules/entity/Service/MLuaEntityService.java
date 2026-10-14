@@ -62,16 +62,11 @@ public final class MLuaEntityService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Returns entities near a Vector3, CFrame, or entity within a radius. Coordinates may also be supplied as x, y, z, radius.")
-    public LuaTable GetNearby(LuaValue centerValue, Optional<LuaValue> second, Optional<LuaValue> third, Optional<LuaValue> fourth) {
-        Entity centerEntity = centerValue.istable() && !centerValue.checktable().rawget("__entity").isnil()
-            ? requireEntity(centerValue) : null;
+    public LuaTable GetNearby(LuaValue centerValue, double radius) {
+        Entity centerEntity = entityValue(centerValue);
         double[] center = centerEntity == null
-            ? position(centerValue, second.orElse(LuaValue.NIL), third.orElse(LuaValue.NIL))
+            ? MLuaCFrame.vector(centerValue)
             : new double[]{centerEntity.getX(), centerEntity.getY(), centerEntity.getZ()};
-        LuaValue radiusValue = centerEntity != null || isPosition(centerValue)
-            ? second.orElse(LuaValue.NIL)
-            : fourth.orElse(LuaValue.NIL);
-        double radius = radiusValue.checkdouble();
         Level level = centerEntity != null ? centerEntity.level() : currentLevel();
         LuaTable out = new LuaTable();
         if (level == null) return out;
@@ -85,14 +80,22 @@ public final class MLuaEntityService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Loads the target chunk and creates an entity in the supplied world, dimension, or the overworld by default.")
-    public LuaValue Spawn(String typeId, LuaValue positionValue, Optional<LuaValue> second,
-                          Optional<LuaValue> third, Optional<LuaValue> fourth) {
+    public LuaValue Spawn(String typeId, LuaValue positionValue, Optional<LuaValue> requestedWorld) {
         if (context.mlua().server() == null) {
             throw new LuaError("[MLua] EntityService:Spawn is server-only.");
         }
-        double[] pos = position(positionValue, second.orElse(LuaValue.NIL), third.orElse(LuaValue.NIL));
-        LuaValue worldValue = isPosition(positionValue) ? second.orElse(LuaValue.NIL) : fourth.orElse(LuaValue.NIL);
-        ServerLevel level = resolveServerLevel(worldValue);
+        Entity anchor = entityValue(positionValue);
+        double[] pos = position(positionValue);
+        LuaValue worldValue = requestedWorld.orElse(LuaValue.NIL);
+        ServerLevel level;
+        if (worldValue.isnil() && anchor != null) {
+            if (!(anchor.level() instanceof ServerLevel anchorLevel)) {
+                throw new LuaError("[MLua] EntityService:Spawn requires a server-side entity anchor.");
+            }
+            level = anchorLevel;
+        } else {
+            level = resolveServerLevel(worldValue);
+        }
         BlockPos blockPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
         level.getChunk(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
         EntityType<?> type = (EntityType<?>) MCApiRuntime.lookupRegistry("entity_type", typeId);
@@ -140,17 +143,21 @@ public final class MLuaEntityService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Moves an entity to a position.")
-    public void Teleport(LuaValue entityValue, LuaValue positionValue, Optional<LuaValue> y, Optional<LuaValue> z) {
+    public void Teleport(LuaValue entityValue, LuaValue positionValue) {
         Entity entity = requireEntity(entityValue);
-        double[] pos = position(positionValue, y.orElse(LuaValue.NIL), z.orElse(LuaValue.NIL));
+        double[] pos = MLuaCFrame.vector(positionValue);
         entity.teleportTo(pos[0], pos[1], pos[2]);
         entity.hurtMarked = true;
     }
 
     @MLuaDescription("Sets an entity's motion vector.")
-    public void SetVelocity(LuaValue entityValue, LuaValue vectorValue, Optional<LuaValue> y, Optional<LuaValue> z) {
+    public void SetVelocity(LuaValue entityValue, LuaValue vectorValue) {
         Entity entity = requireEntity(entityValue);
-        double[] velocity = position(vectorValue, y.orElse(LuaValue.NIL), z.orElse(LuaValue.NIL));
+        if (!MLuaVector.isVector3(vectorValue)) {
+            throw new LuaError("[MLua] EntityService:SetVelocity expects a native Vector3 value.");
+        }
+        LuaTable vector = vectorValue.checktable();
+        double[] velocity = new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
         entity.setDeltaMovement(velocity[0], velocity[1], velocity[2]);
         entity.hurtMarked = true;
     }
@@ -318,32 +325,16 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return MLuaEntityWrapper.entityTable(entity, context.mlua().registration());
     }
 
-    private static boolean isPosition(LuaValue value) {
-        if (!value.istable()) return false;
-        if (MLuaCFrame.isCFrame(value)) return true;
-        LuaTable table = value.checktable();
-        if (table.rawget("__entity").isuserdata(Entity.class)) return true;
-        return MLuaVector.isVector3(value);
+    private static Entity entityValue(LuaValue value) {
+        if (!value.istable()) return null;
+        LuaValue raw = value.checktable().rawget("__entity");
+        return raw.isuserdata(Entity.class) ? (Entity)raw.touserdata(Entity.class) : null;
     }
 
-    private static double[] position(LuaValue value, LuaValue yValue, LuaValue zValue) {
-        if (value.istable()) {
-            if (MLuaCFrame.isCFrame(value)) {
-                MLuaCFrame cf = MLuaCFrame.fromLua(value);
-                return new double[]{cf.x(), cf.y(), cf.z()};
-            }
-            LuaTable table = value.checktable();
-            LuaValue rawEntity = table.rawget("__entity");
-            if (rawEntity.isuserdata(Entity.class)) {
-                Entity entity = (Entity) rawEntity.touserdata(Entity.class);
-                return new double[]{entity.getX(), entity.getY(), entity.getZ()};
-            }
-            return MLuaCFrame.vector(value);
-        }
-        if (value.isnumber() && yValue.isnumber() && zValue.isnumber()) {
-            return new double[]{value.checkdouble(), yValue.checkdouble(), zValue.checkdouble()};
-        }
-        throw new LuaError("[MLua] Expected Vector3/CFrame/entity position or x, y, z.");
+    private static double[] position(LuaValue value) {
+        Entity entity = entityValue(value);
+        if (entity != null) return new double[]{entity.getX(), entity.getY(), entity.getZ()};
+        return MLuaCFrame.vector(value);
     }
 
 }

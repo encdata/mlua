@@ -11,6 +11,7 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
@@ -440,7 +441,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       table.set("SpawnEntity", serverLevelFn(supplier, (level, args) -> {
          String entityId = args.checkjstring(2);
-         double[] pos = MLuaPlayerWrapper.positionArgs(args, 3);
+         double[] pos = positionArgs(args, 3);
          int rotationIndex = 3 + coordinateWidth(args, 3);
          double yaw = args.optdouble(rotationIndex, 0.0);
          double pitch = args.optdouble(rotationIndex + 1, 0.0);
@@ -767,7 +768,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static double[] positionArgs(Varargs args, int index) {
-      return MLuaPlayerWrapper.positionArgs(args, index);
+      return MLuaCFrame.vector(args.arg(index));
    }
 
    private static int coordinateWidth(Varargs args, int index) {

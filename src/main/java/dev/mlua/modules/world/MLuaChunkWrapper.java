@@ -5,6 +5,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
@@ -220,7 +221,7 @@ public final class MLuaChunkWrapper {
     }
 
     private static BlockPos requirePosition(Varargs args, int index, LuaValue self) {
-        double[] coordinates = MLuaPlayerWrapper.positionArgs(args, index);
+        double[] coordinates = MLuaCFrame.vector(args.arg(index));
         ChunkPos chunk = chunkPosition(self);
         BlockPos position = BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]);
         if (position.getX() >> 4 != chunkX(chunk) || position.getZ() >> 4 != chunkZ(chunk)) {
