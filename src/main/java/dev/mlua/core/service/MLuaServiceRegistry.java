@@ -32,6 +32,11 @@ public final class MLuaServiceRegistry {
       this.registerBatch(side, List.of(new Registration(name, factory, description, functionDescriptions)));
    }
 
+   public synchronized void register(String name, Function<MLuaService.Context, MLuaService> factory,
+                                     String description, Map<String, String> functionDescriptions) {
+      this.register(name, Side.BOTH, factory, description, functionDescriptions);
+   }
+
    public synchronized void register(String name, String className, Side side,
                                      Function<MLuaService.Context, MLuaService> factory,
                                      String description, Map<String, String> functionDescriptions) {
