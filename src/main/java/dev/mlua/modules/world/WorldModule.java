@@ -165,15 +165,24 @@ public class WorldModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("WorldService", "WorldService:GetBlockInventory(x: number, y: number, z: number)", "Container");
-        docs.signature("WorldService", "WorldService:SetBlock(x: number, y: number, z: number, blockId: string)", null);
-        docs.signature("WorldService", "WorldService:BreakBlock(x: number, y: number, z: number, dropItems: boolean)", null);
-        docs.signature("WorldService", "WorldService:DestroyBlock(x: number, y: number, z: number, dropItems: boolean)", null);
-        docs.signature("WorldService", "WorldService:PlaySound(x: number, y: number, z: number, sound: string, volume: number, pitch: number)", null);
-        docs.signature("WorldService", "WorldService:SpawnParticle(x: number, y: number, z: number, particle: string, count: number)", null);
-        docs.signature("WorldService", "WorldService:SpawnEntity(entityId: string, x: number, y: number, z: number, yaw: number, pitch: number)", null);
-        docs.signature("WorldService", "WorldService:GetBlock(x: number, y: number, z: number)", null);
-        docs.signature("WorldService", "WorldService:Raycast(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, distance: number)", null);
+        docs.signature("WorldService", "WorldService:GetBlock(position: Vector3|CFrame)", "Block");
+        docs.signature("WorldService", "WorldService:GetFluid(position: Vector3|CFrame)", "string?");
+        docs.signature("WorldService", "WorldService:GetBiome(position: Vector3|CFrame)", "string");
+        docs.signature("WorldService", "WorldService:GetLightLevel(position: Vector3|CFrame)", "number");
+        docs.signature("WorldService", "WorldService:GetSkyLight(position: Vector3|CFrame)", "number");
+        docs.signature("WorldService", "WorldService:GetBlockLight(position: Vector3|CFrame)", "number");
+        docs.signature("WorldService", "WorldService:GetBlockInventory(position: Vector3|CFrame)", "Container?");
+        docs.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, blockId: string)", "boolean");
+        docs.signature("WorldService", "WorldService:BreakBlock(position: Vector3|CFrame, dropItems: boolean?)", "boolean");
+        docs.signature("WorldService", "WorldService:PlaySound(position: Vector3|CFrame, sound: string, volume: number?, pitch: number?)", "void");
+        docs.signature("WorldService", "WorldService:SpawnParticle(position: Vector3|CFrame, particle: string, count: number?)", "void");
+        docs.signature("WorldService", "WorldService:SpawnEntity(entityId: string, position: Vector3|CFrame, yaw: number?, pitch: number?)", "Entity?");
+        docs.signature("WorldService", "WorldService:DropItem(position: Vector3|CFrame, itemId: string, count: number?)", "Entity?");
+        docs.signature("WorldService", "WorldService:Explode(position: Vector3|CFrame, power: number?, fire: boolean?)", "void");
+        docs.signature("WorldService", "WorldService:SpawnLightning(position: Vector3|CFrame)", "Entity?");
+        docs.signature("WorldService", "WorldService:FindEntitiesInRadius(center: Vector3|CFrame, radius: number, filters: table?)", "Entity[]");
+        docs.signature("WorldService", "WorldService:FindEntitiesInBox(minimum: Vector3|CFrame, maximum: Vector3|CFrame, filters: table?)", "Entity[]");
+        docs.signature("WorldService", "WorldService:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?)", "table?");
         docs.clazz("Level", "MLuaLevelWrapper", "A live Minecraft world instance, with dimension, time, and block access.", "classes/level.html", "Instance");
         docs.clazz("World", null, "A live world instance with dimension, time, block, entity, and weather APIs.", "classes/world.html", "Level");
         docs.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html");

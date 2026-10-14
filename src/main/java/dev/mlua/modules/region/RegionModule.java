@@ -70,6 +70,8 @@ public class RegionModule implements MLuaModule {
       docs.signature("Region", "Region:GetRegion(name: string)", "Region?");
       docs.signature("Region", "Region:CreateRegion(name: string, x: number, y: number, z: number, radius: number)", "Region");
       docs.signature("Region", "Region:CreateBoxRegion(name: string, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number)", "Region");
+      docs.signature("Region", "Region:CreateSphere(name: string, center: Vector3|CFrame, radius: number)", "Region");
+      docs.signature("Region", "Region:CreateBox(name: string, minimum: Vector3|CFrame, maximum: Vector3|CFrame)", "Region");
       docs.method("Region", "Region:Remove()", "Removes this region and clears its tracked entities and signals.", null, "void", "shared:Shared", null);
       docs.method("Region", "Region:GetEntities()", "Returns the live entity instances currently inside this region.", null, "Entity[]", "shared:Shared", null);
       docs.method("Region", "Region:OnEnter()", "Returns the signal fired for entities entering a region.", null, "Signal", "shared:Shared", null);
@@ -77,6 +79,6 @@ public class RegionModule implements MLuaModule {
       docs.method("Region", "Region:OnWithin()", "Returns the signal fired for entities inside a region.", null, "Signal", "shared:Shared", null);
       docs.guideStep("Region", "Create and listen to a live region",
          "Region creation returns a Region instance. Use its inherited Instance methods, live properties, and signals to manage the same registered region.",
-         "local RegionService = Minecraft:GetService(\"Region\")\nlocal region = RegionService:CreateRegion(\"safe_room\", 0, 64, 0, 8)\n\nregion:OnEnter():Connect(function(event)\n    print(event.Entity.Name .. \" entered \" .. region.Name)\nend)\n\nprint(region:IsA(\"Region\"), region.EntityCount)\n-- region:Remove() when the encounter ends");
+         "local RegionService = Minecraft:GetService(\"Region\")\nlocal region = RegionService:CreateSphere(\"safe_room\", Vector3.new(0, 64, 0), 8)\n\nregion:OnEnter():Connect(function(event)\n    print(event.Entity.Name .. \" entered \" .. region.Name)\nend)\n\nprint(region:IsA(\"Region\"), region.EntityCount)\nregion:Remove()");
    }
 }
