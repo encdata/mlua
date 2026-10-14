@@ -100,11 +100,38 @@ public final class MLuaClassMethods {
    public static void bindInstanceMethod(MLuaRegistration registration, String className, LuaTable instance,
                                          String methodName, LuaValue implementation, String description) {
       if (instance == null) throw new NullPointerException("instance");
+      if (methodName == null || methodName.isBlank()) throw new IllegalArgumentException("Method name must be non-empty");
       if (implementation == null || !implementation.isfunction()) {
          throw new IllegalArgumentException("Instance method must be a Lua function");
       }
-      registerInstanceMethod(registration, className, methodName, description);
+      if (description == null || description.isBlank()) {
+         throw new IllegalArgumentException("Method description must be non-empty");
+      }
+      if (!registration.isInstanceOf(instance, className)) {
+         throw new IllegalArgumentException("Live Lua instance does not belong to class '" + className + "'");
+      }
+      if (!instance.rawget(methodName).isnil()) {
+         throw new IllegalStateException("Lua instance already has a field named '" + methodName + "'");
+      }
       LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
+      if (!documentedMethods.isnil() && !documentedMethods.istable()) {
+         throw new IllegalStateException("Lua instance method descriptions must be a table");
+      }
+      LuaTable classTable = registration.classTable(className);
+      if (classTable == null) throw new IllegalStateException("Lua class is not registered: " + className);
+      LuaValue existing = classTable.rawget(methodName);
+      if (!existing.isnil() && !existing.isfunction()) {
+         throw new IllegalStateException("Lua class '" + className + "' already defines non-function member '"
+            + methodName + "'");
+      }
+      if (existing.isfunction()) {
+         LuaValue dispatchers = classTable.rawget("__mlua_instance_dispatchers");
+         if (!dispatchers.istable() || !dispatchers.checktable().rawget(methodName).toboolean()) {
+            throw new IllegalStateException("Lua class function '" + methodName + "' is not an instance dispatcher");
+         }
+      }
+      registerInstanceMethod(registration, className, methodName, description);
+      documentedMethods = instance.rawget("__mlua_doc_methods");
       LuaTable instanceDocs = documentedMethods.istable() ? documentedMethods.checktable() : new LuaTable();
       instanceDocs.rawset(methodName, LuaValue.valueOf(description));
       instance.rawset("__mlua_doc_methods", instanceDocs);
@@ -112,6 +139,16 @@ public final class MLuaClassMethods {
    }
 
    public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation) {
+      validateInstanceMethod(instance, methodName, implementation, true);
+      LuaTable meta = instance.getmetatable().checktable();
+      LuaValue methodsValue = meta.rawget("__mlua_instance_methods");
+      LuaTable methods = methodsValue.istable() ? methodsValue.checktable() : new LuaTable();
+      methods.rawset(methodName, implementation);
+      if (!methodsValue.istable()) meta.rawset("__mlua_instance_methods", methods);
+   }
+
+   private static void validateInstanceMethod(LuaTable instance, String methodName,
+                                              LuaValue implementation, boolean requireDescription) {
       if (instance == null) throw new NullPointerException("instance");
       if (methodName == null || methodName.isBlank()) throw new IllegalArgumentException("Method name must be non-empty");
       if (implementation == null || !implementation.isfunction()) {
@@ -125,23 +162,19 @@ public final class MLuaClassMethods {
          throw new IllegalStateException("Lua class function '" + methodName + "' is not an instance dispatcher");
       }
       LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
-      if (!documentedMethods.istable() || !documentedMethods.checktable().rawget(methodName).isstring()) {
+      if (!documentedMethods.isnil() && !documentedMethods.istable()) {
+         throw new IllegalStateException("Lua instance method descriptions must be a table");
+      }
+      if (requireDescription && (!documentedMethods.istable()
+         || !documentedMethods.checktable().rawget(methodName).isstring())) {
          throw new IllegalStateException("Lua instance has no description for registered function '" + methodName + "'");
       }
       LuaValue metaValue = instance.getmetatable();
       if (!metaValue.istable()) throw new IllegalStateException("Live class instance has no lookup metatable");
-      LuaTable meta = metaValue.checktable();
-      LuaValue methodsValue = meta.rawget("__mlua_instance_methods");
-      LuaTable methods;
-      if (methodsValue.isnil()) {
-         methods = new LuaTable();
-         meta.rawset("__mlua_instance_methods", methods);
-      } else if (methodsValue.istable()) {
-         methods = methodsValue.checktable();
-      } else {
+      LuaValue methodsValue = metaValue.checktable().rawget("__mlua_instance_methods");
+      if (!methodsValue.isnil() && !methodsValue.istable()) {
          throw new IllegalStateException("Live class instance method storage must be a table");
       }
-      methods.rawset(methodName, implementation);
    }
 
    public static void setInstanceMethod(LuaTable instance, String methodName, LuaValue implementation,
@@ -149,6 +182,7 @@ public final class MLuaClassMethods {
       if (description == null || description.isBlank()) {
          throw new IllegalArgumentException("Method description must be non-empty");
       }
+      validateInstanceMethod(instance, methodName, implementation, false);
       LuaValue documentedMethods = instance.rawget("__mlua_doc_methods");
       LuaTable instanceDocs = documentedMethods.istable() ? documentedMethods.checktable() : new LuaTable();
       instanceDocs.rawset(methodName, LuaValue.valueOf(description));
