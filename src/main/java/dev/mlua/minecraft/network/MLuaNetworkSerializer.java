@@ -95,10 +95,12 @@ public final class MLuaNetworkSerializer {
          if (type.isstring()) {
             String typeStr = type.tojstring();
             if ("Vector3".equals(typeStr)) {
+               if (!MLuaVector.isVector3(value)) throw new LuaError("[MLua] Network Vector3 values must be created by Vector3.new");
                return new MLuaNetworkValue.Vec3(table.get("X").todouble(), table.get("Y").todouble(), table.get("Z").todouble());
             }
 
             if ("CFrame".equals(typeStr)) {
+               if (!MLuaCFrame.isCFrame(value)) throw new LuaError("[MLua] Network CFrame values must be created by CFrame.new");
                MLuaCFrame cf = MLuaCFrame.fromLua(value);
                return new MLuaNetworkValue.Cf(cf.x(), cf.y(), cf.z(), cf.r00(), cf.r01(), cf.r02(), cf.r10(), cf.r11(), cf.r12(), cf.r20(), cf.r21(), cf.r22());
             }

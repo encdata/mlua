@@ -487,7 +487,7 @@ public abstract class GuiBase {
     }
 
     private static dev.mlua.minecraft.ui.data.Vector2 parseVector2(LuaValue v) {
-        if (!v.istable() || !"Vector2".equals(v.get("__type").optjstring(null))) throw new org.luaj.vm2.LuaError("[MLua] UI Vector2 properties require Vector2.new(x, y)");
+        if (!MLuaVector.isVector2(v)) throw new org.luaj.vm2.LuaError("[MLua] UI Vector2 properties require Vector2.new(x, y)");
         LuaTable t = v.checktable();
         if (!t.get("X").isnumber() || !t.get("Y").isnumber()) throw new org.luaj.vm2.LuaError("[MLua] Vector2 values require numeric X and Y properties");
         return new dev.mlua.minecraft.ui.data.Vector2(t.get("X").todouble(), t.get("Y").todouble());

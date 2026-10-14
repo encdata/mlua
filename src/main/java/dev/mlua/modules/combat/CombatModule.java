@@ -99,6 +99,9 @@ public class CombatModule implements MLuaModule {
         docs.signature("Combat", "Combat:GetDamageSourceInfo(name: string)", null);
 
         docs.type("ProjectileDefinition", null, "Options and callbacks for a registered scripted projectile.");
+        docs.field("ProjectileDefinition", "Owner", "Entity", "Entity that launches the projectile.");
+        docs.field("ProjectileDefinition", "Position?", "Vector3|CFrame", "Launch position; defaults to the owner's position.");
+        docs.field("ProjectileDefinition", "Direction?", "Vector3", "Launch direction; defaults to the owner's look direction.");
         docs.field("ProjectileDefinition", "Speed", "number", "Launch speed in blocks per tick.");
         docs.field("ProjectileDefinition", "Damage?", "number", "Damage applied on an entity hit.");
         docs.field("ProjectileDefinition", "Gravity?", "boolean", "Whether Minecraft gravity affects the projectile.");

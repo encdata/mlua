@@ -14,6 +14,8 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectile;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectileType;
+import dev.mlua.math.MLuaCFrame;
+import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import java.util.Map;
@@ -138,15 +140,23 @@ public class MLuaProjectileDefinition {
             throw new LuaError("[MLua] FireProjectile must be called on the server");
          }
 
-         double ox = optVector(config, "Position", "X", owner.getX());
-         double oy = optVector(config, "Position", "Y", owner.getY() + 1.0);
-         double oz = optVector(config, "Position", "Z", owner.getZ());
+         double ox = owner.getX();
+         double oy = owner.getY() + 1.0;
+         double oz = owner.getZ();
+         LuaValue position = config.get("Position");
+         if (!position.isnil()) {
+            double[] components = MLuaCFrame.vector(position);
+            ox = components[0];
+            oy = components[1];
+            oz = components[2];
+         }
 
          LuaValue dirVal = config.get("Direction");
          Vec3 dir;
-         if (dirVal.istable() && dirVal.checktable().get("X").isnumber()) {
-            LuaTable dirT = dirVal.checktable();
-            dir = new Vec3(dirT.get("X").checkdouble(), dirT.get("Y").checkdouble(), dirT.get("Z").checkdouble()).normalize();
+         if (!dirVal.isnil()) {
+            if (!MLuaVector.isVector3(dirVal)) throw new LuaError("[MLua] Projectile Direction requires a Vector3 value");
+            double[] components = MLuaCFrame.vector(dirVal);
+            dir = new Vec3(components[0], components[1], components[2]).normalize();
          } else {
             dir = owner.getLookAngle();
          }
@@ -186,15 +196,6 @@ public class MLuaProjectileDefinition {
          MLuaLogger.LOGGER.error("Failed to fire projectile '{}'", typeName, exception);
          throw new LuaError("[MLua] Failed to fire projectile '" + typeName + "': " + exception.getMessage());
       }
-   }
-
-   private static double optVector(LuaTable table, String tableKey, String field, double fallback) {
-      LuaValue inner = table.get(tableKey);
-      if (inner.istable()) {
-         LuaValue val = inner.checktable().get(field);
-         return val.isnumber() ? val.todouble() : fallback;
-      }
-      return fallback;
    }
 
    public static void clearOwned(Object runtimeOwner, String ownerModId) {

@@ -11,6 +11,7 @@ import dev.mlua.core.MLuaContext;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.math.MLuaVector;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.modules.combat.MLuaProjectileDefinition;
 import dev.mlua.modules.combat.Service.MLuaCombatService;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -411,16 +412,18 @@ public class MLuaScriptedProjectile extends Entity {
                   direction = null;
                   return LuaValue.NONE;
                }
-               LuaTable vector = args.checktable(2);
-               direction = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()).normalize();
+               if (!MLuaVector.isVector3(args.arg(2))) throw new org.luaj.vm2.LuaError("[MLua] Projectile direction requires a Vector3 value");
+               double[] components = MLuaCFrame.vector(args.arg(2));
+               direction = new Vec3(components[0], components[1], components[2]).normalize();
                return LuaValue.NONE;
             }
          });
          MLuaClassMethods.setInstanceMethod(table, "SetVelocity", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-               LuaTable vector = args.checktable(2);
-               Vec3 velocity = new Vec3(vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble());
+               if (!MLuaVector.isVector3(args.arg(2))) throw new org.luaj.vm2.LuaError("[MLua] Projectile velocity requires a Vector3 value");
+               double[] components = MLuaCFrame.vector(args.arg(2));
+               Vec3 velocity = new Vec3(components[0], components[1], components[2]);
                setDeltaMovement(velocity);
                speed = velocity.length() / 0.05;
                direction = velocity.lengthSqr() > 1.0E-8 ? velocity.normalize() : Vec3.ZERO;

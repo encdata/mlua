@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.math.MLuaCFrame;
+import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
@@ -313,7 +314,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         if (MLuaCFrame.isCFrame(value)) return true;
         LuaTable table = value.checktable();
         if (table.rawget("__entity").isuserdata(Entity.class)) return true;
-        return "Vector3".equals(table.get("__type").optjstring(null));
+        return MLuaVector.isVector3(value);
     }
 
     private static double[] position(LuaValue value, LuaValue yValue, LuaValue zValue) {
