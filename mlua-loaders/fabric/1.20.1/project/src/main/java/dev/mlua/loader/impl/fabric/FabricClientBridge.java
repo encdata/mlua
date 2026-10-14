@@ -3,7 +3,9 @@ package dev.mlua.loader.impl.fabric;
 import dev.mlua.loaderapi.ClientBridge;
 import dev.mlua.runtime.client.MLuaInputHandler;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -17,11 +19,21 @@ import org.lwjgl.glfw.GLFWScrollCallbackI;
 public final class FabricClientBridge implements ClientBridge {
     private final List<Object> keyBindings = new ArrayList<>();
     private final List<Object[]> modelLayers = new ArrayList<>();
+    private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
     private boolean glfwRegistered = false;
+    private boolean overlayRegistered;
 
     @Override
     public void registerOverlay(String id, Consumer<Object> renderer) {
-        HudRenderCallback.EVENT.register((drawContext, tickDelta) -> renderer.accept(drawContext));
+        overlays.put(id, renderer);
+        if (!overlayRegistered) {
+            overlayRegistered = true;
+            HudRenderCallback.EVENT.register((drawContext, tickDelta) -> {
+                for (Consumer<Object> overlay : overlays.values()) {
+                    overlay.accept(drawContext);
+                }
+            });
+        }
     }
 
     @Override
