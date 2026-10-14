@@ -101,10 +101,12 @@ public final class MLuaSlot {
       register(registration, "AddEnchantment", "Adds an enchantment to this slot's item when writable; returns false when empty.", args -> {
          SlotState state = state(args.arg1());
          ensureWritable(state.writable);
+         String id = args.checkjstring(2);
+         int level = MLuaLuaArguments.optionalWholeInt(args, 3, 1, "Slot:AddEnchantment", "level");
+         if (level < 1) throw new LuaError("[MLua] Slot:AddEnchantment level must be a positive whole number.");
          MCItemStack stack = currentStack(state.stackSupplier);
          if (stack.isEmpty()) return LuaValue.FALSE;
-         String id = args.checkjstring(2);
-         if (!MLuaEnchantmentWrapper.addEnchantment(stack, id, args.optint(3, 1))) {
+         if (!MLuaEnchantmentWrapper.addEnchantment(stack, id, level)) {
             throw new LuaError("[MLua] Unknown or invalid enchantment: " + id);
          }
          return LuaValue.TRUE;
