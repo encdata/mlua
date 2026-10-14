@@ -111,7 +111,8 @@ public final class MLuaGuiService implements MLuaService {
                 if (state.enabled) elements.addAll(state.hudElements.values());
             }
         }
-        elements.sort(java.util.Comparator.comparingLong(element -> element.order));
+        elements.sort(java.util.Comparator.comparingInt((HudElement element) -> element.priority)
+            .thenComparingLong(element -> element.order));
         for (HudElement element : elements) {
             if (element.position.equals(position) && !element.failed) renderHudElement(element, graphics);
         }
@@ -122,6 +123,8 @@ public final class MLuaGuiService implements MLuaService {
         element.graphics = graphics;
         element.canvas.set("Width", LuaValue.valueOf(readNumber(window, "getGuiScaledWidth", "guiScaledWidth")));
         element.canvas.set("Height", LuaValue.valueOf(readNumber(window, "getGuiScaledHeight", "guiScaledHeight")));
+        element.canvas.set("Anchor", LuaValue.valueOf(element.anchor));
+        element.canvas.set("Phase", LuaValue.valueOf(element.before ? "Before" : "After"));
         try { element.callback.invoke(element.canvas); }
         catch (RuntimeException failure) {
             element.failed = true;
@@ -135,6 +138,8 @@ public final class MLuaGuiService implements MLuaService {
         LuaTable canvas = new LuaTable();
         canvas.set("Width", LuaValue.ZERO);
         canvas.set("Height", LuaValue.ZERO);
+        canvas.set("Anchor", LuaValue.valueOf(element.anchor));
+        canvas.set("Phase", LuaValue.valueOf(element.before ? "Before" : "After"));
         canvas.set("Fill", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 drawHudFill(requireHudGraphics(element), args.arg(2).checkint(), args.arg(3).checkint(),
@@ -1029,22 +1034,26 @@ public final class MLuaGuiService implements MLuaService {
         vanillaHudElements.set("Health", LuaValue.valueOf("Health"));
         vanillaHudElements.set("Experience", LuaValue.valueOf("Experience"));
         vanillaHudElements.set("Effects", LuaValue.valueOf("Effects"));
+        //--version 1.21.1
         vanillaHudElements.set("Food", LuaValue.valueOf("Food"));
+        //--endversion
+        //--version 1.21.1,26.1
         vanillaHudElements.set("OverlayMessage", LuaValue.valueOf("OverlayMessage"));
         vanillaHudElements.set("Title", LuaValue.valueOf("Title"));
         vanillaHudElements.set("Scoreboard", LuaValue.valueOf("Scoreboard"));
         vanillaHudElements.set("PlayerList", LuaValue.valueOf("PlayerList"));
+        //--endversion
         table.set("VanillaHudElements", vanillaHudElements);
         table.set("AttachElementBefore", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
-                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), true, args.arg(4)));
+                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), true, args.arg(4), args.arg(5).optint(0)));
             }
         });
         table.set("AttachElementAfter", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
-                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), false, args.arg(4)));
+                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), false, args.arg(4), args.arg(5).optint(0)));
             }
         });
         table.set("RemoveHudElement", new VarArgFunction() {
@@ -1384,7 +1393,7 @@ public final class MLuaGuiService implements MLuaService {
         root.setOwnerContext(this.context.mlua().ownerModId(), this.context.mlua().side(), this.context.mlua().globals());
     }
 
-    private String attachHudElement(String anchor, String id, boolean before, LuaValue callback) {
+    private String attachHudElement(String anchor, String id, boolean before, LuaValue callback, int priority) {
         if (this.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
         if (id == null || id.isBlank()) throw new LuaError("[MLua] HUD element id must not be empty.");
         String normalizedAnchor = anchor == null ? "" : anchor.trim();
@@ -1396,19 +1405,23 @@ public final class MLuaGuiService implements MLuaService {
             case "health" -> "Health";
             case "experience" -> "Experience";
             case "effects" -> "Effects";
+            //--version 1.21.1
             case "food" -> "Food";
+            //--endversion
+            //--version 1.21.1,26.1
             case "overlaymessage", "overlay_message" -> "OverlayMessage";
             case "title" -> "Title";
             case "scoreboard" -> "Scoreboard";
             case "playerlist", "player_list", "tablist", "tab_list" -> "PlayerList";
-            default -> throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor
-                + "'. Available anchors: Hud, Chat, Crosshair, Hotbar, Health, Experience, Effects, Food, OverlayMessage, Title, Scoreboard, PlayerList.");
+            //--endversion
+            default -> throw new LuaError("[MLua] Unsupported HUD anchor '" + anchor + "' for this Minecraft version.");
         };
         if (!callback.isfunction()) throw new LuaError("[MLua] HUD element callback must be a function.");
         String owner = this.context.mlua().ownerModId();
         String key = owner + ":" + id;
         String position = (before ? "Before" : "After") + positionAnchor;
-        HudElement element = new HudElement(key, owner, position, callback, NEXT_HUD_ELEMENT_ID.getAndIncrement());
+        HudElement element = new HudElement(key, owner, positionAnchor, before, position, callback,
+            priority, NEXT_HUD_ELEMENT_ID.getAndIncrement());
         this.state.hudElements.put(key, element);
         return id;
     }
@@ -1971,17 +1984,24 @@ public final class MLuaGuiService implements MLuaService {
     private static final class HudElement {
         private final String id;
         private final String owner;
+        private final String anchor;
+        private final boolean before;
         private final String position;
+        private final int priority;
         private final LuaValue callback;
         private final long order;
         private final LuaTable canvas;
         private volatile Object graphics;
         private volatile boolean failed;
 
-        private HudElement(String id, String owner, String position, LuaValue callback, long order) {
+        private HudElement(String id, String owner, String anchor, boolean before, String position,
+                           LuaValue callback, int priority, long order) {
             this.id = id;
             this.owner = owner;
+            this.anchor = anchor;
+            this.before = before;
             this.position = position;
+            this.priority = priority;
             this.callback = callback;
             this.order = order;
             this.canvas = createHudCanvas(this);
