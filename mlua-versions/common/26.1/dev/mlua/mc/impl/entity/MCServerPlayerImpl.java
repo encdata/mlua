@@ -16,7 +16,7 @@ public class MCServerPlayerImpl extends MCPlayerImpl implements MCServerPlayer {
         return inner == null ? null : new MCServerPlayerImpl(inner);
     }
 
-    @Override public MCServerLevel serverLevel() {
+    @Override public MCServerLevel getServerLevel() {
         return new MCServerLevelImpl(serverPlayer().level());
     }
 

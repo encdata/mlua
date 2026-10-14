@@ -99,7 +99,7 @@ public class MCPlayerImpl extends MCLivingEntityImpl implements MCPlayer {
     }
 
     @Override
-    public int experienceLevel() {
+    public int getExperienceLevel() {
         return inner.experienceLevel;
     }
 
@@ -109,7 +109,7 @@ public class MCPlayerImpl extends MCLivingEntityImpl implements MCPlayer {
     }
 
     @Override
-    public float experienceProgress() {
+    public float getExperienceProgress() {
         return inner.experienceProgress;
     }
 

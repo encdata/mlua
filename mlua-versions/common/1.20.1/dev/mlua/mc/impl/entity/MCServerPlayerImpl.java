@@ -22,7 +22,7 @@ public class MCServerPlayerImpl extends MCPlayerImpl implements MCServerPlayer {
     }
 
     @Override
-    public MCServerLevel serverLevel() {
+    public MCServerLevel getServerLevel() {
         return new MCServerLevelImpl(serverPlayer().serverLevel());
     }
 

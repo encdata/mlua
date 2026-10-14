@@ -188,10 +188,10 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
-         return LuaValue.valueOf(player.experienceLevel());
+         return LuaValue.valueOf(player.getExperienceLevel());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceProgress", luaFn(() -> {
-         return LuaValue.valueOf((double)player.experienceProgress());
+         return LuaValue.valueOf((double)player.getExperienceProgress());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GiveExperience", varArg((args) -> {
          player.giveExperiencePoints(args.checkint(2));
@@ -640,10 +640,10 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
-         return LuaValue.valueOf(player.experienceLevel());
+         return LuaValue.valueOf(player.getExperienceLevel());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceProgress", luaFn(() -> {
-         return LuaValue.valueOf((double)player.experienceProgress());
+         return LuaValue.valueOf((double)player.getExperienceProgress());
       }));
       MLuaClassMethods.setInstanceMethod(table, "IsCreative", luaFn(() -> {
          return LuaValue.valueOf(player.isCreative());
