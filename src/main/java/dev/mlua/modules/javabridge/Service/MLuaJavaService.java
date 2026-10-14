@@ -1819,7 +1819,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
         for (Class<?> parameterType : method.getParameterTypes()) {
             builder.append(parameterType.getName()).append(';');
         }
-        return builder.append(")->").append(method.getReturnType().getName()).toString();
+        // Java does not overload methods by return type. Omitting it also collapses
+        // covariant overrides so the subclass declaration wins during collection.
+        return builder.append(')').toString();
     }
 
     private boolean isPreferredExecutable(Executable candidate, Executable currentBest, Object[] rawArgs) {
