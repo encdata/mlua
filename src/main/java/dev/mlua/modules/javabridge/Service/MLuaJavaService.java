@@ -433,13 +433,44 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 throw new LuaError("[MLua] Java:Proxy only supports interfaces in v1: " + iface.getName());
             }
         }
-        ClassLoader loader = interfaces[0].getClassLoader();
-        if (loader == null) loader = getClass().getClassLoader();
+        ClassLoader loader = proxyClassLoader(interfaces);
+        if (loader == null) {
+            throw new LuaError("[MLua] Could not create Java interface proxy: no class loader can see all requested interfaces");
+        }
         try {
             return Proxy.newProxyInstance(loader, interfaces, new LuaInvocationHandler(implementation));
         } catch (IllegalArgumentException error) {
             throw new LuaError("[MLua] Could not create Java interface proxy: " + error.getMessage());
         }
+    }
+
+    private ClassLoader proxyClassLoader(Class<?>[] interfaces) {
+        java.util.Set<ClassLoader> candidates = new java.util.LinkedHashSet<>();
+        for (Class<?> iface : interfaces) {
+            candidates.add(iface.getClassLoader());
+        }
+        candidates.add(Thread.currentThread().getContextClassLoader());
+        candidates.add(this.context.getClass().getClassLoader());
+        candidates.add(getClass().getClassLoader());
+        candidates.add(ClassLoader.getSystemClassLoader());
+
+        for (ClassLoader candidate : candidates) {
+            boolean visible = true;
+            for (Class<?> iface : interfaces) {
+                try {
+                    Class<?> resolved = Class.forName(iface.getName(), false, candidate);
+                    if (resolved != iface) {
+                        visible = false;
+                        break;
+                    }
+                } catch (ClassNotFoundException | LinkageError error) {
+                    visible = false;
+                    break;
+                }
+            }
+            if (visible) return candidate;
+        }
+        return null;
     }
 
     private Object unwrapJavaValue(LuaValue value) {
