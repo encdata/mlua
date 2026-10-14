@@ -168,10 +168,7 @@ public final class MLuaEntityWrapper {
          return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         double[] vel = MLuaVector.components3(args.arg(2));
-         wrapped.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
-         ((MCEntityImpl)wrapped).inner().hurtMarked = true;
-         return LuaValue.NONE;
+         return setVelocity(wrapped, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot())));
       MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()))));
@@ -305,10 +302,7 @@ public final class MLuaEntityWrapper {
          return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         double[] vel = MLuaVector.components3(args.arg(2));
-         wrapped.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
-         ((MCEntityImpl)wrapped).inner().hurtMarked = true;
-         return LuaValue.NONE;
+         return setVelocity(wrapped, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetHealth", luaFn(() -> {
          return LuaValue.valueOf((double)wrapped.getHealth());
@@ -961,6 +955,13 @@ public final class MLuaEntityWrapper {
 
    public static MCVec3 position(MCEntity entity) {
       return entity.getPosition();
+   }
+
+   public static LuaValue setVelocity(MCEntity entity, LuaValue value) {
+      double[] velocity = MLuaVector.components3(value);
+      entity.setDeltaMovement(MCVec3.of(velocity[0], velocity[1], velocity[2]));
+      ((MCEntityImpl)entity).inner().hurtMarked = true;
+      return LuaValue.NONE;
    }
 
    public static MCVec3 lookAngle(MCEntity entity) {

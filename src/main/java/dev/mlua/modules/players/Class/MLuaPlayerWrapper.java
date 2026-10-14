@@ -275,10 +275,7 @@ public final class MLuaPlayerWrapper {
          return positionTable(v.x(), v.y(), v.z());
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         double[] vel = MLuaVector.components3(args.arg(2));
-         player.setDeltaMovement(MCVec3.of(vel[0], vel[1], vel[2]));
-         player.setHurtMarked(true);
-         return LuaValue.NONE;
+         return MLuaEntityWrapper.setVelocity(player, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
          double[] other = MLuaEntityWrapper.targetPosition(args.arg(2));
