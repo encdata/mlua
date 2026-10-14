@@ -56,7 +56,6 @@ public interface MLuaApiBridge {
       registerService(name, className, Side.BOTH, factory, description, functionDescriptions);
    }
 
-   /** Registers a described service and selects the Lua class name used for its service class. */
    default void registerService(String name, String className, Side side,
                                 Function<MLuaService.Context, MLuaService> factory,
                                 String description, Map<String, String> functionDescriptions) {

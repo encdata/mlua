@@ -9,7 +9,6 @@ import java.util.Map;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Tracks the registry contributions made by one Lua registry script. */
 final class MLuaScriptRegistration implements MLuaRegistration {
    private final MLuaRegistration delegate;
    private final List<String> classes = new ArrayList<>();
