@@ -55,7 +55,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
-        registerObjectProperty(registration, "ModelScale", "number", "The uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
+        registerObjectProperty(registration, "ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
@@ -472,7 +472,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("GetModelScale", fn(args -> LuaValue.valueOf(requireObject(id).modelScale())));
         operations.set("SetModelScale", fn(args -> {
-            requireObject(id).setModelScale((float) atLeast(args.arg(2), "ModelScale", 0.001));
+            requireObject(id).setModelScale(modelScale(args.arg(2)));
             return LuaValue.NONE;
         }));
         operations.set("GetFollowEntity", fn(args -> {
@@ -606,7 +606,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         LuaValue scaleWithDistance = property(props, "ScaleWithDistance");
         if (!scaleWithDistance.isnil()) object.setScaleWithDistance(scaleWithDistance.checkboolean());
         LuaValue modelScale = property(props, "ModelScale");
-        if (!modelScale.isnil()) object.setModelScale((float) atLeast(modelScale, "ModelScale", 0.001));
+        if (!modelScale.isnil()) object.setModelScale(modelScale(modelScale));
         LuaValue thickness = property(props, "Thickness");
         if (!thickness.isnil()) object.setThickness(atLeast(thickness, "Thickness", 1.0));
         LuaValue resource = property(props, "Resource");
@@ -682,6 +682,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     private static double nonNegative(LuaValue value, String name) {
         return atLeast(value, name, 0.0);
+    }
+
+    private static float modelScale(LuaValue value) {
+        double scale = atLeast(value, "ModelScale", 0.001);
+        if (scale > Float.MAX_VALUE) {
+            throw new LuaError("[MLua] RenderObject ModelScale must fit in a finite float.");
+        }
+        return (float)scale;
     }
 
     private static double atLeast(LuaValue value, String name, double minimum) {
