@@ -517,7 +517,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     private void applyProps(MLuaClientRenderManager.RenderObject object, LuaTable props, String... extraProperties) {
         try {
             validateProperties(props, extraProperties);
-            applyPropertyValues(object, props);
+            applyPropertyValues(object, props, extraProperties);
         } catch (RuntimeException | Error failure) {
             MLuaClientRenderManager.remove(object.id(), owner());
             throw failure;
@@ -539,87 +539,85 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 throw new LuaError("[MLua] RenderObject properties must use registered string names.");
             }
             String suppliedName = key.tojstring();
-            String canonicalName = suppliedName.isEmpty() ? suppliedName
-                : Character.toUpperCase(suppliedName.charAt(0)) + suppliedName.substring(1);
-            if (!provided.add(canonicalName)) {
-                throw new LuaError("[MLua] RenderObject property '" + canonicalName
-                    + "' was supplied more than once with different casing.");
-            }
+            String propertyName = registeredPropertyName(descriptors, suppliedName);
+            String canonicalName = upperCamel(suppliedName);
             if (extras.contains(canonicalName)) continue;
-            LuaValue descriptor = descriptors.rawget(canonicalName);
+            if (propertyName == null) {
+                throw new LuaError("[MLua] Unknown RenderObject property '" + suppliedName
+                    + "'. Use a registered writable RenderObject property.");
+            }
+            if (!provided.add(propertyName)) {
+                throw new LuaError("[MLua] RenderObject property '" + propertyName
+                    + "' was supplied more than once through aliases.");
+            }
+            LuaValue descriptor = descriptors.rawget(propertyName);
             if (!descriptor.istable()) {
                 throw new LuaError("[MLua] Unknown RenderObject property '" + suppliedName
                     + "'. Use a registered writable RenderObject property.");
             }
             if (!descriptor.checktable().rawget("set").isfunction()) {
-                throw new LuaError("[MLua] RenderObject property '" + canonicalName + "' is read-only.");
+                throw new LuaError("[MLua] RenderObject property '" + propertyName + "' is read-only.");
             }
         }
     }
 
-    private void applyPropertyValues(MLuaClientRenderManager.RenderObject object, LuaTable props) {
-        LuaValue position = property(props, "Position");
-        if (!position.isnil()) {
-            double[] value = screenVector(position);
-            object.setPosition(value[0], value[1]);
+    private void applyPropertyValues(MLuaClientRenderManager.RenderObject object, LuaTable props,
+                                     String... extraProperties) {
+        LuaTable classTable = context.mlua().registration().classTable("RenderObject");
+        LuaValue descriptorValue = classTable == null ? LuaValue.NIL : classTable.rawget("__mlua_properties");
+        LuaTable descriptors = descriptorValue.istable() ? descriptorValue.checktable() : new LuaTable();
+        java.util.Set<String> extras = java.util.Set.of(extraProperties);
+        java.util.Map<String, LuaValue> values = new java.util.TreeMap<>();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = props.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            String suppliedName = key.checkjstring();
+            String canonicalName = upperCamel(suppliedName);
+            if (extras.contains(canonicalName)) continue;
+            String propertyName = registeredPropertyName(descriptors, suppliedName);
+            if (propertyName == null) continue;
+            values.put(propertyName, entry.arg(2));
         }
-        LuaValue endPosition = property(props, "EndPosition");
-        if (!endPosition.isnil()) {
-            double[] value = screenVector(endPosition);
-            object.setEndPosition(value[0], value[1]);
-        }
-        LuaValue size = property(props, "Size");
-        if (!size.isnil()) {
-            double[] value = screenSize(size);
-            object.setSize(value[0], value[1]);
-        }
-        LuaValue rotation = property(props, "Rotation");
-        if (!rotation.isnil()) object.setRotation(finiteNumber(rotation, "Rotation"));
-        LuaValue visible = property(props, "Visible");
-        if (!visible.isnil()) object.setVisible(visible.checkboolean());
-        LuaValue transparency = property(props, "Transparency");
-        LuaValue alpha = property(props, "Alpha");
-        if (!transparency.isnil() && !alpha.isnil()) {
+
+        if (values.containsKey("Transparency") && values.containsKey("Alpha")) {
             throw new LuaError("[MLua] RenderObject properties Alpha and Transparency describe the same value; provide only one.");
         }
-        if (!transparency.isnil()) object.setTransparency(opacity(transparency, "Transparency"));
-        else if (!alpha.isnil()) object.setTransparency(1.0 - opacity(alpha, "Alpha"));
-        LuaValue color = property(props, "Color");
-        if (!color.isnil()) object.setColor(packedColor(color));
-        LuaValue depth = property(props, "Depth");
-        if (!depth.isnil()) object.setDepth(nonNegative(depth, "Depth"));
-        LuaValue zIndex = property(props, "ZIndex");
-        if (!zIndex.isnil()) object.setZIndex(wholeInt(zIndex, "ZIndex"));
-        LuaValue worldPosition = property(props, "WorldPosition");
-        if (!worldPosition.isnil()) {
-            double[] value = worldVector(worldPosition);
-            object.setWorldPosition(value[0], value[1], value[2]);
-        }
-        LuaValue endWorldPosition = property(props, "EndWorldPosition");
-        if (!endWorldPosition.isnil()) {
-            double[] value = worldVector(endWorldPosition);
-            object.setEndWorldPosition(value[0], value[1], value[2]);
-        }
-        LuaValue worldSpace = property(props, "WorldSpace");
-        if (!worldSpace.isnil()) object.setWorldSpace(worldSpace.checkboolean());
-        else if (!worldPosition.isnil() || !endWorldPosition.isnil()) object.setWorldSpace(true);
-        LuaValue scaleWithDistance = property(props, "ScaleWithDistance");
-        if (!scaleWithDistance.isnil()) object.setScaleWithDistance(scaleWithDistance.checkboolean());
-        LuaValue modelScale = property(props, "ModelScale");
-        if (!modelScale.isnil()) object.setModelScale(modelScale(modelScale));
-        LuaValue thickness = property(props, "Thickness");
-        if (!thickness.isnil()) object.setThickness(atLeast(thickness, "Thickness", 1.0));
-        LuaValue resource = property(props, "Resource");
-        LuaValue text = property(props, "Text");
-        if (!resource.isnil() && !text.isnil()) {
+        if (values.containsKey("Resource") && values.containsKey("Text")) {
             throw new LuaError("[MLua] RenderObject properties Resource and Text refer to the same content value; provide only one.");
         }
-        LuaValue content = text.isnil() ? resource : text;
-        if (!content.isnil()) object.setResource(content.isnil() ? null : content.checkjstring());
-        LuaValue followEntity = property(props, "FollowEntity");
-        if (!followEntity.isnil()) {
-            object.setFollowEntityScope(resolveOptionalEntityScope(followEntity));
+
+        LuaTable instance = objectTable(object.id());
+        for (java.util.Map.Entry<String, LuaValue> entry : values.entrySet()) {
+            LuaValue descriptor = descriptors.rawget(entry.getKey());
+            LuaValue setter = descriptor.istable() ? descriptor.checktable().rawget("set") : LuaValue.NIL;
+            if (!setter.isfunction()) {
+                throw new LuaError("[MLua] RenderObject property '" + entry.getKey() + "' has no registered setter.");
+            }
+            setter.invoke(LuaValue.varargsOf(new LuaValue[]{instance, entry.getValue()}));
         }
+        if ((values.containsKey("WorldPosition") || values.containsKey("EndWorldPosition"))
+            && !values.containsKey("WorldSpace")) {
+            LuaValue descriptor = descriptors.rawget("WorldSpace");
+            LuaValue setter = descriptor.istable() ? descriptor.checktable().rawget("set") : LuaValue.NIL;
+            if (setter.isfunction()) {
+                setter.invoke(LuaValue.varargsOf(new LuaValue[]{instance, LuaValue.TRUE}));
+            }
+        }
+    }
+
+    private static String registeredPropertyName(LuaTable descriptors, String suppliedName) {
+        if (descriptors.rawget(suppliedName).istable()) return suppliedName;
+        String upperCamel = upperCamel(suppliedName);
+        if (descriptors.rawget(upperCamel).istable()) return upperCamel;
+        String lowerCamel = suppliedName.isEmpty() ? suppliedName
+            : Character.toLowerCase(suppliedName.charAt(0)) + suppliedName.substring(1);
+        return descriptors.rawget(lowerCamel).istable() ? lowerCamel : null;
+    }
+
+    private static String upperCamel(String name) {
+        return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 
     private static LuaValue property(LuaTable props, String name) {
