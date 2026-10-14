@@ -100,35 +100,35 @@ public final class AdvancementsModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Advancements", "MLuaAdvancementService",
+        docs.register(MLuaDocBuilder.Registration.service("Advancements", "MLuaAdvancementService",
                 "Provides server-side advancement lookup and progress control.",
-                "services/advancements.html");
-        docs.clazz("Advancement", "MLuaAdvancementService", "A typed view of a registered Minecraft advancement and its display requirements.", "classes/advancement.html", "Instance");
-        docs.property("Advancement", "Advancement.Id", "string", "The advancement identifier.", "read:Read");
-        docs.property("Advancement", "Advancement.Title", "string", "The displayed advancement title.", "read:Read");
-        docs.property("Advancement", "Advancement.Description", "string", "The displayed advancement description.", "read:Read");
-        docs.property("Advancement", "Advancement.Parent", "string?", "The parent advancement identifier, or nil for a root advancement.", "read:Read");
-        docs.property("Advancement", "Advancement.Requirements", "string[][]", "Requirement groups, each containing criteria that can satisfy the group.", "read:Read");
-        docs.clazz("AdvancementProgress", "MLuaAdvancementService", "A player's completion state and criterion progress for one advancement.", "classes/advancement-progress.html", "Instance");
-        docs.property("AdvancementProgress", "AdvancementProgress.Id", "string", "The advancement identifier.", "read:Read");
-        docs.property("AdvancementProgress", "AdvancementProgress.IsDone", "boolean", "Whether all advancement requirements are complete.", "read:Read");
-        docs.property("AdvancementProgress", "AdvancementProgress.Criteria", "table<string, CriterionProgress>", "Per-criterion completion state.", "read:Read");
-        docs.property("AdvancementProgress", "AdvancementProgress.Done", "boolean", "Existing completion field, equivalent to IsDone.", "read:Read");
-        docs.property("AdvancementProgress", "AdvancementProgress.Progress", "table<string, CriterionProgress>", "Existing criterion map, equivalent to Criteria.", "read:Read");
-        docs.method("AdvancementProgress", "AdvancementProgress:GetCriterion(name: string): CriterionProgress?", "Returns progress for one criterion.", "criterion name", "CriterionProgress?", "server:Server", null);
-        docs.method("AdvancementProgress", "AdvancementProgress:HasCompletedCriterion(name: string): boolean", "Checks whether a criterion has been completed.", "criterion name", "boolean", "server:Server", null);
-        docs.method("AdvancementProgress", "AdvancementProgress:GetCompletedCriteria(): string[]", "Returns completed criterion names.", null, "string[]", "server:Server", null);
-        docs.method("AdvancementProgress", "AdvancementProgress:GetRemainingCriteria(): string[]", "Returns criterion names that are not complete.", null, "string[]", "server:Server", null);
-        docs.clazz("CriterionProgress", "MLuaAdvancementService", "Completion state for one criterion in a player's advancement progress.", "classes/criterion-progress.html", "Instance");
-        docs.property("CriterionProgress", "CriterionProgress.Name", "string", "The criterion name.", "read:Read");
-        docs.property("CriterionProgress", "CriterionProgress.Done", "boolean", "Whether this criterion has been completed.", "read:Read");
-        docs.method("CriterionProgress", "CriterionProgress:IsDone(): boolean", "Checks whether this criterion has been completed.", null, "boolean", "server:Server", null);
-        docs.signature("Advancements", "Advancements:GetAdvancement(id: string): Advancement?", null);
-        docs.signature("Advancements", "Advancements:GetAllAdvancements(): Advancement[]", null);
-        docs.signature("Advancements", "Advancements:GetPlayerAdvancement(player: Player, id: string): AdvancementProgress?", null);
-        docs.signature("Advancements", "Advancements:GetPlayerAdvancements(player: Player): table<string, AdvancementProgress>", null);
-        docs.guideStep("Advancements", "Read and change advancement progress",
+                "services/advancements.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Advancement", "MLuaAdvancementService", "A typed view of a registered Minecraft advancement and its display requirements.", "classes/advancement.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("Advancement", "Advancement.Id", "string", "The advancement identifier.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Advancement", "Advancement.Title", "string", "The displayed advancement title.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Advancement", "Advancement.Description", "string", "The displayed advancement description.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Advancement", "Advancement.Parent", "string?", "The parent advancement identifier, or nil for a root advancement.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Advancement", "Advancement.Requirements", "string[][]", "Requirement groups, each containing criteria that can satisfy the group.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.clazz("AdvancementProgress", "MLuaAdvancementService", "A player's completion state and criterion progress for one advancement.", "classes/advancement-progress.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("AdvancementProgress", "AdvancementProgress.Id", "string", "The advancement identifier.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("AdvancementProgress", "AdvancementProgress.IsDone", "boolean", "Whether all advancement requirements are complete.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("AdvancementProgress", "AdvancementProgress.Criteria", "table<string, CriterionProgress>", "Per-criterion completion state.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("AdvancementProgress", "AdvancementProgress.Done", "boolean", "Existing completion field, equivalent to IsDone.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("AdvancementProgress", "AdvancementProgress.Progress", "table<string, CriterionProgress>", "Existing criterion map, equivalent to Criteria.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.method("AdvancementProgress", "AdvancementProgress:GetCriterion(name: string): CriterionProgress?", "Returns progress for one criterion.", "criterion name", "CriterionProgress?", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("AdvancementProgress", "AdvancementProgress:HasCompletedCriterion(name: string): boolean", "Checks whether a criterion has been completed.", "criterion name", "boolean", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("AdvancementProgress", "AdvancementProgress:GetCompletedCriteria(): string[]", "Returns completed criterion names.", null, "string[]", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("AdvancementProgress", "AdvancementProgress:GetRemainingCriteria(): string[]", "Returns criterion names that are not complete.", null, "string[]", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.clazz("CriterionProgress", "MLuaAdvancementService", "Completion state for one criterion in a player's advancement progress.", "classes/criterion-progress.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("CriterionProgress", "CriterionProgress.Name", "string", "The criterion name.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("CriterionProgress", "CriterionProgress.Done", "boolean", "Whether this criterion has been completed.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.method("CriterionProgress", "CriterionProgress:IsDone(): boolean", "Checks whether this criterion has been completed.", null, "boolean", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Advancements", "Advancements:GetAdvancement(id: string): Advancement?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Advancements", "Advancements:GetAllAdvancements(): Advancement[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Advancements", "Advancements:GetPlayerAdvancement(player: Player, id: string): AdvancementProgress?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Advancements", "Advancements:GetPlayerAdvancements(player: Player): table<string, AdvancementProgress>", null));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Advancements", "Read and change advancement progress",
             "GetAdvancement returns an Advancement class instance; GetPlayerAdvancements maps identifiers to AdvancementProgress instances. Use GetPlayerAdvancement when you need only one id. Criterion entries are CriterionProgress instances, and progress also exposes completed and remaining criterion name lists.",
-            "local Advancements = Minecraft:GetService(\"Advancements\")\nlocal advancement = Advancements:GetAdvancement(\"minecraft:story/mine_stone\")\nif advancement then\n    print(advancement:IsA(\"Advancement\"), advancement.Title, advancement.Parent)\n    for _, group in ipairs(advancement.Requirements) do\n        for _, criterion in ipairs(group) do\n            print(criterion)\n        end\n    end\n\n    local progress = Advancements:GetPlayerAdvancements(player)[advancement.Id]\n    if progress then\n        print(progress:IsA(\"AdvancementProgress\"), progress.IsDone)\n        print(progress:HasCompletedCriterion(\"minecraft:stone\"))\n    end\nend");
+            "local Advancements = Minecraft:GetService(\"Advancements\")\nlocal advancement = Advancements:GetAdvancement(\"minecraft:story/mine_stone\")\nif advancement then\n    print(advancement:IsA(\"Advancement\"), advancement.Title, advancement.Parent)\n    for _, group in ipairs(advancement.Requirements) do\n        for _, criterion in ipairs(group) do\n            print(criterion)\n        end\n    end\n\n    local progress = Advancements:GetPlayerAdvancements(player)[advancement.Id]\n    if progress then\n        print(progress:IsA(\"AdvancementProgress\"), progress.IsDone)\n        print(progress:HasCompletedCriterion(\"minecraft:stone\"))\n    end\nend"));
     }
 }

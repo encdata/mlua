@@ -19,19 +19,19 @@ public class ConfigModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Config", "Config:Get(path: string, scope?: string)", null);
-        docs.signature("Config", "Config:Set(path: string, value: any, scope?: string)", null);
-        docs.signature("Config", "Config:Save(scope?: string)", null);
-        docs.signature("Config", "Config:Exists(path: string, scope?: string)", null);
+        docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Get(path: string, scope?: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Set(path: string, value: any, scope?: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Save(scope?: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Exists(path: string, scope?: string)", null));
 
-        docs.service("Config", "MLuaConfigService",
-            "Reads and updates registered MLua configuration values.", "services/config.html");
-        docs.type("ConfigDefinition", null, "Options for registering one configuration value.");
-        docs.field("ConfigDefinition", "type", "string", "Value type, such as boolean, number, string, or enum.");
-        docs.field("ConfigDefinition", "default", "any", "Initial value for this configuration entry.");
-        docs.field("ConfigDefinition", "description?", "string", "Optional explanation shown in the config screen.");
-        docs.field("ConfigDefinition", "min?", "number", "Optional minimum for numeric values.");
-        docs.field("ConfigDefinition", "max?", "number", "Optional maximum for numeric values.");
-        docs.field("ConfigDefinition", "options?", "string[]", "Allowed values for enum entries.");
+        docs.register(MLuaDocBuilder.Registration.service("Config", "MLuaConfigService",
+            "Reads and updates registered MLua configuration values.", "services/config.html"));
+        docs.register(MLuaDocBuilder.Registration.type("ConfigDefinition", null, "Options for registering one configuration value."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "type", "string", "Value type, such as boolean, number, string, or enum."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "default", "any", "Initial value for this configuration entry."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "description?", "string", "Optional explanation shown in the config screen."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "min?", "number", "Optional minimum for numeric values."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "max?", "number", "Optional maximum for numeric values."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "options?", "string[]", "Allowed values for enum entries."));
     }
 }

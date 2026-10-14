@@ -26,7 +26,40 @@ public final class MLuaLuaApiCrawler {
 
     public static CrawlResult crawl(LuaValue globals, Map<String, LuaTable> services) {
         CrawlData data = collect(globals, services);
-        return new CrawlResult(renderInventory(data.entries(), data.categories()));
+        return new CrawlResult(renderInventory(data.entries(), data.categories()), rootNames(globals), enumNames(globals));
+    }
+
+    private static List<String> enumNames(LuaValue globals) {
+        LuaValue root = globals.istable() ? globals.rawget("Enum") : LuaValue.NIL;
+        if (!root.istable()) return List.of();
+        List<String> names = new ArrayList<>();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs next;
+            try { next = root.checktable().next(key); } catch (RuntimeException ignored) { break; }
+            key = next.arg1();
+            if (key.isnil()) break;
+            if (key.isstring() && next.arg(2).istable()) names.add(key.tojstring());
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return List.copyOf(names);
+    }
+
+    private static List<String> rootNames(LuaValue globals) {
+        if (!globals.istable()) return List.of();
+        List<String> names = new ArrayList<>();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs next;
+            try { next = globals.checktable().next(key); } catch (RuntimeException ignored) { break; }
+            key = next.arg1();
+            if (key.isnil()) break;
+            if (!key.isstring()) continue;
+            String name = key.tojstring();
+            if (!name.startsWith("__") && !name.isBlank()) names.add(name);
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return List.copyOf(names);
     }
 
     private static CrawlData collect(LuaValue globals, Map<String, LuaTable> services) {
@@ -102,6 +135,8 @@ public final class MLuaLuaApiCrawler {
                 .append(escape(entry.kind)).append("</span></div></div>");
             if (description != null && !description.isBlank()) {
                 html.append("<p class=\"member-desc\">").append(escape(description)).append("</p>");
+            } else if (entry.kind.equals("function") || entry.kind.startsWith("property ")) {
+                html.append("<p class=\"member-warning\">No registered description or type signature.</p>");
             }
             if (entry.value != null && !entry.kind.startsWith("property ")) {
                 html.append("<p class=\"member-desc\">Value: <code>").append(escape(entry.value)).append("</code></p>");
@@ -280,7 +315,14 @@ public final class MLuaLuaApiCrawler {
             .replace("\"", "&quot;").replace("'", "&#39;");
     }
 
-    public record CrawlResult(String inventoryHtml) { }
+    public record CrawlResult(String inventoryHtml, List<String> globalNames, List<String> enumNames) {
+        public CrawlResult(String inventoryHtml) { this(inventoryHtml, List.of(), List.of()); }
+        public CrawlResult(String inventoryHtml, List<String> globalNames) { this(inventoryHtml, globalNames, List.of()); }
+        public CrawlResult {
+            globalNames = globalNames == null ? List.of() : List.copyOf(globalNames);
+            enumNames = enumNames == null ? List.of() : List.copyOf(enumNames);
+        }
+    }
 
     private record CrawlData(List<Entry> entries, Map<String, String> categories) { }
     private record Entry(String path, String kind, String value) { }

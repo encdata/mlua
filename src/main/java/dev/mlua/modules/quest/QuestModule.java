@@ -33,8 +33,8 @@ public class QuestModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Quest", "MLuaQuestService",
+        docs.register(MLuaDocBuilder.Registration.service("Quest", "MLuaQuestService",
                 "Service for creating and tracking quests.",
-                "services/quest.html");
+                "services/quest.html"));
     }
 }

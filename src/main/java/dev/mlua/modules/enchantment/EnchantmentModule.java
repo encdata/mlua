@@ -14,6 +14,6 @@ public class EnchantmentModule implements MLuaModule {
             .build());
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Enchantment", "MLuaEnchantmentService", "Service for managing enchantments on items.", "services/enchantment.html");
+        docs.register(MLuaDocBuilder.Registration.service("Enchantment", "MLuaEnchantmentService", "Service for managing enchantments on items.", "services/enchantment.html"));
     }
 }

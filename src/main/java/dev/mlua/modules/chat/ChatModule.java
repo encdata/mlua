@@ -18,16 +18,16 @@ import org.luaj.vm2.LuaValue;
 public class ChatModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Chat", "Chat:Broadcast(message: string)", null);
-        docs.signature("Chat", "Chat:SendMessage(target: string, message: string)", null);
-        docs.signature("Chat", "Chat:MutePlayer(name: string, duration?: number)", "Duration is in seconds; omitted or non-positive means permanent.");
-        docs.signature("Chat", "Chat:UnmutePlayer(name: string)", null);
-        docs.signature("Chat", "Chat:IsMuted(name: string)", null);
-        docs.signature("Chat", "Chat:GetMutedPlayers()", null);
-        docs.signature("Chat", "Chat:GetMessageHistory(player: string, count?: number)", "Count defaults to 10 messages.");
-        docs.signature("Chat", "Chat:ClearChat(player: string)", null);
-        docs.signature("Chat", "Chat:GetOnlinePlayers()", null);
-        docs.signature("Chat", "Chat:BroadcastToPermission(permission: string, message: string)", null);
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:Broadcast(message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:SendMessage(target: string, message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:MutePlayer(name: string, duration?: number)", "Duration is in seconds; omitted or non-positive means permanent."));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:UnmutePlayer(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:IsMuted(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:GetMutedPlayers()", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:GetMessageHistory(player: string, count?: number)", "Count defaults to 10 messages."));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:ClearChat(player: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:GetOnlinePlayers()", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Chat", "Chat:BroadcastToPermission(permission: string, message: string)", null));
     }
 
     @Override

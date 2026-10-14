@@ -51,26 +51,26 @@ public class TagModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Tag", "MLuaTagService",
+        docs.register(MLuaDocBuilder.Registration.service("Tag", "MLuaTagService",
                 "Creates mutable item, block, and entity type tag builders for registration through Registry.Tags.",
-                "services/tag.html");
-        docs.clazz("TagBuilder", "MLuaTagService", "A live builder for collecting and editing registry tag values.", "classes/tag-builder.html", "Instance");
-        docs.clazz("ItemTagBuilder", "MLuaTagService", "A live builder for item registry tags.", "classes/item-tag-builder.html", "TagBuilder");
-        docs.clazz("BlockTagBuilder", "MLuaTagService", "A live builder for block registry tags.", "classes/block-tag-builder.html", "TagBuilder");
-        docs.clazz("EntityTypeTagBuilder", "MLuaTagService", "A live builder for entity type registry tags.", "classes/entity-type-tag-builder.html", "TagBuilder");
-        docs.method("TagBuilder", "TagBuilder:Add(id: string): TagBuilder", "Adds an item, block, entity type id, or #tag reference. Duplicate values are ignored.", "a resource identifier, optionally prefixed with # for another tag", "TagBuilder", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:AddAll(ids: string[]): TagBuilder", "Adds each identifier from a dense array, ignoring duplicates. The array is validated before any values are added.", "a dense array of resource identifiers, optionally prefixed with # for tag references", "TagBuilder", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:Remove(id: string): boolean", "Removes the exact value, returning whether it was present.", "the identifier as it was added, including its optional # prefix", "boolean", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:Contains(id: string): boolean", "Checks whether the exact value is present.", "the identifier as it was added, including its optional # prefix", "boolean", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:Clear(): TagBuilder", "Removes all values from this builder.", null, "TagBuilder", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:GetValues(): string[]", "Returns the current values in insertion order.", null, "string[]", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:SetReplace(replace: boolean): TagBuilder", "Sets whether the generated tag replaces existing values.", null, "TagBuilder", "shared:Shared", null);
-        docs.method("TagBuilder", "TagBuilder:Build(): string", "Serializes the tag definition as JSON.", null, "string", "shared:Shared", null);
-        docs.signature("Tag", "Tag:Items(): ItemTagBuilder", "Builds an item tag.");
-        docs.signature("Tag", "Tag:Blocks(): BlockTagBuilder", "Builds a block tag.");
-        docs.signature("Tag", "Tag:EntityTypes(): EntityTypeTagBuilder", "Builds an entity type tag.");
-        docs.guideStep("Tag", "Build and register an item tag",
+                "services/tag.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("TagBuilder", "MLuaTagService", "A live builder for collecting and editing registry tag values.", "classes/tag-builder.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("ItemTagBuilder", "MLuaTagService", "A live builder for item registry tags.", "classes/item-tag-builder.html", "TagBuilder"));
+        docs.register(MLuaDocBuilder.Registration.clazz("BlockTagBuilder", "MLuaTagService", "A live builder for block registry tags.", "classes/block-tag-builder.html", "TagBuilder"));
+        docs.register(MLuaDocBuilder.Registration.clazz("EntityTypeTagBuilder", "MLuaTagService", "A live builder for entity type registry tags.", "classes/entity-type-tag-builder.html", "TagBuilder"));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:Add(id: string): TagBuilder", "Adds an item, block, entity type id, or #tag reference. Duplicate values are ignored.", "a resource identifier, optionally prefixed with # for another tag", "TagBuilder", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:AddAll(ids: string[]): TagBuilder", "Adds each identifier from a dense array, ignoring duplicates. The array is validated before any values are added.", "a dense array of resource identifiers, optionally prefixed with # for tag references", "TagBuilder", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:Remove(id: string): boolean", "Removes the exact value, returning whether it was present.", "the identifier as it was added, including its optional # prefix", "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:Contains(id: string): boolean", "Checks whether the exact value is present.", "the identifier as it was added, including its optional # prefix", "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:Clear(): TagBuilder", "Removes all values from this builder.", null, "TagBuilder", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:GetValues(): string[]", "Returns the current values in insertion order.", null, "string[]", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:SetReplace(replace: boolean): TagBuilder", "Sets whether the generated tag replaces existing values.", null, "TagBuilder", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("TagBuilder", "TagBuilder:Build(): string", "Serializes the tag definition as JSON.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Tag", "Tag:Items(): ItemTagBuilder", "Builds an item tag."));
+        docs.register(MLuaDocBuilder.Registration.signature("Tag", "Tag:Blocks(): BlockTagBuilder", "Builds a block tag."));
+        docs.register(MLuaDocBuilder.Registration.signature("Tag", "Tag:EntityTypes(): EntityTypeTagBuilder", "Builds an entity type tag."));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Tag", "Build and register an item tag",
             "Tag builders keep insertion order, ignore duplicate values, and can reference another tag with a leading #. Build returns JSON accepted by the matching Registry.Tags registration method.",
-            "local Tag = Minecraft:GetService(\"Tag\")\nlocal Registry = Minecraft:GetService(\"Registry\")\n\nlocal materials = Tag.Items()\n    :Add(\"minecraft:iron_ingot\")\n    :Add(\"minecraft:gold_ingot\")\n    :Add(\"#minecraft:coals\")\n\nif materials:Contains(\"minecraft:gold_ingot\") then\n    materials:Remove(\"minecraft:gold_ingot\")\nend\n\nRegistry.Tags:RegisterItem(\"signal_materials\", materials:Build())");
+            "local Tag = Minecraft:GetService(\"Tag\")\nlocal Registry = Minecraft:GetService(\"Registry\")\n\nlocal materials = Tag.Items()\n    :Add(\"minecraft:iron_ingot\")\n    :Add(\"minecraft:gold_ingot\")\n    :Add(\"#minecraft:coals\")\n\nif materials:Contains(\"minecraft:gold_ingot\") then\n    materials:Remove(\"minecraft:gold_ingot\")\nend\n\nRegistry.Tags:RegisterItem(\"signal_materials\", materials:Build())"));
     }
 }

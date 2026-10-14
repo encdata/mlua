@@ -14,6 +14,6 @@ public final class MLuaDocGenerator {
       Path gameDir = Paths.get("run");
       MLuaDocumentation.generate(gameDir);
       MLuaLuaApiDocSnapshot.DocumentationSnapshot snapshot = MLuaLuaApiDocSnapshot.generate();
-      MLuaDocumentation.writeGeneratedLuaApi(gameDir, snapshot.inventoryHtml());
+      MLuaDocumentation.writeGeneratedLuaApi(gameDir, snapshot);
    }
 }

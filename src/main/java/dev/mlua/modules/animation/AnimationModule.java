@@ -54,26 +54,26 @@ public class AnimationModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Animation", "Animation:Create(keyframes: KeyframeDefinition[])", null);
-        docs.signature("Animation", "Animation:RegisterAnimation(id: string, animation: Animation)", null);
-        docs.signature("Animation", "Animation:GetAnimation(id: string)", null);
-        docs.signature("Animation", "Animation:SetPose(entity: Entity, bone: string, cframe: CFrame)", null);
-        docs.signature("Animation", "Animation:GetPose(entity: Entity)", null);
-        docs.signature("Animation", "Animation:ClearPose(entity: Entity)", null);
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:Create(keyframes: KeyframeDefinition[])", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:RegisterAnimation(id: string, animation: Animation)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetAnimation(id: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:SetPose(entity: Entity, bone: string, cframe: CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetPose(entity: Entity)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:ClearPose(entity: Entity)", null));
 
-        docs.service("Animation", "MLuaAnimationService",
+        docs.register(MLuaDocBuilder.Registration.service("Animation", "MLuaAnimationService",
                 "Service for creating and managing animations.",
-                "services/animation.html");
-        docs.clazz("Animation", "MLuaAnimationBindings",
+                "services/animation.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Animation", "MLuaAnimationBindings",
                 "A reusable sequence of keyframes that can be played on a living entity.",
-                "classes/animation.html", "Instance");
-        docs.clazz("AnimationTrack", "MLuaAnimationBindings",
+                "classes/animation.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("AnimationTrack", "MLuaAnimationBindings",
                 "A live animation playback instance returned by an entity animation controller.",
-                "classes/animation-track.html", "Instance");
-        docs.type("KeyframeDefinition", null, "One time and pose value in an animation keyframe sequence.");
-        docs.field("KeyframeDefinition", "time", "number", "Time position of the keyframe in seconds.");
-        docs.field("KeyframeDefinition", "value", "any", "Pose values to apply at this keyframe.");
-        docs.field("KeyframeDefinition", "easing?", "string", "Optional easing function used between this and the next keyframe.");
+                "classes/animation-track.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.type("KeyframeDefinition", null, "One time and pose value in an animation keyframe sequence."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "time", "number", "Time position of the keyframe in seconds."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "value", "any", "Pose values to apply at this keyframe."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "easing?", "string", "Optional easing function used between this and the next keyframe."));
     }
 
     @Override

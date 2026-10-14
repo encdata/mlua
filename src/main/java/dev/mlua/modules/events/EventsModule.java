@@ -95,24 +95,24 @@ public class EventsModule implements MLuaModule {
 
     @Override
     public void contributeDocs(dev.mlua.module.MLuaDocBuilder docs) {
-        docs.signature("Events", "Events:BlockBreak(callback: function)", null);
-        docs.signature("Events", "Events:BlockPlace(callback: function)", null);
-        docs.signature("Events", "Events:EntityHurt(callback: function)", null);
-        docs.signature("Events", "Events:EntityDeath(callback: function)", null);
-        docs.signature("Events", "Events:EntityInteract(callback: function)", null);
-        docs.signature("Events", "Events:ItemUse(callback: function)", null);
-        docs.service("Events", "MLuaEventsService",
+        docs.register(MLuaDocBuilder.Registration.signature("Events", "Events:BlockBreak(callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Events", "Events:BlockPlace(callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Events", "Events:EntityHurt(callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Events", "Events:EntityDeath(callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Events", "Events:EntityInteract(callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Events", "Events:ItemUse(callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.service("Events", "MLuaEventsService",
             "Provides lifecycle and gameplay signals. Each signal receives one event table containing the values available for that event.",
-            "services/events.html");
-        docs.event("Events", "Events.Explosion", "event: { Level: Level, Dimension: string, Position: Vector3 }",
+            "services/events.html"));
+        docs.register(MLuaDocBuilder.Registration.event("Events", "Events.Explosion", "event: { Level: Level, Dimension: string, Position: Vector3 }",
             "Fires when an explosion starts on the server. Position is the explosion center in world coordinates.",
-            "server:Server");
-        docs.guideStep("Events", "Find event signals available on this loader",
+            "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Events", "Find event signals available on this loader",
             "GetSignalNames lists registered signals. GetUnavailableSignals lists names that this loader cannot currently provide.",
-            "local Events = Minecraft:GetService(\"Events\")\nlocal unavailable = {}\n\nfor _, name in ipairs(Events:GetUnavailableSignals()) do\n    unavailable[name] = true\nend\n\nfor _, name in ipairs(Events:GetSignalNames()) do\n    if not unavailable[name] then\n        print(name)\n    end\nend");
-        docs.guideStep("Events", "Register an addon event signal",
+            "local Events = Minecraft:GetService(\"Events\")\nlocal unavailable = {}\n\nfor _, name in ipairs(Events:GetUnavailableSignals()) do\n    unavailable[name] = true\nend\n\nfor _, name in ipairs(Events:GetSignalNames()) do\n    if not unavailable[name] then\n        print(name)\n    end\nend"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Events", "Register an addon event signal",
             "Register the signal in a registry script. Other scripts can connect to it or fire it through the shared Events service. MLua removes it when this registry script rolls back.",
-            "local Events = Minecraft:GetService(\"Events\")\nlocal FearChanged = Signal.new()\n\nEvents:RegisterSignal(\"FearChanged\", FearChanged, \"Fires when the addon changes the player's fear level.\")\n\n-- In another script:\nEvents.FearChanged:Connect(function(level)\n    print(\"Fear is now\", level)\nend)");
+            "local Events = Minecraft:GetService(\"Events\")\nlocal FearChanged = Signal.new()\n\nEvents:RegisterSignal(\"FearChanged\", FearChanged, \"Fires when the addon changes the player's fear level.\")\n\n-- In another script:\nEvents.FearChanged:Connect(function(level)\n    print(\"Fear is now\", level)\nend)"));
     }
 
     @Override

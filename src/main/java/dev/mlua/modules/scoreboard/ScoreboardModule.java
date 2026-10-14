@@ -20,8 +20,8 @@ public final class ScoreboardModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Scoreboard", "MLuaScoreboardService",
+        docs.register(MLuaDocBuilder.Registration.service("Scoreboard", "MLuaScoreboardService",
                 "Provides server-side objective, team, and score management.",
-                "services/scoreboard.html");
+                "services/scoreboard.html"));
     }
 }

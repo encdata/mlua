@@ -43,29 +43,29 @@ public final class SoundModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("SoundService", "MLuaSoundService",
+        docs.register(MLuaDocBuilder.Registration.service("SoundService", "MLuaSoundService",
             "Client-side sound playback with loop, stop, and entity-follow handles.",
-            "services/sound.html");
-        docs.clazz("SoundHandle", "MLuaSoundService",
+            "services/sound.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("SoundHandle", "MLuaSoundService",
             "A live client sound instance returned by SoundService playback functions. It exposes playback state, position, looping, volume, pitch, and entity-follow settings.",
-            "classes/sound-handle.html", "Instance");
-        docs.signature("SoundService", "SoundService:Play(soundId: string, properties: SoundPlayOptions?)", "SoundHandle?");
-        docs.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "SoundHandle?");
-        docs.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "SoundHandle?");
-        docs.signature("SoundHandle", "SoundHandle:SetPosition(position: Vector3|CFrame)", null);
-        docs.signature("SoundHandle", "SoundHandle:SetFollowOffset(offset: Vector3)", null);
-        docs.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null);
-        docs.signature("SoundHandle", "SoundHandle:ClearFollowEntity()", null);
-        docs.type("SoundPlayOptions", null, "Optional playback settings accepted by SoundService:Play.");
-        docs.field("SoundPlayOptions", "Volume", "number", "Playback volume. Defaults to 1.");
-        docs.field("SoundPlayOptions", "Pitch", "number", "Playback pitch. Defaults to 1.");
-        docs.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat.");
-        docs.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position used when FollowEntity is not set.");
-        docs.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow.");
-        docs.field("SoundPlayOptions", "FollowOffset", "Vector3", "Offset from the followed entity; used with FollowEntity.");
-        docs.field("SoundPlayOptions", "Category", "string", "Minecraft sound category. Defaults to players.");
-        docs.guideStep("SoundService", "Control a sound after starting it",
+            "classes/sound-handle.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:Play(soundId: string, properties: SoundPlayOptions?)", "SoundHandle?"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "SoundHandle?"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "SoundHandle?"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:SetPosition(position: Vector3|CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:SetFollowOffset(offset: Vector3)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:ClearFollowEntity()", null));
+        docs.register(MLuaDocBuilder.Registration.type("SoundPlayOptions", null, "Optional playback settings accepted by SoundService:Play."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Volume", "number", "Playback volume. Defaults to 1."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Pitch", "number", "Playback pitch. Defaults to 1."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position used when FollowEntity is not set."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowOffset", "Vector3", "Offset from the followed entity; used with FollowEntity."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Category", "string", "Minecraft sound category. Defaults to players."));
+        docs.register(MLuaDocBuilder.Registration.guideStep("SoundService", "Control a sound after starting it",
             "Playback functions return a SoundHandle instance. Its positions accept Vector3 or CFrame; follow offsets use native Vector3 values. Coordinate tables are rejected. Setting Position clears an entity-follow target. Its properties read and update the live sound, and Destroy stops playback.",
-            "local SoundService = Minecraft:GetService(\"SoundService\")\nlocal sound = SoundService:Play(\"minecraft:ambient.cave\", {\n    Looped = true,\n    Volume = 0.6,\n    Position = CFrame.new(12, 65, -4),\n})\nif sound then\n    sound.Pitch = 0.9\n    sound.Position = CFrame.new(14, 65, -4)\n    print(sound:IsA(\"SoundHandle\"), sound.IsPlaying)\n    sound:Destroy()\nend");
+            "local SoundService = Minecraft:GetService(\"SoundService\")\nlocal sound = SoundService:Play(\"minecraft:ambient.cave\", {\n    Looped = true,\n    Volume = 0.6,\n    Position = CFrame.new(12, 65, -4),\n})\nif sound then\n    sound.Pitch = 0.9\n    sound.Position = CFrame.new(14, 65, -4)\n    print(sound:IsA(\"SoundHandle\"), sound.IsPlaying)\n    sound:Destroy()\nend"));
     }
 }

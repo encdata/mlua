@@ -70,11 +70,11 @@ public final class ComponentsModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Components", "MLuaComponentsService",
+        docs.register(MLuaDocBuilder.Registration.service("Components", "MLuaComponentsService",
             "Attach reusable Lua behavior components to entities with tick and event callbacks.",
-            "services/components.html");
-        docs.clazz("EntityComponent", null,
+            "services/components.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("EntityComponent", null,
             "Mutable entity behavior component handle returned by Components:Attach.",
-            "classes/entity-component.html", "Instance");
+            "classes/entity-component.html", "Instance"));
     }
 }

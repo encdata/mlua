@@ -61,24 +61,24 @@ public class RegionModule implements MLuaModule {
 
    @Override
    public void contributeDocs(MLuaDocBuilder docs) {
-      docs.service("Region", "MLuaRegionService",
+      docs.register(MLuaDocBuilder.Registration.service("Region", "MLuaRegionService",
               "Spatial trigger system for defining regions and detecting entity enter/exit/within events.",
-              "services/region.html");
-      docs.clazz("Region", "MLuaRegionService",
+              "services/region.html"));
+      docs.register(MLuaDocBuilder.Registration.clazz("Region", "MLuaRegionService",
          "A live spatial region that tracks matching entities and exposes enter, exit, and within signals.",
-         "classes/region.html", "Instance");
-      docs.signature("Region", "Region:GetRegion(name: string)", "Region?");
-      docs.signature("Region", "Region:CreateRegion(name: string, center: Vector3|CFrame, radius: number)", "Region");
-      docs.signature("Region", "Region:CreateBoxRegion(name: string, minimum: Vector3|CFrame, maximum: Vector3|CFrame)", "Region");
-      docs.signature("Region", "Region:CreateSphere(name: string, center: Vector3|CFrame, radius: number)", "Region");
-      docs.signature("Region", "Region:CreateBox(name: string, minimum: Vector3|CFrame, maximum: Vector3|CFrame)", "Region");
-      docs.method("Region", "Region:Remove()", "Removes this region and clears its tracked entities and signals.", null, "void", "shared:Shared", null);
-      docs.method("Region", "Region:GetEntities()", "Returns the live entity instances currently inside this region.", null, "Entity[]", "shared:Shared", null);
-      docs.method("Region", "Region:OnEnter()", "Returns the signal fired for entities entering a region.", null, "Signal", "shared:Shared", null);
-      docs.method("Region", "Region:OnExit()", "Returns the signal fired for entities leaving a region.", null, "Signal", "shared:Shared", null);
-      docs.method("Region", "Region:OnWithin()", "Returns the signal fired for entities inside a region.", null, "Signal", "shared:Shared", null);
-      docs.guideStep("Region", "Create and listen to a live region",
+         "classes/region.html", "Instance"));
+      docs.register(MLuaDocBuilder.Registration.signature("Region", "Region:GetRegion(name: string)", "Region?"));
+      docs.register(MLuaDocBuilder.Registration.signature("Region", "Region:CreateRegion(name: string, center: Vector3|CFrame, radius: number)", "Region"));
+      docs.register(MLuaDocBuilder.Registration.signature("Region", "Region:CreateBoxRegion(name: string, minimum: Vector3|CFrame, maximum: Vector3|CFrame)", "Region"));
+      docs.register(MLuaDocBuilder.Registration.signature("Region", "Region:CreateSphere(name: string, center: Vector3|CFrame, radius: number)", "Region"));
+      docs.register(MLuaDocBuilder.Registration.signature("Region", "Region:CreateBox(name: string, minimum: Vector3|CFrame, maximum: Vector3|CFrame)", "Region"));
+      docs.register(MLuaDocBuilder.Registration.method("Region", "Region:Remove()", "Removes this region and clears its tracked entities and signals.", null, "void", "shared:Shared", null));
+      docs.register(MLuaDocBuilder.Registration.method("Region", "Region:GetEntities()", "Returns the live entity instances currently inside this region.", null, "Entity[]", "shared:Shared", null));
+      docs.register(MLuaDocBuilder.Registration.method("Region", "Region:OnEnter()", "Returns the signal fired for entities entering a region.", null, "Signal", "shared:Shared", null));
+      docs.register(MLuaDocBuilder.Registration.method("Region", "Region:OnExit()", "Returns the signal fired for entities leaving a region.", null, "Signal", "shared:Shared", null));
+      docs.register(MLuaDocBuilder.Registration.method("Region", "Region:OnWithin()", "Returns the signal fired for entities inside a region.", null, "Signal", "shared:Shared", null));
+      docs.register(MLuaDocBuilder.Registration.guideStep("Region", "Create and listen to a live region",
          "Region creation returns a Region instance. Use its inherited Instance methods, live properties, and signals to manage the same registered region.",
-         "local RegionService = Minecraft:GetService(\"Region\")\nlocal region = RegionService:CreateRegion(\"safe_room\", Vector3.new(0, 64, 0), 8)\n\nregion:OnEnter():Connect(function(event)\n    print(event.Entity.Name .. \" entered \" .. region.Name)\nend)\n\nprint(region:IsA(\"Region\"), region.EntityCount)\nregion:Remove()");
+         "local RegionService = Minecraft:GetService(\"Region\")\nlocal region = RegionService:CreateRegion(\"safe_room\", Vector3.new(0, 64, 0), 8)\n\nregion:OnEnter():Connect(function(event)\n    print(event.Entity.Name .. \" entered \" .. region.Name)\nend)\n\nprint(region:IsA(\"Region\"), region.EntityCount)\nregion:Remove()"));
    }
 }

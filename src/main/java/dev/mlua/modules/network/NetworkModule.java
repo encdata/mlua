@@ -46,23 +46,23 @@ public class NetworkModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.clazz("RemoteEvent", "MLuaRemoteEvent", "A named client-server event channel that sends serialized Lua values.", "classes/remote-event.html", "Instance");
-        docs.property("RemoteEvent", "RemoteEvent.Name", "string", "This remote event's registered name.", "shared:Shared");
-        docs.property("RemoteEvent", "RemoteEvent.OnServerEvent", "Signal", "Fires on the server when a client sends data.", "server:Server");
-        docs.property("RemoteEvent", "RemoteEvent.OnClientEvent", "Signal", "Fires on the client when the server sends data.", "client:Client");
-        docs.signature("Network", "Network:GetRemote(name: string)", "RemoteEvent");
-        docs.signature("Network", "Network:HttpGet(url: string)", null);
-        docs.signature("Network", "Network:HttpPost(url: string, body: string)", null);
-        docs.signature("Network", "Network:HttpGetAsync(url: string, callback: function)", null);
-        docs.signature("Network", "Network:HttpPostAsync(url: string, body: string, callback: function)", null);
-        docs.signature("RemoteEvent", "RemoteEvent:FireClient(player: Player, ...: any)", null);
-        docs.signature("RemoteEvent", "RemoteEvent:FireClientOptional(player: Player, ...: any)", null);
-        docs.signature("RemoteEvent", "RemoteEvent:FireAllClients(...: any)", null);
-        docs.signature("RemoteEvent", "RemoteEvent:FireAllClientsOptional(...: any)", null);
-        docs.signature("RemoteEvent", "RemoteEvent:FireServer(...: any)", null);
-        docs.signature("RemoteEvent", "RemoteEvent:FireServerOptional(...: any)", null);
+        docs.register(MLuaDocBuilder.Registration.clazz("RemoteEvent", "MLuaRemoteEvent", "A named client-server event channel that sends serialized Lua values.", "classes/remote-event.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("RemoteEvent", "RemoteEvent.Name", "string", "This remote event's registered name.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("RemoteEvent", "RemoteEvent.OnServerEvent", "Signal", "Fires on the server when a client sends data.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("RemoteEvent", "RemoteEvent.OnClientEvent", "Signal", "Fires on the client when the server sends data.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.signature("Network", "Network:GetRemote(name: string)", "RemoteEvent"));
+        docs.register(MLuaDocBuilder.Registration.signature("Network", "Network:HttpGet(url: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Network", "Network:HttpPost(url: string, body: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Network", "Network:HttpGetAsync(url: string, callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Network", "Network:HttpPostAsync(url: string, body: string, callback: function)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RemoteEvent", "RemoteEvent:FireClient(player: Player, ...: any)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RemoteEvent", "RemoteEvent:FireClientOptional(player: Player, ...: any)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RemoteEvent", "RemoteEvent:FireAllClients(...: any)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RemoteEvent", "RemoteEvent:FireAllClientsOptional(...: any)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RemoteEvent", "RemoteEvent:FireServer(...: any)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RemoteEvent", "RemoteEvent:FireServerOptional(...: any)", null));
 
-        docs.contribution(new MLuaDocBuilder.Contribution(
+        docs.register(MLuaDocBuilder.Registration.contribution(new MLuaDocBuilder.Contribution(
             "mlua:core-network-guide", "Network", "Send data between sides",
             "Use named remote events for server-authoritative client-server communication.",
             "mlua", 0,
@@ -76,6 +76,6 @@ public class NetworkModule implements MLuaModule {
                 new MLuaDocBuilder.GuideStep("Network", "Send from a client and receive the reply",
                     "FireServer and OnClientEvent are client-side. Use FireClient or FireAllClients from server scripts. Supported payload values are nil, booleans, numbers, strings, arrays, and string-keyed tables; raw Java objects are not serialized.",
                     "-- client_network.client.lua\nlocal Network = Minecraft:GetService(\"Network\")\nlocal Remote = Network:GetRemote(\"Example\")\n\nRemote.OnClientEvent:Connect(function(message)\n    print(\"Server says:\", message)\nend)\n\nRemote:FireServer(\"hello from client\")")),
-            List.of()));
+            List.of())));
     }
 }

@@ -21,6 +21,6 @@ public class AttributeModule implements MLuaModule {
             .build());
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Attribute", "MLuaAttributeService", "Service for managing entity attribute modifiers.", "services/attribute.html");
+        docs.register(MLuaDocBuilder.Registration.service("Attribute", "MLuaAttributeService", "Service for managing entity attribute modifiers.", "services/attribute.html"));
     }
 }

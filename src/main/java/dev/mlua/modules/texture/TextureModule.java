@@ -56,11 +56,11 @@ public class TextureModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("TextureService", "MLuaTextureService",
+        docs.register(MLuaDocBuilder.Registration.service("TextureService", "MLuaTextureService",
                 "Service for registering and managing textures.",
-                "services/texture-service.html");
-        docs.clazz("TextureInstance", "MLuaTextureInstance",
+                "services/texture-service.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("TextureInstance", "MLuaTextureInstance",
                 "Represents a registered texture.",
-                "classes/texture-instance.html", "Instance");
+                "classes/texture-instance.html", "Instance"));
     }
 }

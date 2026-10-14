@@ -78,59 +78,59 @@ public class CombatModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.clazz("ProjectileType", "MLuaProjectileDefinition",
+        docs.register(MLuaDocBuilder.Registration.clazz("ProjectileType", "MLuaProjectileDefinition",
             "A registered projectile definition that creates live Projectile instances.",
-            "classes/projectile-type.html", "Instance");
-        docs.method("ProjectileType", "ProjectileType:Fire(config: ProjectileDefinition): Projectile",
+            "classes/projectile-type.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.method("ProjectileType", "ProjectileType:Fire(config: ProjectileDefinition): Projectile",
             "Fires this projectile type with an owner and optional launch settings.",
             "an owner entity and optional position, direction, damage, and motion overrides",
-            "Projectile", "server:Server", null);
-        docs.property("ProjectileType", "ProjectileType.Name", "string", "The registered projectile type name.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.Speed", "number", "The default launch speed in blocks per tick.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.Damage", "number", "The default hit damage.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.Gravity", "boolean", "Whether gravity affects the projectile by default.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.Piercing", "boolean", "Whether the projectile can pass through entities by default.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.MaxDistance", "number", "The maximum travel distance in blocks.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.Size", "number", "The projectile hitbox size.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.DamageSource", "string", "The registered damage source used for hits.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.FireTicks", "number", "The default fire duration applied to hit entities.", "server:Server");
-        docs.property("ProjectileType", "ProjectileType.Knockback", "number", "The default knockback applied to hit entities.", "server:Server");
-        docs.signature("Combat", "Combat:DamageSourceExists(name: string)", null);
-        docs.signature("Combat", "Combat:GetDamageSourceInfo(name: string)", null);
+            "Projectile", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Name", "string", "The registered projectile type name.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Speed", "number", "The default launch speed in blocks per tick.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Damage", "number", "The default hit damage.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Gravity", "boolean", "Whether gravity affects the projectile by default.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Piercing", "boolean", "Whether the projectile can pass through entities by default.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.MaxDistance", "number", "The maximum travel distance in blocks.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Size", "number", "The projectile hitbox size.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.DamageSource", "string", "The registered damage source used for hits.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.FireTicks", "number", "The default fire duration applied to hit entities.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Knockback", "number", "The default knockback applied to hit entities.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.signature("Combat", "Combat:DamageSourceExists(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Combat", "Combat:GetDamageSourceInfo(name: string)", null));
 
-        docs.type("ProjectileDefinition", null, "Options and callbacks for a registered scripted projectile.");
-        docs.field("ProjectileDefinition", "Owner", "Entity", "Entity that launches the projectile.");
-        docs.field("ProjectileDefinition", "Position?", "Vector3|CFrame", "Launch position; defaults to the owner's position.");
-        docs.field("ProjectileDefinition", "Direction?", "Vector3", "Launch direction; defaults to the owner's look direction.");
-        docs.field("ProjectileDefinition", "Speed", "number", "Launch speed in blocks per tick.");
-        docs.field("ProjectileDefinition", "Damage?", "number", "Damage applied on an entity hit.");
-        docs.field("ProjectileDefinition", "Gravity?", "boolean", "Whether Minecraft gravity affects the projectile.");
-        docs.field("ProjectileDefinition", "Piercing?", "boolean", "Whether the projectile can continue through entities.");
-        docs.field("ProjectileDefinition", "MaxDistance?", "number", "Maximum travel distance in blocks.");
-        docs.field("ProjectileDefinition", "MaxTicks?", "number", "Maximum lifetime in game ticks.");
-        docs.field("ProjectileDefinition", "Size?", "number", "Projectile hitbox size.");
-        docs.field("ProjectileDefinition", "DamageSource?", "string", "Registered damage source identifier.");
-        docs.field("ProjectileDefinition", "FireTicks?", "number", "How long a hit entity burns, in ticks.");
-        docs.field("ProjectileDefinition", "Knockback?", "number", "Knockback strength applied on an entity hit.");
-        docs.field("ProjectileDefinition", "className?", "string", "Registered Lua class inheriting from Projectile.");
-        docs.field("ProjectileDefinition", "OnHitEntity?", "fun(context: ProjectileHitEntityContext)", "Runs on the server before configured projectile damage is applied.");
-        docs.field("ProjectileDefinition", "OnHitBlock?", "fun(context: ProjectileHitBlockContext)", "Runs on the server when the projectile hits a block.");
-        docs.field("ProjectileDefinition", "OnExpired?", "fun(context: ProjectileContext)", "Runs on the server when the projectile expires.");
-        docs.field("ProjectileDefinition", "OnTick?", "fun(context: ProjectileTickContext)", "Runs once per server tick.");
+        docs.register(MLuaDocBuilder.Registration.type("ProjectileDefinition", null, "Options and callbacks for a registered scripted projectile."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Owner", "Entity", "Entity that launches the projectile."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Position?", "Vector3|CFrame", "Launch position; defaults to the owner's position."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Direction?", "Vector3", "Launch direction; defaults to the owner's look direction."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Speed", "number", "Launch speed in blocks per tick."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Damage?", "number", "Damage applied on an entity hit."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Gravity?", "boolean", "Whether Minecraft gravity affects the projectile."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Piercing?", "boolean", "Whether the projectile can continue through entities."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "MaxDistance?", "number", "Maximum travel distance in blocks."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "MaxTicks?", "number", "Maximum lifetime in game ticks."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Size?", "number", "Projectile hitbox size."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "DamageSource?", "string", "Registered damage source identifier."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "FireTicks?", "number", "How long a hit entity burns, in ticks."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Knockback?", "number", "Knockback strength applied on an entity hit."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "className?", "string", "Registered Lua class inheriting from Projectile."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "OnHitEntity?", "fun(context: ProjectileHitEntityContext)", "Runs on the server before configured projectile damage is applied."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "OnHitBlock?", "fun(context: ProjectileHitBlockContext)", "Runs on the server when the projectile hits a block."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "OnExpired?", "fun(context: ProjectileContext)", "Runs on the server when the projectile expires."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "OnTick?", "fun(context: ProjectileTickContext)", "Runs once per server tick."));
 
-        docs.type("ProjectileContext", null, "Shared callback context for scripted projectile events.");
-        docs.field("ProjectileContext", "Projectile", "Entity", "Live projectile entity instance.");
-        docs.type("ProjectileTickContext", "ProjectileContext", "Callback context for a projectile tick.");
-        docs.field("ProjectileTickContext", "Tick", "number", "Number of server ticks since the projectile was launched.");
-        docs.type("ProjectileHitEntityContext", "ProjectileContext", "Callback context for an entity hit.");
-        docs.field("ProjectileHitEntityContext", "Entity", "Entity", "Live entity hit by the projectile.");
-        docs.field("ProjectileHitEntityContext", "Position", "Vector3", "Projectile hit position.");
-        docs.field("ProjectileHitEntityContext", "Damage", "number", "Configured projectile damage.");
-        docs.type("ProjectileHitBlockContext", "ProjectileContext", "Callback context for a block hit.");
-        docs.field("ProjectileHitBlockContext", "Position", "Vector3", "Projectile hit position.");
-        docs.field("ProjectileHitBlockContext", "BlockX", "number", "Hit block X coordinate.");
-        docs.field("ProjectileHitBlockContext", "BlockY", "number", "Hit block Y coordinate.");
-        docs.field("ProjectileHitBlockContext", "BlockZ", "number", "Hit block Z coordinate.");
-        docs.field("ProjectileHitBlockContext", "Face", "string", "Block face hit by the projectile.");
+        docs.register(MLuaDocBuilder.Registration.type("ProjectileContext", null, "Shared callback context for scripted projectile events."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileContext", "Projectile", "Entity", "Live projectile entity instance."));
+        docs.register(MLuaDocBuilder.Registration.type("ProjectileTickContext", "ProjectileContext", "Callback context for a projectile tick."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileTickContext", "Tick", "number", "Number of server ticks since the projectile was launched."));
+        docs.register(MLuaDocBuilder.Registration.type("ProjectileHitEntityContext", "ProjectileContext", "Callback context for an entity hit."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitEntityContext", "Entity", "Entity", "Live entity hit by the projectile."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitEntityContext", "Position", "Vector3", "Projectile hit position."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitEntityContext", "Damage", "number", "Configured projectile damage."));
+        docs.register(MLuaDocBuilder.Registration.type("ProjectileHitBlockContext", "ProjectileContext", "Callback context for a block hit."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitBlockContext", "Position", "Vector3", "Projectile hit position."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitBlockContext", "BlockX", "number", "Hit block X coordinate."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitBlockContext", "BlockY", "number", "Hit block Y coordinate."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitBlockContext", "BlockZ", "number", "Hit block Z coordinate."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileHitBlockContext", "Face", "string", "Block face hit by the projectile."));
     }
 }

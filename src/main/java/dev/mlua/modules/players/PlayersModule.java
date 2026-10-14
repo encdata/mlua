@@ -698,168 +698,168 @@ public class PlayersModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Player", "Player:GetInventory()", "Container");
-        docs.signature("Player", "Player:GetOpenContainer()", "Container");
-        docs.signature("Player", "Player:GetEnderChest()", "Container");
-        docs.signature("Players", "Players:GetPlayerByName(name: string)", null);
-        docs.signature("Players", "Players:GetPlayerByUUID(uuid: string)", null);
-        docs.signature("Players", "Players:Broadcast(message: string)", null);
-        docs.signature("Player", "Player:SendMessage(message: string)", null);
-        docs.signature("Player", "Player:SendActionBar(message: string)", null);
-        docs.signature("Player", "Player:SendTitle(title: string)", null);
-        docs.signature("Player", "Player:GiveItem(item: Item)", "boolean");
-        docs.signature("Player", "Player:GiveEffect(effect: string, duration: number, amplifier: number, showParticles: boolean)", null);
-        docs.signature("Player", "Player:GiveExperience(amount: number)", null);
-        docs.signature("Player", "Player:GiveExperienceLevels(levels: number)", null);
-        docs.signature("Player", "Player:SetGameMode(mode: string)", null);
-        docs.signature("Player", "Player:SetPosition(position: Vector3|CFrame)", null);
-        docs.signature("Player", "Player:Teleport(position: Vector3|CFrame)", null);
-        docs.signature("Player", "Player:LookAt(target: Vector3|CFrame)", null);
-        docs.signature("Entity", "Entity:GetRotation()", "Vector2");
-        docs.signature("Entity", "Entity:GetRotationRadians()", "Vector2");
-        docs.signature("Entity", "Entity:SetRotation(pitch: number, yaw: number)", "void");
-        docs.signature("Entity", "Entity:SetRotationRadians(rotation: Vector2)", "void");
-        docs.signature("Entity", "Entity:GetCFrame()", "CFrame");
-        docs.signature("Entity", "Entity:SetCFrame(transform: CFrame)", "void");
-        docs.signature("Player", "Player:PlaySound(sound: string, volume: number, pitch: number)", null);
-        docs.signature("Player", "Player:SetData(key: string, value: any)", null);
-        docs.signature("Player", "Player:GetData(key: string)", null);
-        docs.signature("Player", "Player:RemoveData(key: string)", null);
-        docs.signature("Player", "Player:SetSlot(slot: number, item: Item)", null);
-        docs.signature("Player", "Player:SetHotbarSlot(slot: number, item: Item)", null);
-        docs.signature("Player", "Player:SetArmorSlot(slot: number, item: Item)", null);
-        docs.signature("Player", "Player:SetOffhandSlot(item: Item)", null);
-        docs.signature("Player", "Player:SetInventory(items: Item[])", null);
-        docs.signature("Player", "Player:SetViewMode(mode: string)", null);
-        docs.signature("Player", "Player:HasPermission(level: number)", null);
-        docs.signature("Player", "Player:DistanceTo(target: Vector3|CFrame|Entity)", null);
-        docs.signature("Player", "Player:HasEffect(effect: string)", null);
-        docs.signature("Player", "Player:RemoveEffect(effect: string)", null);
-        docs.signature("Player", "Player:SetFood(food: number)", null);
-        docs.signature("Player", "Player:SetFoodLevel(level: number)", null);
-        docs.signature("Player", "Player:SetSaturation(saturation: number)", null);
-        docs.signature("Player", "Player:CauseFoodExhaustion(amount: number)", null);
-        docs.signature("Player", "Player:SetHealth(health: number)", null);
-        docs.signature("Player", "Player:SetSelectedSlot(slot: number)", null);
-        docs.signature("Players", "Players:GetLocalPlayer()", "Player?");
-        docs.signature("Players", "Players:GetPlayers()", "Player[]");
-        docs.signature("Players", "Players:GetPlayerByName(name: string)", "Player?");
-        docs.signature("Players", "Players:GetPlayerByUUID(uuid: string)", "Player?");
-        docs.signature("Players", "Players:GetPlayerById(id: number)", "Player?");
-        docs.signature("Players", "Players:GetPlayerCount()", "number");
-        docs.signature("Players", "Players:GetMaxPlayers()", "number");
-        docs.signature("Players", "Players:Broadcast(message: string)", "void");
-        docs.service("Players", "MLuaPlayersService",
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetInventory()", "Container"));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetOpenContainer()", "Container"));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetEnderChest()", "Container"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerByName(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerByUUID(uuid: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:Broadcast(message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendMessage(message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendActionBar(message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendTitle(title: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveItem(item: Item)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveEffect(effect: string, duration: number, amplifier: number, showParticles: boolean)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveExperience(amount: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveExperienceLevels(levels: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetGameMode(mode: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetPosition(position: Vector3|CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:Teleport(position: Vector3|CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:LookAt(target: Vector3|CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetRotation()", "Vector2"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetRotationRadians()", "Vector2"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotation(pitch: number, yaw: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotationRadians(rotation: Vector2)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetCFrame()", "CFrame"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetCFrame(transform: CFrame)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:PlaySound(sound: string, volume: number, pitch: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetData(key: string, value: any)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetData(key: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:RemoveData(key: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetSlot(slot: number, item: Item)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetHotbarSlot(slot: number, item: Item)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetArmorSlot(slot: number, item: Item)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetOffhandSlot(item: Item)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetInventory(items: Item[])", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetViewMode(mode: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:HasPermission(level: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:DistanceTo(target: Vector3|CFrame|Entity)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:HasEffect(effect: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:RemoveEffect(effect: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetFood(food: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetFoodLevel(level: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetSaturation(saturation: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:CauseFoodExhaustion(amount: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetHealth(health: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetSelectedSlot(slot: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetLocalPlayer()", "Player?"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayers()", "Player[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerByName(name: string)", "Player?"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerByUUID(uuid: string)", "Player?"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerById(id: number)", "Player?"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerCount()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetMaxPlayers()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:Broadcast(message: string)", "void"));
+        docs.register(MLuaDocBuilder.Registration.service("Players", "MLuaPlayersService",
                 "Manages player connections and provides player instances.",
-                "services/players.html");
-        docs.property("Players", "Players.LocalPlayer", "Player",
-            "The local player on the client; nil on the server.", "client:Client");
-        docs.event("Players", "Players.PlayerAdded", "player: Player",
-            "Fires when a player joins the game.", "server:Server,client:Client");
-        docs.event("Players", "Players.PlayerRemoving", "player: Player",
-            "Fires when a player leaves the game.", "server:Server");
-        docs.guideStep("Players", "Find a player", "Look up a connected player by exact name, then use the live Player instance.",
+                "services/players.html"));
+        docs.register(MLuaDocBuilder.Registration.property("Players", "Players.LocalPlayer", "Player",
+            "The local player on the client; nil on the server.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.event("Players", "Players.PlayerAdded", "player: Player",
+            "Fires when a player joins the game.", "server:Server,client:Client"));
+        docs.register(MLuaDocBuilder.Registration.event("Players", "Players.PlayerRemoving", "player: Player",
+            "Fires when a player leaves the game.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Players", "Find a player", "Look up a connected player by exact name, then use the live Player instance.",
             "local Players = Minecraft:GetService(\"Players\")\n" +
             "local player = Players:GetPlayerByName(\"Alex\")\n" +
             "if player then\n" +
             "    player:SendMessage(\"Welcome!\")\n" +
-            "end");
-        docs.guideStep("Players", "Script mob navigation", "Mob:NavigateTo uses Minecraft's native path navigation. Call it from server-side entity behavior, then check the path before choosing another destination.",
+            "end"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Players", "Script mob navigation", "Mob:NavigateTo uses Minecraft's native path navigation. Call it from server-side entity behavior, then check the path before choosing another destination.",
             "local function updatePatrol(mob, waypoint)\n" +
             "    if mob:IsNavigationDone() then\n" +
             "        mob:NavigateTo(waypoint, 1.1)\n" +
             "    end\n" +
             "end\n\n" +
             "local waypoint = Vector3.new(24, 64, -12)\n" +
-            "updatePatrol(scriptedMob, waypoint)");
-        docs.guideStep("Players", "Apply server-side damage", "LivingEntity:Damage uses Minecraft's damage pipeline and returns true only when the target accepted the hit. Pass an attacker to preserve kill credit and damage attribution.",
+            "updatePatrol(scriptedMob, waypoint)"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Players", "Apply server-side damage", "LivingEntity:Damage uses Minecraft's damage pipeline and returns true only when the target accepted the hit. Pass an attacker to preserve kill credit and damage attribution.",
             "local accepted = target:Damage(6, \"generic\", attacker)\n" +
             "if accepted then\n" +
             "    attacker:SendMessage(\"Hit confirmed\")\n" +
             "end\n\n" +
-            "target:Heal(4)");
-        docs.clazz("Object", "LuaTable",
+            "target:Heal(4)"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Object", "LuaTable",
                 "Root class in MLua's Lua class hierarchy.",
-                "classes/object.html", null);
-        docs.clazz("Instance", "LuaTable",
+                "classes/object.html", null));
+        docs.register(MLuaDocBuilder.Registration.clazz("Instance", "LuaTable",
                 "Base class for live wrappers around Minecraft objects.",
-                "classes/instance.html", "Object");
-        docs.clazz("Entity", "MLuaEntityWrapper",
+                "classes/instance.html", "Object"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Entity", "MLuaEntityWrapper",
                 "A live entity instance with position, movement, health, and interaction APIs.",
-                "classes/entity.html", "Instance");
-        docs.clazz("LivingEntity", "MLuaEntityWrapper",
+                "classes/entity.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("LivingEntity", "MLuaEntityWrapper",
                 "A living entity with health, damage, equipment, and attributes.",
-                "classes/living-entity.html", "Entity");
-        docs.clazz("Mob", "MLuaEntityWrapper",
+                "classes/living-entity.html", "Entity"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Mob", "MLuaEntityWrapper",
                 "A Minecraft mob with AI targeting, visibility checks, and persistence controls.",
-                "classes/mob.html", "LivingEntity");
-        docs.property("Mob", "mob.Target", "LivingEntity|nil", "This mob's current AI target. Readable and writable.", "server:Server");
-        docs.property("Mob", "mob.PersistenceRequired", "boolean", "Whether this mob is marked to persist without despawning.", "shared:Shared");
-        docs.property("Entity", "entity.Name", "string", "The entity's current name.", "shared:Shared");
-        docs.property("Entity", "entity.UUID", "string", "The entity's UUID.", "shared:Shared");
-        docs.property("Entity", "entity.Nbt", "Nbt|table", "The entity's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server");
-        docs.property("Entity", "entity.Position", "Vector3", "The entity's current position. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.Velocity", "Vector3", "The entity's current velocity. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.Rotation", "Vector2", "The entity's pitch and yaw. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.IsAlive", "boolean", "Whether the entity is alive.", "shared:Shared");
-        docs.property("Entity", "entity.IsOnGround", "boolean", "Whether the entity is on the ground.", "shared:Shared");
-        docs.property("Entity", "entity.IsInWater", "boolean", "Whether the entity is in water.", "shared:Shared");
-        docs.property("Entity", "entity.IsOnFire", "boolean", "Whether the entity is on fire.", "shared:Shared");
-        docs.property("Entity", "entity.CustomName", "string|nil", "The entity's custom name. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.CustomNameVisible", "boolean", "Whether the custom name is shown above this entity. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.Glowing", "boolean", "Whether this entity has a glowing outline. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.NoGravity", "boolean", "Whether gravity is disabled. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.Invulnerable", "boolean", "Whether this entity is invulnerable. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.Silent", "boolean", "Whether this entity is silent. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.FireTicks", "number", "Remaining fire duration in ticks. Readable and writable.", "shared:Shared");
-        docs.property("Entity", "entity.EyePosition", "Vector3", "This entity's eye position.", "shared:Shared");
-        docs.property("Entity", "entity.Width", "number", "This entity's bounding-box width.", "shared:Shared");
-        docs.property("Entity", "entity.Height", "number", "This entity's bounding-box height.", "shared:Shared");
-        docs.property("Entity", "entity.EyeHeight", "number", "This entity's eye height above its position.", "shared:Shared");
-        docs.property("Entity", "entity.Vehicle", "Entity|nil", "The entity this entity is riding, or nil.", "shared:Shared");
-        docs.property("Entity", "entity.RootVehicle", "Entity", "The topmost vehicle in this entity's riding chain.", "shared:Shared");
-        docs.property("Entity", "entity.Passengers", "Entity[]", "Entities currently riding this entity.", "shared:Shared");
-        docs.property("Entity", "entity.IsPassenger", "boolean", "Whether this entity is riding another entity.", "shared:Shared");
-        docs.property("Entity", "entity.IsVehicle", "boolean", "Whether this entity has passengers.", "shared:Shared");
-        docs.property("Entity", "entity.IsInLava", "boolean", "Whether this entity is in lava.", "shared:Shared");
-        docs.property("Entity", "entity.IsUnderWater", "boolean", "Whether this entity is fully underwater.", "shared:Shared");
-        docs.property("Entity", "entity.FallDistance", "number", "The entity's current fall distance. Readable and writable.", "shared:Shared");
-        docs.property("LivingEntity", "entity.Health", "number", "The entity's current health. Readable and writable.", "shared:Shared");
-        docs.property("LivingEntity", "entity.MaxHealth", "number", "The entity's maximum health.", "shared:Shared");
-        docs.property("LivingEntity", "entity.ActiveEffects", "table[]", "Active potion effects with identifier, duration, amplifier, ambient, and visibility fields.", "shared:Shared");
-        docs.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared");
-        docs.property("LivingEntity", "entity.Absorption", "number", "The entity's current absorption health. Readable and writable.", "shared:Shared");
-        docs.clazz("Player", "MLuaPlayerWrapper",
+                "classes/mob.html", "LivingEntity"));
+        docs.register(MLuaDocBuilder.Registration.property("Mob", "mob.Target", "LivingEntity|nil", "This mob's current AI target. Readable and writable.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("Mob", "mob.PersistenceRequired", "boolean", "Whether this mob is marked to persist without despawning.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Name", "string", "The entity's current name.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.UUID", "string", "The entity's UUID.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Nbt", "Nbt|table", "The entity's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Position", "Vector3", "The entity's current position. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Velocity", "Vector3", "The entity's current velocity. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Rotation", "Vector2", "The entity's pitch and yaw. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsAlive", "boolean", "Whether the entity is alive.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsOnGround", "boolean", "Whether the entity is on the ground.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsInWater", "boolean", "Whether the entity is in water.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsOnFire", "boolean", "Whether the entity is on fire.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.CustomName", "string|nil", "The entity's custom name. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.CustomNameVisible", "boolean", "Whether the custom name is shown above this entity. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Glowing", "boolean", "Whether this entity has a glowing outline. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.NoGravity", "boolean", "Whether gravity is disabled. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Invulnerable", "boolean", "Whether this entity is invulnerable. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Silent", "boolean", "Whether this entity is silent. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.FireTicks", "number", "Remaining fire duration in ticks. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.EyePosition", "Vector3", "This entity's eye position.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Width", "number", "This entity's bounding-box width.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Height", "number", "This entity's bounding-box height.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.EyeHeight", "number", "This entity's eye height above its position.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Vehicle", "Entity|nil", "The entity this entity is riding, or nil.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.RootVehicle", "Entity", "The topmost vehicle in this entity's riding chain.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Passengers", "Entity[]", "Entities currently riding this entity.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsPassenger", "boolean", "Whether this entity is riding another entity.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsVehicle", "boolean", "Whether this entity has passengers.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsInLava", "boolean", "Whether this entity is in lava.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsUnderWater", "boolean", "Whether this entity is fully underwater.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.FallDistance", "number", "The entity's current fall distance. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.Health", "number", "The entity's current health. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.MaxHealth", "number", "The entity's maximum health.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.ActiveEffects", "table[]", "Active potion effects with identifier, duration, amplifier, ambient, and visibility fields.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.Absorption", "number", "The entity's current absorption health. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Player", "MLuaPlayerWrapper",
                 "A live player instance with player identity, inventory, messaging, and player controls.",
-                "classes/player.html", "LivingEntity");
-        docs.property("Player", "player.Name", "string", "The player's username.", "shared:Shared");
-        docs.property("Player", "player.UUID", "string", "The player's UUID.", "shared:Shared");
-        docs.property("Player", "player.Nbt", "Nbt|table", "The player's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server");
-        docs.property("Player", "player.Position", "Vector3", "The player's current position. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.Health", "number", "The player's current health. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.MaxHealth", "number", "The player's maximum health.", "shared:Shared");
-        docs.property("Player", "player.FoodLevel", "number", "The player's current food level. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.Food", "number", "Compatibility alias for player.FoodLevel. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.Saturation", "number", "The player's current food saturation. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.Velocity", "Vector3", "The player's current velocity. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.Rotation", "Vector2", "The player's pitch and yaw. Readable and writable.", "shared:Shared");
-        docs.property("Player", "player.ViewMode", "ViewMode", "The local player's camera perspective. Readable and writable.", "client:Client");
-        docs.property("Player", "player.GameMode", "GameMode", "The player's current game mode.", "shared:Shared");
-        docs.property("Player", "player.SelectedSlot", "number", "The selected hotbar slot using a one-based index.", "shared:Shared");
-        docs.property("Player", "player.Armor", "number", "The player's current armor value.", "shared:Shared");
-        docs.property("Player", "player.IsAlive", "boolean", "Whether the player is alive.", "shared:Shared");
-        docs.property("Player", "player.IsOnGround", "boolean", "Whether the player is on the ground.", "shared:Shared");
-        docs.property("Player", "player.IsInWater", "boolean", "Whether the player is in water.", "shared:Shared");
-        docs.property("Player", "player.IsOnFire", "boolean", "Whether the player is on fire.", "shared:Shared");
-        docs.guideStep("Player", "Use a live player instance", "Player values returned by the Players service stay connected to the live entity.",
+                "classes/player.html", "LivingEntity"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Name", "string", "The player's username.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.UUID", "string", "The player's UUID.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Nbt", "Nbt|table", "The player's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Position", "Vector3", "The player's current position. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Health", "number", "The player's current health. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.MaxHealth", "number", "The player's maximum health.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.FoodLevel", "number", "The player's current food level. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Food", "number", "Compatibility alias for player.FoodLevel. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Saturation", "number", "The player's current food saturation. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Velocity", "Vector3", "The player's current velocity. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Rotation", "Vector2", "The player's pitch and yaw. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.ViewMode", "ViewMode", "The local player's camera perspective. Readable and writable.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.GameMode", "GameMode", "The player's current game mode.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.SelectedSlot", "number", "The selected hotbar slot using a one-based index.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.Armor", "number", "The player's current armor value.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsAlive", "boolean", "Whether the player is alive.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsOnGround", "boolean", "Whether the player is on the ground.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsInWater", "boolean", "Whether the player is in water.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsOnFire", "boolean", "Whether the player is on fire.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Player", "Use a live player instance", "Player values returned by the Players service stay connected to the live entity.",
             "local Players = Minecraft:GetService(\"Players\")\n" +
             "local player = Players:GetLocalPlayer()\n" +
             "if player then\n" +
             "    print(player.Name, player.Position)\n" +
             "    player:SendMessage(\"Hello!\")\n" +
-            "end");
-        docs.guideStep("Player", "Charge food exhaustion for a custom action",
+            "end"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Player", "Charge food exhaustion for a custom action",
             "CauseFoodExhaustion adds to Minecraft's normal exhaustion meter, so custom sprinting, heavy attacks, or tools can share the vanilla hunger system. Call this helper from a server-side action callback.",
-            "local function spendStamina(player, exhaustion)\n    player:CauseFoodExhaustion(exhaustion)\nend");
+            "local function spendStamina(player, exhaustion)\n    player:CauseFoodExhaustion(exhaustion)\nend"));
     }
 }

@@ -48,17 +48,17 @@ public class CommandsModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Commands", "Commands:Register(name: string, definition: CommandDefinition)", null);
-        docs.signature("Commands", "Commands:Execute(command: string)", null);
-        docs.signature("CommandContext", "CommandContext:Reply(message: string)", null);
-        docs.signature("CommandContext", "CommandContext:Broadcast(message: string)", null);
-        docs.signature("CommandContext", "CommandContext:Error(message: string)", null);
+        docs.register(MLuaDocBuilder.Registration.signature("Commands", "Commands:Register(name: string, definition: CommandDefinition)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Commands", "Commands:Execute(command: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("CommandContext", "CommandContext:Reply(message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("CommandContext", "CommandContext:Broadcast(message: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("CommandContext", "CommandContext:Error(message: string)", null));
 
-        docs.type("CommandDefinition", null, "Options and callbacks for registering an MLua command.");
-        docs.field("CommandDefinition", "description", "string", "Command description shown in help output.");
-        docs.field("CommandDefinition", "aliases?", "string[]", "Alternative command names.");
-        docs.field("CommandDefinition", "callback", "fun(context: CommandContext, args: string[])", "Runs when the command executes.");
-        docs.contribution(new MLuaDocBuilder.Contribution(
+        docs.register(MLuaDocBuilder.Registration.type("CommandDefinition", null, "Options and callbacks for registering an MLua command."));
+        docs.register(MLuaDocBuilder.Registration.field("CommandDefinition", "description", "string", "Command description shown in help output."));
+        docs.register(MLuaDocBuilder.Registration.field("CommandDefinition", "aliases?", "string[]", "Alternative command names."));
+        docs.register(MLuaDocBuilder.Registration.field("CommandDefinition", "callback", "fun(context: CommandContext, args: string[])", "Runs when the command executes."));
+        docs.register(MLuaDocBuilder.Registration.contribution(new MLuaDocBuilder.Contribution(
             "mlua:core-commands-guide", "Commands", "Register a command",
             "Add commands from a .commands.lua script and handle server or client execution.",
             "mlua", 0,
@@ -72,6 +72,6 @@ public class CommandsModule implements MLuaModule {
                 new MLuaDocBuilder.GuideStep("Commands", "Choose an argument type",
                     "Use string for one word, greedy_string for the remaining words (it must be the last argument), integer or number for numeric input, boolean for true/false, and player for a player selector.",
                     "arguments = {\n    { name = \"count\", type = \"integer\" },\n    { name = \"target\", type = \"player\" },\n    { name = \"message\", type = \"greedy_string\" } -- greedy_string goes last\n}")),
-            List.of()));
+            List.of())));
     }
 }

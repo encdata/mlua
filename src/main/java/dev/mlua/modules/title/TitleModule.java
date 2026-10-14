@@ -14,6 +14,6 @@ public class TitleModule implements MLuaModule {
             .build());
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
-        docs.service("Title", "MLuaTitleService", "Service for sending titles, subtitles, and action bars.", "services/title.html");
+        docs.register(MLuaDocBuilder.Registration.service("Title", "MLuaTitleService", "Service for sending titles, subtitles, and action bars.", "services/title.html"));
     }
 }

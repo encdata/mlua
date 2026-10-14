@@ -20,10 +20,10 @@ public class FilesModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.signature("Files", "Files:ReadText(path: string)", null);
-        docs.signature("Files", "Files:WriteText(path: string, content: string)", null);
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:ReadText(path: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:WriteText(path: string, content: string)", null));
 
-        docs.service("Files", "MLuaFilesService", "Provides file read/write operations in the MLua data directory.",
-                "services/files.html");
+        docs.register(MLuaDocBuilder.Registration.service("Files", "MLuaFilesService", "Provides file read/write operations in the MLua data directory.",
+                "services/files.html"));
     }
 }
