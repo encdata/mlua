@@ -1,19 +1,17 @@
 package dev.mlua.modules.players.Service;
 
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.api.MLuaDescription;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
-import java.util.Iterator;
 import java.util.UUID;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -21,7 +19,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-public final class MLuaPlayersService extends MLuaServiceBase {
+@MLuaDescription("Manages player connections and provides player instances.")
+public final class MLuaPlayersService extends MLuaReflectiveService {
    public static final MLuaSignal PLAYER_ADDED = new MLuaSignal();
    public static final MLuaSignal PLAYER_REMOVING = new MLuaSignal();
 
@@ -50,105 +49,102 @@ public final class MLuaPlayersService extends MLuaServiceBase {
 
    @Override
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       String ownerModId = this.context.mlua().ownerModId();
       table.set("__side", "Both");
       table.set("PlayerAdded", MLuaLuaBindings.signalInstance(PLAYER_ADDED, this.context.mlua().globals(), this.context.mlua().scheduler(), ownerModId, this.context.mlua().side()));
       table.set("PlayerRemoving", MLuaLuaBindings.signalInstance(PLAYER_REMOVING, this.context.mlua().globals(), this.context.mlua().scheduler(), ownerModId, this.context.mlua().side()));
       table.set("LocalPlayer", this.localPlayer());
-      table.set("GetLocalPlayer", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return MLuaPlayersService.this.localPlayer();
-         }
-      });
-      table.set("GetPlayers", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LuaTable players = new LuaTable();
-            if (MLuaPlayersService.this.isClientSide()) {
-               int index = 1;
-               for (AbstractClientPlayer player : MLuaPlayersService.this.clientPlayers()) {
-                  players.set(index++, MLuaPlayerWrapper.clientPlayerTable(player, MLuaPlayersService.this.context.mlua().registration()));
-               }
-            } else if (MLuaPlayersService.this.server() != null) {
-               int index = 1;
-               Iterator var4 = MLuaPlayersService.this.server().getPlayerList().getPlayers().iterator();
-
-               while(var4.hasNext()) {
-                  ServerPlayer player = (ServerPlayer)var4.next();
-                  players.set(index++, MLuaPlayersService.playerTable(player, MLuaPlayersService.this.context.mlua().registration()));
-               }
-            }
-
-            return players;
-         }
-      });
-      table.set("GetPlayerByName", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            if (!MLuaPlayersService.this.isClientSide() && MLuaPlayersService.this.server() != null) {
-               ServerPlayer player = MLuaPlayersService.this.server().getPlayerList().getPlayerByName(args.checkjstring(2));
-               return (Varargs)(player == null ? LuaValue.NIL : MLuaPlayersService.playerTable(player, MLuaPlayersService.this.context.mlua().registration()));
-            }
-            if (MLuaPlayersService.this.isClientSide()) {
-               for (AbstractClientPlayer player : MLuaPlayersService.this.clientPlayers()) {
-                  if (player.getName().getString().equals(args.checkjstring(2))) return MLuaPlayerWrapper.clientPlayerTable(player, MLuaPlayersService.this.context.mlua().registration());
-               }
-            }
-            return LuaValue.NIL;
-         }
-      });
-      table.set("GetPlayerByUUID", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            UUID uuid = UUID.fromString(args.checkjstring(2));
-            ServerPlayer player = MLuaPlayersService.this.isClientSide() || MLuaPlayersService.this.server() == null ? null
-               : MLuaPlayersService.this.server().getPlayerList().getPlayer(uuid);
-            if (player != null) return MLuaPlayersService.playerTable(player, MLuaPlayersService.this.context.mlua().registration());
-            if (MLuaPlayersService.this.isClientSide()) {
-               for (AbstractClientPlayer local : MLuaPlayersService.this.clientPlayers()) {
-                  if (uuid.equals(local.getUUID())) return MLuaPlayerWrapper.clientPlayerTable(local, MLuaPlayersService.this.context.mlua().registration());
-               }
-            }
-            return LuaValue.NIL;
-         }
-      });
-      table.set("GetPlayerById", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            int id = args.checkint(2);
-            if (!MLuaPlayersService.this.isClientSide() && MLuaPlayersService.this.server() != null) {
-               ServerPlayer player = MLuaPlayersService.this.server().getPlayerList().getPlayers().stream()
-                  .filter(value -> value.getId() == id).findFirst().orElse(null);
-               if (player != null) return MLuaPlayersService.playerTable(player, MLuaPlayersService.this.context.mlua().registration());
-            }
-            if (MLuaPlayersService.this.isClientSide()) {
-               for (AbstractClientPlayer local : MLuaPlayersService.this.clientPlayers()) {
-                  if (local.getId() == id) return MLuaPlayerWrapper.clientPlayerTable(local, MLuaPlayersService.this.context.mlua().registration());
-               }
-            }
-            return LuaValue.NIL;
-         }
-      });
-      table.set("GetPlayerCount", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(MLuaPlayersService.this.isClientSide()
-               ? MLuaPlayersService.this.clientPlayers().size()
-               : MLuaPlayersService.this.server() == null ? 0 : MLuaPlayersService.this.server().getPlayerCount());
-         }
-      });
-      table.set("GetMaxPlayers", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(MLuaPlayersService.this.isClientSide() || MLuaPlayersService.this.server() == null
-               ? 0 : MLuaPlayersService.this.server().getMaxPlayers());
-         }
-      });
-      table.set("Broadcast", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            if (!MLuaPlayersService.this.isClientSide() && MLuaPlayersService.this.server() != null) {
-               MLuaPlayersService.this.server().getPlayerList().broadcastSystemMessage(Component.literal(args.checkjstring(2)), false);
-            }
-
-            return LuaValue.NONE;
-         }
-      });
       return table;
+   }
+
+   @MLuaDescription("Returns the local player on the client, or nil on the server.")
+   public LuaValue GetLocalPlayer() {
+      return this.localPlayer();
+   }
+
+   @MLuaDescription("Returns the live player instances currently connected.")
+   public LuaTable GetPlayers() {
+      LuaTable players = new LuaTable();
+      int index = 1;
+      if (this.isClientSide()) {
+         for (AbstractClientPlayer player : this.clientPlayers()) {
+            players.set(index++, MLuaPlayerWrapper.clientPlayerTable(player, this.context.mlua().registration()));
+         }
+      } else if (this.server() != null) {
+         for (ServerPlayer player : this.server().getPlayerList().getPlayers()) {
+            players.set(index++, playerTable(player, this.context.mlua().registration()));
+         }
+      }
+      return players;
+   }
+
+   @MLuaDescription("Finds a connected player by exact name, or returns nil.")
+   public LuaValue GetPlayerByName(String name) {
+      if (!this.isClientSide() && this.server() != null) {
+         ServerPlayer player = this.server().getPlayerList().getPlayerByName(name);
+         return player == null ? LuaValue.NIL : playerTable(player, this.context.mlua().registration());
+      }
+      if (this.isClientSide()) {
+         for (AbstractClientPlayer player : this.clientPlayers()) {
+            if (player.getName().getString().equals(name)) {
+               return MLuaPlayerWrapper.clientPlayerTable(player, this.context.mlua().registration());
+            }
+         }
+      }
+      return LuaValue.NIL;
+   }
+
+   @MLuaDescription("Finds a connected player by UUID, or returns nil.")
+   public LuaValue GetPlayerByUUID(String value) {
+      UUID uuid = UUID.fromString(value);
+      ServerPlayer player = this.isClientSide() || this.server() == null
+         ? null : this.server().getPlayerList().getPlayer(uuid);
+      if (player != null) return playerTable(player, this.context.mlua().registration());
+      if (this.isClientSide()) {
+         for (AbstractClientPlayer local : this.clientPlayers()) {
+            if (uuid.equals(local.getUUID())) {
+               return MLuaPlayerWrapper.clientPlayerTable(local, this.context.mlua().registration());
+            }
+         }
+      }
+      return LuaValue.NIL;
+   }
+
+   @MLuaDescription("Finds a connected player by numeric entity id, or returns nil.")
+   public LuaValue GetPlayerById(int id) {
+      if (!this.isClientSide() && this.server() != null) {
+         ServerPlayer player = this.server().getPlayerList().getPlayers().stream()
+            .filter(value -> value.getId() == id).findFirst().orElse(null);
+         if (player != null) return playerTable(player, this.context.mlua().registration());
+      }
+      if (this.isClientSide()) {
+         for (AbstractClientPlayer local : this.clientPlayers()) {
+            if (local.getId() == id) {
+               return MLuaPlayerWrapper.clientPlayerTable(local, this.context.mlua().registration());
+            }
+         }
+      }
+      return LuaValue.NIL;
+   }
+
+   @MLuaDescription("Returns the number of connected players.")
+   public int GetPlayerCount() {
+      return this.isClientSide() ? this.clientPlayers().size()
+         : this.server() == null ? 0 : this.server().getPlayerCount();
+   }
+
+   @MLuaDescription("Returns the server's maximum player count; returns zero on the client.")
+   public int GetMaxPlayers() {
+      return this.isClientSide() || this.server() == null ? 0 : this.server().getMaxPlayers();
+   }
+
+   @MLuaDescription("Sends a system chat message to every player; server-side only.")
+   public LuaValue Broadcast(String message) {
+      if (!this.isClientSide() && this.server() != null) {
+         this.server().getPlayerList().broadcastSystemMessage(Component.literal(message), false);
+      }
+      return LuaValue.NONE;
    }
 
    public static LuaTable playerTable(ServerPlayer player) {
