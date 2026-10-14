@@ -8,6 +8,13 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 public interface RegistryBridge {
+    static RegistryKind requireVisualRegistry(RegistryKind registryKind) {
+        if (registryKind != RegistryKind.ITEM && registryKind != RegistryKind.BLOCK) {
+            throw new IllegalArgumentException("Visual metadata is supported only for ITEM and BLOCK registries; got " + registryKind);
+        }
+        return registryKind;
+    }
+
     <T> RegistryHandle<T> register(RegistryKind registryKind, String modId, String name, Supplier<T> supplier);
     <T> RegistryHandle<T> get(RegistryKind registryKind, String modId, String name);
     <T> RegistryHandle<T> registerEntity(String modId, String name, Supplier<T> supplier, Supplier<?> attributes);

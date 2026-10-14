@@ -119,42 +119,50 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void setTexture(RegistryKind registryKind, String modId, String name, Map<String, String> values) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         textures.computeIfAbsent(registryKind, ignored -> new LinkedHashMap<>())
             .put(modId + ":" + name, values == null ? Map.of() : Map.copyOf(values));
     }
 
     @Override
     public Map<String, String> getTexture(RegistryKind registryKind, String namespace, String path) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         return textures.getOrDefault(registryKind, Map.of()).getOrDefault(namespace + ":" + path, Map.of());
     }
 
     @Override
     public void setModel(RegistryKind registryKind, String modId, String name, String model) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         putMetadata(models, registryKind, modId, name, model);
     }
 
     @Override
     public String getModel(RegistryKind registryKind, String namespace, String path) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         return models.getOrDefault(registryKind, Map.of()).get(namespace + ":" + path);
     }
 
     @Override
     public void setCopy(RegistryKind registryKind, String modId, String name, String copy) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         putMetadata(copies, registryKind, modId, name, copy);
     }
 
     @Override
     public String getCopy(RegistryKind registryKind, String namespace, String path) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         return getByPathOrName(copies.getOrDefault(registryKind, Map.of()), namespace, path);
     }
 
     @Override
     public void setCopyModel(RegistryKind registryKind, String modId, String name, boolean copyModel) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         putMetadata(copyModels, registryKind, modId, name, copyModel ? Boolean.TRUE : null);
     }
 
     @Override
     public boolean getCopyModel(RegistryKind registryKind, String namespace, String path) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         return Boolean.TRUE.equals(getBooleanByPathOrName(copyModels.getOrDefault(registryKind, Map.of()), namespace, path));
     }
 
@@ -175,11 +183,13 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void setDescription(RegistryKind registryKind, String modId, String name, List<String> description) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         putMetadata(descriptions, registryKind, modId, name, description == null ? null : List.copyOf(description));
     }
 
     @Override
     public List<String> getDescription(RegistryKind registryKind, String namespace, String path) {
+        registryKind = RegistryBridge.requireVisualRegistry(registryKind);
         return descriptions.getOrDefault(registryKind, Map.of()).get(namespace + ":" + path);
     }
 
