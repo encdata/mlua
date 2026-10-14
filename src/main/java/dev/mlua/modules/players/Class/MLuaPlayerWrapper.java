@@ -93,7 +93,7 @@ public final class MLuaPlayerWrapper {
       if (player instanceof AbstractClientPlayer clientPlayer) {
          return clientPlayerTable(clientPlayer, registration);
       }
-      return MLuaEntityWrapper.livingEntityTable(player, registration);
+      return clientPlayerTable(player, registration);
    }
 
    public static LuaTable playerTable(MCServerPlayer player) {
@@ -481,6 +481,11 @@ public final class MLuaPlayerWrapper {
    }
 
    public static LuaTable clientPlayerTable(AbstractClientPlayer player, MLuaRegistration registration) {
+      return clientPlayerTable((net.minecraft.world.entity.player.Player) player, registration);
+   }
+
+   private static LuaTable clientPlayerTable(net.minecraft.world.entity.player.Player player,
+                                             MLuaRegistration registration) {
       classTable(registration);
       if (player instanceof LocalPlayer local) {
          return localPlayerTable(MCLocalPlayerImpl.fromReal(local), registration);
