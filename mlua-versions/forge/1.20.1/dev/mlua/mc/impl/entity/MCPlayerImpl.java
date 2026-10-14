@@ -87,6 +87,8 @@ public class MCPlayerImpl extends MCLivingEntityImpl implements MCPlayer {
             public float getSaturationLevel() { return fd.getSaturationLevel(); }
             @Override
             public void setSaturation(float saturation) { fd.setSaturation(saturation); }
+            @Override
+            public void addExhaustion(float exhaustion) { fd.addExhaustion(exhaustion); }
         };
     }
 

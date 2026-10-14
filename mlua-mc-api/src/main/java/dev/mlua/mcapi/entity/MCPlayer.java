@@ -53,5 +53,6 @@ public interface MCPlayer extends MCLivingEntity {
         void setFoodLevel(int level);
         float getSaturationLevel();
         void setSaturation(float saturation);
+        void addExhaustion(float exhaustion);
     }
 }

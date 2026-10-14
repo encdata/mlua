@@ -599,7 +599,7 @@ public class PlayersModule implements MLuaModule {
             "    player:SendMessage(\"Hello!\")\n" +
             "end");
         docs.guideStep("Player", "Charge food exhaustion for a custom action",
-            "CauseFoodExhaustion adds to Minecraft's normal exhaustion meter, so custom sprinting, heavy attacks, or tools can share the vanilla hunger system.",
-            "local function spendStamina(player, exhaustion)\n    player:CauseFoodExhaustion(exhaustion)\nend\n\nspendStamina(player, 0.5)");
+            "CauseFoodExhaustion adds to Minecraft's normal exhaustion meter, so custom sprinting, heavy attacks, or tools can share the vanilla hunger system. Call this helper from a server-side action callback.",
+            "local function spendStamina(player, exhaustion)\n    player:CauseFoodExhaustion(exhaustion)\nend");
     }
 }

@@ -61,8 +61,11 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return allEntities();
     }
 
-    @MLuaDescription("Returns entities near a Vector3, CFrame, or entity within a radius. Coordinates may also be supplied as x, y, z, radius.")
+    @MLuaDescription("Returns entities in the same world within a spherical radius of a Vector3, CFrame, or entity.")
     public LuaTable GetNearby(LuaValue centerValue, double radius) {
+        if (!Double.isFinite(radius) || radius < 0.0) {
+            throw new LuaError("[MLua] EntityService:GetNearby radius must be a finite, non-negative number.");
+        }
         Entity centerEntity = entityValue(centerValue);
         double[] center = centerEntity == null
             ? MLuaCFrame.vector(centerValue)
@@ -73,8 +76,11 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius,
             center[0] + radius, center[1] + radius, center[2] + radius);
         int index = 1;
+        double radiusSquared = radius * radius;
         for (Entity entity : level.getEntities((Entity) null, box, entity -> entity != centerEntity)) {
-            out.set(index++, wrap(entity));
+            if (entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
+                out.set(index++, wrap(entity));
+            }
         }
         return out;
     }

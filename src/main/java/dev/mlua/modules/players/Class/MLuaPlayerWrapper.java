@@ -188,7 +188,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
-         player.causeFoodExhaustion((float)args.checkdouble(2));
+         player.getFoodData().addExhaustion((float)args.checkdouble(2));
          return LuaValue.NONE;
       }), "Adds food exhaustion to this player; server-side only for authoritative changes.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
@@ -645,7 +645,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }), "Sets this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
-         player.causeFoodExhaustion((float)args.checkdouble(2));
+         player.getFoodData().addExhaustion((float)args.checkdouble(2));
          return LuaValue.NONE;
       }), "Adds food exhaustion to this player.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {

@@ -238,6 +238,9 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
         docs.signature("World", "World:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean");
+        docs.signature("World", "World:ListGameRules()", "GameRuleList");
+        docs.signature("World", "World:GetGameRule(name: string)", "boolean|number");
+        docs.signature("World", "World:SetGameRule(name: string, value: boolean|number)", "void");
         docs.signature("Chunk", "Chunk:GetX()", "number");
         docs.signature("Chunk", "Chunk:GetZ()", "number");
         docs.signature("Chunk", "Chunk:GetDimension()", "string");
@@ -261,6 +264,9 @@ public class WorldModule implements MLuaModule {
         docs.signature("Chunk", "Chunk:GetBlockEntities()", "BlockEntity[]");
         docs.signature("WorldService", "WorldService:Get(dimensionId: string)", "World?");
         docs.signature("WorldService", "WorldService:GetAll()", "World[]");
+        docs.signature("WorldService", "WorldService:ListGameRules()", "GameRuleList");
+        docs.signature("WorldService", "WorldService:GetGameRule(name: string)", "boolean|number");
+        docs.signature("WorldService", "WorldService:SetGameRule(name: string, value: boolean|number)", "void");
         docs.signature("WorldService", "WorldService:IsChunkLoaded(coordinates: Vector2|Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:IsBlockLoaded(position: Vector3|CFrame)", "boolean");
         docs.signature("WorldService", "WorldService:LoadChunk(coordinates: Vector2|Vector3|CFrame)", "Chunk");
@@ -294,6 +300,11 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
         docs.type("BlockStateProperties", null, "Property names and values supported by the selected Minecraft block. Values are strings, numbers, or booleans and are validated against that block's state definition.");
         docs.field("BlockStateProperties", "*", "string|number|boolean", "A block state property, such as facing = \"north\" or waterlogged = false.");
+        docs.type("GameRuleList", null, "ListGameRules returns numeric entries containing Name and Value, plus direct lookup by gamerule name. Gamerule changes and reads require a server World.");
+        docs.field("GameRuleList", "*", "GameRuleEntry|boolean|number", "An ordered GameRuleEntry at a numeric index, or the current value when indexed by gamerule name.");
+        docs.type("GameRuleEntry", null, "One registered Minecraft gamerule and its current value.");
+        docs.field("GameRuleEntry", "Name", "string", "The gamerule name accepted by GetGameRule and SetGameRule.");
+        docs.field("GameRuleEntry", "Value", "boolean|number", "The current boolean or integer gamerule value.");
         docs.signature("WorldService", "WorldService:BreakBlock(position: Vector3|CFrame, dropItems: boolean?)", "boolean");
         docs.signature("WorldService", "WorldService:PlaySound(position: Vector3|CFrame, sound: string, volume: number?, pitch: number?)", "void");
         docs.signature("WorldService", "WorldService:SpawnParticle(position: Vector3|CFrame, particle: string, count: number?)", "void");
@@ -339,6 +350,9 @@ public class WorldModule implements MLuaModule {
         docs.guideStep("World", "Set a dimension's shared spawn point",
             "SetSpawnPosition takes a native Vector3 or CFrame and an optional yaw in degrees. It is server-side only; SpawnPosition can also be assigned directly.",
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal spawn = Vector3.new(0, 65, 0)\nworld:SetSpawnPosition(spawn, 90)\nworld.SpawnPosition = spawn");
+        docs.guideStep("World", "Read and change dimension gamerules",
+            "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns a boolean or integer; SetGameRule accepts the matching Lua value and errors for an unknown name or incompatible value. ListGameRules can be traversed with ipairs or indexed by the rule name.",
+            "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, rule in ipairs(world:ListGameRules()) do\n    print(rule.Name, rule.Value)\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)");
         docs.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
             "local WorldService = Minecraft:GetService(\"World\")\nlocal world = WorldService:Current()\n\nif world then\n    print(world.Id, world.Time)\n    world:SetTime(world.Time + 100)\nend\n\nWorldService:SetWeather(Enum.Weather.Rain)\nlocal nether = WorldService:Get(\"minecraft:the_nether\")\nif nether then\n    print(nether:GetTime())\nend");
