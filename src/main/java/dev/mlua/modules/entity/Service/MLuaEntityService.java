@@ -19,7 +19,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -95,8 +94,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         LuaValue worldValue = isPosition(positionValue) ? second.orElse(LuaValue.NIL) : fourth.orElse(LuaValue.NIL);
         ServerLevel level = resolveServerLevel(worldValue);
         BlockPos blockPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
-        ChunkPos chunk = new ChunkPos(blockPosition);
-        level.getChunk(chunk.x, chunk.z);
+        level.getChunk(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
         EntityType<?> type = (EntityType<?>) MCApiRuntime.lookupRegistry("entity_type", typeId);
         if (type == null) {
             throw new LuaError("[MLua] Unknown entity type: " + typeId);
