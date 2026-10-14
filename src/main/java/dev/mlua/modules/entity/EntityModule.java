@@ -62,6 +62,9 @@ public final class EntityModule implements MLuaModule {
         docs.signature("Entity", "Entity:HasTag(tag: string)", "boolean");
         docs.signature("Entity", "Entity:AddTag(tag: string)", "boolean");
         docs.signature("Entity", "Entity:RemoveTag(tag: string)", "boolean");
+        docs.guideStep("Entity", "Mark and query entities with saved tags",
+            "Entity tags created here are MLua persistent tags saved with MLua world data. They can be used in World entity-query filters.",
+            "local target = world:FindNearestEntity(Vector3.new(0, 64, 0), 16, { type = \"minecraft:zombie\" })\nif target then\n    target:AddTag(\"encounter_target\")\nend\n\nfor _, entity in ipairs(world:FindEntitiesInRadius(Vector3.new(0, 64, 0), 24, { tags = { \"encounter_target\" } })) do\n    entity:SetGlowing(true)\nend");
         docs.signature("Entity", "Entity:Kill()", "void");
         docs.signature("Entity", "Entity:Remove()", "void");
         docs.signature("LivingEntity", "LivingEntity:GetHealth()", "number");

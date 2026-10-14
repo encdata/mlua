@@ -50,6 +50,15 @@ public final class InventoryModule implements MLuaModule {
         docs.service("InventoryService", "MLuaInventoryService",
             "Access player inventories and common container operations from Lua.",
             "services/inventory.html");
+        docs.signature("InventoryService", "InventoryService:GetPlayerInventory(player: Player)", "Inventory");
+        docs.signature("InventoryService", "InventoryService:GetEnderChest(player: Player)", "Container");
+        docs.signature("InventoryService", "InventoryService:GetSlot(player: Player, index: number)", "Slot?");
+        docs.signature("InventoryService", "InventoryService:SetSlot(player: Player, index: number, item: Item?)", "boolean");
+        docs.signature("InventoryService", "InventoryService:AddItem(player: Player, item: Item)", "boolean");
+        docs.signature("InventoryService", "InventoryService:CountItem(player: Player, itemId: string)", "number");
+        docs.signature("InventoryService", "InventoryService:ContainsItem(player: Player, itemId: string, count: number?)", "boolean");
+        docs.signature("InventoryService", "InventoryService:RemoveItem(player: Player, itemId: string, count: number)", "number");
+        docs.signature("InventoryService", "InventoryService:Clear(player: Player)", "void");
         docs.clazz("Container", "MLuaContainer", "A live container instance that exposes its current slots.", "classes/container.html", "Instance");
         docs.method("Container", "Container:GetSize(): number", "Returns the number of slots in this container.", "", "number", "Shared", "");
         docs.method("Container", "Container:IsEmpty(): boolean", "Returns whether this container has no items.", "", "boolean", "Shared", "");
@@ -58,9 +67,18 @@ public final class InventoryModule implements MLuaModule {
         docs.method("Container", "Container:SetSlot(index: number, item: Item|nil)", "Sets the item in a writable slot by one-based index.", "index: one-based slot index; item: item stack or nil to clear", "void", "Shared", "");
         docs.method("Container", "Container:GetTitle(): string|nil", "Returns this container's display title when available.", "", "string|nil", "Shared", "");
         docs.method("Container", "Container:GetAll(): Slot[]", "Returns all live slots in this container.", "", "Slot[]", "Shared", "");
+        docs.method("Container", "Container:GetFirstEmptySlot(): Slot|nil", "Returns the first empty live slot, or nil when the container is full.", "", "Slot|nil", "Shared", "");
+        docs.method("Container", "Container:CountItem(itemId: string): number", "Returns the total stack count for an item identifier across this container.", "itemId: registered item identifier", "number", "Shared", "");
+        docs.method("Container", "Container:FindSlots(itemId: string): Slot[]", "Returns the live slots that currently contain this item identifier.", "itemId: registered item identifier", "Slot[]", "Shared", "");
+        docs.method("Container", "Container:ContainsItem(itemId: string, count: number?): boolean", "Returns whether this container has at least the requested total count.", "itemId: registered item identifier; count: minimum count, default 1", "boolean", "Shared", "");
+        docs.method("Container", "Container:RemoveItem(itemId: string, count: number): number", "Removes up to count items from a writable container and returns the amount removed.", "itemId: registered item identifier; count: positive number", "number", "Shared", "");
+        docs.property("Container", "container.FirstEmptySlot", "Slot|nil", "The first empty live slot, or nil when full.", "shared:Shared");
         docs.guideStep("Container", "Read slots through a live container",
             "Container and Inventory expose live slots. Lua slot indexes start at one, and each Slot reads the current backing inventory.",
             "local inventory = player.Inventory\nlocal first = inventory:GetSlot(1)\nif first and not first.Empty then\n    print(first.Item:GetDisplayName())\nend");
+        docs.guideStep("Container", "Check and consume an item stack",
+            "CountItem and ContainsItem include matching stacks across the whole container. RemoveItem consumes up to the requested amount and reports how many it removed.",
+            "local inventory = player.Inventory\nlocal arrowId = \"minecraft:arrow\"\nif inventory:ContainsItem(arrowId, 3) then\n    local removed = inventory:RemoveItem(arrowId, 3)\n    print(\"Arrows used:\", removed)\nend\n\nlocal freeSlot = inventory.FirstEmptySlot\nif freeSlot then\n    print(\"Free slot:\", freeSlot.Index)\nend");
         docs.clazz("Inventory", "MLuaContainer", "A live player inventory instance with indexed slots and item operations.", "classes/inventory.html", "Container");
         docs.method("Inventory", "Inventory:GetHotbar(): Slot[]", "Returns the same live slot instances as the first nine inventory slots.", "", "Slot[]", "Shared", "");
         docs.method("Inventory", "Inventory:GetArmorContents(): Slot[]", "Returns the same live slot instances as the inventory's armor positions.", "", "Slot[]", "Shared", "");

@@ -738,18 +738,18 @@ public final class MLuaEntityWrapper {
          @Override public Varargs invoke(Varargs args) {
             LuaTable tags = new LuaTable();
             int index = 1;
-            for (String tag : entity.getTags()) tags.set(index++, LuaValue.valueOf(tag));
+            for (String tag : MLuaDataManager.entityTags(entity)) tags.set(index++, LuaValue.valueOf(tag));
             return tags;
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "HasTag", new VarArgFunction() {
-         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getTags().contains(args.checkjstring(2))); }
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(MLuaDataManager.hasEntityTag(entity, args.checkjstring(2))); }
       });
       MLuaClassMethods.setInstanceMethod(table, "AddTag", new VarArgFunction() {
-         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.addTag(args.checkjstring(2))); }
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(MLuaDataManager.addEntityTag(entity, args.checkjstring(2))); }
       });
       MLuaClassMethods.setInstanceMethod(table, "RemoveTag", new VarArgFunction() {
-         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.removeTag(args.checkjstring(2))); }
+         @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(MLuaDataManager.removeEntityTag(entity, args.checkjstring(2))); }
       });
    }
 

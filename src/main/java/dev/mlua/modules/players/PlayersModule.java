@@ -118,10 +118,10 @@ public class PlayersModule implements MLuaModule {
             {"GetBoundingBox", "Returns the minimum and maximum corners of this entity's bounds."},
             {"GetWidth", "Returns this entity's bounding-box width."},
             {"GetHeight", "Returns this entity's bounding-box height."},
-            {"GetTags", "Returns the Minecraft tags assigned to this entity."},
-            {"HasTag", "Returns whether this entity has a Minecraft tag."},
-            {"AddTag", "Adds a Minecraft tag to this entity."},
-            {"RemoveTag", "Removes a Minecraft tag from this entity."}
+            {"GetTags", "Returns this entity's saved MLua tags."},
+            {"HasTag", "Returns whether this entity has the given saved MLua tag."},
+            {"AddTag", "Adds a persistent MLua tag to this entity."},
+            {"RemoveTag", "Removes a persistent MLua tag from this entity."}
         };
         for (String[] method : entityStateMethods) {
             MLuaClassMethods.registerInstanceMethod(registration, "Entity", method[0], method[1]);

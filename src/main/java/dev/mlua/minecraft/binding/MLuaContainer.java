@@ -19,9 +19,12 @@ import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mcapi.item.MCItemStack;
 import dev.mlua.mcapi.core.MCComponent;
 import dev.mlua.mc.impl.item.MCItemStackImpl;
+import dev.mlua.mc.impl.item.MCItemImpl;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.classes.MLuaClassMethods;
+import dev.mlua.minecraft.MLuaResourceLocations;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 public final class MLuaContainer {
    private static final Map<MLuaRegistration, Map<Object, Map<InstanceVariant, WeakReference<LuaTable>>>> INSTANCES = new WeakHashMap<>();
@@ -238,6 +241,98 @@ public final class MLuaContainer {
             return slots;
          }
       });
+      MLuaClassMethods.setInstanceMethod(table, "GetFirstEmptySlot", new ZeroArgFunction() {
+         @Override public LuaValue call() {
+            for (int rawIndex = 0; rawIndex < access.size(); rawIndex++) {
+               if (access.getItem(rawIndex).isEmpty()) {
+                  int slotIndex = rawIndex;
+                  int index = slotIndex + 1;
+                  return slotInstance(slotInstances, slotIndex, () -> access.getItem(slotIndex), () -> slotIndex,
+                     stack -> access.setItem(slotIndex, stack), index, writable, registration);
+               }
+            }
+            return LuaValue.NIL;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "CountItem", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            String itemId = requireItemId(args.checkjstring(2));
+            int count = 0;
+            for (int index = 0; index < access.size(); index++) {
+               MCItemStack stack = access.getItem(index);
+               if (!stack.isEmpty() && itemId.equals(itemId(stack))) count += stack.getCount();
+            }
+            return LuaValue.valueOf(count);
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "FindSlots", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            String itemId = requireItemId(args.checkjstring(2));
+            LuaTable matches = new LuaTable();
+            int resultIndex = 1;
+            for (int rawIndex = 0; rawIndex < access.size(); rawIndex++) {
+               MCItemStack stack = access.getItem(rawIndex);
+               if (stack.isEmpty() || !itemId.equals(itemId(stack))) continue;
+               int slotIndex = rawIndex;
+               int index = slotIndex + 1;
+               matches.set(resultIndex++, slotInstance(slotInstances, slotIndex,
+                  () -> access.getItem(slotIndex), () -> slotIndex,
+                  value -> access.setItem(slotIndex, value), index, writable, registration));
+            }
+            return matches;
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "ContainsItem", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            String itemId = requireItemId(args.checkjstring(2));
+            int required = args.optint(3, 1);
+            if (required < 1) throw new org.luaj.vm2.LuaError("[MLua] Required item count must be positive.");
+            int count = 0;
+            for (int index = 0; index < access.size(); index++) {
+               MCItemStack stack = access.getItem(index);
+               if (!stack.isEmpty() && itemId.equals(itemId(stack))) count += stack.getCount();
+            }
+            return LuaValue.valueOf(count >= required);
+         }
+      });
+      MLuaClassMethods.setInstanceMethod(table, "RemoveItem", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            ensureWritable(writable);
+            String itemId = requireItemId(args.checkjstring(2));
+            int remaining = args.checkint(3);
+            if (remaining < 1) throw new org.luaj.vm2.LuaError("[MLua] Removed item count must be positive.");
+            int removed = 0;
+            for (int index = 0; index < access.size() && remaining > 0; index++) {
+               MCItemStack stack = access.getItem(index);
+               if (stack.isEmpty() || !itemId.equals(itemId(stack))) continue;
+               int amount = Math.min(remaining, stack.getCount());
+               int newCount = stack.getCount() - amount;
+               if (newCount == 0) {
+                  access.setItem(index, MCItemStack.EMPTY);
+               } else {
+                  stack.setCount(newCount);
+                  access.setItem(index, stack);
+               }
+               removed += amount;
+               remaining -= amount;
+            }
+            return LuaValue.valueOf(removed);
+         }
+      });
+   }
+
+   private static String requireItemId(String value) {
+      var location = MLuaResourceLocations.parse(value);
+      if (BuiltInRegistries.ITEM.getOptional(location).isEmpty()) {
+         throw new org.luaj.vm2.LuaError("[MLua] Unknown item: " + value);
+      }
+      return location.toString();
+   }
+
+   private static String itemId(MCItemStack stack) {
+      if (!(stack.getItem() instanceof MCItemImpl item)) return "";
+      var location = BuiltInRegistries.ITEM.getKey(item.inner());
+      return location == null ? "" : location.toString();
    }
 
    private static ContainerAccess containerAccess(MCContainer container) {
@@ -301,6 +396,11 @@ public final class MLuaContainer {
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "SetSlot", "Sets the item in a writable slot by one-based index.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetTitle", "Returns this container's display title when available.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetAll", "Returns all live slots in this container.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "GetFirstEmptySlot", "Returns the first empty live slot, or nil when full.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "CountItem", "Returns the total count of an item identifier in this container.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "FindSlots", "Returns live slots containing the given item identifier.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "ContainsItem", "Returns whether this container has at least the requested item count.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Container", "RemoveItem", "Removes up to the requested count from this writable container and returns the removed count.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetHotbar", "Returns the live slots for the nine hotbar positions.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetArmorContents", "Returns the live slots for the four armor positions.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetOffhandSlot", "Returns the live offhand slot.");
@@ -321,6 +421,8 @@ public final class MLuaContainer {
          "Slot[]", "shared:Shared", "Returns the live slot instances in this container.");
       MLuaClassMethods.registerInstanceProperty(registration, "Container", "Title", "GetTitle", null,
          "string|nil", "shared:Shared", "Returns this container's title when the backing container exposes one.");
+      MLuaClassMethods.registerInstanceProperty(registration, "Container", "FirstEmptySlot", "GetFirstEmptySlot", null,
+         "Slot|nil", "shared:Shared", "Returns the first empty live slot, or nil when full.");
    }
 
    private static LuaTable cachedInstance(MLuaRegistration registration, Object backing, String className,

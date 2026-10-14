@@ -670,19 +670,19 @@ public final class MLuaWorldService extends MLuaServiceBase {
       LuaValue name = table.get("name");
       if (!name.isnil() && !entity.getName().getString().equals(name.tojstring())) return false;
       LuaValue tag = table.get("tag");
-      if (!tag.isnil() && !entity.getTags().contains(tag.tojstring())) return false;
+      if (!tag.isnil() && !MLuaDataManager.hasEntityTag(entity, tag.tojstring())) return false;
       LuaValue requiredTags = table.get("tags");
       if (requiredTags.istable()) {
          LuaTable tags = requiredTags.checktable();
          for (int index = 1; !tags.get(index).isnil(); index++) {
-            if (!entity.getTags().contains(tags.get(index).checkjstring())) return false;
+            if (!MLuaDataManager.hasEntityTag(entity, tags.get(index).checkjstring())) return false;
          }
       }
       LuaValue excludedTags = table.get("exclude_tags");
       if (excludedTags.istable()) {
          LuaTable tags = excludedTags.checktable();
          for (int index = 1; !tags.get(index).isnil(); index++) {
-            if (entity.getTags().contains(tags.get(index).checkjstring())) return false;
+            if (MLuaDataManager.hasEntityTag(entity, tags.get(index).checkjstring())) return false;
          }
       }
       return true;

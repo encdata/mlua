@@ -8,6 +8,7 @@ import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import java.util.UUID;
+import java.util.Optional;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import org.luaj.vm2.LuaError;
@@ -55,6 +56,27 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
     public boolean AddItem(LuaValue playerValue, LuaValue itemValue) {
         ensureServer();
         return player(playerValue).getInventory().add(MLuaItemWrapper.toItemStack(itemValue));
+    }
+
+    @MLuaDescription("Counts matching item stacks across a player's inventory.")
+    public int CountItem(LuaValue playerValue, String itemId) {
+        LuaTable inventory = playerInventory(player(playerValue));
+        return invokeInstanceMethod(inventory, "CountItem", LuaValue.valueOf(itemId)).checkint();
+    }
+
+    @MLuaDescription("Returns whether a player's inventory contains at least the requested item count.")
+    public boolean ContainsItem(LuaValue playerValue, String itemId, Optional<Integer> count) {
+        LuaTable inventory = playerInventory(player(playerValue));
+        return invokeInstanceMethod(inventory, "ContainsItem", LuaValue.valueOf(itemId),
+            LuaValue.valueOf(count.orElse(1))).checkboolean();
+    }
+
+    @MLuaDescription("Removes up to the requested item count from a player's inventory and returns the amount removed.")
+    public int RemoveItem(LuaValue playerValue, String itemId, int count) {
+        ensureServer();
+        LuaTable inventory = playerInventory(player(playerValue));
+        return invokeInstanceMethod(inventory, "RemoveItem", LuaValue.valueOf(itemId),
+            LuaValue.valueOf(count)).checkint();
     }
 
     @MLuaDescription("Removes all items from a player's inventory.")

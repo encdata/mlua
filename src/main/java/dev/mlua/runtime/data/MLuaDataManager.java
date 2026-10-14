@@ -3,10 +3,14 @@ package dev.mlua.runtime.data;
 import dev.mlua.minecraft.binding.MLuaNbtWrapper;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,6 +22,7 @@ import org.luaj.vm2.LuaTable;
 
 public final class MLuaDataManager {
    private static final String WORLD_DATA_ID = "mlua_world_data";
+   private static final String ENTITY_TAGS_KEY = "MLuaEntityTags";
    private static final String PLAYER_SYNC_KEY = "MLuaSyncedData";
    private static final String ENTITY_SYNC_KEY = "MLuaSyncedData";
    private static final CompoundTag CLIENT_WORLD_SYNC = new CompoundTag();
@@ -188,6 +193,59 @@ public final class MLuaDataManager {
       ServerLevel level = requireEntityServerLevel(entity, "Entity persistent data");
       setBucket(worldData(level).entityPersistentData(), entity.getUUID(), tag);
       worldData(level).setDirty();
+   }
+
+   public static java.util.List<String> entityTags(Entity entity) {
+      if (entity.level().isClientSide) return List.of();
+      CompoundTag data = entityPersistentTag(entity);
+      ListTag tags = data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      ArrayList<String> result = new ArrayList<>(tags.size());
+      for (int index = 0; index < tags.size(); index++) result.add(tags.getString(index));
+      return List.copyOf(result);
+   }
+
+   public static boolean hasEntityTag(Entity entity, String value) {
+      if (entity.level().isClientSide) return false;
+      return entityTags(entity).contains(validateEntityTag(value));
+   }
+
+   public static boolean addEntityTag(Entity entity, String value) {
+      String tag = validateEntityTag(value);
+      CompoundTag data = entityPersistentTag(entity);
+      ListTag tags = data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      for (int index = 0; index < tags.size(); index++) {
+         if (tag.equals(tags.getString(index))) return false;
+      }
+      tags.add(StringTag.valueOf(tag));
+      data.put(ENTITY_TAGS_KEY, tags);
+      setEntityPersistentTag(entity, data);
+      return true;
+   }
+
+   public static boolean removeEntityTag(Entity entity, String value) {
+      String tag = validateEntityTag(value);
+      CompoundTag data = entityPersistentTag(entity);
+      ListTag tags = data.getList(ENTITY_TAGS_KEY, Tag.TAG_STRING);
+      boolean removed = false;
+      for (int index = tags.size() - 1; index >= 0; index--) {
+         if (tag.equals(tags.getString(index))) {
+            tags.remove(index);
+            removed = true;
+         }
+      }
+      if (removed) {
+         if (tags.isEmpty()) data.remove(ENTITY_TAGS_KEY);
+         else data.put(ENTITY_TAGS_KEY, tags);
+         setEntityPersistentTag(entity, data);
+      }
+      return removed;
+   }
+
+   private static String validateEntityTag(String value) {
+      if (value == null || value.isBlank() || value.length() > 1024) {
+         throw new IllegalArgumentException("Entity tags must be non-empty strings of at most 1024 characters");
+      }
+      return value;
    }
 
    private static MLuaWorldSavedData worldData(ServerLevel level) {
