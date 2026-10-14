@@ -41,8 +41,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "IsDestroyed", "boolean", "Whether this render object has been removed.", "GetIsDestroyed", null);
         registerObjectProperty(registration, "Position", "Vector2", "The render object's screen position.", "GetPosition", "SetPosition");
         registerObjectProperty(registration, "EndPosition", "Vector2", "The second screen position used by line and beam objects.", "GetEndPosition", "SetEndPosition");
-        registerObjectProperty(registration, "WorldPosition", "Vector3", "The render object's world position.", "GetWorldPosition", "SetWorldPosition");
-        registerObjectProperty(registration, "EndWorldPosition", "Vector3", "The second world position used by line and beam objects.", "GetEndWorldPosition", "SetEndWorldPosition");
+        registerObjectProperty(registration, "WorldPosition", "Vector3|CFrame", "The render object's world position.", "GetWorldPosition", "SetWorldPosition");
+        registerObjectProperty(registration, "EndWorldPosition", "Vector3|CFrame", "The second world position used by line and beam objects.", "GetEndWorldPosition", "SetEndWorldPosition");
         registerObjectProperty(registration, "Depth", "number", "The object's depth offset.", "GetDepth", "SetDepth");
         registerObjectProperty(registration, "Size", "Vector2", "The render object's width and height.", "GetSize", "SetSize");
         registerObjectProperty(registration, "Rotation", "number", "The object's rotation in degrees.", "GetRotation", "SetRotation");

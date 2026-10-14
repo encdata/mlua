@@ -60,6 +60,8 @@ public final class RenderModule implements MLuaModule {
         docs.signature("RenderService", "RenderService:CreateWorldLine(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
         docs.signature("RenderService", "RenderService:CreateWorldBeam(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject");
         docs.signature("RenderService", "RenderService:CreateWorldBox(center: Vector3|CFrame, size: Vector3, properties: RenderObjectProperties?)", "RenderObject");
+        docs.signature("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", null);
+        docs.signature("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", null);
         docs.type("RenderObjectProperties", null, "Initial properties accepted when a render object is created.");
         docs.field("RenderObjectProperties", "Position", "Vector2", "Initial screen position.");
         docs.field("RenderObjectProperties", "Size", "Vector2", "Initial screen width and height.");
@@ -67,11 +69,11 @@ public final class RenderModule implements MLuaModule {
         docs.field("RenderObjectProperties", "Visible", "boolean", "Whether the object starts visible.");
         docs.field("RenderObjectProperties", "Transparency", "number", "Initial transparency from zero to one.");
         docs.field("RenderObjectProperties", "Color", "number", "Initial packed color value.");
-        docs.field("RenderObjectProperties", "WorldPosition", "Vector3", "Initial world position.");
-        docs.field("RenderObjectProperties", "EndWorldPosition", "Vector3", "Initial endpoint for a world line or beam.");
+        docs.field("RenderObjectProperties", "WorldPosition", "Vector3|CFrame", "Initial world position.");
+        docs.field("RenderObjectProperties", "EndWorldPosition", "Vector3|CFrame", "Initial endpoint for a world line or beam.");
         docs.field("RenderObjectProperties", "ScaleWithDistance", "boolean", "Whether world-space size follows camera distance.");
         docs.guideStep("RenderService", "Create and update a render instance",
-            "Render constructors return a RenderObject instance. Set its properties while it is alive, then destroy it to release the client render resource.",
-            "local Render = Minecraft:GetService(\"RenderService\")\nlocal label = Render:CreateText(\"The door is locked\", { Position = Vector2.new(20, 20) })\n\nlabel.Position = Vector2.new(24, 32)\nlabel.Visible = true\nprint(label:IsA(\"RenderObject\"), label.Type)\nlabel:Destroy()");
+            "Render constructors return a RenderObject instance. Set its properties while it is alive, then destroy it to release the client render resource. World-space positions accept native Vector3 or CFrame values; screen positions use Vector2.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal label = Render:CreateText(\"The door is locked\", { Position = Vector2.new(20, 20) })\nlocal marker = Render:CreateWorldText(\"Exit\", CFrame.new(12, 65, -4))\n\nlabel.Position = Vector2.new(24, 32)\nlabel.Visible = true\nmarker.WorldPosition = CFrame.new(14, 65, -4)\nprint(label:IsA(\"RenderObject\"), marker.Type)\nlabel:Destroy()\nmarker:Destroy()");
     }
 }

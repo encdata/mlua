@@ -52,16 +52,20 @@ public final class SoundModule implements MLuaModule {
         docs.signature("SoundService", "SoundService:Play(soundId: string, properties: SoundPlayOptions?)", "SoundHandle?");
         docs.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "boolean");
         docs.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "boolean");
+        docs.signature("SoundHandle", "SoundHandle:SetPosition(position: Vector3|CFrame)", null);
+        docs.signature("SoundHandle", "SoundHandle:SetFollowOffset(offset: Vector3)", null);
+        docs.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null);
+        docs.signature("SoundHandle", "SoundHandle:ClearFollowEntity()", null);
         docs.type("SoundPlayOptions", null, "Optional playback settings accepted by SoundService:Play.");
         docs.field("SoundPlayOptions", "Volume", "number", "Playback volume. Defaults to 1.");
         docs.field("SoundPlayOptions", "Pitch", "number", "Playback pitch. Defaults to 1.");
         docs.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat.");
-        docs.field("SoundPlayOptions", "Position", "Vector3", "Optional world position for the sound.");
+        docs.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position for the sound.");
         docs.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow.");
         docs.field("SoundPlayOptions", "FollowOffset", "Vector3", "Offset from the followed entity.");
         docs.field("SoundPlayOptions", "Category", "string", "Minecraft sound category. Defaults to players.");
         docs.guideStep("SoundService", "Control a sound after starting it",
-            "Playback functions return a SoundHandle instance. Its properties read and update the live sound, and Destroy stops playback.",
-            "local SoundService = Minecraft:GetService(\"SoundService\")\nlocal sound = SoundService:Play(\"minecraft:ambient.cave\", { Looped = true, Volume = 0.6 })\nif sound then\n    sound.Pitch = 0.9\n    print(sound:IsA(\"SoundHandle\"), sound.IsPlaying)\n    sound:Destroy()\nend");
+            "Playback functions return a SoundHandle instance. Its positions accept Vector3 or CFrame; follow offsets use native Vector3 values. Coordinate tables are rejected. Setting Position clears an entity-follow target. Its properties read and update the live sound, and Destroy stops playback.",
+            "local SoundService = Minecraft:GetService(\"SoundService\")\nlocal sound = SoundService:Play(\"minecraft:ambient.cave\", {\n    Looped = true,\n    Volume = 0.6,\n    Position = CFrame.new(12, 65, -4),\n})\nif sound then\n    sound.Pitch = 0.9\n    sound.Position = CFrame.new(14, 65, -4)\n    print(sound:IsA(\"SoundHandle\"), sound.IsPlaying)\n    sound:Destroy()\nend");
     }
 }

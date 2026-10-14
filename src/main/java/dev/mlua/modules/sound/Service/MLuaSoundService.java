@@ -1,5 +1,6 @@
 package dev.mlua.modules.sound.Service;
 
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
@@ -35,7 +36,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleProperty(registration, "Looped", "boolean", "Whether playback repeats after reaching the end.", "GetLooped", "SetLooped");
         registerHandleProperty(registration, "Volume", "number", "The sound's playback volume.", "GetVolume", "SetVolume");
         registerHandleProperty(registration, "Pitch", "number", "The sound's playback pitch.", "GetPitch", "SetPitch");
-        registerHandleProperty(registration, "Position", "Vector3", "The sound's current position.", "GetPosition", "SetPosition");
+        registerHandleProperty(registration, "Position", "Vector3|CFrame", "The sound's current position.", "GetPosition", "SetPosition");
         registerHandleProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this sound. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerHandleProperty(registration, "FollowOffset", "Vector3", "The offset from the followed entity.", "GetFollowOffset", "SetFollowOffset");
         registerHandleMethod(registration, "Stop", "Stops playback of this sound.");
@@ -49,7 +50,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleMethod(registration, "GetPitch", "Returns the sound's playback pitch.");
         registerHandleMethod(registration, "SetPitch", "Changes the sound's playback pitch.");
         registerHandleMethod(registration, "GetPosition", "Returns the sound's current position.");
-        registerHandleMethod(registration, "SetPosition", "Moves the sound to the given coordinates.");
+        registerHandleMethod(registration, "SetPosition", "Moves the sound to a Vector3 or CFrame position and clears any entity-follow target.");
         registerHandleMethod(registration, "GetFollowEntity", "Returns the entity id followed by this sound, or nil.");
         registerHandleMethod(registration, "SetFollowEntity", "Attaches this sound to an entity.");
         registerHandleMethod(registration, "AttachToEntity", "Attaches this sound to an entity.");
@@ -67,11 +68,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         };
         LuaValue set = setter == null ? LuaValue.NIL : new TwoArgFunction() {
             @Override public LuaValue call(LuaValue self, LuaValue value) {
-                if (name.equals("Position")) {
-                    LuaTable position = value.checktable();
-                    invokeHandleOperation(self, setter, LuaValue.valueOf(component(position, "X")),
-                        LuaValue.valueOf(component(position, "Y")), LuaValue.valueOf(component(position, "Z")));
-                } else if (name.equals("FollowEntity") && value.isnil()) {
+                if (name.equals("FollowEntity") && value.isnil()) {
                     invokeHandleOperation(self, "ClearFollowEntity");
                 } else {
                     invokeHandleOperation(self, setter, value);
@@ -158,17 +155,17 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         double followOffsetZ = 0.0;
         LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
         if (!position.isnil()) {
-            LuaTable pos = position.checktable();
-            x = component(pos, "X");
-            y = component(pos, "Y");
-            z = component(pos, "Z");
+            double[] coordinates = MLuaCFrame.vector(position);
+            x = coordinates[0];
+            y = coordinates[1];
+            z = coordinates[2];
         }
         LuaValue followOffset = firstNonNil(props.get("FollowOffset"), props.get("followOffset"));
         if (!followOffset.isnil()) {
-            LuaTable offset = followOffset.checktable();
-            followOffsetX = component(offset, "X");
-            followOffsetY = component(offset, "Y");
-            followOffsetZ = component(offset, "Z");
+            double[] offset = vector3(followOffset, "FollowOffset");
+            followOffsetX = offset[0];
+            followOffsetY = offset[1];
+            followOffsetZ = offset[2];
         }
         MLuaSoundOwnershipRegistry.Owner owner = owner();
         int id = MLuaClientSoundManager.play(soundId, volume, pitch, loop, x, y, z, followEntity,
@@ -211,7 +208,8 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             return vector3(sound.xPos(), sound.yPos(), sound.zPos());
         }));
         operations.set("SetPosition", fn(args -> {
-            requireSound(id).setPosition(args.checkdouble(2), args.checkdouble(3), args.checkdouble(4));
+            double[] position = MLuaCFrame.vector(args.arg(2));
+            requireSound(id).setPosition(position[0], position[1], position[2]);
             return LuaValue.NONE;
         }));
         operations.set("GetFollowEntity", fn(args -> {
@@ -233,8 +231,8 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             return vector3(sound.followOffsetX(), sound.followOffsetY(), sound.followOffsetZ());
         }));
         operations.set("SetFollowOffset", fn(args -> {
-            LuaTable tableValue = args.checktable(2);
-            requireSound(id).setFollowOffset(component(tableValue, "X"), component(tableValue, "Y"), component(tableValue, "Z"));
+            double[] offset = vector3(args.arg(2), "FollowOffset");
+            requireSound(id).setFollowOffset(offset[0], offset[1], offset[2]);
             return LuaValue.NONE;
         }));
         LuaTable instance = new LuaTable();
@@ -266,13 +264,10 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         return !a.isnil() ? a : b;
     }
 
-    private static double component(LuaTable table, String key) {
-        if (!MLuaVector.isVector3(table)) throw new LuaError("[MLua] Sound positions and offsets require Vector3 values");
-        LuaValue value = table.get(key);
-        if (value.isnil()) {
-            value = table.get(key.toLowerCase());
-        }
-        return value.optdouble(0.0);
+    private static double[] vector3(LuaValue value, String name) {
+        if (!MLuaVector.isVector3(value)) throw new LuaError("[MLua] Sound " + name + " requires a native Vector3 value.");
+        LuaTable vector = value.checktable();
+        return new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
     }
 
     private MLuaEntityScope resolveOptionalEntityScope(LuaValue value) {
