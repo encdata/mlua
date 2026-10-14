@@ -69,6 +69,16 @@ public final class MLuaNativeScreen {
                 return matches;
             }
         }, "Returns live controls whose native widget class, superclass, or implemented interface matches a simple or fully qualified Java name.");
+        registration.registerClassFunction("NativeScreen", "Close", new VarArgFunction() {
+            @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
+                Backing screen = backing(args.arg1().checktable());
+                if (screen.isOpen()) {
+                    net.minecraft.client.Minecraft.getInstance().setScreen(null);
+                    return LuaValue.TRUE;
+                }
+                return LuaValue.FALSE;
+            }
+        }, "Closes this screen when it is the currently open Minecraft screen.");
     }
 
     public static LuaTable instance(MLuaRuntime runtime, Object screen) {

@@ -40,6 +40,10 @@ import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.IdentityHashMap;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.GuiGraphics;
 
 public final class MLuaGuiService implements MLuaService {
     private static final Map<MLuaTaskSchedulerView, GuiState> STATES = new WeakHashMap<>();
@@ -222,6 +226,18 @@ public final class MLuaGuiService implements MLuaService {
         LuaTable copy = new LuaTable();
         for (LuaValue key : source.keys()) copy.set(key, source.get(key));
         return copy;
+    }
+
+    private static LuaTable requireScreenUDim2(LuaValue value, String property) {
+        if (!MLuaLuauTypes.isUDim2(value)) {
+            throw new LuaError("[MLua] Screen " + property + " requires a UDim2 value.");
+        }
+        return value.checktable();
+    }
+
+    private static int screenCoordinate(LuaTable dimensions, String axis, int extent) {
+        LuaValue dimension = dimensions.get(axis);
+        return (int) Math.round(dimension.get("Scale").todouble() * extent + dimension.get("Offset").toint());
     }
 
     private static void replaceProperties(LuaTable target, LuaTable source) {
@@ -907,6 +923,65 @@ public final class MLuaGuiService implements MLuaService {
                 if (args.arg(3).istable()) applyScreenProperties(sg, args.arg(3).checktable());
                 MLuaGuiService.this.addScreenGui(sg);
                 return sg.toLua();
+            }
+        });
+
+        table.set("OpenNativeScreen", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                String title = args.arg(2).checkjstring();
+                LuaValue initialize = args.arg(3);
+                if (!initialize.isfunction()) throw new LuaError("[MLua] Gui:OpenNativeScreen expects an initialization function.");
+                Minecraft minecraft = Minecraft.getInstance();
+                if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
+                Screen screen = new Screen(Component.literal(title)) {
+                    @Override protected void init() {
+                        super.init();
+                        Screen activeScreen = this;
+                        LuaTable builder = new LuaTable();
+                        builder.set("AddButton", new VarArgFunction() {
+                            @Override public Varargs invoke(Varargs buttonArgs) {
+                                String label = buttonArgs.arg(2).checkjstring();
+                                LuaTable position = requireScreenUDim2(buttonArgs.arg(3), "Position");
+                                LuaTable size = requireScreenUDim2(buttonArgs.arg(4), "Size");
+                                LuaValue pressed = buttonArgs.arg(5);
+                                if (!pressed.isfunction()) throw new LuaError("[MLua] Screen:AddButton expects a callback function.");
+                                int x = screenCoordinate(position, "X", activeScreen.width);
+                                int y = screenCoordinate(position, "Y", activeScreen.height);
+                                int w = screenCoordinate(size, "X", activeScreen.width);
+                                int h = screenCoordinate(size, "Y", activeScreen.height);
+                                if (w < 1 || h < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
+                                activeScreen.addRenderableWidget(Button.builder(Component.literal(label), button -> {
+                                    try { pressed.invoke(LuaValue.NONE); }
+                                    catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen button callback failed", failure); }
+                                }).bounds(x, y, w, h).build());
+                                return LuaValue.NONE;
+                            }
+                        });
+                        try { initialize.invoke(builder); }
+                        catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure); }
+                    }
+
+                    @Override
+                    //--version 26.1
+                    public void extractRenderState(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+                        this.extractBackground(graphics, mouseX, mouseY, delta);
+                        super.extractRenderState(graphics, mouseX, mouseY, delta);
+                    }
+                    //--endversion
+                    //--version 1.20.1,1.21.1
+                    public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+                        //--version 1.20.1
+                        this.renderBackground(graphics);
+                        //--endversion
+                        //--version 1.21.1
+                        this.renderBackground(graphics, mouseX, mouseY, delta);
+                        //--endversion
+                        super.render(graphics, mouseX, mouseY, delta);
+                    }
+                    //--endversion
+                };
+                minecraft.setScreen(screen);
+                return MLuaNativeScreen.instance(MLuaRuntime.get(), screen);
             }
         });
 

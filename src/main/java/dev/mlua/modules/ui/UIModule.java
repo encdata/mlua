@@ -43,6 +43,7 @@ public class UIModule implements MLuaModule {
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.clazz("NativeControl", "MLuaNativeControl", "A live handle to a native Minecraft screen widget. Properties update the original widget.", "classes.ui/native-control.html", "Instance");
         docs.clazz("NativeScreen", "MLuaNativeScreen", "A live handle to a native Minecraft screen and its native widget controls.", "classes.ui/native-screen.html", "Instance");
+        docs.method("NativeScreen", "NativeScreen:Close()", "Closes this screen if it is the active Minecraft screen.", "No arguments", "boolean", "client:Client", null);
         docs.clazz("ChatLine", "MLuaChatLine", "A live chat message while Minecraft is adding it to the chat HUD.", "classes.ui/chat-line.html", "Instance");
         docs.contribution(MLuaDocBuilder.Contribution.builder(id(), "ui:extend-gui-classes")
             .section("UI")
