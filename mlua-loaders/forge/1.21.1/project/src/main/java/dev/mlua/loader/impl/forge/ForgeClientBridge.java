@@ -64,11 +64,13 @@ public class ForgeClientBridge implements ClientBridge {
 
     @Override
     public void registerOverlay(String id, Consumer<Object> renderer) {
+        ClientBridge.validateOverlayRegistration(id, renderer);
         overlays.put(id, renderer);
     }
 
     @Override
     public void registerWorldRenderer(Consumer<Object> renderer) {
+        ClientBridge.validateRenderer(renderer);
         MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.client.event.RenderLevelStageEvent event) -> {
             if (event.getStage() == net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
                 renderer.accept(event);

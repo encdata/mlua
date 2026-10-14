@@ -29,6 +29,7 @@ public final class FabricClientBridge implements ClientBridge {
     private boolean inputHandlersRegistered;
 
     @Override public void registerOverlay(String id, Consumer<Object> renderer) {
+        ClientBridge.validateOverlayRegistration(id, renderer);
         overlays.put(id, renderer);
         if (!overlayRegistered) {
             overlayRegistered = true;
@@ -42,6 +43,7 @@ public final class FabricClientBridge implements ClientBridge {
     }
 
     @Override public void registerWorldRenderer(Consumer<Object> renderer) {
+        ClientBridge.validateRenderer(renderer);
         LevelRenderEvents.AFTER_SOLID_FEATURES.register(context -> renderer.accept(context));
     }
 
