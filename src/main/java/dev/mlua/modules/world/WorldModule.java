@@ -207,6 +207,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetBlock", "Returns the live block instance at a position."),
             Map.entry("GetBlockEntity", "Returns the live block entity at a position, or nil."),
             Map.entry("GetBlockState", "Returns a BlockState instance with the block type, position, and current state properties."),
+            Map.entry("SetBlockState", "Places an immutable BlockState at a position, loading its chunk by default. This method is server-side only."),
             Map.entry("GetFluid", "Returns the fluid identifier at a position, or nil when empty."),
             Map.entry("GetBiome", "Returns the biome identifier at a position."),
             Map.entry("GetLightLevel", "Returns the maximum local light level at a position."),
@@ -315,11 +316,14 @@ public class WorldModule implements MLuaModule {
         docs.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]");
         docs.signature("World", "World:SetBlock(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean");
         docs.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState");
+        docs.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean");
         docs.signature("BlockState", "BlockState:GetId()", "string");
         docs.signature("BlockState", "BlockState:GetBlock()", "Block");
         docs.signature("BlockState", "BlockState:GetPosition()", "Vector3");
         docs.signature("BlockState", "BlockState:GetProperties()", "BlockStateProperties");
-        docs.signature("BlockState", "BlockState:GetProperty(name: string)", "string|nil");
+        docs.signature("BlockState", "BlockState:GetProperty(name: string)", "string|number|boolean|nil");
+        docs.signature("BlockState", "BlockState:WithProperty(name: string, value: string|number|boolean)", "BlockState");
+        docs.signature("BlockState", "BlockState:WithProperties(properties: BlockStateProperties)", "BlockState");
         docs.signature("BlockState", "BlockState:HasProperty(name: string)", "boolean");
         docs.signature("BlockState", "BlockState:IsAir()", "boolean");
         docs.signature("BlockState", "BlockState:IsSolid()", "boolean");
@@ -499,8 +503,8 @@ public class WorldModule implements MLuaModule {
             "GetBlockEntity returns the live registered BlockEntity subclass at a position. Scripted block entities can expose their own methods and a shared Container instance.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal blockEntity = world:GetBlockEntity(Vector3.new(0, 64, 0))\nif blockEntity and blockEntity:HasContainer() then\n    local container = blockEntity:GetContainer()\n    print(\"Slots:\", container:GetSize())\n    for _, slot in ipairs(container:GetAll()) do\n        if not slot:IsEmpty() then\n            print(slot:GetItem():GetId(), slot:GetCount())\n        end\n    end\nend");
         docs.guideStep("World", "Inspect a block state",
-            "GetBlockState returns an immutable BlockState instance, while GetBlock returns the live position-aware Block instance. Read typed state properties from BlockState.Properties and check for a property before querying optional values.",
-            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed)\n\nif state:HasProperty(\"facing\") then\n    print(\"Facing:\", state:GetProperty(\"facing\"))\nend\n\nlocal block = state:GetBlock()\nprint(block:GetClassName(), block:GetStateProperties().facing)");
+            "GetBlockState returns an immutable BlockState instance, while GetBlock returns the live position-aware Block instance. Read typed state properties from BlockState.Properties and check for a property before querying optional values. WithProperty creates a new state value; SetBlockState applies that state to the world on the server.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal position = Vector3.new(4, 65, 4)\nlocal state = world:GetBlockState(position)\nprint(state.Id, state.Solid, state.DestroySpeed)\n\nif state:HasProperty(\"facing\") then\n    local rotated = state:WithProperty(\"facing\", \"east\")\n    world:SetBlockState(position, rotated)\nend\n\nlocal block = world:GetBlock(position)\nprint(block:GetClassName(), block:GetStateProperties().facing)");
     }
 
     @Override

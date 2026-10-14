@@ -46,6 +46,14 @@ public final class MLuaBlockStateWrapper {
             LuaValue value = MLuaBlockStateProperties.read(state(self)).get(args.checkjstring(2).toLowerCase(Locale.ROOT));
             return value.isnil() ? LuaValue.NIL : value;
         }), "Returns one state property value, or nil when the state has no such property.");
+        registration.registerClassFunction("BlockState", "WithProperty", self((self, args) -> {
+            LuaTable property = new LuaTable();
+            property.set(args.checkjstring(2), args.arg(3));
+            return wrap(MLuaBlockStateProperties.apply(state(self), property), level(self), position(self), registration);
+        }), "Returns a new BlockState with one validated property value changed.");
+        registration.registerClassFunction("BlockState", "WithProperties", self((self, args) ->
+            wrap(MLuaBlockStateProperties.apply(state(self), args.arg(2)), level(self), position(self), registration)),
+            "Returns a new BlockState with the supplied validated property values changed.");
         registration.registerClassFunction("BlockState", "HasProperty", self((self, args) ->
             LuaValue.valueOf(state(self).getBlock().getStateDefinition().getProperty(args.checkjstring(2).toLowerCase(Locale.ROOT)) != null)),
             "Returns whether this block type defines the named state property.");
@@ -96,6 +104,14 @@ public final class MLuaBlockStateWrapper {
 
     private static BlockState state(LuaValue self) {
         return (BlockState)stateValue(self, "__block_state").touserdata(BlockState.class);
+    }
+
+    public static BlockState blockStateFromLua(LuaValue value, MLuaRegistration registration) {
+        if (!registration.isInstanceOf(value, "BlockState")) {
+            throw new LuaError("Expected a native BlockState instance created by World:GetBlockState or BlockState:WithProperty.");
+        }
+        LuaValue state = stateValue(value, "__block_state");
+        return (BlockState)state.touserdata(BlockState.class);
     }
 
     private static Level level(LuaValue self) {

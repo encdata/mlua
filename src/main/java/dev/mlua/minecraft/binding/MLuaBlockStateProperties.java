@@ -44,7 +44,14 @@ public final class MLuaBlockStateProperties {
     }
 
     private static <T extends Comparable<T>> void addValue(LuaTable values, BlockState state, Property<T> property) {
-        values.set(property.getName(), property.getName(state.getValue(property)));
+        T value = state.getValue(property);
+        if (value instanceof Boolean booleanValue) {
+            values.set(property.getName(), LuaValue.valueOf(booleanValue));
+        } else if (value instanceof Number numberValue) {
+            values.set(property.getName(), LuaValue.valueOf(numberValue.doubleValue()));
+        } else {
+            values.set(property.getName(), property.getName(value));
+        }
     }
 
     private static <T extends Comparable<T>> BlockState withProperty(BlockState state, Property<T> property, String value) {

@@ -437,6 +437,15 @@ public final class MLuaWorldService extends MLuaServiceBase {
          level.setBlock(blockPos, MLuaBlockStateProperties.apply(block.defaultBlockState(), properties), 3);
          return LuaValue.TRUE;
       }));
+      table.set("SetBlockState", serverLevelFn(supplier, (level, args) -> {
+         double[] pos = positionArgs(args, 2);
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         int stateIndex = 2 + coordinateWidth(args, 2);
+         net.minecraft.world.level.block.state.BlockState state =
+            MLuaBlockStateWrapper.blockStateFromLua(args.arg(stateIndex), context.mlua().registration());
+         if (!ensureChunkLoaded(level, blockPos, args.optboolean(stateIndex + 1, true))) return LuaValue.FALSE;
+         return LuaValue.valueOf(level.setBlock(blockPos, state, 3));
+      }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          boolean dropItems = args.optboolean(2 + coordinateWidth(args, 2), true);
