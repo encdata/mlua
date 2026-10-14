@@ -169,25 +169,25 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(player.getFoodData().getFoodLevel());
       }), "Returns this player's food level.");
       MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg((args) -> {
-         player.getFoodData().setFoodLevel(args.checkint(2));
+         setFoodLevel(player, args.arg(2));
          return LuaValue.NONE;
-      }), "Sets this player's food level.");
+      }), "Sets this player's food level to a whole number from 0 to 20.");
       MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", luaFn(() -> {
          return LuaValue.valueOf(player.getFoodData().getFoodLevel());
       }), "Returns this player's food level.");
       MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg((args) -> {
-         player.getFoodData().setFoodLevel(args.checkint(2));
+         setFoodLevel(player, args.arg(2));
          return LuaValue.NONE;
-      }), "Sets this player's food level.");
+      }), "Sets this player's food level to a whole number from 0 to 20.");
       MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> {
          return LuaValue.valueOf((double)player.getFoodData().getSaturationLevel());
       }), "Returns this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg((args) -> {
-         player.getFoodData().setSaturation((float)args.checkdouble(2));
+         setSaturation(player, args.arg(2));
          return LuaValue.NONE;
-      }), "Sets this player's food saturation.");
+      }), "Sets this player's saturation to a finite, non-negative value.");
       MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
-         player.getFoodData().addExhaustion((float)args.checkdouble(2));
+         addFoodExhaustion(player, args.arg(2));
          return LuaValue.NONE;
       }), "Adds food exhaustion to this player; server-side only for authoritative changes.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
@@ -594,22 +594,22 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(player.getFoodData().getFoodLevel());
       }), "Returns this player's food level.");
       MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg((args) -> {
-         player.getFoodData().setFoodLevel(args.checkint(2));
+         setFoodLevel(player, args.arg(2));
          return LuaValue.NONE;
-      }), "Sets this player's food level.");
+      }), "Sets this player's food level to a whole number from 0 to 20.");
       MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg((args) -> {
-         player.getFoodData().setFoodLevel(args.checkint(2));
+         setFoodLevel(player, args.arg(2));
          return LuaValue.NONE;
-      }), "Sets this player's food level.");
+      }), "Sets this player's food level to a whole number from 0 to 20.");
       MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> {
          return LuaValue.valueOf((double)player.getFoodData().getSaturationLevel());
       }), "Returns this player's food saturation.");
       MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg((args) -> {
-         player.getFoodData().setSaturation((float)args.checkdouble(2));
+         setSaturation(player, args.arg(2));
          return LuaValue.NONE;
-      }), "Sets this player's food saturation.");
+      }), "Sets this player's saturation to a finite, non-negative value.");
       MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
-         player.getFoodData().addExhaustion((float)args.checkdouble(2));
+         addFoodExhaustion(player, args.arg(2));
          return LuaValue.NONE;
       }), "Adds food exhaustion to this player.");
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
@@ -931,6 +931,32 @@ public final class MLuaPlayerWrapper {
 
    private static String containerTitle(MCAbstractContainerMenu menu) {
       return menu.getType() != null ? menu.getType().toString() : menu.getClass().getSimpleName();
+   }
+
+   private static void setFoodLevel(MCPlayer player, LuaValue value) {
+      if (!value.isnumber()) throw new LuaError("[MLua] Player food level must be a whole number from 0 to 20.");
+      double level = value.todouble();
+      if (!Double.isFinite(level) || level != Math.rint(level) || level < 0 || level > 20) {
+         throw new LuaError("[MLua] Player food level must be a whole number from 0 to 20.");
+      }
+      player.getFoodData().setFoodLevel((int)level);
+   }
+
+   private static void setSaturation(MCPlayer player, LuaValue value) {
+      player.getFoodData().setSaturation(finiteNonNegativeFoodValue(value, "saturation"));
+   }
+
+   private static void addFoodExhaustion(MCPlayer player, LuaValue value) {
+      player.getFoodData().addExhaustion(finiteNonNegativeFoodValue(value, "exhaustion"));
+   }
+
+   private static float finiteNonNegativeFoodValue(LuaValue value, String name) {
+      if (!value.isnumber()) throw new LuaError("[MLua] Player food " + name + " must be finite and non-negative.");
+      double number = value.todouble();
+      if (!Double.isFinite(number) || number < 0 || number > Float.MAX_VALUE) {
+         throw new LuaError("[MLua] Player food " + name + " must be finite and non-negative.");
+      }
+      return (float)number;
    }
 
    private static LuaValue luaFn(final Supplier<LuaValue> fn) {

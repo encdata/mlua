@@ -275,15 +275,15 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetFood",
             "Returns this player's food level.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetFood",
-            "Sets this player's food level.");
+            "Sets this player's food level to a whole number from 0 to 20.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetFoodLevel",
             "Returns this player's food level.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetFoodLevel",
-            "Sets this player's food level.");
+            "Sets this player's food level to a whole number from 0 to 20.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetSaturation",
             "Returns this player's food saturation.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetSaturation",
-            "Sets this player's food saturation.");
+            "Sets this player's food saturation to a finite, non-negative value.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "CauseFoodExhaustion",
             "Adds food exhaustion to this player; server-side only for authoritative changes.");
         for (String method : List.of("GetDisplayName", "SendMessage", "SendTitle", "SendActionBar",
