@@ -38,15 +38,27 @@ public final class MLuaDocBuilder {
         }
     }
 
-    public enum RegistrationKind { SERVICE, CLASS, ENUM, DATA_TYPE, LIBRARY, METHOD, SIGNATURE,
+    private enum RegistrationKind { SERVICE, CLASS, ENUM, DATA_TYPE, LIBRARY, METHOD, SIGNATURE,
         SERVICE_FUNCTION, PROPERTY, EVENT, TYPE, FIELD, GUIDE_STEP, CONTRIBUTION, SECTION }
 
-    public record Registration(RegistrationKind kind, Object[] values) {
-        public Registration {
-            if (kind == null) throw new NullPointerException("kind");
-            values = values.clone();
+    public static final class Registration {
+        private final RegistrationKind kind;
+        private final Object[] values;
+
+        private Registration(RegistrationKind kind, Object[] values) {
+            this.kind = java.util.Objects.requireNonNull(kind, "kind");
+            this.values = values.clone();
+            for (int index = 0; index < this.values.length; index++) {
+                if (this.values[index] instanceof String[][] rows) {
+                    String[][] copied = new String[rows.length][];
+                    for (int row = 0; row < rows.length; row++) copied[row] = rows[row] == null ? null : rows[row].clone();
+                    this.values[index] = copied;
+                }
+            }
         }
-        public Object[] values() { return values.clone(); }
+
+        private RegistrationKind kind() { return kind; }
+        private Object[] values() { return values.clone(); }
         public static Registration service(String name, String className, String description, String path) { return of(RegistrationKind.SERVICE, name, className, description, path); }
         public static Registration clazz(String name, String className, String description, String path, String parent) { return of(RegistrationKind.CLASS, name, className, description, path, parent); }
         public static Registration enumDoc(String name, String className, String description, String[][] constants) { return of(RegistrationKind.ENUM, name, className, description, constants); }

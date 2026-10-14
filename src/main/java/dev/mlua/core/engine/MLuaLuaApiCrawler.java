@@ -21,12 +21,18 @@ public final class MLuaLuaApiCrawler {
 
     public static String crawlHtml(LuaValue globals, Map<String, LuaTable> services) {
         CrawlData data = collect(globals, services);
-        return renderInventory(data.entries(), data.categories());
+        return renderInventory(data.entries(), data.categories(), Map.of());
     }
 
     public static CrawlResult crawl(LuaValue globals, Map<String, LuaTable> services) {
+        return crawl(globals, services, Map.of());
+    }
+
+    public static CrawlResult crawl(LuaValue globals, Map<String, LuaTable> services,
+                                    Map<String, String> registeredReturns) {
         CrawlData data = collect(globals, services);
-        return new CrawlResult(renderInventory(data.entries(), data.categories()), rootNames(globals), enumNames(globals));
+        Map<String, String> returnTypes = registeredReturns == null ? Map.of() : registeredReturns;
+        return new CrawlResult(renderInventory(data.entries(), data.categories(), returnTypes), rootNames(globals), enumNames(globals));
     }
 
     private static List<String> enumNames(LuaValue globals) {
@@ -103,7 +109,8 @@ public final class MLuaLuaApiCrawler {
         }
     }
 
-    private static String renderInventory(List<Entry> entries, Map<String, String> categories) {
+    private static String renderInventory(List<Entry> entries, Map<String, String> categories,
+                                          Map<String, String> registeredReturns) {
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"lua-api-inventory\"><p>This reference follows the Lua tables registered for this runtime. Class, service, and property descriptions come from their registrations. The scan reads tables and metadata without calling API functions or property accessors.</p>")
             .append("<p>Showing ").append(entries.size()).append(" entries. Search by API path, kind, or value.</p>")
@@ -111,11 +118,11 @@ public final class MLuaLuaApiCrawler {
         Map<String, List<Entry>> groups = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (Entry entry : entries) groups.computeIfAbsent(categoryForPath(entry.path, categories), ignored -> new ArrayList<>()).add(entry);
         groups.forEach((category, members) -> html.append("<section class=\"lua-api-category\"><h2>")
-            .append(escape(category)).append("</h2>").append(memberRows(members)).append("</section>"));
+            .append(escape(category)).append("</h2>").append(memberRows(members, registeredReturns)).append("</section>"));
         return html.append("</div>").toString();
     }
 
-    private static String memberRows(List<Entry> entries) {
+    private static String memberRows(List<Entry> entries, Map<String, String> registeredReturns) {
         Map<String, String> descriptions = new java.util.HashMap<>();
         for (Entry entry : entries) {
             if (entry.value != null && (entry.kind.equals("description")
@@ -135,8 +142,17 @@ public final class MLuaLuaApiCrawler {
                 .append(escape(entry.kind)).append("</span></div></div>");
             if (description != null && !description.isBlank()) {
                 html.append("<p class=\"member-desc\">").append(escape(description)).append("</p>");
-            } else if (entry.kind.equals("function") || entry.kind.startsWith("property ")) {
-                html.append("<p class=\"member-warning\">No registered description or type signature.</p>");
+            } else if (entry.kind.startsWith("property ")) {
+                html.append("<p class=\"member-warning\">No registered description.</p>");
+            }
+            String returnType = registeredReturns.get(entry.path);
+            if (entry.kind.equals("function")) {
+                if (returnType == null || returnType.isBlank()) {
+                    html.append("<p class=\"member-warning\">No registered return type; the crawler did not call this function.</p>");
+                } else {
+                    html.append("<p class=\"member-desc\">Returns: ")
+                        .append(dev.mlua.core.MLuaDocumentation.linkType(returnType)).append("</p>");
+                }
             }
             if (entry.value != null && !entry.kind.startsWith("property ")) {
                 html.append("<p class=\"member-desc\">Value: <code>").append(escape(entry.value)).append("</code></p>");

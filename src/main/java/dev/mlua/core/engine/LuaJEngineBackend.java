@@ -173,7 +173,8 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    private void writeRuntimeApiDocs(MLuaContext context) {
       try {
          MLuaLuaApiCrawler.CrawlResult crawl = MLuaLuaApiCrawler.crawl(
-            this.globals(context), context.materializedServices());
+            this.globals(context), context.materializedServices(),
+            MLuaDocumentation.registeredReturnTypes());
          MLuaDocumentation.writeRuntimeLuaApi(
             LoaderApi.platform().gameDir(),
             context.side().name(),

@@ -98,7 +98,8 @@ public final class MLuaLuaApiDocSnapshot {
                 failures.put(name, error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
             }
         }
-        MLuaLuaApiCrawler.CrawlResult crawl = MLuaLuaApiCrawler.crawl(globals, materialized);
+        MLuaLuaApiCrawler.CrawlResult crawl = MLuaLuaApiCrawler.crawl(globals, materialized,
+            dev.mlua.core.MLuaDocumentation.registeredReturnTypes());
         StringBuilder result = new StringBuilder(crawl.inventoryHtml());
         if (!failures.isEmpty()) {
             result.append("<h3>Services unavailable in the offline snapshot</h3><ul>");

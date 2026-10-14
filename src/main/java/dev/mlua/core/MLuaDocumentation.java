@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -143,7 +144,7 @@ public final class MLuaDocumentation {
       return result.toString();
    }
 
-   static String linkType(String type) {
+   public static String linkType(String type) {
       if (type == null || type.isBlank()) return "";
       StringBuilder out = new StringBuilder();
       String[] parts = type.split("(\\s*\\|\\s*|\\s*,\\s*)", -1);
@@ -162,6 +163,36 @@ public final class MLuaDocumentation {
    static String typeHref(String type) { return routeForType(type); }
 
    static List<String> typeNames() { return List.copyOf(TYPE_NAMES.values()); }
+
+   public static Map<String, String> registeredReturnTypes() {
+      MLuaDocBuilder builder = currentBuilder;
+      if (builder == null) return Map.of();
+      Map<String, String> returns = new LinkedHashMap<>();
+      builder.methods().forEach(method -> putReturn(returns, method.signature(), method.returns(), method.receiver()));
+      builder.signatures().forEach(signature -> putReturn(returns, signature.signature(), signature.returns(), signature.receiver()));
+      for (MLuaDocBuilder.ServiceFunctionDoc function : builder.serviceFunctions()) {
+         builder.signatures().stream()
+            .filter(signature -> (signature.receiver().equals(function.service())
+               || signature.receiver().equals(function.className()))
+               && signature.signature().contains(function.name() + "("))
+            .findFirst().ifPresent(signature -> putReturn(returns,
+               function.service() + "." + function.name() + "()", signature.returns(), function.service()));
+      }
+      return Map.copyOf(returns);
+   }
+
+   private static void putReturn(Map<String, String> returns, String signature, String returnType, String receiver) {
+      if (signature == null || returnType == null || returnType.isBlank()) return;
+      int open = signature.indexOf('(');
+      if (open < 0) return;
+      String path = signature.substring(0, open).trim().replace(':', '.');
+      if (!path.isBlank()) returns.put(path, returnType);
+      int separator = Math.max(path.lastIndexOf('.'), path.lastIndexOf(':'));
+      if (separator >= 0 && receiver != null && !receiver.isBlank()) {
+         String name = path.substring(separator + 1);
+         returns.put(receiver + "." + name, returnType);
+      }
+   }
 
    private static String routeForType(String type) {
       if (type == null) return null;
