@@ -1133,6 +1133,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
             Map<String, Method> methods = new LinkedHashMap<>();
             for (Class<?> current = key; current != null; current = current.getSuperclass()) {
                 for (Method method : current.getDeclaredMethods()) {
+                    if (method.isBridge() || method.isSynthetic()) {
+                        continue;
+                    }
                     String signature = executableSignature(method);
                     if (prepareAccessible(method)) {
                         methods.putIfAbsent(signature, method);
@@ -1140,6 +1143,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 }
             }
             for (Method method : key.getMethods()) {
+                if (method.isBridge() || method.isSynthetic()) {
+                    continue;
+                }
                 String signature = executableSignature(method);
                 if (prepareAccessible(method)) {
                     methods.putIfAbsent(signature, method);
