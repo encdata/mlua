@@ -36,13 +36,9 @@ public final class SoundModule implements MLuaModule {
 
     @Override
     public List<ServiceEntry> services() {
-        ServiceEntry.Builder sound = ServiceEntry.builder("SoundService", MLuaSoundService::new)
-            .description("Client-side sound playback with loop, stop, and entity-follow handles.");
-        sound.function("PlayLocal", "Plays a sound at the local player.")
-            .function("PlayAtPlayer", "Plays a sound at the local player's position.")
-            .function("Play", "Plays a sound with optional position, loop, and entity-follow settings.")
-            .function("Clear", "Stops sounds owned by the calling mod.");
-        return List.of(sound.build());
+        return List.of(ServiceEntry.builder("SoundService", MLuaSoundService::new)
+            .reflective(MLuaSoundService.class)
+            .build());
     }
 
     @Override

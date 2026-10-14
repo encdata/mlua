@@ -2,13 +2,15 @@ package dev.mlua.modules.sound.Service;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.api.MLuaDescription;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientSoundManager;
 import dev.mlua.runtime.client.MLuaSoundOwnershipRegistry;
+import java.util.Optional;
 import java.util.function.Function;
 import net.minecraft.sounds.SoundSource;
 import org.luaj.vm2.LuaError;
@@ -19,7 +21,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 
-public final class MLuaSoundService extends MLuaServiceBase {
+@MLuaDescription("Client-side sound playback with loop, stop, and entity-follow handles.")
+public final class MLuaSoundService extends MLuaReflectiveService {
     private static final String HANDLE_OPERATIONS = "__sound_handle_operations";
     private static final String HANDLE_ID = "__sound_handle_id";
     public static void registerSoundHandleClass(MLuaRegistration registration) {
@@ -115,55 +118,67 @@ public final class MLuaSoundService extends MLuaServiceBase {
 
     @Override
     public LuaTable toLua() {
-        LuaTable table = new LuaTable();
+        LuaTable table = super.toLua();
         table.set("__side", "Client");
-        table.set("PlayLocal", fn(args -> {
-            ensureClient();
-            return LuaValue.valueOf(MLuaClientSoundManager.playLocal(args.checkjstring(2), (float) args.optdouble(3, 1.0), (float) args.optdouble(4, 1.0), owner()));
-        }));
-        table.set("PlayAtPlayer", fn(args -> {
-            ensureClient();
-            return LuaValue.valueOf(MLuaClientSoundManager.playAtPlayer(args.checkjstring(2), (float) args.optdouble(3, 1.0), (float) args.optdouble(4, 1.0), owner()));
-        }));
-        table.set("Play", fn(args -> {
-            ensureClient();
-            String soundId = args.checkjstring(2);
-            LuaTable props = args.arg(3).opttable(new LuaTable());
-            float volume = (float) firstNonNil(props.get("Volume"), props.get("volume")).optdouble(1.0);
-            float pitch = (float) firstNonNil(props.get("Pitch"), props.get("pitch")).optdouble(1.0);
-            boolean loop = firstNonNil(firstNonNil(props.get("Looped"), props.get("looped")), firstNonNil(props.get("Loop"), props.get("loop"))).optboolean(false);
-            MLuaEntityScope followEntity = resolveOptionalEntityScope(firstNonNil(props.get("FollowEntity"), props.get("followEntity")));
-            SoundSource category = parseSoundSource(firstNonNil(props.get("Category"), props.get("category")).optjstring("players"));
-            Double x = null;
-            Double y = null;
-            Double z = null;
-            double followOffsetX = 0.0;
-            double followOffsetY = 0.0;
-            double followOffsetZ = 0.0;
-            LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
-            if (position.istable()) {
-                LuaTable pos = position.checktable();
-                x = component(pos, "X");
-                y = component(pos, "Y");
-                z = component(pos, "Z");
-            }
-            LuaValue followOffset = firstNonNil(props.get("FollowOffset"), props.get("followOffset"));
-            if (followOffset.istable()) {
-                LuaTable offset = followOffset.checktable();
-                followOffsetX = component(offset, "X");
-                followOffsetY = component(offset, "Y");
-                followOffsetZ = component(offset, "Z");
-            }
-            MLuaSoundOwnershipRegistry.Owner owner = owner();
-            int id = MLuaClientSoundManager.play(soundId, volume, pitch, loop, x, y, z, followEntity, category, followOffsetX, followOffsetY, followOffsetZ, owner);
-            return id >= 0 ? soundTable(id, owner) : LuaValue.NIL;
-        }));
-        table.set("Clear", fn(args -> {
-            ensureClient();
-            MLuaClientSoundManager.clearOwned(owner());
-            return LuaValue.NONE;
-        }));
         return table;
+    }
+
+    @MLuaDescription("Plays a sound at the local player.")
+    public boolean PlayLocal(String soundId, Optional<Double> volume, Optional<Double> pitch) {
+        ensureClient();
+        return MLuaClientSoundManager.playLocal(soundId, volume.orElse(1.0).floatValue(),
+            pitch.orElse(1.0).floatValue(), owner());
+    }
+
+    @MLuaDescription("Plays a sound at the local player's position.")
+    public boolean PlayAtPlayer(String soundId, Optional<Double> volume, Optional<Double> pitch) {
+        ensureClient();
+        return MLuaClientSoundManager.playAtPlayer(soundId, volume.orElse(1.0).floatValue(),
+            pitch.orElse(1.0).floatValue(), owner());
+    }
+
+    @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings.")
+    public LuaValue Play(String soundId, Optional<LuaValue> properties) {
+        ensureClient();
+        LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
+        float volume = (float) firstNonNil(props.get("Volume"), props.get("volume")).optdouble(1.0);
+        float pitch = (float) firstNonNil(props.get("Pitch"), props.get("pitch")).optdouble(1.0);
+        boolean loop = firstNonNil(firstNonNil(props.get("Looped"), props.get("looped")),
+            firstNonNil(props.get("Loop"), props.get("loop"))).optboolean(false);
+        MLuaEntityScope followEntity = resolveOptionalEntityScope(
+            firstNonNil(props.get("FollowEntity"), props.get("followEntity")));
+        SoundSource category = parseSoundSource(
+            firstNonNil(props.get("Category"), props.get("category")).optjstring("players"));
+        Double x = null;
+        Double y = null;
+        Double z = null;
+        double followOffsetX = 0.0;
+        double followOffsetY = 0.0;
+        double followOffsetZ = 0.0;
+        LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
+        if (position.istable()) {
+            LuaTable pos = position.checktable();
+            x = component(pos, "X");
+            y = component(pos, "Y");
+            z = component(pos, "Z");
+        }
+        LuaValue followOffset = firstNonNil(props.get("FollowOffset"), props.get("followOffset"));
+        if (followOffset.istable()) {
+            LuaTable offset = followOffset.checktable();
+            followOffsetX = component(offset, "X");
+            followOffsetY = component(offset, "Y");
+            followOffsetZ = component(offset, "Z");
+        }
+        MLuaSoundOwnershipRegistry.Owner owner = owner();
+        int id = MLuaClientSoundManager.play(soundId, volume, pitch, loop, x, y, z, followEntity,
+            category, followOffsetX, followOffsetY, followOffsetZ, owner);
+        return id >= 0 ? soundTable(id, owner) : LuaValue.NIL;
+    }
+
+    @MLuaDescription("Stops sounds owned by the calling mod.")
+    public void Clear() {
+        ensureClient();
+        MLuaClientSoundManager.clearOwned(owner());
     }
 
     private LuaTable soundTable(int id, MLuaSoundOwnershipRegistry.Owner owner) {
