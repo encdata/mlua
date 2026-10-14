@@ -9,6 +9,7 @@ import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.chat.Component;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Displays native Minecraft client toasts.")
 public final class MLuaToastService extends MLuaReflectiveService {
