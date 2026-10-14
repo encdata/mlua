@@ -222,6 +222,7 @@ public class RegistryModule implements MLuaModule {
                 "A live block entity attached to a block position, with persistent state and optional inventory.",
                 "classes/block-entity.html", "Instance");
         docs.method("BlockEntity", "BlockEntity:GetPosition(): Vector3", "Returns this block entity's world position.", "", "Vector3", "Shared", "");
+        docs.method("BlockEntity", "BlockEntity:OnLoad(context)", "Override this lifecycle method on a registered BlockEntity subclass to run server-side whenever Minecraft loads the block entity. The context includes Block, World, and Position.", "Lifecycle context", "void", "server:Server", "");
         docs.method("BlockEntity", "BlockEntity:GetBlock(): Block", "Returns the live block that owns this block entity.", "", "Block", "Shared", "");
         docs.method("BlockEntity", "BlockEntity:GetType(): string", "Returns this block entity type's registry identifier.", "", "string", "Shared", "");
         docs.method("BlockEntity", "BlockEntity:GetNbt(): Nbt", "Returns this block entity's live NBT data.", "", "Nbt", "Shared", "");
@@ -238,7 +239,7 @@ public class RegistryModule implements MLuaModule {
         docs.property("BlockEntity", "blockEntity.Inventory", "Container|nil", "Alias for blockEntity.Container.", "shared:Shared");
         docs.property("BlockEntity", "blockEntity.HasContainer", "boolean", "Whether this block entity owns a live Container.", "shared:Shared");
         docs.guideStep("BlockEntity", "Extend a block with saved state",
-                "Register a Lua class under BlockEntity and assign it in the block definition. The nested onLoad callback receives the live subclass instance and a context table when Minecraft loads the block entity on the server. Retrieve the same live instance from Block:GetBlockEntity().",
+                "Register a Lua class under BlockEntity and assign it in the block definition. Define OnLoad on the class or provide a nested onLoad callback. Either receives the live subclass instance and a context table when Minecraft loads the block entity on the server. Retrieve the same live instance from Block:GetBlockEntity().",
                 "Minecraft:RegisterClass(\"RuneChestEntity\", \"BlockEntity\", \"Stores a rune chest's state.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"SetCharge\", function(self, charge)\n    self.Nbt.charge = charge\nend, \"Saves this block's charge value.\")\nMinecraft:RegisterClassFunction(\"RuneChestEntity\", \"GetCharge\", function(self)\n    return self.Nbt.charge or 0\nend, \"Returns the saved charge value.\")\n\nRegistry.Blocks:Register(\"rune_chest\", {\n    container = { Rows = 3 },\n    blockEntity = {\n        className = \"RuneChestEntity\",\n        onLoad = function(self, context)\n            self.Nbt.charge = self.Nbt.charge or 0\n            print(context.World, context.Position)\n        end\n    }\n})\n\nlocal World = Minecraft:GetService(\"World\")\nlocal block = World:GetBlock(position)\nlocal entity = block:GetBlockEntity()\nentity:SetCharge(12)");
         docs.guideStep("Block", "Inspect a block from the world",
                 "World:GetBlock returns a live instance of Block or the addon subclass registered for that block. Use its inherited methods and GetClassName to inspect its class.",

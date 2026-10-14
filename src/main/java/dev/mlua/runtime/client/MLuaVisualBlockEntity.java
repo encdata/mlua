@@ -9,6 +9,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.Block;
@@ -28,6 +29,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 public final class MLuaVisualBlockEntity extends BlockEntity implements Container {
    private static final int MAX_CONTAINER_SLOTS = 54;
    private NonNullList<ItemStack> items = NonNullList.create();
+   private Level loadCallbackLevel;
    public MLuaVisualBlockEntity(BlockPos pos, BlockState state) {
       this(resolveType(state), pos, state);
    }
@@ -41,24 +43,29 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       }
    }
 
-   @Override public void onLoad() {
-      super.onLoad();
-      if (this.level == null || this.level.isClientSide) return;
+   @Override public void setLevel(Level level) {
+      super.setLevel(level);
+      if (level == null || level.isClientSide || this.loadCallbackLevel == level) return;
+      this.loadCallbackLevel = level;
       net.minecraft.resources.ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(this.getBlockState().getBlock());
       if (blockId == null) return;
       String key = blockId.toString();
       LuaValue callback = MLuaBehaviorRegistry.getCallback("block_entity", key, "onLoad");
-      if (!callback.isfunction()) return;
       try {
-         var registration = MLuaRuntime.registrationForLevel(this.level);
+         var registration = MLuaRuntime.registrationForLevel(level);
          if (registration == null) return;
-         LuaTable block = MLuaBlockWrapper.blockTable(this.level, this.worldPosition, registration);
+         LuaTable block = MLuaBlockWrapper.blockTable(level, this.worldPosition, registration);
          LuaTable blockEntity = block.get("BlockEntity").checktable();
          LuaTable context = new LuaTable();
          context.set("Block", block);
-         context.set("World", this.level.dimension().location().toString());
+         context.set("World", level.dimension().location().toString());
          context.set("Position", dev.mlua.math.MLuaVector.vector3(this.worldPosition.getX(), this.worldPosition.getY(), this.worldPosition.getZ()));
-         callback.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
+         LuaValue classMethod = blockEntity.get("OnLoad");
+         if (classMethod.isfunction()) {
+            classMethod.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
+         } else if (callback.isfunction()) {
+            callback.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
+         }
       } catch (Exception exception) {
          MLuaLogger.LOGGER.error("MLua block entity onLoad callback failed for '{}': {}", key, exception.getMessage());
       }
