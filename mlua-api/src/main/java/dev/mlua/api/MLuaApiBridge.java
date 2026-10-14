@@ -19,30 +19,20 @@ public interface MLuaApiBridge {
 
    void registerModule(MLuaModule module);
 
-   void registerService(String name, Function<MLuaService.Context, MLuaService> factory);
-
-   default void registerService(Side side, String className, MLuaModule.ServiceEntry service) {
-      Side selectedSide = java.util.Objects.requireNonNull(side, "side");
-      MLuaModule.ServiceEntry declaration = java.util.Objects.requireNonNull(service, "service");
-      String selectedClassName = className == null ? declaration.className() : className;
-      registerService(declaration.name(), selectedClassName, selectedSide, declaration.factory(),
-         declaration.description(), declaration.functionDescriptions());
+   @Deprecated(forRemoval = false)
+   default void registerService(String name, Function<MLuaService.Context, MLuaService> factory) {
+      throw new UnsupportedOperationException("Register services with a description and function metadata");
    }
 
+   void registerService(Side side, String className, MLuaModule.ServiceEntry service);
+
+   @Deprecated(forRemoval = false)
    default void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory) {
-      if (side == Side.BOTH) {
-         registerService(name, factory);
-         return;
-      }
-      registerService(name, name, side, factory, null, Map.of());
+      throw new UnsupportedOperationException("Register services with a description and function metadata");
    }
 
    default void registerService(String name, Function<MLuaService.Context, MLuaService> factory,
                                 String description, Map<String, String> functionDescriptions) {
-      if (description == null && functionDescriptions != null && functionDescriptions.isEmpty()) {
-         registerService(name, factory);
-         return;
-      }
       registerService(Side.BOTH, null, new MLuaModule.ServiceEntry(
          name, factory, description, functionDescriptions));
    }

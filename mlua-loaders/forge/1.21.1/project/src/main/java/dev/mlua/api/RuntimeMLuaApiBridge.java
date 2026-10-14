@@ -1,7 +1,6 @@
 package dev.mlua.api;
 
 import dev.mlua.core.MLuaRuntime;
-import dev.mlua.core.service.MLuaService;
 import dev.mlua.common.enums.Side;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.RegistryHandle;
@@ -27,11 +26,6 @@ public final class RuntimeMLuaApiBridge implements MLuaApiBridge {
    @Override
    public void registerModule(MLuaModule module) {
       MLuaModuleLoader.get().register(module);
-   }
-
-   @Override
-   public void registerService(String name, Function<MLuaService.Context, MLuaService> factory) {
-      MLuaRuntime.get().registerService(name, factory);
    }
 
    @Override
