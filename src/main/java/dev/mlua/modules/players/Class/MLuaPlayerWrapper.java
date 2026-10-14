@@ -802,8 +802,7 @@ public final class MLuaPlayerWrapper {
     public static double[] positionArgs(Varargs args, int index) {
       LuaValue first = args.arg(index);
       if (first.istable()) {
-         LuaTable vector = first.checktable();
-         return new double[]{vector.get("X").optdouble(vector.get("x").checkdouble()), vector.get("Y").optdouble(vector.get("y").checkdouble()), vector.get("Z").optdouble(vector.get("z").checkdouble())};
+         return MLuaCFrame.vector(first);
       } else {
          return new double[]{args.checkdouble(index), args.checkdouble(index + 1), args.checkdouble(index + 2)};
       }

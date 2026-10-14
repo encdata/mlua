@@ -327,7 +327,7 @@ public abstract class GuiBase {
     }
 
     static dev.mlua.minecraft.ui.UDim2 parseUDim2(LuaValue v) {
-        if (!v.istable()) return new dev.mlua.minecraft.ui.UDim2(new dev.mlua.minecraft.ui.UDim(0, 0), new dev.mlua.minecraft.ui.UDim(0, 0));
+        if (!v.istable()) throw new org.luaj.vm2.LuaError("[MLua] UI Position and Size require UDim2 values created by UDim2.new, UDim2.fromScale, or UDim2.fromOffset");
         LuaTable t = v.checktable();
         if (!"UDim2".equals(t.get("__type").optjstring(null))) throw new org.luaj.vm2.LuaError("[MLua] UI Position and Size require UDim2.new(...), UDim2.fromScale(...), or UDim2.fromOffset(...)");
         LuaValue x = firstNonNil(t.get("X"), t.get("x"));
@@ -488,11 +488,10 @@ public abstract class GuiBase {
     }
 
     private static dev.mlua.minecraft.ui.data.Vector2 parseVector2(LuaValue v) {
-        if (!v.istable()) return new dev.mlua.minecraft.ui.data.Vector2(0, 0);
+        if (!v.istable() || !"Vector2".equals(v.get("__type").optjstring(null))) throw new org.luaj.vm2.LuaError("[MLua] UI Vector2 properties require Vector2.new(x, y)");
         LuaTable t = v.checktable();
-        LuaValue x = firstNonNil(t.get("X"), t.get("x"), t.get(1));
-        LuaValue y = firstNonNil(t.get("Y"), t.get("y"), t.get(2));
-        return new dev.mlua.minecraft.ui.data.Vector2(x.optdouble(0), y.optdouble(0));
+        if (!t.get("X").isnumber() || !t.get("Y").isnumber()) throw new org.luaj.vm2.LuaError("[MLua] Vector2 values require numeric X and Y properties");
+        return new dev.mlua.minecraft.ui.data.Vector2(t.get("X").todouble(), t.get("Y").todouble());
     }
 
     protected static LuaTable toLuaUDim2(dev.mlua.minecraft.ui.UDim2 udim2) {

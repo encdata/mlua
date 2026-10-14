@@ -252,6 +252,9 @@ public final class MLuaLuauTypes {
       LuaTable table = new LuaTable();
       table.set("new", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            if (args.arg(1).istable() && args.arg(2).istable()) {
+               return MLuaLuauTypes.udim2(args.arg(1), args.arg(2));
+            }
             return MLuaLuauTypes.udim2(args.optdouble(1, 0.0), args.optint(2, 0), args.optdouble(3, 0.0), args.optint(4, 0));
          }
       });
@@ -379,6 +382,16 @@ public final class MLuaLuauTypes {
       LuaTable value = typed("UDim2");
       value.set("X", udim(xScale, xOffset));
       value.set("Y", udim(yScale, yOffset));
+      return value;
+   }
+
+   public static LuaTable udim2(LuaValue x, LuaValue y) {
+      if (!"UDim".equals(x.get("__type").optjstring(null)) || !"UDim".equals(y.get("__type").optjstring(null))) {
+         throw new LuaError("UDim2.new expects two UDim values or four numeric scale and offset values");
+      }
+      LuaTable value = typed("UDim2");
+      value.set("X", x);
+      value.set("Y", y);
       return value;
    }
 

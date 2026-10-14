@@ -313,10 +313,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         if (MLuaCFrame.isCFrame(value)) return true;
         LuaTable table = value.checktable();
         if (table.rawget("__entity").isuserdata(Entity.class)) return true;
-        double x = table.get("X").optdouble(table.get("x").optdouble(Double.NaN));
-        double y = table.get("Y").optdouble(table.get("y").optdouble(Double.NaN));
-        double z = table.get("Z").optdouble(table.get("z").optdouble(Double.NaN));
-        return !Double.isNaN(x) && !Double.isNaN(y) && !Double.isNaN(z);
+        return "Vector3".equals(table.get("__type").optjstring(null));
     }
 
     private static double[] position(LuaValue value, LuaValue yValue, LuaValue zValue) {
@@ -331,12 +328,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
                 Entity entity = (Entity) rawEntity.touserdata(Entity.class);
                 return new double[]{entity.getX(), entity.getY(), entity.getZ()};
             }
-            double x = table.get("X").optdouble(table.get("x").optdouble(Double.NaN));
-            double y = table.get("Y").optdouble(table.get("y").optdouble(Double.NaN));
-            double z = table.get("Z").optdouble(table.get("z").optdouble(Double.NaN));
-            if (!Double.isNaN(x) && !Double.isNaN(y) && !Double.isNaN(z)) {
-                return new double[]{x, y, z};
-            }
+            return MLuaCFrame.vector(value);
         }
         if (value.isnumber() && yValue.isnumber() && zValue.isnumber()) {
             return new double[]{value.checkdouble(), yValue.checkdouble(), zValue.checkdouble()};

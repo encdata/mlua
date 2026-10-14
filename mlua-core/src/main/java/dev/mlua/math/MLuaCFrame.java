@@ -256,12 +256,17 @@ public final class MLuaCFrame {
 
    public static double[] vector(LuaValue value) {
       if (!value.istable()) {
-         throw new LuaError("[MLua] Expected Vector3-like table");
-      } else {
-         LuaTable t = value.checktable();
-         LuaValue pos = t.get("Position");
-         return !pos.isnil() && pos.istable() && !t.get("X").isnumber() ? vector(pos) : new double[]{component(t, "X", "x"), component(t, "Y", "y"), component(t, "Z", "z")};
+         throw new LuaError("[MLua] Expected a Vector3 or CFrame value");
       }
+      if (isCFrame(value)) {
+         MLuaCFrame cframe = fromLua(value);
+         return new double[]{cframe.x(), cframe.y(), cframe.z()};
+      }
+      LuaTable table = value.checktable();
+      if (!"Vector3".equals(table.get("__type").optjstring(null))) {
+         throw new LuaError("[MLua] Expected a Vector3 or CFrame value; coordinate tables are not accepted");
+      }
+      return new double[]{component(table, "X", "x"), component(table, "Y", "y"), component(table, "Z", "z")};
    }
 
    private static double component(LuaTable table, String upper, String lower) {
