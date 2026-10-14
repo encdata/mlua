@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Projectile.class)
 public abstract class FabricProjectileHitMixin {
-    @Inject(method = "onHit", at = @At("TAIL"))
+    @Inject(method = "onHit", at = @At("HEAD"))
     private void mlua$onHit(HitResult hitResult, CallbackInfo callbackInfo) {
         FabricEventBridge.fireProjectileHit(this, hitResult);
     }
