@@ -1,6 +1,8 @@
 package dev.mlua.mc.impl.entity;
 
 import dev.mlua.mcapi.entity.MCServerPlayer;
+import dev.mlua.mcapi.network.MCConnection;
+import dev.mlua.mc.impl.network.MCConnectionImpl;
 import dev.mlua.mcapi.world.MCServerLevel;
 import dev.mlua.mc.impl.world.MCServerLevelImpl;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,7 +27,7 @@ public class MCServerPlayerImpl extends MCPlayerImpl implements MCServerPlayer {
     }
 
     @Override
-    public Object getConnection() {
-        return serverPlayer().connection;
+    public MCConnection getConnection() {
+        return MCConnectionImpl.fromReal(serverPlayer().connection);
     }
 }

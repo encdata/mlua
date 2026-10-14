@@ -4,6 +4,7 @@ import dev.mlua.mcapi.core.MCVec3;
 import dev.mlua.mcapi.item.MCItemStack;
 import dev.mlua.mcapi.nbt.MCCompoundTag;
 import dev.mlua.mcapi.server.MCMinecraftServer;
+import dev.mlua.mcapi.network.MCConnection;
 import dev.mlua.mcapi.sound.MCSoundEvent;
 import dev.mlua.mcapi.sound.MCSoundSource;
 import dev.mlua.mcapi.world.MCGameType;
@@ -11,7 +12,7 @@ import dev.mlua.mcapi.world.MCGameType;
 public interface MCPlayer extends MCLivingEntity {
     MCInventory getInventory();
     MCFoodData getFoodData();
-    Object getConnection();
+    MCConnection getConnection();
     int experienceLevel();
     void setExperienceLevel(int level);
     float experienceProgress();

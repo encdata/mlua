@@ -2,6 +2,8 @@ package dev.mlua.mc.impl.entity;
 
 import dev.mlua.mcapi.core.MCVec3;
 import dev.mlua.mcapi.entity.MCPlayer;
+import dev.mlua.mcapi.network.MCConnection;
+import dev.mlua.mc.impl.network.MCConnectionImpl;
 import dev.mlua.mcapi.item.MCItemStack;
 import dev.mlua.mcapi.nbt.MCCompoundTag;
 import dev.mlua.mcapi.server.MCMinecraftServer;
@@ -89,9 +91,9 @@ public class MCPlayerImpl extends MCLivingEntityImpl implements MCPlayer {
     }
 
     @Override
-    public Object getConnection() {
+    public MCConnection getConnection() {
         if (inner instanceof ServerPlayer sp) {
-            return sp.connection;
+            return MCConnectionImpl.fromReal(sp.connection);
         }
         return null;
     }
