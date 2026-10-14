@@ -56,10 +56,11 @@ public class WorldModule implements MLuaModule {
         chunkMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "Chunk", name, description));
         registration.registerClass("RaycastResult", registration.requireInstanceBaseClassName(),
-            "A world ray hit with a typed hit position and distance.");
+            "A world ray hit with a typed hit position, surface normal, and distance.");
         String[][] raycastProperties = {
             {"HitType", "string", "string", "The kind of ray hit: block or entity."},
             {"Position", "Vector3", "Vector3", "The point where the ray intersects the entity bounds."},
+            {"Normal", "Vector3", "Vector3", "The outward surface direction at the hit point."},
             {"Distance", "number", "number", "Distance from the ray origin to the hit point."}
         };
         for (String[] property : raycastProperties) {
@@ -401,9 +402,10 @@ public class WorldModule implements MLuaModule {
         docs.signature("WorldService", "WorldService:FindNearestEntity(position: Vector3|CFrame, maxDistance: number?, filters: EntityQuery?)", "Entity?");
         docs.signature("WorldService", "WorldService:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?): BlockRaycastResult?", null);
         docs.signature("WorldService", "WorldService:RaycastEntity(origin: Vector3|CFrame, direction: Vector3, distance: number?, filters: EntityQuery?): EntityRaycastResult?", null);
-        docs.clazz("RaycastResult", "WorldModule", "A world ray hit with a typed hit position and distance.", "classes/raycast-result.html", "Instance");
+        docs.clazz("RaycastResult", "WorldModule", "A world ray hit with a typed hit position, surface normal, and distance.", "classes/raycast-result.html", "Instance");
         docs.property("RaycastResult", "RaycastResult.HitType", "string", "The kind of ray hit.", "read:Read");
         docs.property("RaycastResult", "RaycastResult.Position", "Vector3", "The point where the ray intersects the hit bounds.", "read:Read");
+        docs.property("RaycastResult", "RaycastResult.Normal", "Vector3", "The outward surface direction at the hit point.", "read:Read");
         docs.property("RaycastResult", "RaycastResult.Distance", "number", "Distance from the ray origin to the hit point.", "read:Read");
         docs.clazz("EntityRaycastResult", "WorldModule", "The nearest entity and hit point returned by a world's entity raycast.", "classes/entity-raycast-result.html", "RaycastResult");
         docs.property("EntityRaycastResult", "EntityRaycastResult.Entity", "Entity", "The live entity intersected by the ray.", "read:Read");
@@ -415,7 +417,7 @@ public class WorldModule implements MLuaModule {
         docs.property("BlockRaycastResult", "BlockRaycastResult.BlockInstance", "Block", "The live Block instance at the hit position.", "read:Read");
         docs.guideStep("World", "Raycast from the player's view",
             "RaycastEntity finds the closest matching entity along the direction and stops at colliding blocks. Both block and entity results inherit RaycastResult; block hits also return the live block instance.",
-            "local world = Minecraft:GetService(\"World\"):Current()\nlocal entityHit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude = player })\nif entityHit then\n    print(entityHit:IsA(\"RaycastResult\"), entityHit.Entity.Name, entityHit.Distance)\nend\n\nlocal blockHit = world:Raycast(player.EyePosition, player.LookVector, 32)\nif blockHit then\n    print(blockHit:IsA(\"BlockRaycastResult\"), blockHit.Block, blockHit.BlockInstance.Id, blockHit.Face)\nend");
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal entityHit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude = player })\nif entityHit then\n    print(entityHit:IsA(\"RaycastResult\"), entityHit.Entity.Name, entityHit.Distance, entityHit.Normal)\nend\n\nlocal blockHit = world:Raycast(player.EyePosition, player.LookVector, 32)\nif blockHit then\n    print(blockHit:IsA(\"BlockRaycastResult\"), blockHit.Block, blockHit.BlockInstance.Id, blockHit.Face, blockHit.Normal)\nend");
         docs.type("EntityQuery", null, "Filters accepted by world entity search methods.");
         docs.field("EntityQuery", "type", "string", "Required registered entity type identifier.");
         docs.field("EntityQuery", "players_only", "boolean", "Include only player entities when true.");

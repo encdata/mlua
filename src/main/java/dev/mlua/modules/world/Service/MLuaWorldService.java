@@ -265,6 +265,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          result.set("HitType", LuaValue.valueOf("block"));
          result.set("Type", LuaValue.valueOf("block"));
          result.set("Position", dev.mlua.math.MLuaVector.vector3(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z));
+         result.set("Normal", dev.mlua.math.MLuaVector.vector3(hitResult.getDirection().getStepX(), hitResult.getDirection().getStepY(), hitResult.getDirection().getStepZ()));
          result.set("Distance", LuaValue.valueOf(Math.sqrt(from.distanceToSqr(hitResult.getLocation()))));
          result.set("Block", LuaValue.valueOf(String.valueOf(BuiltInRegistries.BLOCK.getKey(level.getBlockState(hitResult.getBlockPos()).getBlock()))));
          result.set("Face", LuaValue.valueOf(hitResult.getDirection().getName()));
@@ -303,14 +304,17 @@ public final class MLuaWorldService extends MLuaServiceBase {
          LuaValue filter = args.arg(distanceIndex + 1);
          Entity nearest = null;
          Vec3 nearestHit = null;
+         Vec3 nearestNormal = null;
          for (Entity candidate : level.getEntities((Entity)null, search)) {
             if (candidate.isRemoved() || !candidate.isPickable() || !matchesFilter(candidate, filter)) continue;
-            var hit = candidate.getBoundingBox().inflate(candidate.getPickRadius()).clip(from, to);
+            AABB hitBox = candidate.getBoundingBox().inflate(candidate.getPickRadius());
+            var hit = hitBox.clip(from, to);
             if (hit.isEmpty()) continue;
             double hitDistance = from.distanceToSqr(hit.get());
             if (hitDistance < nearestDistance) {
                nearest = candidate;
                nearestHit = hit.get();
+               nearestNormal = rayHitNormal(hitBox, nearestHit);
                nearestDistance = hitDistance;
             }
          }
@@ -320,6 +324,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          result.set("Type", LuaValue.valueOf("entity"));
          result.set("Entity", this.wrapEntity(nearest));
          result.set("Position", dev.mlua.math.MLuaVector.vector3(nearestHit.x, nearestHit.y, nearestHit.z));
+         result.set("Normal", dev.mlua.math.MLuaVector.vector3(nearestNormal.x, nearestNormal.y, nearestNormal.z));
          result.set("Distance", LuaValue.valueOf(Math.sqrt(nearestDistance)));
          return result;
       }));
@@ -663,6 +668,26 @@ public final class MLuaWorldService extends MLuaServiceBase {
          throw new LuaError("[MLua] EntityBounds corners must be finite and ordered from minimum to maximum.");
       }
       return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+   }
+
+   private static Vec3 rayHitNormal(AABB bounds, Vec3 hit) {
+      double[] distances = {
+         Math.abs(hit.x - bounds.minX), Math.abs(bounds.maxX - hit.x),
+         Math.abs(hit.y - bounds.minY), Math.abs(bounds.maxY - hit.y),
+         Math.abs(hit.z - bounds.minZ), Math.abs(bounds.maxZ - hit.z)
+      };
+      int nearest = 0;
+      for (int index = 1; index < distances.length; index++) {
+         if (distances[index] < distances[nearest]) nearest = index;
+      }
+      return switch (nearest) {
+         case 0 -> new Vec3(-1, 0, 0);
+         case 1 -> new Vec3(1, 0, 0);
+         case 2 -> new Vec3(0, -1, 0);
+         case 3 -> new Vec3(0, 1, 0);
+         case 4 -> new Vec3(0, 0, -1);
+         default -> new Vec3(0, 0, 1);
+      };
    }
 
    private Iterable<Entity> allEntities(Level level) {
