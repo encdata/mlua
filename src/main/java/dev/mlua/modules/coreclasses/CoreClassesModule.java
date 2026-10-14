@@ -103,9 +103,15 @@ public final class CoreClassesModule implements MLuaModule {
             public Varargs invoke(Varargs args) {
                 LuaValue target = args.arg(2);
                 if (target.isnil()) return LuaValue.FALSE;
-                String targetName = target.istable()
-                    ? target.checktable().rawget("__type").optjstring("")
-                    : target.checkjstring();
+                String targetName;
+                if (target.istable()) {
+                    LuaTable targetClass = target.checktable();
+                    targetName = targetClass.rawget("__type").optjstring("");
+                    if (!targetClass.rawget("__class").toboolean()
+                        || registration.classTable(targetName) != targetClass) return LuaValue.FALSE;
+                } else {
+                    targetName = target.checkjstring();
+                }
                 return LuaValue.valueOf(registration.isInstanceOf(args.arg1(), targetName));
             }
         }, "Returns whether this instance inherits from or matches the given class.");
