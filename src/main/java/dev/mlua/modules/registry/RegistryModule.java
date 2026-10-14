@@ -121,6 +121,9 @@ public class RegistryModule implements MLuaModule {
         contributeDefinitionSchemas(docs);
         contributeSignatures(docs);
         docs.signature("Block", "Block:GetInventory()", "Container");
+        docs.signature("BlockEntity", "BlockEntity:GetLevel()", "Level");
+        docs.signature("BlockEntity", "BlockEntity:GetDimension()", "string");
+        docs.signature("BlockEntity", "BlockEntity:GetIsRemoved()", "boolean");
         docs.signature("Block", "Block:GetStateProperties()", "BlockStateProperties");
         docs.signature("Block", "Block:SetStateProperties(properties: BlockStateProperties)", "boolean");
         docs.signature("Block", "Block:GetFluid()", "string?");

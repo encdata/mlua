@@ -196,6 +196,18 @@ public final class MLuaBlockWrapper {
                return MLuaVector.vector3(entity.getBlockPos().getX(), entity.getBlockPos().getY(), entity.getBlockPos().getZ());
             }
          }, "Returns this block entity's world position.");
+         registration.registerClassFunction("BlockEntity", "GetLevel", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               LuaTable self = args.arg1().checktable();
+               return MLuaLevelWrapper.levelTable(((MCLevelImpl)level(self)).inner(), registration);
+            }
+         }, "Returns the live dimension containing this block entity.");
+         registration.registerClassFunction("BlockEntity", "GetDimension", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               net.minecraft.world.level.Level level = ((MCLevelImpl)level(args.arg1().checktable())).inner();
+               return LuaValue.valueOf(level.dimension().location().toString());
+            }
+         }, "Returns the dimension identifier containing this block entity.");
          registration.registerClassFunction("BlockEntity", "GetBlock", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                LuaTable self = args.arg1().checktable();
@@ -208,6 +220,11 @@ public final class MLuaBlockWrapper {
                return LuaValue.valueOf(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity(args.arg1()).getType()).toString());
             }
          }, "Returns this block entity type's registry identifier.");
+         registration.registerClassFunction("BlockEntity", "GetIsRemoved", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               return LuaValue.valueOf(blockEntity(args.arg1()).isRemoved());
+            }
+         }, "Returns whether Minecraft has removed this block entity from its dimension.");
          registration.registerClassFunction("BlockEntity", "GetNbt", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                LuaTable self = args.arg1().checktable();
@@ -246,10 +263,16 @@ public final class MLuaBlockWrapper {
          }, "Marks this block entity's saved state as changed.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Position", "GetPosition", null,
             "Vector3", "shared:Shared", "This block entity's world position.");
+         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Level", "GetLevel", null,
+            "Level", "shared:Shared", "The live dimension containing this block entity.");
+         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Dimension", "GetDimension", null,
+            "string", "shared:Shared", "The dimension identifier containing this block entity.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Block", "GetBlock", null,
             "Block", "shared:Shared", "The live block that owns this block entity.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Type", "GetType", null,
             "string", "shared:Shared", "This block entity type's registry identifier.");
+         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "IsRemoved", "GetIsRemoved", null,
+            "boolean", "shared:Shared", "Whether Minecraft has removed this block entity from its dimension.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Nbt", "GetNbt", "SetNbt",
             "Nbt|table", "shared:Shared", "This block entity's live NBT view; assign a table or Nbt value to replace its data.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Container", "GetContainer", null,
