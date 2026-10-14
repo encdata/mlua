@@ -1,16 +1,12 @@
 package dev.mlua.modules.attribute.Service;
 
-import org.luaj.vm2.LuaError;
-import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
+import dev.mlua.api.MLuaDescription;
 import dev.mlua.common.enums.Side;
+import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaAttributeModifierIds;
-import java.util.function.Function;
+import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,14 +14,17 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 //--version 1.20.1
-import java.util.Iterator;
 import java.util.UUID;
 //--endversion
 //--version 1.21.1,26.1
 import net.minecraft.core.Holder;
 //--endversion
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
-public final class MLuaAttributeService extends MLuaServiceBase {
+@MLuaDescription("Service for managing entity attribute modifiers.")
+public final class MLuaAttributeService extends MLuaReflectiveService {
    public MLuaAttributeService(MLuaService.Context context) {
       super(context);
    }
@@ -37,204 +36,153 @@ public final class MLuaAttributeService extends MLuaServiceBase {
 
    @Override
    public LuaTable toLua() {
-      LuaTable table = new LuaTable();
+      LuaTable table = super.toLua();
       table.set("__side", "Server");
-      table.set("GetAttribute", fn((args) -> {
-         requireServer();
-         LivingEntity entity = extractEntity(args.arg(2));
-//--version 1.20.1
-         Attribute attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.NIL;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.NIL;
-         }
-         LuaTable result = new LuaTable();
-         result.set("Base", LuaValue.valueOf(instance.getBaseValue()));
-         result.set("Value", LuaValue.valueOf(instance.getValue()));
-         result.set("DefaultValue", LuaValue.valueOf(instance.getAttribute().getDefaultValue()));
-         return result;
-//--endversion
-//--version 1.21.1,26.1
-         Holder<Attribute> attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.NIL;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.NIL;
-         }
-         LuaTable result = new LuaTable();
-         result.set("Base", LuaValue.valueOf(instance.getBaseValue()));
-         result.set("Value", LuaValue.valueOf(instance.getValue()));
-         result.set("DefaultValue", LuaValue.valueOf(instance.getAttribute().value().getDefaultValue()));
-         return result;
-//--endversion
-      }));
-      table.set("SetBaseValue", fn((args) -> {
-         requireServer();
-         LivingEntity entity = extractEntity(args.arg(2));
-//--version 1.20.1
-         Attribute attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.FALSE;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.FALSE;
-         }
-//--endversion
-//--version 1.21.1,26.1
-         Holder<Attribute> attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.FALSE;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.FALSE;
-         }
-//--endversion
-         instance.setBaseValue(args.checkdouble(4));
-         return LuaValue.TRUE;
-      }));
-      table.set("GetModifiers", fn((args) -> {
-         requireServer();
-         LivingEntity entity = extractEntity(args.arg(2));
-//--version 1.20.1
-         Attribute attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return new LuaTable();
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return new LuaTable();
-         }
-         LuaTable list = new LuaTable();
-         int i = 1;
-         for (AttributeModifier mod : instance.getModifiers()) {
-            LuaTable entry = new LuaTable();
-            entry.set("Id", mod.getId().toString());
-            entry.set("Name", mod.getName());
-            entry.set("Amount", LuaValue.valueOf(mod.getAmount()));
-            entry.set("Operation", LuaValue.valueOf(mod.getOperation().toValue()));
-            list.set(i++, entry);
-         }
-         return list;
-//--endversion
-//--version 1.21.1,26.1
-         Holder<Attribute> attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return new LuaTable();
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return new LuaTable();
-         }
-         LuaTable list = new LuaTable();
-         int i = 1;
-         for (AttributeModifier mod : instance.getModifiers()) {
-            LuaTable entry = new LuaTable();
-            entry.set("Id", mod.id().toString());
-            entry.set("Name", mod.id().toString());
-            entry.set("Amount", LuaValue.valueOf(mod.amount()));
-            entry.set("Operation", LuaValue.valueOf(mod.operation().id()));
-            list.set(i++, entry);
-         }
-         return list;
-//--endversion
-      }));
-      table.set("AddModifier", fn((args) -> {
-         requireServer();
-         LivingEntity entity = extractEntity(args.arg(2));
-//--version 1.20.1
-         Attribute attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.FALSE;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.FALSE;
-         }
-         String name = args.checkjstring(4);
-         double amount = args.checkdouble(5);
-         int operation = args.optint(6, 0);
-         UUID uuid = MLuaAttributeModifierIds.legacy(name);
-         AttributeModifier modifier = new AttributeModifier(uuid, name, amount, AttributeModifier.Operation.fromValue(operation));
-         instance.addTransientModifier(modifier);
-         return LuaValue.TRUE;
-//--endversion
-//--version 1.21.1,26.1
-         Holder<Attribute> attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.FALSE;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.FALSE;
-         }
-         String name = args.checkjstring(4);
-         double amount = args.checkdouble(5);
-         int operation = args.optint(6, 0);
-         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
-         AttributeModifier modifier = new AttributeModifier(id, amount, AttributeModifier.Operation.BY_ID.apply(operation));
-         instance.addTransientModifier(modifier);
-         return LuaValue.TRUE;
-//--endversion
-      }));
-      table.set("RemoveModifier", fn((args) -> {
-         requireServer();
-         LivingEntity entity = extractEntity(args.arg(2));
-//--version 1.20.1
-         Attribute attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.FALSE;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.FALSE;
-         }
-         String name = args.checkjstring(4);
-         UUID uuid = MLuaAttributeModifierIds.legacy(name);
-         instance.removeModifier(uuid);
-         return LuaValue.TRUE;
-//--endversion
-//--version 1.21.1,26.1
-         Holder<Attribute> attr = resolveAttribute(args.checkjstring(3));
-         if (attr == null) {
-            return LuaValue.FALSE;
-         }
-         AttributeInstance instance = entity.getAttribute(attr);
-         if (instance == null) {
-            return LuaValue.FALSE;
-         }
-         String name = args.checkjstring(4);
-         ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
-         instance.removeModifier(id);
-         return LuaValue.TRUE;
-//--endversion
-      }));
-      table.set("GetRegisteredAttributes", fn((args) -> {
-         LuaTable result = new LuaTable();
-         int i = 1;
-         for (Attribute attr : BuiltInRegistries.ATTRIBUTE) {
-            ResourceLocation key = BuiltInRegistries.ATTRIBUTE.getKey(attr);
-            if (key != null) {
-               result.set(i++, LuaValue.valueOf(key.toString()));
-            }
-         }
-         return result;
-      }));
       return table;
    }
 
-   private static LivingEntity extractEntity(LuaValue val) {
-      LuaTable t = val.checktable();
-      LuaValue entityObj = t.get("__entity");
-      if (entityObj.isuserdata(LivingEntity.class)) {
-         return (LivingEntity) entityObj.checkuserdata(LivingEntity.class);
+   @MLuaDescription("Returns an entity attribute value by registered attribute name.")
+   public LuaValue GetAttribute(LuaValue entityValue, String attributeId) {
+      requireServer();
+      LivingEntity entity = extractEntity(entityValue);
+//--version 1.20.1
+      Attribute attribute = resolveAttribute(attributeId);
+//--endversion
+//--version 1.21.1,26.1
+      Holder<Attribute> attribute = resolveAttribute(attributeId);
+//--endversion
+      if (attribute == null) return LuaValue.NIL;
+      AttributeInstance instance = entity.getAttribute(attribute);
+      if (instance == null) return LuaValue.NIL;
+      LuaTable result = new LuaTable();
+      result.set("Base", LuaValue.valueOf(instance.getBaseValue()));
+      result.set("Value", LuaValue.valueOf(instance.getValue()));
+//--version 1.20.1
+      result.set("DefaultValue", LuaValue.valueOf(instance.getAttribute().getDefaultValue()));
+//--endversion
+//--version 1.21.1,26.1
+      result.set("DefaultValue", LuaValue.valueOf(instance.getAttribute().value().getDefaultValue()));
+//--endversion
+      return result;
+   }
+
+   @MLuaDescription("Sets an entity attribute's base value.")
+   public boolean SetBaseValue(LuaValue entityValue, String attributeId, double value) {
+      requireServer();
+      LivingEntity entity = extractEntity(entityValue);
+//--version 1.20.1
+      Attribute attribute = resolveAttribute(attributeId);
+//--endversion
+//--version 1.21.1,26.1
+      Holder<Attribute> attribute = resolveAttribute(attributeId);
+//--endversion
+      if (attribute == null) return false;
+      AttributeInstance instance = entity.getAttribute(attribute);
+      if (instance == null) return false;
+      instance.setBaseValue(value);
+      return true;
+   }
+
+   @MLuaDescription("Returns the modifiers currently applied to an entity attribute.")
+   public LuaTable GetModifiers(LuaValue entityValue, String attributeId) {
+      requireServer();
+      LivingEntity entity = extractEntity(entityValue);
+//--version 1.20.1
+      Attribute attribute = resolveAttribute(attributeId);
+//--endversion
+//--version 1.21.1,26.1
+      Holder<Attribute> attribute = resolveAttribute(attributeId);
+//--endversion
+      LuaTable result = new LuaTable();
+      if (attribute == null) return result;
+      AttributeInstance instance = entity.getAttribute(attribute);
+      if (instance == null) return result;
+      int index = 1;
+      for (AttributeModifier modifier : instance.getModifiers()) {
+         LuaTable entry = new LuaTable();
+//--version 1.20.1
+         entry.set("Id", modifier.getId().toString());
+         entry.set("Name", modifier.getName());
+         entry.set("Amount", LuaValue.valueOf(modifier.getAmount()));
+         entry.set("Operation", LuaValue.valueOf(modifier.getOperation().toValue()));
+//--endversion
+//--version 1.21.1,26.1
+         entry.set("Id", modifier.id().toString());
+         entry.set("Name", modifier.id().toString());
+         entry.set("Amount", LuaValue.valueOf(modifier.amount()));
+         entry.set("Operation", LuaValue.valueOf(modifier.operation().id()));
+//--endversion
+         result.set(index++, entry);
       }
+      return result;
+   }
+
+   @MLuaDescription("Adds or replaces a modifier on an entity attribute.")
+   public boolean AddModifier(LuaValue entityValue, String attributeId, String name, double amount,
+                              Optional<Integer> operationValue) {
+      requireServer();
+      LivingEntity entity = extractEntity(entityValue);
+//--version 1.20.1
+      Attribute attribute = resolveAttribute(attributeId);
+//--endversion
+//--version 1.21.1,26.1
+      Holder<Attribute> attribute = resolveAttribute(attributeId);
+//--endversion
+      if (attribute == null) return false;
+      AttributeInstance instance = entity.getAttribute(attribute);
+      if (instance == null) return false;
+      int operation = operationValue.orElse(0);
+//--version 1.20.1
+      UUID uuid = MLuaAttributeModifierIds.legacy(name);
+      AttributeModifier modifier = new AttributeModifier(uuid, name, amount,
+         AttributeModifier.Operation.fromValue(operation));
+//--endversion
+//--version 1.21.1,26.1
+      ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
+      AttributeModifier modifier = new AttributeModifier(id, amount, AttributeModifier.Operation.BY_ID.apply(operation));
+//--endversion
+      instance.addTransientModifier(modifier);
+      return true;
+   }
+
+   @MLuaDescription("Removes an attribute modifier by identifier.")
+   public boolean RemoveModifier(LuaValue entityValue, String attributeId, String name) {
+      requireServer();
+      LivingEntity entity = extractEntity(entityValue);
+//--version 1.20.1
+      Attribute attribute = resolveAttribute(attributeId);
+//--endversion
+//--version 1.21.1,26.1
+      Holder<Attribute> attribute = resolveAttribute(attributeId);
+//--endversion
+      if (attribute == null) return false;
+      AttributeInstance instance = entity.getAttribute(attribute);
+      if (instance == null) return false;
+//--version 1.20.1
+      UUID id = MLuaAttributeModifierIds.legacy(name);
+//--endversion
+//--version 1.21.1,26.1
+      ResourceLocation id = ResourceLocation.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
+//--endversion
+      instance.removeModifier(id);
+      return true;
+   }
+
+   @MLuaDescription("Returns the names of attributes available from Minecraft's attribute registry.")
+   public LuaTable GetRegisteredAttributes() {
+      LuaTable result = new LuaTable();
+      int index = 1;
+      for (Attribute attribute : BuiltInRegistries.ATTRIBUTE) {
+         ResourceLocation key = BuiltInRegistries.ATTRIBUTE.getKey(attribute);
+         if (key != null) result.set(index++, LuaValue.valueOf(key.toString()));
+      }
+      return result;
+   }
+
+   private static LivingEntity extractEntity(LuaValue value) {
+      LuaTable table = value.checktable();
+      LuaValue entity = table.get("__entity");
+      if (entity.isuserdata(LivingEntity.class)) return (LivingEntity) entity.checkuserdata(LivingEntity.class);
       throw new LuaError("[MLua] Expected an Entity table");
    }
 
@@ -262,19 +210,4 @@ public final class MLuaAttributeService extends MLuaServiceBase {
          throw new LuaError("[MLua] Attribute service methods are server-side only");
       }
    }
-
-   private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-      return new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            try {
-               return (Varargs)body.apply(args);
-            } catch (LuaError var3) {
-               throw var3;
-            } catch (Exception var4) {
-               throw new LuaError("[MLua] " + var4.getMessage());
-            }
-         }
-      };
-   }
-
 }

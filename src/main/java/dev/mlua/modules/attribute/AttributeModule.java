@@ -23,7 +23,7 @@ public class AttributeModule implements MLuaModule {
             .function("GetModifiers", "Returns the modifiers currently applied to an entity attribute.")
             .function("AddModifier", "Adds or replaces a modifier on an entity attribute.")
             .function("RemoveModifier", "Removes an attribute modifier by identifier.")
-            .function("GetRegisteredAttributes", "Returns the names of attributes registered with MLua.");
+            .function("GetRegisteredAttributes", "Returns the names of attributes available from Minecraft's attribute registry.");
         return List.of(attribute.build());
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
