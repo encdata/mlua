@@ -39,6 +39,9 @@ public interface MLuaRegistration {
     LuaTable registerClass(String name, LuaTable classTable, String... parentNames);
 
     default LuaTable registerClass(String name, LuaTable classTable, java.util.List<String> parentNames, String description) {
+        if (parentNames != null && parentNames.stream().filter(parent -> parent != null && !parent.isBlank()).count() > 1) {
+            throw new IllegalArgumentException("Lua classes support one superclass; use behavior mixins for shared behavior");
+        }
         validateClassDescription(this.classTable(name), name, description);
         validateClassDescription(classTable, name, description);
         LuaTable table = registerClass(name, classTable, parentNames.toArray(String[]::new));

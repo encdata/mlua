@@ -244,6 +244,9 @@ public final class MLuaUIBindings {
     private static LuaTable registerClass(MLuaRegistration registration, String name, Class<?> instanceType,
                                          Supplier<? extends GuiBase> factory, String description,
                                          LuaTable... parents) {
+        if (parents.length > 1) {
+            throw new IllegalArgumentException("UI classes support one superclass; use behavior mixins for shared behavior");
+        }
         LuaTable existing = registration.classTable(name);
         LuaTable classTable = existing != null ? existing : new LuaTable();
         classTable.rawset("__mlua_doc_type", name);
@@ -274,18 +277,6 @@ public final class MLuaUIBindings {
         if (existing == null && parents.length == 1) {
             LuaTable meta = new LuaTable();
             meta.set("__index", parents[0]);
-            classTable.setmetatable(meta);
-        } else if (existing == null && parents.length > 1) {
-            LuaTable meta = new LuaTable();
-            meta.set("__index", new TwoArgFunction() {
-                public LuaValue call(LuaValue tbl, LuaValue key) {
-                    for (LuaTable parent : parents) {
-                        LuaValue val = parent.get(key);
-                        if (!val.isnil()) return val;
-                    }
-                    return LuaValue.NIL;
-                }
-            });
             classTable.setmetatable(meta);
         }
         String[] parentNames = java.util.Arrays.stream(parents)
