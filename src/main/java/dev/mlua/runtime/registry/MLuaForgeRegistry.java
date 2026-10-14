@@ -656,23 +656,11 @@ public final class MLuaForgeRegistry {
    }
 
    public boolean isRegisteredItem(String namespace, String path) {
-      String key = namespace + ":" + path;
-      if (this.items.containsKey(key)) {
-         return true;
-      } else {
-         String name = path.contains("/") ? path.substring(path.lastIndexOf(47) + 1) : path;
-         return this.items.containsKey(namespace + ":" + name);
-      }
+      return this.items.containsKey(namespace + ":" + path);
    }
 
    public boolean isRegisteredBlock(String namespace, String path) {
-      String key = namespace + ":" + path;
-      if (this.blocks.containsKey(key)) {
-         return true;
-      } else {
-         String name = path.contains("/") ? path.substring(path.lastIndexOf(47) + 1) : path;
-         return this.blocks.containsKey(namespace + ":" + name);
-      }
+      return this.blocks.containsKey(namespace + ":" + path);
    }
 
    private void ensureOpen(String modId, String type, String name) {
