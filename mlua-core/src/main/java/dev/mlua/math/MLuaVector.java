@@ -6,6 +6,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 public final class MLuaVector {
    private MLuaVector() {
@@ -13,6 +16,8 @@ public final class MLuaVector {
 
    private static final LuaTable VECTOR3_METATABLE = vector3Metatable().freeze();
    private static final LuaTable VECTOR2_METATABLE = vector2Metatable().freeze();
+   private static final Set<LuaTable> VECTOR3_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
+   private static final Set<LuaTable> VECTOR2_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
 
    public static LuaTable vector3(double x, double y, double z) {
       LuaTable table = new LuaTable();
@@ -34,6 +39,7 @@ public final class MLuaVector {
 
       table.set("unit", table.get("Unit"));
       table.setmetatable(VECTOR3_METATABLE);
+      VECTOR3_VALUES.add(table);
       return table.freeze();
    }
 
@@ -55,6 +61,7 @@ public final class MLuaVector {
 
       table.set("unit", table.get("Unit"));
       table.setmetatable(VECTOR2_METATABLE);
+      VECTOR2_VALUES.add(table);
       return table.freeze();
    }
 
@@ -71,30 +78,39 @@ public final class MLuaVector {
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
       table.setmetatable(VECTOR3_METATABLE);
+      VECTOR3_VALUES.add(table);
       return table.freeze();
    }
 
+   public static boolean isVector3(LuaValue value) {
+      return value.istable() && value.checktable().isfrozen()
+         && VECTOR3_VALUES.contains(value.checktable());
+   }
+
+   public static boolean isVector2(LuaValue value) {
+      return value.istable() && value.checktable().isfrozen()
+         && VECTOR2_VALUES.contains(value.checktable());
+   }
+
+   public static double[] components2(LuaValue value) {
+      LuaTable vector = checkVector2(value);
+      return new double[] {vector.get("X").checkdouble(), vector.get("Y").checkdouble()};
+   }
+
+   public static double[] components3(LuaValue value) {
+      LuaTable vector = checkVector3(value);
+      return new double[] {vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
+   }
+
    private static LuaTable checkVector3(LuaValue value) {
-      if (!value.istable() || !"Vector3".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen() || value.getmetatable() != VECTOR3_METATABLE) {
+      if (!isVector3(value)) {
          throw new LuaError("Vector3 operations require values created by Vector3.new");
       }
       return value.checktable();
    }
 
-   public static double[] components3(LuaValue value) {
-      LuaTable vector = checkVector3(value);
-      return new double[]{vector.get("X").checkdouble(), vector.get("Y").checkdouble(), vector.get("Z").checkdouble()};
-   }
-
-   public static boolean isVector3(LuaValue value) {
-      if (!value.istable() || !value.checktable().isfrozen() || value.getmetatable() != VECTOR3_METATABLE) {
-         return false;
-      }
-      return "Vector3".equals(value.get("__type").optjstring(null));
-   }
-
    private static LuaTable checkVector2(LuaValue value) {
-      if (!value.istable() || !"Vector2".equals(value.get("__type").optjstring(null)) || !value.checktable().isfrozen() || value.getmetatable() != VECTOR2_METATABLE) {
+      if (!isVector2(value)) {
          throw new LuaError("Vector2 operations require values created by Vector2.new");
       }
       return value.checktable();
@@ -111,6 +127,7 @@ public final class MLuaVector {
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
       table.setmetatable(VECTOR2_METATABLE);
+      VECTOR2_VALUES.add(table);
       return table.freeze();
    }
 
@@ -226,6 +243,7 @@ public final class MLuaVector {
             return LuaValue.valueOf(var10000 + ", " + t.get("Y").tojstring() + ", " + t.get("Z").tojstring());
          }
       });
+      metatable.set("__metatable", LuaValue.valueOf("Vector3"));
       return metatable;
    }
 
@@ -294,6 +312,7 @@ public final class MLuaVector {
             return LuaValue.valueOf(var10000 + ", " + t.get("Y").tojstring());
          }
       });
+      metatable.set("__metatable", LuaValue.valueOf("Vector2"));
       return metatable;
    }
 

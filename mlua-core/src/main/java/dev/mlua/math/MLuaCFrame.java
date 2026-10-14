@@ -9,9 +9,13 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 public final class MLuaCFrame {
    private static final LuaTable SHARED_METATABLE = metatable().freeze();
+   private static final Set<LuaTable> VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
    public static final MLuaCFrame IDENTITY = new MLuaCFrame(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
    private final double x;
    private final double y;
@@ -168,24 +172,21 @@ public final class MLuaCFrame {
       table.set("Pitch", (double)this.minecraftPitch());
       table.set("Roll", 0);
       table.setmetatable(SHARED_METATABLE);
+      VALUES.add(table);
       return table.freeze();
    }
 
    public static MLuaCFrame fromLua(LuaValue value) {
-      if (!value.istable()) {
+      if (!isCFrame(value)) {
          throw new LuaError("[MLua] Expected CFrame");
-      } else {
-         LuaValue userdata = value.checktable().rawget("__cframe");
-         if (userdata.isuserdata(MLuaCFrame.class)) {
-            return (MLuaCFrame)userdata.checkuserdata(MLuaCFrame.class);
-         } else {
-            throw new LuaError("[MLua] Expected CFrame");
-         }
       }
+      return (MLuaCFrame)value.checktable().rawget("__cframe").checkuserdata(MLuaCFrame.class);
    }
 
    public static boolean isCFrame(LuaValue value) {
-      return value.istable() && value.checktable().isfrozen() && value.checktable().rawget("__cframe").isuserdata(MLuaCFrame.class);
+      return value.istable() && value.checktable().isfrozen()
+         && VALUES.contains(value.checktable())
+         && value.checktable().rawget("__cframe").isuserdata(MLuaCFrame.class);
    }
 
    public static double[] vector(LuaValue value) {
@@ -196,7 +197,16 @@ public final class MLuaCFrame {
          MLuaCFrame cframe = fromLua(value);
          return new double[]{cframe.x(), cframe.y(), cframe.z()};
       }
-      return MLuaVector.components3(value);
+      if (!MLuaVector.isVector3(value)) {
+         throw new LuaError("[MLua] Expected a Vector3 or CFrame value; coordinate tables are not accepted");
+      }
+      LuaTable table = value.checktable();
+      return new double[]{component(table, "X", "x"), component(table, "Y", "y"), component(table, "Z", "z")};
+   }
+
+   private static double component(LuaTable table, String upper, String lower) {
+      LuaValue value = table.get(upper);
+      return value.isnumber() ? value.todouble() : table.get(lower).checkdouble();
    }
 
    public double x() {
@@ -428,6 +438,7 @@ public final class MLuaCFrame {
             return LuaValue.valueOf("CFrame(" + cf.x + ", " + cf.y + ", " + cf.z + ")");
          }
       });
+      metatable.set("__metatable", LuaValue.valueOf("CFrame"));
       return metatable;
    }
 
