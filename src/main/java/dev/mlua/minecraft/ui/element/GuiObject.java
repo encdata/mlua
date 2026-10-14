@@ -110,7 +110,6 @@ public abstract class GuiObject extends GuiBase2d {
         table.set("MouseMoved", MLuaLuaBindings.signalInstance(mouseMoved, this.ownerGlobals, this.scheduler(), this.ownerModId, this.ownerSide));
     }
 
-    // --- Absolute position / size computation ---
     public int computeAbsoluteWidth(int parentW) {
         return (int)(parentW * size.x().scale()) + size.x().offset();
     }
@@ -129,7 +128,6 @@ public abstract class GuiObject extends GuiBase2d {
         return anchorTargetY - (int)(anchorPoint.y() * absoluteH);
     }
 
-    // --- Tween methods ---
     public boolean tweenPosition(UDim2 endPos, String easingDir, String easingStyle, double time, boolean override, String callback) {
         if (!override && activeTween != null) return false;
         activeTween = new GuiObjectTween(this, endPos, null, easingDir, easingStyle, time, callback);
@@ -155,7 +153,6 @@ public abstract class GuiObject extends GuiBase2d {
         }
     }
 
-    // --- Internal tween record ---
     public static class GuiObjectTween {
         public final GuiObject target;
         public final UDim2 startPos;

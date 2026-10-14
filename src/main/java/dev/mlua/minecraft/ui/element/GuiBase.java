@@ -144,7 +144,6 @@ public abstract class GuiBase {
         }
     }
 
-    /** Removes descendants created by one addon while keeping foreign-owned branches live. */
     public int removeOwnedChildren(String owner) {
         if (owner == null || owner.isBlank()) return 0;
         int removed = 0;
@@ -160,7 +159,6 @@ public abstract class GuiBase {
         return removed;
     }
 
-    /** Destroys this addon-owned node but detaches descendants owned by other addons first. */
     public void destroyPreservingForeign(String owner) {
         detachForeignBranches(this, owner);
         this.destroy();
@@ -175,7 +173,6 @@ public abstract class GuiBase {
 
     public GuiBase getParent() { return parent; }
 
-    /** Returns a stable snapshot; child changes must pass through addChild/removeChild to keep Parent in sync. */
     public List<GuiBase> getChildren() { return List.copyOf(children); }
 
     public boolean isVisible() {
@@ -216,7 +213,6 @@ public abstract class GuiBase {
     protected void syncLuaProperty(String key, LuaValue value) { if (selfTable != null) selfTable.rawset(key, value); }
     protected void writeProperties(LuaTable table) { }
 
-    /** Assigns UI definition fields through the same live property hooks used by Lua code. */
     public void applyDefinitionProperties(LuaTable properties) {
         if (properties == null) return;
         LuaValue key = LuaValue.NIL;
@@ -400,7 +396,6 @@ public abstract class GuiBase {
         return false;
     }
 
-    /** Reads public Java bean properties so newly registered UI subclasses do not need another Lua switch. */
     private static LuaValue readJavaProperty(Object target, String property) {
         if (!(target instanceof GuiBase base) || !hasJavaPropertyMetadata(base, property)) return LuaValue.NIL;
         Method getter = propertyGetter(target, property);
@@ -430,7 +425,6 @@ public abstract class GuiBase {
         }
     }
 
-    /** Writes public Java bean properties with explicit conversions for MLua's UI value types. */
     private static boolean writeJavaProperty(Object target, String property, LuaValue value) {
         if (!(target instanceof GuiBase base) || !hasJavaPropertyMetadata(base, property)) return false;
         String setterName = "set" + propertySuffix(property);

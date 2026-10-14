@@ -30,11 +30,6 @@ public final class MLuaUIBindings {
         registerBuiltins(registration);
     }
 
-    /**
-     * Registers a native UI implementation as an MLua class. Addon modules can use this
-     * during their class registration phase when a Lua subclass needs a Java renderer.
-     * A null factory marks the class as abstract while keeping it available as a parent.
-     */
     public static LuaTable registerNativeClass(MLuaRegistration registration, String name,
                                                Class<? extends GuiBase> instanceType,
                                                Supplier<? extends GuiBase> factory,
