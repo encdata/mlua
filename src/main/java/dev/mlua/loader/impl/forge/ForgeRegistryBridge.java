@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 
 public class ForgeRegistryBridge implements RegistryBridge {
     private final MLuaForgeRegistry forgeRegistry = MLuaForgeRegistry.get();
@@ -59,7 +60,16 @@ public class ForgeRegistryBridge implements RegistryBridge {
     @Override
     @SuppressWarnings("unchecked")
     public <T> RegistryHandle<T> registerEntity(String modId, String name, Supplier<T> supplier, Supplier<?> attributes) {
-        return (RegistryHandle<T>) wrap(forgeRegistry.registerEntity(modId, name, (Supplier) supplier, (Supplier) attributes));
+        Objects.requireNonNull(supplier, "supplier");
+        Supplier<AttributeSupplier> checkedAttributes = attributes == null ? null : () -> {
+            Object value = attributes.get();
+            if (!(value instanceof AttributeSupplier attributeSupplier)) {
+                throw new IllegalStateException("[MLua] Entity attributes for '" + modId + ":" + name
+                    + "' must return an AttributeSupplier");
+            }
+            return attributeSupplier;
+        };
+        return (RegistryHandle<T>) wrap(forgeRegistry.registerEntity(modId, name, (Supplier) supplier, checkedAttributes));
     }
 
     @Override

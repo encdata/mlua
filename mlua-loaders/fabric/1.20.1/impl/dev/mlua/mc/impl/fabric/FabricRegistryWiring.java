@@ -46,9 +46,11 @@ public final class FabricRegistryWiring {
                     Registry.register(BuiltInRegistries.ENTITY_TYPE, id, entityType);
                     if (reg.attributes() != null) {
                         Object attributes = reg.attributes().get();
-                        if (attributes instanceof AttributeSupplier supplier) {
-                            FabricDefaultAttributeRegistry.register((EntityType) entityType, supplier);
+                        if (!(attributes instanceof AttributeSupplier supplier)) {
+                            throw new IllegalStateException("[MLua] Entity attributes for '" + reg.key()
+                                + "' must return an AttributeSupplier");
                         }
+                        FabricDefaultAttributeRegistry.register((EntityType) entityType, supplier);
                     }
                     bridge.bindHandle(reg.kind(), reg.key(), () -> entityType);
                 }
