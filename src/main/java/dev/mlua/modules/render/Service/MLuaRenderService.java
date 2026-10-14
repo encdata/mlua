@@ -44,18 +44,18 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "EndPosition", "Vector2", "The second screen position used by line and beam objects.", "GetEndPosition", "SetEndPosition");
         registerObjectProperty(registration, "WorldPosition", "Vector3|CFrame", "The render object's world position.", "GetWorldPosition", "SetWorldPosition");
         registerObjectProperty(registration, "EndWorldPosition", "Vector3|CFrame", "The second world position used by line and beam objects.", "GetEndWorldPosition", "SetEndWorldPosition");
-        registerObjectProperty(registration, "Depth", "number", "The object's depth offset.", "GetDepth", "SetDepth");
-        registerObjectProperty(registration, "Size", "Vector2", "The render object's width and height.", "GetSize", "SetSize");
+        registerObjectProperty(registration, "Depth", "number", "The object's non-negative depth offset.", "GetDepth", "SetDepth");
+        registerObjectProperty(registration, "Size", "Vector2", "The render object's non-negative width and height.", "GetSize", "SetSize");
         registerObjectProperty(registration, "Rotation", "number", "The object's rotation in degrees.", "GetRotation", "SetRotation");
         registerObjectProperty(registration, "Visible", "boolean", "Whether this render object is visible.", "GetVisible", "SetVisible");
         registerObjectProperty(registration, "Transparency", "number", "The object's transparency from zero to one.", "GetTransparency", "SetTransparency");
         registerObjectProperty(registration, "Alpha", "number", "The object's opacity from zero to one.", "GetAlpha", "SetAlpha");
         registerObjectProperty(registration, "Color", "number", "The object's packed color value.", "GetColor", "SetColor");
-        registerObjectProperty(registration, "Thickness", "number", "The line or outline thickness.", "GetThickness", "SetThickness");
+        registerObjectProperty(registration, "Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness");
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
-        registerObjectProperty(registration, "ModelScale", "number", "The uniform scale applied to this object or model.", "GetModelScale", "SetModelScale");
+        registerObjectProperty(registration, "ModelScale", "number", "The uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
@@ -66,18 +66,18 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetEndPosition", "Returns the second screen position."}, {"SetEndPosition", "Changes the second screen position."},
             {"GetWorldPosition", "Returns the object's world position."}, {"SetWorldPosition", "Changes the object's world position."},
             {"GetEndWorldPosition", "Returns the second world position."}, {"SetEndWorldPosition", "Changes the second world position."},
-            {"GetDepth", "Returns the depth offset."}, {"SetDepth", "Changes the depth offset."},
-            {"GetSize", "Returns the object's width and height."}, {"SetSize", "Changes the object's width and height."},
+            {"GetDepth", "Returns the depth offset."}, {"SetDepth", "Sets a finite, non-negative depth offset."},
+            {"GetSize", "Returns the object's width and height."}, {"SetSize", "Sets finite, non-negative width and height values."},
             {"GetRotation", "Returns the rotation in degrees."}, {"SetRotation", "Changes the rotation in degrees."},
             {"GetVisible", "Returns whether the object is visible."}, {"SetVisible", "Shows or hides the object."},
             {"GetTransparency", "Returns the object's transparency."}, {"SetTransparency", "Changes the object's transparency."},
             {"GetAlpha", "Returns the object's opacity."}, {"SetAlpha", "Changes the object's opacity."},
             {"GetColor", "Returns the packed color value."}, {"SetColor", "Changes the packed color value."},
-            {"GetThickness", "Returns the line or outline thickness."}, {"SetThickness", "Changes the line or outline thickness."},
+            {"GetThickness", "Returns the line or outline thickness."}, {"SetThickness", "Sets a finite thickness of at least one pixel."},
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
-            {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Changes the uniform model scale."},
+            {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Sets a finite uniform model scale of at least 0.001."},
             {"GetFollowEntity", "Returns the followed entity id, or nil."}, {"SetFollowEntity", "Attaches the object to an entity or clears the attachment with nil."},
             {"ClearFollowEntity", "Stops the object from following an entity."},
             {"GetResource", "Returns the image or model resource."}, {"SetResource", "Changes the image or model resource."},
@@ -247,6 +247,9 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         ensureClient();
         double[] centerPosition = worldVector(center);
         double[] dimensions = worldVector(size);
+        if (dimensions[0] < 0.0 || dimensions[1] < 0.0 || dimensions[2] < 0.0) {
+            throw new LuaError("[MLua] World box size components must be non-negative.");
+        }
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BOX, null, owner());
         var object = requireObject(id);
         object.setWorldSpace(true);
@@ -409,7 +412,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("GetDepth", fn(args -> LuaValue.valueOf(requireObject(id).depth())));
         operations.set("SetDepth", fn(args -> {
-            requireObject(id).setDepth(args.checkdouble(2));
+            requireObject(id).setDepth(nonNegative(args.arg(2), "Depth"));
             return LuaValue.NONE;
         }));
         operations.set("GetSize", fn(args -> {
@@ -418,13 +421,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("SetSize", fn(args -> {
             var object = requireObject(id);
-            double[] value = screenVector(args.arg(2));
+            double[] value = screenSize(args.arg(2));
             object.setSize(value[0], value[1]);
             return LuaValue.NONE;
         }));
         operations.set("GetRotation", fn(args -> LuaValue.valueOf(requireObject(id).rotation())));
         operations.set("SetRotation", fn(args -> {
-            requireObject(id).setRotation(args.checkdouble(2));
+            requireObject(id).setRotation(finiteNumber(args.arg(2), "Rotation"));
             return LuaValue.NONE;
         }));
         operations.set("GetVisible", fn(args -> LuaValue.valueOf(requireObject(id).visible())));
@@ -444,17 +447,17 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("GetColor", fn(args -> LuaValue.valueOf(requireObject(id).color())));
         operations.set("SetColor", fn(args -> {
-            requireObject(id).setColor(args.checkint(2));
+            requireObject(id).setColor(packedColor(args.arg(2)));
             return LuaValue.NONE;
         }));
         operations.set("GetThickness", fn(args -> LuaValue.valueOf(requireObject(id).thickness())));
         operations.set("SetThickness", fn(args -> {
-            requireObject(id).setThickness(args.checkdouble(2));
+            requireObject(id).setThickness(atLeast(args.arg(2), "Thickness", 1.0));
             return LuaValue.NONE;
         }));
         operations.set("GetZIndex", fn(args -> LuaValue.valueOf(requireObject(id).zIndex())));
         operations.set("SetZIndex", fn(args -> {
-            requireObject(id).setZIndex(args.checkint(2));
+            requireObject(id).setZIndex(wholeInt(args.arg(2), "ZIndex"));
             return LuaValue.NONE;
         }));
         operations.set("GetWorldSpace", fn(args -> LuaValue.valueOf(requireObject(id).worldSpace())));
@@ -469,7 +472,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("GetModelScale", fn(args -> LuaValue.valueOf(requireObject(id).modelScale())));
         operations.set("SetModelScale", fn(args -> {
-            requireObject(id).setModelScale((float) args.checkdouble(2));
+            requireObject(id).setModelScale((float) atLeast(args.arg(2), "ModelScale", 0.001));
             return LuaValue.NONE;
         }));
         operations.set("GetFollowEntity", fn(args -> {
@@ -567,11 +570,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }
         LuaValue size = property(props, "Size");
         if (!size.isnil()) {
-            double[] value = screenVector(size);
+            double[] value = screenSize(size);
             object.setSize(value[0], value[1]);
         }
         LuaValue rotation = property(props, "Rotation");
-        if (!rotation.isnil()) object.setRotation(rotation.checkdouble());
+        if (!rotation.isnil()) object.setRotation(finiteNumber(rotation, "Rotation"));
         LuaValue visible = property(props, "Visible");
         if (!visible.isnil()) object.setVisible(visible.checkboolean());
         LuaValue transparency = property(props, "Transparency");
@@ -582,11 +585,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (!transparency.isnil()) object.setTransparency(opacity(transparency, "Transparency"));
         else if (!alpha.isnil()) object.setTransparency(1.0 - opacity(alpha, "Alpha"));
         LuaValue color = property(props, "Color");
-        if (!color.isnil()) object.setColor(color.checkint());
+        if (!color.isnil()) object.setColor(packedColor(color));
         LuaValue depth = property(props, "Depth");
-        if (!depth.isnil()) object.setDepth(depth.checkdouble());
+        if (!depth.isnil()) object.setDepth(nonNegative(depth, "Depth"));
         LuaValue zIndex = property(props, "ZIndex");
-        if (!zIndex.isnil()) object.setZIndex(zIndex.checkint());
+        if (!zIndex.isnil()) object.setZIndex(wholeInt(zIndex, "ZIndex"));
         LuaValue worldPosition = property(props, "WorldPosition");
         if (!worldPosition.isnil()) {
             double[] value = worldVector(worldPosition);
@@ -603,9 +606,9 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         LuaValue scaleWithDistance = property(props, "ScaleWithDistance");
         if (!scaleWithDistance.isnil()) object.setScaleWithDistance(scaleWithDistance.checkboolean());
         LuaValue modelScale = property(props, "ModelScale");
-        if (!modelScale.isnil()) object.setModelScale((float) modelScale.todouble());
+        if (!modelScale.isnil()) object.setModelScale((float) atLeast(modelScale, "ModelScale", 0.001));
         LuaValue thickness = property(props, "Thickness");
-        if (!thickness.isnil()) object.setThickness(thickness.checkdouble());
+        if (!thickness.isnil()) object.setThickness(atLeast(thickness, "Thickness", 1.0));
         LuaValue resource = property(props, "Resource");
         LuaValue text = property(props, "Text");
         if (!resource.isnil() && !text.isnil() && !resource.eq_b(text)) {
@@ -627,7 +630,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private static double opacity(LuaValue value, String propertyName) {
-        double opacity = value.checkdouble();
+        double opacity = finiteNumber(value, propertyName);
         if (!Double.isFinite(opacity) || opacity < 0.0 || opacity > 1.0) {
             throw new LuaError("[MLua] RenderObject " + propertyName + " must be between 0 and 1.");
         }
@@ -658,13 +661,60 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private static double[] worldVector(LuaValue value) {
-        return MLuaCFrame.vector(value);
+        double[] vector = MLuaCFrame.vector(value);
+        for (double component : vector) finiteNumber(component, "WorldPosition");
+        return vector;
     }
 
     private static double[] screenVector(LuaValue value) {
         if (!MLuaVector.isVector2(value)) throw new LuaError("[MLua] Render screen coordinates require Vector2 values");
         LuaTable vector = value.checktable();
-        return new double[]{vector.get("X").todouble(), vector.get("Y").todouble()};
+        return new double[]{finiteNumber(vector.get("X"), "Position"), finiteNumber(vector.get("Y"), "Position")};
+    }
+
+    private static double[] screenSize(LuaValue value) {
+        double[] size = screenVector(value);
+        if (size[0] < 0.0 || size[1] < 0.0) {
+            throw new LuaError("[MLua] RenderObject Size components must be non-negative.");
+        }
+        return size;
+    }
+
+    private static double nonNegative(LuaValue value, String name) {
+        return atLeast(value, name, 0.0);
+    }
+
+    private static double atLeast(LuaValue value, String name, double minimum) {
+        double number = finiteNumber(value, name);
+        if (number < minimum) {
+            throw new LuaError("[MLua] RenderObject " + name + " must be at least " + minimum + ".");
+        }
+        return number;
+    }
+
+    private static double finiteNumber(LuaValue value, String name) {
+        return finiteNumber(value.checkdouble(), name);
+    }
+
+    private static double finiteNumber(double number, String name) {
+        if (!Double.isFinite(number)) throw new LuaError("[MLua] RenderObject " + name + " must be finite.");
+        return number;
+    }
+
+    private static int wholeInt(LuaValue value, String name) {
+        double number = finiteNumber(value, name);
+        if (number != Math.rint(number) || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+            throw new LuaError("[MLua] RenderObject " + name + " must be a whole number within the 32-bit integer range.");
+        }
+        return (int)number;
+    }
+
+    private static int packedColor(LuaValue value) {
+        double number = finiteNumber(value, "Color");
+        if (number != Math.rint(number) || number < Integer.MIN_VALUE || number > 0xffffffffL) {
+            throw new LuaError("[MLua] RenderObject Color must be a whole 32-bit packed color value.");
+        }
+        return (int)(long)number;
     }
 
     private MLuaEntityScope resolveOptionalEntityScope(LuaValue value) {
