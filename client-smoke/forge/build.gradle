@@ -13,14 +13,14 @@ minecraft {
         client {
             workingDirectory project.file('run')
             mods {
-                mlua_ci_smoke { source sourceSets.main }
+                mlua_ci_smoke { source sourceSets.main.output }
             }
         }
         server {
             workingDirectory project.file('run')
             args '--nogui'
             mods {
-                mlua_ci_smoke { source sourceSets.main }
+                mlua_ci_smoke { source sourceSets.main.output }
             }
         }
     }
