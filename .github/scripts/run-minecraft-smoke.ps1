@@ -11,13 +11,23 @@ param(
 $ErrorActionPreference = 'Stop'
 $stdoutPath = Join-Path (Get-Location) $LogFile
 $stderrPath = "$stdoutPath.stderr"
+$minecraftLogPath = Join-Path (Get-Location) 'run/logs/latest.log'
 Remove-Item $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+Remove-Item $minecraftLogPath -Force -ErrorAction SilentlyContinue
 
 $arguments = @($GradleArgs) + @($Task)
 $argumentText = $arguments -join ' '
 $command = "gradle $argumentText 1> `"$stdoutPath`" 2> `"$stderrPath`""
 $process = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', $command) `
     -WorkingDirectory (Get-Location).Path -PassThru
+
+function Get-SmokeOutput {
+    $text = ''
+    if (Test-Path $stdoutPath) { $text += Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue }
+    if (Test-Path $stderrPath) { $text += Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue }
+    if (Test-Path $minecraftLogPath) { $text += Get-Content $minecraftLogPath -Raw -ErrorAction SilentlyContinue }
+    return $text
+}
 
 $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
 $markerSeenAt = $null
@@ -28,9 +38,7 @@ $graphicsFailure = '(?i)(Failed to create a GLFW window|Failed to find any valid
 try {
     while ($true) {
         $process.Refresh()
-        $text = ''
-        if (Test-Path $stdoutPath) { $text += Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue }
-        if (Test-Path $stderrPath) { $text += Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue }
+        $text = Get-SmokeOutput
 
         if (-not $booted -and $text.Contains($BootMarker)) {
             $booted = $true
@@ -61,9 +69,7 @@ try {
         $process.WaitForExit()
     }
 
-    $text = ''
-    if (Test-Path $stdoutPath) { $text += Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue }
-    if (Test-Path $stderrPath) { $text += Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue }
+    $text = Get-SmokeOutput
 
     if ($text -match "(?im)MLua module '.+' (failed during classes|failed while registering|was disabled after its registration failed|was disabled after its class registration failed)") {
         throw 'MLua reached Minecraft startup but one or more API modules failed registration; see the captured launcher log.'

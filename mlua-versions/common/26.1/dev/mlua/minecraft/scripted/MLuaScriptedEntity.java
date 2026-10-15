@@ -640,7 +640,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (tag instanceof net.minecraft.nbt.NumericTag nt) {
          return LuaValue.valueOf(nt.getAsDouble());
       } else if (tag instanceof net.minecraft.nbt.StringTag st) {
-         return LuaValue.valueOf(st.getAsString());
+         return LuaValue.valueOf(st.value());
       } else if (tag instanceof CompoundTag ct) {
          return this.compoundToLua(ct);
       } else if (tag instanceof ListTag lt) {

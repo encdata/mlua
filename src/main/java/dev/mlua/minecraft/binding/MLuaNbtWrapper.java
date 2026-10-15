@@ -140,7 +140,12 @@ public final class MLuaNbtWrapper {
          return value == (double)integral ? LuaValue.valueOf(integral) : LuaValue.valueOf(value);
       }
       if (tag instanceof StringTag stringTag) {
+         //--version 26.1
+         return LuaValue.valueOf(stringTag.value());
+         //--endversion
+         //--version 1.20.1,1.21.1
          return LuaValue.valueOf(stringTag.getAsString());
+         //--endversion
       }
       if (tag instanceof CompoundTag compoundTag) {
          LuaTable table = new LuaTable();
