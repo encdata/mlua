@@ -27,6 +27,12 @@ def runtimeNeoForgeOverrideExcludes = [
         'dev/mlua/transformer/**'
     ]
 if (is26Family) runtimeNeoForgeOverrideExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
+if (is26Family) {
+    // The 26.1 runtime has its own NeoForge entrypoint. The inherited 1.21.1
+    // project sources also contain MLuaMod, which would initialize MLua a
+    // second time and register built-in content twice.
+    runtimeNeoForgeOverrideExcludes += 'dev/mlua/MLuaMod.java'
+}
 def prepareRuntimeNeoForgeOverrideSources = registerMergedTree(project, 'prepareRuntimeNeoForgeOverrideSources',
     targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), runtimeNeoForgeOverrideExcludes)
 if (is26Family) {
