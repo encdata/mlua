@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.mlua.runtime.client.MLuaVisualBlockEntity;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.runtime.registry.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;

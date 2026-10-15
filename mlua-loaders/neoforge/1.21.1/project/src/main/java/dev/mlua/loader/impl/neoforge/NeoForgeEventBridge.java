@@ -217,24 +217,14 @@ public class NeoForgeEventBridge implements EventBridge {
     @Override
     public void onExplosion(ExplosionCallback callback) {
         NeoForge.EVENT_BUS.addListener((ExplosionEvent.Start event) -> {
-            //--version 1.20.1
-            callback.handle(event.getLevel(), event.getExplosion().getPosition());
-            //--endversion
-            //--version 1.21.1
             callback.handle(event.getLevel(), event.getExplosion().center());
-            //--endversion
         });
     }
 
     @Override
     public void onAdvancement(AdvancementCallback callback) {
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) -> {
-            //--version 1.20.1
-            callback.handle(event.getEntity(), event.getAdvancement().getId().toString());
-            //--endversion
-            //--version 1.21.1
             callback.handle(event.getEntity(), event.getAdvancement().id().toString());
-            //--endversion
         });
     }
 }

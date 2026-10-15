@@ -99,9 +99,21 @@ public final class NeoForgeClientBridge implements ClientBridge {
             if (MLuaInputHandler.handleMouseButton(event.getButton(), event.getAction())) event.setCanceled(true);
         });
         NeoForge.EVENT_BUS.addListener((InputEvent.MouseScrollingEvent event) -> {
-            if (MLuaInputHandler.handleMouseScroll(event.getScrollDelta())) event.setCanceled(true);
+            if (MLuaInputHandler.handleMouseScroll(extractScrollDelta(event))) event.setCanceled(true);
         });
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> MLuaInputHandler.handleClientTick());
         inputHandlersRegistered = true;
+    }
+
+    private double extractScrollDelta(InputEvent.MouseScrollingEvent event) {
+        try {
+            return ((Number) event.getClass().getMethod("getDeltaY").invoke(event)).doubleValue();
+        } catch (ReflectiveOperationException ignored) {
+        }
+        try {
+            return ((Number) event.getClass().getMethod("getScrollDelta").invoke(event)).doubleValue();
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("[MLua] Failed to read NeoForge mouse scroll delta", exception);
+        }
     }
 }
