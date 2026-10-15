@@ -198,11 +198,11 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf((double)player.getExperienceProgress());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GiveExperience", varArg((args) -> {
-         player.giveExperiencePoints(args.checkint(2));
+         player.giveExperiencePoints(MLuaLuaArguments.wholeInt(args, 2, "Player:GiveExperience", "points"));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GiveExperienceLevels", varArg((args) -> {
-         player.giveExperienceLevels(args.checkint(2));
+         player.giveExperienceLevels(MLuaLuaArguments.wholeInt(args, 2, "Player:GiveExperienceLevels", "levels"));
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> {
@@ -289,7 +289,8 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }), "Changes this player's game mode. This method is server-side only.");
       MLuaClassMethods.setInstanceMethod(table, "HasPermission", varArg((args) -> {
-         return LuaValue.valueOf(player.hasPermissions(args.checkint(2)));
+         int level = MLuaLuaArguments.wholeInt(args, 2, "Player:HasPermission", "level");
+         return LuaValue.valueOf(player.hasPermissions(level));
       }));
       MLuaClassMethods.setInstanceMethod(table, "IsOperator", luaFn(() -> {
          return LuaValue.valueOf(player.hasPermissions(4));

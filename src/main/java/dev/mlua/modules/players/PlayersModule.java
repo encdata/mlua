@@ -312,7 +312,7 @@ public class PlayersModule implements MLuaModule {
                 case "SetData" -> "Sets a value in this player's persistent data.";
                 case "GetData" -> "Reads a value from this player's persistent data.";
                 case "RemoveData" -> "Removes a value from this player's persistent data.";
-                case "HasPermission" -> "Checks whether this player has a permission node.";
+                case "HasPermission" -> "Checks this player's permission level using a whole-number level.";
                 default -> "Checks whether this player is a server operator.";
             };
             MLuaClassMethods.registerInstanceMethod(registration, "Player", method, description);
@@ -320,8 +320,8 @@ public class PlayersModule implements MLuaModule {
         String[][] inventoryAndStateMethods = {
             {"GetExperienceLevel", "Returns this player's current experience level."},
             {"GetExperienceProgress", "Returns this player's progress toward the next experience level."},
-            {"GiveExperience", "Adds experience points to this player; server-side only."},
-            {"GiveExperienceLevels", "Adds experience levels to this player; server-side only."},
+            {"GiveExperience", "Adds a whole-number amount of experience points to this player; server-side only."},
+            {"GiveExperienceLevels", "Adds a whole-number amount of experience levels to this player; server-side only."},
             {"IsOnline", "Whether this player is connected and alive."},
             {"IsCreative", "Whether this player is in Creative mode."},
             {"IsSpectator", "Whether this player is in Spectator mode."},
