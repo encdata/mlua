@@ -364,13 +364,7 @@ public final class MLuaItemWrapper {
             return LuaValue.valueOf(tag != null && tag.contains(args.checkjstring(2)));
          }), "Returns whether this item's NBT data contains the given key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Clone", selfItem((self, ignored) -> {
-            MCItemStack copy = stack(self).copy();
-            LuaTable cloned = itemTable(copy != null ? ((MCItemStackImpl)copy).inner() : net.minecraft.world.item.ItemStack.EMPTY);
-            if (!hasItemType(stack(self))) {
-               net.minecraft.nbt.CompoundTag tag = itemTag(self, false);
-               if (tag != null) setItemTag(cloned, tag);
-            }
-            return cloned;
+            return cloneItem(self, registration);
          }), "Returns a copy of this item stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Copy", classTable.rawget("Clone"), "Returns a copy of this item stack.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetEnchantments", selfItem((self, ignored) -> {
@@ -548,6 +542,21 @@ public final class MLuaItemWrapper {
          throw new LuaError("[MLua] ItemStackService:SetNbt expects an Item instance.");
       }
       setNbtValue(item, key, value);
+   }
+
+   public static LuaValue cloneItem(LuaValue item, MLuaRegistration registration) {
+      if (registration == null || !registration.isInstanceOf(item, "Item")) {
+         throw new LuaError("[MLua] ItemStackService:Clone expects an Item instance.");
+      }
+      MCItemStack original = stack(item);
+      net.minecraft.world.item.ItemStack copiedStack = original instanceof MCItemStackImpl wrapped
+         ? wrapped.inner().copy() : net.minecraft.world.item.ItemStack.EMPTY;
+      LuaTable cloned = itemTable(copiedStack, registration);
+      if (!hasItemType(original)) {
+         net.minecraft.nbt.CompoundTag compoundData = itemTag(item, false);
+         if (compoundData != null) setItemTag(cloned, compoundData);
+      }
+      return cloned;
    }
 
    private static boolean hasItemType(MCItemStack item) {

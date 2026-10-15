@@ -49,7 +49,7 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns a copy of an item stack.")
     public LuaValue Clone(LuaValue item) {
-        return MLuaItemWrapper.itemTable(stack(item).copy(), this.context.registration());
+        return MLuaItemWrapper.cloneItem(item, this.context.registration());
     }
 
     @MLuaDescription("Returns whether an item stack is empty.")
