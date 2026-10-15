@@ -13,15 +13,20 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Applies MLua's physical hand pose inside vanilla's scoped first-person arm and item render. */
-@Mixin(ItemInHandRenderer.class)
+// NeoForge ModDevGradle compiles against named Mojang classes but does not
+// expose the mappings to Mixin's annotation processor. Keep this target in
+// the same named namespace used by the NeoForge runtime.
+@Mixin(value = ItemInHandRenderer.class, remap = false)
 public abstract class FirstPersonItemRendererMixin {
     @Inject(
         method = "renderArmWithItem",
+        remap = false,
         at = @At(
             value = "INVOKE",
             target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V",
             ordinal = 0,
-            shift = At.Shift.AFTER
+            shift = At.Shift.AFTER,
+            remap = false
         )
     )
     private void mlua$applyHandOffset(AbstractClientPlayer player, float partialTick, float pitch,
