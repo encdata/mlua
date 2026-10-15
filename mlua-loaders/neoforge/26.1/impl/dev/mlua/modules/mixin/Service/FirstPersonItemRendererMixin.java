@@ -32,6 +32,6 @@ public abstract class FirstPersonItemRendererMixin {
     private void mlua$applyHandOffset(AbstractClientPlayer player, float partialTick, float pitch,
         InteractionHand hand, float swingProgress, ItemStack stack, float equipProgress,
         PoseStack poseStack, SubmitNodeCollector buffers, int light, CallbackInfo callbackInfo) {
-        MLuaCameraController.applyFirstPersonHandOffset(poseStack, player, hand);
+        MLuaCameraController.applyFirstPersonHandOffset(poseStack, player, hand, partialTick);
     }
 }

@@ -24,14 +24,14 @@ public class CameraModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:SetViewMode(mode: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:SetSubject(entity: Entity|nil)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:LookAt(target: Vector3|CFrame|Entity)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:SetRightHandOffset(offset: CFrame|function|nil)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:SetLeftHandOffset(offset: CFrame|function|nil)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:SetRightHandOffset(offset: CFrame|function(player: Player?, hand: Enum.Hand, itemStack: Item, arm: string): CFrame|nil)", "A callback is sampled on the client tick and its returned CFrame is interpolated during first-person rendering."));
+        docs.register(MLuaDocBuilder.Registration.signature("Camera", "Camera:SetLeftHandOffset(offset: CFrame|function(player: Player?, hand: Enum.Hand, itemStack: Item, arm: string): CFrame|nil)", "A callback is sampled on the client tick and its returned CFrame is interpolated during first-person rendering."));
         docs.register(MLuaDocBuilder.Registration.guideStep("Camera", "Move the client camera with native transforms",
             "Camera control is client-side. SetCFrame takes a native CFrame; SetPosition accepts Vector3 or CFrame and preserves the current look direction. LookAt accepts a position or an entity.",
             "local Camera = Minecraft:GetService(\"Camera\")\nlocal player = Minecraft:GetService(\"Players\").LocalPlayer\n\nCamera:SetCFrame(CFrame.lookAt(\n    player.Position + Vector3.new(0, 3, 6),\n    player.Position\n))\nCamera:SetFOV(80)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Camera", "Animate a first-person weapon pose",
-            "SetRightHandOffset and SetLeftHandOffset accept a CFrame or a callback returning a CFrame. A callback is sampled at the end of each client tick and its last valid pose remains active if it fails. Pass nil to clear one hand's offset.",
-            "local Camera = Minecraft:GetService(\"Camera\")\nlocal phase = 0\n\nCamera:SetRightHandOffset(function()\n    phase = (phase + 0.08) % (math.pi * 2)\n    local sway = math.sin(phase) * 0.01\n    local recoil = math.max(0, math.sin(phase)) ^ 8\n    return CFrame.new(0, sway, -recoil * 0.12)\n        * CFrame.Angles(-recoil * 0.18, 0, 0)\nend)\n\n-- Clear only this hand's offset with Camera:SetRightHandOffset(nil)."));
+            "Each hand accepts a CFrame or a callback returning one. The callback runs on the client tick with the local player, logical hand, live Item stack, and physical arm name. Minecraft interpolates the sampled pose between ticks. A failed callback keeps its last valid pose and is disabled; pass nil to clear that hand.",
+            "local Camera = Minecraft:GetService(\"Camera\")\nlocal phase = 0\n\nCamera:SetRightHandOffset(function(player, hand, itemStack, arm)\n    phase = (phase + 0.08) % (math.pi * 2)\n    local itemId = itemStack:GetId()\n    local recoil = itemId == \"minecraft:bow\" and 0.02 or 0.12\n    local sway = math.sin(phase) * 0.01\n    return CFrame.new(0, sway, -recoil)\n        * CFrame.Angles(-math.max(0, math.sin(phase)) * recoil, 0, 0)\nend)\n\n-- Clear only this hand's pose with Camera:SetRightHandOffset(nil)."));
     }
 
     @Override

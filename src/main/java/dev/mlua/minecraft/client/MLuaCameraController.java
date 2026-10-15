@@ -12,6 +12,7 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 import org.luaj.vm2.LuaValue;
@@ -21,22 +22,35 @@ public final class MLuaCameraController {
    private static Double fovOverride;
    private static double fovMultiplier = 1.0;
    private static String mode = "Custom";
-    private static MLuaCFrame heldItemOffset;
-    private static MLuaCFrame heldItemLeftOffset;
+   private static volatile MLuaCFrame heldItemOffset;
+    private static volatile MLuaCFrame previousHeldItemOffset;
+    private static volatile MLuaCFrame heldItemLeftOffset;
+    private static volatile MLuaCFrame previousHeldItemLeftOffset;
     private static volatile LuaValue heldItemOffsetCallback = LuaValue.NIL;
     private static volatile LuaValue heldItemLeftOffsetCallback = LuaValue.NIL;
+    private static volatile HandOffsetSampler heldItemOffsetSampler;
+    private static volatile HandOffsetSampler heldItemLeftOffsetSampler;
     private static volatile Object handOffsetExecutionLock = MLuaCameraController.class;
     private static volatile Object leftHandOffsetExecutionLock = MLuaCameraController.class;
+
+    @FunctionalInterface
+    public interface HandOffsetSampler {
+       MLuaCFrame sample(AbstractClientPlayer player, InteractionHand hand, ItemStack stack, HumanoidArm arm);
+    }
 
     public static MLuaCFrame getHeldItemOffset() { return heldItemOffset; }
     public static void setHeldItemOffset(MLuaCFrame offset) {
        heldItemOffset = offset;
+       previousHeldItemOffset = offset;
        heldItemOffsetCallback = LuaValue.NIL;
+       heldItemOffsetSampler = null;
     }
     public static MLuaCFrame getHeldItemLeftOffset() { return heldItemLeftOffset; }
     public static void setHeldItemLeftOffset(MLuaCFrame offset) {
        heldItemLeftOffset = offset;
+       previousHeldItemLeftOffset = offset;
        heldItemLeftOffsetCallback = LuaValue.NIL;
+       heldItemLeftOffsetSampler = null;
     }
     public static LuaValue getHeldItemOffsetValue() {
        return heldItemOffsetCallback.isfunction() ? heldItemOffsetCallback
@@ -50,31 +64,77 @@ public final class MLuaCameraController {
        if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Right hand offset callback must be a function");
        handOffsetExecutionLock = executionLock == null ? MLuaCameraController.class : executionLock;
        heldItemOffsetCallback = callback;
+       heldItemOffsetSampler = null;
        if (heldItemOffset == null) heldItemOffset = MLuaCFrame.IDENTITY;
+       if (previousHeldItemOffset == null) previousHeldItemOffset = heldItemOffset;
     }
     public static void setHeldItemLeftOffsetCallback(LuaValue callback, Object executionLock) {
        if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Left hand offset callback must be a function");
        leftHandOffsetExecutionLock = executionLock == null ? MLuaCameraController.class : executionLock;
        heldItemLeftOffsetCallback = callback;
+       heldItemLeftOffsetSampler = null;
        if (heldItemLeftOffset == null) heldItemLeftOffset = MLuaCFrame.IDENTITY;
+       if (previousHeldItemLeftOffset == null) previousHeldItemLeftOffset = heldItemLeftOffset;
+    }
+    public static void setHeldItemOffsetCallback(LuaValue callback, HandOffsetSampler sampler, Object executionLock) {
+       if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Right hand offset callback must be a function");
+       if (sampler == null) throw new IllegalArgumentException("Right hand offset sampler is required");
+       handOffsetExecutionLock = executionLock == null ? MLuaCameraController.class : executionLock;
+       heldItemOffsetCallback = callback;
+       heldItemOffsetSampler = sampler;
+       if (heldItemOffset == null) heldItemOffset = MLuaCFrame.IDENTITY;
+       previousHeldItemOffset = heldItemOffset;
+    }
+    public static void setHeldItemLeftOffsetCallback(LuaValue callback, HandOffsetSampler sampler, Object executionLock) {
+       if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Left hand offset callback must be a function");
+       if (sampler == null) throw new IllegalArgumentException("Left hand offset sampler is required");
+       leftHandOffsetExecutionLock = executionLock == null ? MLuaCameraController.class : executionLock;
+       heldItemLeftOffsetCallback = callback;
+       heldItemLeftOffsetSampler = sampler;
+       if (heldItemLeftOffset == null) heldItemLeftOffset = MLuaCFrame.IDENTITY;
+       previousHeldItemLeftOffset = heldItemLeftOffset;
     }
     public static void tickHandOffsets() {
-       sampleHandOffset(false);
-       sampleHandOffset(true);
+       Minecraft minecraft = MLuaMinecraftClient.instance();
+       AbstractClientPlayer player = minecraft != null && minecraft.player instanceof AbstractClientPlayer clientPlayer
+          ? clientPlayer : null;
+       sampleHandOffset(false, player);
+       sampleHandOffset(true, player);
     }
 
-    private static void sampleHandOffset(boolean leftHand) {
+    private static void sampleHandOffset(boolean leftHand, AbstractClientPlayer player) {
        LuaValue callback = leftHand ? heldItemLeftOffsetCallback : heldItemOffsetCallback;
        if (!callback.isfunction()) return;
+       HandOffsetSampler sampler = leftHand ? heldItemLeftOffsetSampler : heldItemOffsetSampler;
        Object lock = leftHand ? leftHandOffsetExecutionLock : handOffsetExecutionLock;
        synchronized (lock) {
           try {
-             MLuaCFrame sampled = MLuaCFrame.fromLua(callback.invoke(LuaValue.NONE).arg1());
-             if (leftHand) heldItemLeftOffset = sampled;
-             else heldItemOffset = sampled;
+             HumanoidArm arm = leftHand ? HumanoidArm.LEFT : HumanoidArm.RIGHT;
+             InteractionHand hand = player == null || arm == player.getMainArm()
+                ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
+             ItemStack stack = player == null ? ItemStack.EMPTY : player.getItemInHand(hand);
+             MLuaCFrame sampled;
+             if (sampler == null) {
+                sampled = MLuaCFrame.fromLua(callback.invoke(LuaValue.NONE).arg1());
+             } else {
+                sampled = sampler.sample(player, hand, stack, arm);
+             }
+             if (sampled == null) throw new IllegalArgumentException("callback must return a CFrame");
+             if (leftHand) {
+                previousHeldItemLeftOffset = heldItemLeftOffset;
+                heldItemLeftOffset = sampled;
+             } else {
+                previousHeldItemOffset = heldItemOffset;
+                heldItemOffset = sampled;
+             }
           } catch (RuntimeException failure) {
-             if (leftHand) heldItemLeftOffsetCallback = LuaValue.NIL;
-             else heldItemOffsetCallback = LuaValue.NIL;
+             if (leftHand) {
+                heldItemLeftOffsetCallback = LuaValue.NIL;
+                heldItemLeftOffsetSampler = null;
+             } else {
+                heldItemOffsetCallback = LuaValue.NIL;
+                heldItemOffsetSampler = null;
+             }
              MLuaLogger.LOGGER.error("MLua {} first-person hand offset callback failed; keeping its last valid CFrame",
                 leftHand ? "left" : "right", failure);
           }
@@ -83,20 +143,31 @@ public final class MLuaCameraController {
 
     public static void clearHandOffsets() {
        heldItemOffset = null;
+       previousHeldItemOffset = null;
        heldItemLeftOffset = null;
+       previousHeldItemLeftOffset = null;
        heldItemOffsetCallback = LuaValue.NIL;
        heldItemLeftOffsetCallback = LuaValue.NIL;
+       heldItemOffsetSampler = null;
+       heldItemLeftOffsetSampler = null;
        handOffsetExecutionLock = MLuaCameraController.class;
        leftHandOffsetExecutionLock = MLuaCameraController.class;
     }
 
     /** Applies the scriptable physical left/right viewmodel pose inside Minecraft's hand render scope. */
-    public static void applyFirstPersonHandOffset(PoseStack poseStack, AbstractClientPlayer player, InteractionHand hand) {
+    public static void applyFirstPersonHandOffset(PoseStack poseStack, AbstractClientPlayer player, InteractionHand hand,
+                                                   float partialTick) {
        if (poseStack == null || player == null || hand == null) return;
        HumanoidArm arm = hand == InteractionHand.MAIN_HAND
           ? player.getMainArm()
           : player.getMainArm().getOpposite();
-       MLuaCFrame offset = arm == HumanoidArm.RIGHT ? heldItemOffset : heldItemLeftOffset;
+       MLuaCFrame current = arm == HumanoidArm.RIGHT ? heldItemOffset : heldItemLeftOffset;
+       MLuaCFrame previous = arm == HumanoidArm.RIGHT ? previousHeldItemOffset : previousHeldItemLeftOffset;
+       MLuaCFrame offset = current;
+       if (current != null && previous != null) {
+          float alpha = Float.isFinite(partialTick) ? Math.max(0.0f, Math.min(1.0f, partialTick)) : 1.0f;
+          offset = previous.lerp(current, alpha);
+       }
        if (offset == null) return;
        poseStack.translate(offset.x(), offset.y(), offset.z());
        double[] euler = offset.toEulerAnglesXYZ();

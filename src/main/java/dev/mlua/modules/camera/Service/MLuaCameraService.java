@@ -13,10 +13,17 @@ import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.client.MLuaCameraController;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
+import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.modules.enums.MLuaEnumValue;
+import dev.mlua.module.MLuaRegistration;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
+import org.luaj.vm2.Varargs;
 
 @MLuaDescription("Client-side camera control for transforms, subjects, field of view, and held-item offsets.")
 public final class MLuaCameraService extends MLuaReflectiveService {
@@ -116,7 +123,7 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    @MLuaDescription("Sets the first-person or third-person view mode.")
    public void SetViewMode(String value) { ensureClient(); MLuaCameraController.setViewMode(value); }
 
-   @MLuaDescription("Sets the first-person right-hand offset to a CFrame or a function returning a CFrame, sampled once per client tick.")
+   @MLuaDescription("Sets the first-person right-hand pose to a CFrame or a callback sampled once per client tick. The callback receives player, hand, itemStack, and arm.")
    public void SetRightHandOffset(LuaValue value) {
       ensureClient();
       setHandOffset(value, false);
@@ -128,7 +135,7 @@ public final class MLuaCameraService extends MLuaReflectiveService {
       return MLuaCameraController.getHeldItemOffsetValue();
    }
 
-   @MLuaDescription("Sets the first-person left-hand offset to a CFrame or a function returning a CFrame, sampled once per client tick.")
+   @MLuaDescription("Sets the first-person left-hand pose to a CFrame or a callback sampled once per client tick. The callback receives player, hand, itemStack, and arm.")
    public void SetLeftHandOffset(LuaValue value) {
       ensureClient();
       setHandOffset(value, true);
@@ -150,8 +157,18 @@ public final class MLuaCameraService extends MLuaReflectiveService {
          return;
       }
       if (value.isfunction()) {
-         if (leftHand) MLuaCameraController.setHeldItemLeftOffsetCallback(value, context.mlua().executionLock());
-         else MLuaCameraController.setHeldItemOffsetCallback(value, context.mlua().executionLock());
+         MLuaRegistration registration = context.mlua().registration();
+         MLuaCameraController.HandOffsetSampler sampler = (player, hand, stack, arm) -> {
+            LuaValue luaPlayer = player == null ? LuaValue.NIL
+               : MLuaPlayerWrapper.playerEntityTable(player, registration);
+            LuaValue luaHand = MLuaEnumValue.forJava(hand);
+            LuaValue luaStack = MLuaItemWrapper.itemTable(stack == null ? ItemStack.EMPTY : stack, registration);
+            LuaValue luaArm = LuaValue.valueOf(arm == HumanoidArm.RIGHT ? "Right" : "Left");
+            Varargs result = value.invoke(LuaValue.varargsOf(new LuaValue[]{luaPlayer, luaHand, luaStack, luaArm}));
+            return MLuaCFrame.fromLua(result.arg1());
+         };
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffsetCallback(value, sampler, context.mlua().executionLock());
+         else MLuaCameraController.setHeldItemOffsetCallback(value, sampler, context.mlua().executionLock());
          return;
       }
       try {
