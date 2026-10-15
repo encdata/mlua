@@ -52,8 +52,7 @@ try {
         }
 
         if ([DateTime]::UtcNow -ge $deadline) {
-            if ($clientTask -and $text -match 'Backend library: LWJGL'
-                -and $text -match '(?m)Loaded \d+ MLua modules') {
+            if ($clientTask -and ($text -match 'Backend library: LWJGL') -and ($text -match '(?m)Loaded \d+ MLua modules')) {
                 $graphicsUnavailable = $true
                 Write-Warning 'MLua loaded and Minecraft initialized LWJGL, but the headless runner did not reach the client lifecycle marker.'
                 break
