@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -23,6 +24,11 @@ public final class MLuaAnimation {
         }
         this.keyframes = new ArrayList<>(keyframes);
         this.keyframes.sort((a, b) -> Double.compare(a.time, b.time));
+        for (int index = 1; index < this.keyframes.size(); index++) {
+            if (this.keyframes.get(index - 1).time == this.keyframes.get(index).time) {
+                throw new IllegalArgumentException("Animation keyframe times must be unique");
+            }
+        }
         this.length = this.keyframes.get(this.keyframes.size() - 1).time;
     }
 
@@ -90,31 +96,55 @@ public final class MLuaAnimation {
     }
 
     public static MLuaAnimation fromLuaTable(LuaTable table) {
-        List<Keyframe> frames = new ArrayList<>();
-
-        if (table.get(1).istable()) {
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-                Varargs next = table.next(key);
-                key = next.arg1();
-                if (key.isnil()) break;
-                if (!next.arg(2).istable()) continue;
-                LuaTable kfTable = next.arg(2).checktable();
-                frames.add(keyframeFromLua(kfTable));
+        TreeMap<Integer, LuaTable> indexedFrames = new TreeMap<>();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            if (!key.isnumber()) {
+                throw new LuaError("[MLua] Animation keyframes must be a dense array indexed from one.");
             }
+            double numericIndex = key.todouble();
+            if (!Double.isFinite(numericIndex) || numericIndex < 1 || numericIndex != Math.rint(numericIndex)
+                    || numericIndex > Integer.MAX_VALUE) {
+                throw new LuaError("[MLua] Animation keyframe indexes must be positive whole numbers.");
+            }
+            int frameIndex = (int) numericIndex;
+            if (!entry.arg(2).istable()) {
+                throw new LuaError("[MLua] Animation keyframe " + frameIndex + " must be a table.");
+            }
+            indexedFrames.put(frameIndex, entry.arg(2).checktable());
         }
 
-        if (frames.isEmpty()) {
-            throw new LuaError("[MLua] Animation keyframes table is empty or invalid");
+        if (indexedFrames.isEmpty()) {
+            throw new LuaError("[MLua] Animation keyframes table must contain at least one keyframe.");
+        }
+        List<Keyframe> frames = new ArrayList<>(indexedFrames.size());
+        int expectedIndex = 1;
+        for (Map.Entry<Integer, LuaTable> entry : indexedFrames.entrySet()) {
+            if (entry.getKey() != expectedIndex) {
+                throw new LuaError("[MLua] Animation keyframes must be a dense array; missing index " + expectedIndex + ".");
+            }
+            frames.add(keyframeFromLua(entry.getValue()));
+            expectedIndex++;
         }
 
-        return new MLuaAnimation(frames);
+        try {
+            return new MLuaAnimation(frames);
+        } catch (IllegalArgumentException failure) {
+            throw new LuaError("[MLua] " + failure.getMessage());
+        }
     }
 
     private static Keyframe keyframeFromLua(LuaTable table) {
-        double time = table.get("Time").optdouble(-1.0);
-        if (time < 0) {
-            throw new LuaError("[MLua] Each keyframe must have a valid 'Time' field");
+        LuaValue timeValue = table.get("Time");
+        if (!timeValue.isnumber()) {
+            throw new LuaError("[MLua] Each keyframe Time must be a finite, non-negative number.");
+        }
+        double time = timeValue.todouble();
+        if (!Double.isFinite(time) || time < 0.0) {
+            throw new LuaError("[MLua] Each keyframe Time must be a finite, non-negative number.");
         }
 
         LuaTable dataTable = table.get("Data").checktable();
@@ -125,6 +155,9 @@ public final class MLuaAnimation {
             Varargs next = dataTable.next(key);
             key = next.arg1();
             if (key.isnil()) break;
+            if (!key.isstring() || key.tojstring().isBlank()) {
+                throw new LuaError("[MLua] Animation pose bone names must be non-empty strings.");
+            }
             String boneName = key.tojstring();
             MLuaCFrame cframe = MLuaCFrame.fromLua(next.arg(2));
             data.put(boneName, cframe);
@@ -132,7 +165,8 @@ public final class MLuaAnimation {
 
         EasingStyle easingStyle = EasingStyle.Linear;
         LuaValue styleVal = table.get("EasingStyle");
-        if (styleVal.isstring()) {
+        if (!styleVal.isnil()) {
+            if (!styleVal.isstring()) throw new LuaError("[MLua] EasingStyle must be a string.");
             try {
                 easingStyle = EasingStyle.valueOf(styleVal.tojstring());
             } catch (IllegalArgumentException e) {
@@ -142,7 +176,8 @@ public final class MLuaAnimation {
 
         EasingDirection easingDirection = EasingDirection.In;
         LuaValue dirVal = table.get("EasingDirection");
-        if (dirVal.isstring()) {
+        if (!dirVal.isnil()) {
+            if (!dirVal.isstring()) throw new LuaError("[MLua] EasingDirection must be a string.");
             try {
                 easingDirection = EasingDirection.valueOf(dirVal.tojstring());
             } catch (IllegalArgumentException e) {
