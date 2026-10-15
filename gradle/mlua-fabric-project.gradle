@@ -105,6 +105,9 @@ if (isUnobfuscated) {
     rootExcludes += 'dev/mlua/runtime/MLuaPalladiumIntegration.java'
     rootExcludes += 'dev/mlua/runtime/registry/MLuaNamedSpawnEggItem.java'
 }
+if (is26Family) {
+    rootExcludes += 'dev/mlua/modules/mixin/Service/LivingEntityRendererMixin.java'
+}
 def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 
 task prepareRootSources(type: Sync) {

@@ -16,6 +16,7 @@ import java.util.Map;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 
 public final class MLuaModelService extends MLuaReflectiveService {
     public MLuaModelService(MLuaService.Context context) {

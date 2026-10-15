@@ -19,6 +19,7 @@
     "CameraInvoker",
     "CameraMixin",
     "HumanoidModelMixin",
+    "LivingEntityRendererMixin",
     "PlayerModelMixin",
     "ScreenLayoutMixin",
     "ChatLineMixin",
