@@ -442,6 +442,7 @@ public final class MLuaClientRenderManager {
         private List<Identifier> resolvedTextures = List.of();
         private float modelScale = 1.0F;
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
+        private volatile Object executionLock = this;
 
         private RenderObject(int id, RenderType type, String resource) {
             this.id = id;
@@ -450,6 +451,10 @@ public final class MLuaClientRenderManager {
         }
 
         public int id() { return id; }
+        public Object executionLock() { return executionLock; }
+        public void setExecutionLock(Object executionLock) {
+            this.executionLock = executionLock == null ? this : executionLock;
+        }
         public RenderType type() { return type; }
         public String resource() { return resource; }
         public double x() { return x; }

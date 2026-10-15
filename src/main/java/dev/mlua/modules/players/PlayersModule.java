@@ -271,8 +271,6 @@ public class PlayersModule implements MLuaModule {
             "Container", "shared:Shared", "Returns the live Container instance for the menu this player currently has open.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "World", "GetWorld", null,
             "Level", "shared:Shared", "Returns the live Level instance containing this player.");
-        MLuaClassMethods.registerInstanceProperty(registration, "Player", "IsLocalPlayer", "GetIsLocalPlayer", null,
-            "boolean", "client:Client", "Whether this Player instance represents the local client player.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetFood",
             "Returns this player's food level.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetFood",
@@ -355,6 +353,8 @@ public class PlayersModule implements MLuaModule {
         for (String[] method : inventoryAndStateMethods) {
             MLuaClassMethods.registerInstanceMethod(registration, "Player", method[0], method[1]);
         }
+        MLuaClassMethods.registerInstanceProperty(registration, "Player", "IsLocalPlayer", "GetIsLocalPlayer", null,
+            "boolean", "client:Client", "Whether this Player instance represents the local client player.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "FoodLevel", "GetFoodLevel", "SetFoodLevel",
             "number", "shared:Shared", "This player's food level.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "Food", "GetFood", "SetFood",

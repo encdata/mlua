@@ -43,10 +43,9 @@ final class MLuaModuleRegistrations {
                 if (!existing.isnil() && !existing.isstring()) {
                     throw new IllegalStateException("Lua class '" + entry.getKey() + "' has invalid description metadata");
                 }
-                if (existing.isstring() && !entry.getValue().equals(existing.tojstring())) {
-                    throw new IllegalStateException("Lua class '" + entry.getKey()
-                        + "' has conflicting registered and documented descriptions");
-                }
+                // Runtime class registration is the source of truth. Module docs may add
+                // prose for types that were declared elsewhere, but must not prevent a
+                // valid module from loading when older prose has drifted.
                 if (existing.isnil()) {
                     snapshotClass(registration, entry.getKey(), snapshots);
                     classTable.rawset("__mlua_doc_description", LuaValue.valueOf(entry.getValue()));
@@ -67,11 +66,9 @@ final class MLuaModuleRegistrations {
                         throw new IllegalStateException("Lua class '" + receiver + "' function '" + name
                             + "' has invalid description metadata");
                     }
-                    if (existing.isstring() && !description.equals(existing.tojstring())) {
-                        throw new IllegalStateException("Lua class '" + receiver + "' function '" + name
-                            + "' has conflicting registered and documented descriptions");
+                    if (existing.isnil()) {
+                        documented.set(name, LuaValue.valueOf(description));
                     }
-                    documented.set(name, LuaValue.valueOf(description));
                 });
                 classTable.rawset("__mlua_doc_methods", documented);
                 registration.refreshClassMetadata(receiver);
@@ -853,10 +850,7 @@ final class MLuaModuleRegistrations {
     }
 
     private static String mergeServiceDescription(String serviceName, String documented, String registered) {
-        if (documented != null && registered != null && !documented.equals(registered)) {
-            throw new IllegalStateException("MLua service '" + serviceName
-                + "' has conflicting registered and documented descriptions");
-        }
+        // Service descriptors are the runtime declaration; docs are fallback prose.
         return registered != null ? registered : documented;
     }
 
@@ -864,11 +858,7 @@ final class MLuaModuleRegistrations {
             Map<String, String> documented, Map<String, String> registered) {
         Map<String, String> merged = new LinkedHashMap<>(documented);
         registered.forEach((name, description) -> {
-            String existing = merged.putIfAbsent(name, description);
-            if (existing != null && !existing.equals(description)) {
-                throw new IllegalStateException("MLua service '" + serviceName + "' function '" + name
-                    + "' has conflicting registered and documented descriptions");
-            }
+            merged.put(name, description);
         });
         return java.util.Collections.unmodifiableMap(merged);
     }

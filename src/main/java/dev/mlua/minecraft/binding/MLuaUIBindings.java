@@ -68,9 +68,7 @@ public final class MLuaUIBindings {
         }
         boolean uiRootParent = name.equals("GuiBase")
             && parentName.equals(registration.requireInstanceBaseClassName());
-        LuaTable parentProbe = new LuaTable();
-        parentProbe.rawset("__type", LuaValue.valueOf(parentName));
-        if (!uiRootParent && !registration.isInstanceOf(parentProbe, "GuiBase")) {
+        if (!uiRootParent && !registration.isSubclassOf(parentName, "GuiBase")) {
             throw new IllegalArgumentException("UI class '" + name + "' parent '" + parentName
                 + "' must inherit from GuiBase");
         }
