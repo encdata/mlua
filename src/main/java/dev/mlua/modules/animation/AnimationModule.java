@@ -91,9 +91,9 @@ public class AnimationModule implements MLuaModule {
             "The current playback position in seconds. Readable and writable.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Speed", "number",
             "Playback speed; zero stops time advancement while retaining the current pose. Readable and writable.", "client:Client"));
-        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.IsPlaying", "boolean",
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Playing", "boolean",
             "Whether this track is currently playing.", "client:Client"));
-        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.IsPaused", "boolean",
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Paused", "boolean",
             "Whether this track is paused.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Looped", "boolean",
             "Whether playback repeats. Readable and writable.", "client:Client"));

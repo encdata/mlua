@@ -120,9 +120,9 @@ public final class MLuaAnimationBindings {
             "number", "client:Client", "The current playback position in seconds. Readable and writable.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Speed", "GetSpeed", "AdjustSpeed",
             "number", "client:Client", "Playback speed; zero stops time advancement while retaining the current pose. Readable and writable.");
-        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "IsPlaying", "IsPlaying", null,
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Playing", "IsPlaying", null,
             "boolean", "client:Client", "Whether this track is currently playing.");
-        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "IsPaused", "IsPaused", null,
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Paused", "IsPaused", null,
             "boolean", "client:Client", "Whether this track is paused.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Looped", "GetLooped", "SetLooped",
             "boolean", "client:Client", "Whether playback repeats. Readable and writable.");
