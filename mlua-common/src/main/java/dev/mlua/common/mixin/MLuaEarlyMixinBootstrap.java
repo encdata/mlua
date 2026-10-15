@@ -49,7 +49,6 @@ public final class MLuaEarlyMixinBootstrap {
 
          executedScripts += executeMixinScriptsFromClasspath(globals, seen);
          if (executedScripts > 0) {
-            installAgentTransformerWhenNoModLauncherService();
             MixinRuleEngine.markEarlyBootstrapDone();
             LOGGER.info("[MLua] Early bootstrap complete - {} scripts executed, {} mixin rules registered",
                executedScripts, MixinRuleEngine.get().getRules().size());
@@ -58,28 +57,6 @@ public final class MLuaEarlyMixinBootstrap {
          }
       } catch (Throwable e) {
          LOGGER.error("[MLua] Early bootstrap failed", e);
-      }
-   }
-
-   private static void installAgentTransformerWhenNoModLauncherService() {
-      String serviceResource = "META-INF/services/cpw.mods.modlauncher.api.ITransformationService";
-      String mluaService = "dev.mlua.transformer.MLuaTransformService";
-      try {
-         Enumeration<URL> resources = MLuaEarlyMixinBootstrap.class.getClassLoader().getResources(serviceResource);
-         while (resources.hasMoreElements()) {
-            URL resource = resources.nextElement();
-            String contents;
-            try (var input = resource.openStream()) {
-               contents = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-            }
-            if (contents.lines().map(String::trim).anyMatch(mluaService::equals)) return;
-         }
-
-         Class<?> bootstrap = Class.forName("dev.mlua.agent.MLuaAgentBootstrap", true,
-            MLuaEarlyMixinBootstrap.class.getClassLoader());
-         bootstrap.getMethod("ensureAttached").invoke(null);
-      } catch (Throwable failure) {
-         LOGGER.warn("[MLua] Could not install the early runtime mixin transformer", failure);
       }
    }
 
