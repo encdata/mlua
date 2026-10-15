@@ -90,7 +90,7 @@ final class MLuaRuntimeIntegrationTest {
         MLuaScript main = script("mlua", ScriptType.SERVER, "base_registration.server.lua", "base_registration", """
                 local service = Minecraft:GetService("BaseProbe")
                 assert(service.Value == "registered")
-                return { service:GetValue(), Classes.BasePlayer.ClassName }
+                return { service:GetValue(), Minecraft.Classes.BasePlayer.ClassName }
                 """);
         MLuaContext context = context(base, main, Side.SERVER);
 
@@ -420,9 +420,9 @@ final class MLuaRuntimeIntegrationTest {
         MLuaScript main = script("mlua", ScriptType.SERVER, "side_service.server.lua", "side_service", "return true");
         MLuaServiceRegistry services = new MLuaServiceRegistry();
         services.register("SideService", Side.SERVER, context -> new NamedService("server"),
-            "Side-specific test service.", java.util.Map.of());
+            "Side-specific test service.", java.util.Map.of("Probe", "Returns the value for this side."));
         services.register("SideService", Side.CLIENT, context -> new NamedService("client"),
-            "Side-specific test service.", java.util.Map.of());
+            "Side-specific test service.", java.util.Map.of("Probe", "Returns the value for this side."));
 
         assertEquals("server", services.create("SideService", context(main, Side.SERVER, services, new MLuaTaskScheduler())).toLua().get("Value").tojstring());
         assertEquals("client", services.create("SideService", context(main, Side.CLIENT, services, new MLuaTaskScheduler())).toLua().get("Value").tojstring());
@@ -631,7 +631,7 @@ final class MLuaRuntimeIntegrationTest {
         assertEquals(1, state.get("server").toint());
         assertEquals(1, clientState.get("client").toint());
         assertEquals("SERVER", state.get("lastServerSide").tojstring());
-        assertEquals("CLIENT", state.get("lastClientSide").tojstring());
+        assertEquals("CLIENT", clientState.get("lastClientSide").tojstring());
     }
 
     @Test
@@ -746,7 +746,7 @@ final class MLuaRuntimeIntegrationTest {
                 map["name"] = "EncData"
                 map["level"] = 10
 
-                local array = Fixture:makeArray()
+                local array = instance:makeArray()
                 local arrayBefore = array[2]
                 array[2] = "delta"
                 local arrayAfter = array[2]
@@ -856,16 +856,21 @@ final class MLuaRuntimeIntegrationTest {
     void javaBridgeDotCallWithNumberArg() {
         MLuaScript test = script("mlua", ScriptType.SERVER, "dot_number.server.lua", "dot_number", """
                 local Java = Minecraft:GetService("Java")
-                local v1 = Java:New("java.lang.Integer", 5)
-                local v2 = Java.New("java.lang.Integer", 5)
-                return { v1:intValue(), v2:intValue() }
+                local ArrayList = Java:LoadClass("java.util.ArrayList")
+                local first = Java:New(ArrayList, 5)
+                local second = Java.New(ArrayList, 5)
+                first:add("colon")
+                second:add("dot")
+                return { first:size(), second:size(), first:get(0), second:get(0) }
                 """);
 
         LuaJEngineBackend engine = new LuaJEngineBackend(List.of(test));
         LuaValue result = (LuaValue) engine.execute(test, contextWithJava(test)).raw();
 
-        assertEquals(5, result.get(1).toint());
-        assertEquals(5, result.get(2).toint());
+        assertEquals(1, result.get(1).toint());
+        assertEquals(1, result.get(2).toint());
+        assertEquals("colon", result.get(3).tojstring());
+        assertEquals("dot", result.get(4).tojstring());
     }
 
     @Test
@@ -1094,6 +1099,11 @@ final class MLuaRuntimeIntegrationTest {
         @Override public LuaTable toLua() {
             LuaTable table = new LuaTable();
             table.set("Value", value);
+            table.set("Probe", new org.luaj.vm2.lib.VarArgFunction() {
+                @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
+                    return LuaValue.valueOf(value);
+                }
+            });
             return table;
         }
     }

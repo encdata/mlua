@@ -509,7 +509,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             }
         }
         ClassLoader loader = proxyClassLoader(interfaces);
-        if (loader == null) {
+        if (loader == null && java.util.Arrays.stream(interfaces).anyMatch(iface -> iface.getClassLoader() != null)) {
             throw new LuaError("[MLua] Could not create Java interface proxy: no class loader can see all requested interfaces");
         }
         try {
@@ -1851,6 +1851,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
         if (Optional.class.isAssignableFrom(boxedType)) return 2;
         if (boxedType.isInstance(value)) {
             return 0;
+        }
+        if (value instanceof Boolean && isNumericType(boxedType)) {
+            return -1;
         }
         if (boxedType == String.class) {
             return value instanceof CharSequence || value instanceof Character ? 2 : -1;

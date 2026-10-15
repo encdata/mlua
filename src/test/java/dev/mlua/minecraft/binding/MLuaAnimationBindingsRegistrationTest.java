@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
 
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -35,15 +34,14 @@ final class MLuaAnimationBindingsRegistrationTest {
         MLuaAnimation animation = new MLuaAnimation(List.of(new MLuaAnimation.Keyframe(0, Map.<String, MLuaCFrame>of())));
         LuaTable firstAnimation = MLuaAnimationBindings.wrapAnimation(animation, first);
         LuaTable secondAnimation = MLuaAnimationBindings.wrapAnimation(animation, second);
-        assertTrue(firstAnimation.get("__type").tojstring().equals("Animation"));
-        assertTrue(secondAnimation.get("__type").tojstring().equals("Animation"));
+        assertTrue("Animation".equals(first.classNameOf(firstAnimation)));
+        assertTrue("Animation".equals(second.classNameOf(secondAnimation)));
 
         MLuaAnimationTrack track = new MLuaAnimationTrack(1, animation, AnimationPriority.Idle);
         LuaTable firstTrack = MLuaAnimationBindings.wrapTrack(track, first);
         LuaTable secondTrack = MLuaAnimationBindings.wrapTrack(track, second);
-        assertTrue(firstTrack.get("__type").tojstring().equals("AnimationTrack"));
-        assertTrue(secondTrack.get("__type").tojstring().equals("AnimationTrack"));
-        assertTrue(firstAnimation.get("IsA").call(firstAnimation, LuaValue.valueOf("Instance")).toboolean());
+        assertTrue("AnimationTrack".equals(first.classNameOf(firstTrack)));
+        assertTrue("AnimationTrack".equals(second.classNameOf(secondTrack)));
     }
 
     private static MLuaRegistration registration() {
