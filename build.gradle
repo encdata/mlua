@@ -26,11 +26,21 @@ def collectLoaderJars = tasks.register('collectLoaderJars', Copy) {
         // Some modern Loom/NeoForge projects expose only `jar`, while older
         // Fabric projects expose `remapJar`. Resolve whichever task actually
         // exists instead of assuming every target has remapJar.
-        def producer = project(loaderProject.path).tasks.findByName('remapJar')
-        if (producer == null) producer = project(loaderProject.path).tasks.findByName('reobfJar')
-        if (producer == null) producer = project(loaderProject.path).tasks.named('jar').get()
-        dependsOn producer
-        from(producer) {
+        def loader = project(loaderProject.path)
+        def remapJar = loader.tasks.findByName('remapJar')
+        def reobfJar = loader.tasks.findByName('reobfJar')
+        def archiveTask = remapJar ?: loader.tasks.named('jar').get()
+        // ForgeGradle's reobfJar rewrites the jar archive but does not declare
+        // copyable task outputs, so Copy.from(reobfJar) becomes NO-SOURCE.
+        // Depend on reobfuscation, then collect the archive task's actual file.
+        if (remapJar != null) {
+            dependsOn remapJar
+        } else if (reobfJar != null) {
+            dependsOn reobfJar
+        } else {
+            dependsOn archiveTask
+        }
+        from(archiveTask.archiveFile) {
             into ''
         }
     }

@@ -20,10 +20,13 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
+@EventBusSubscriber(modid = "mlua")
 public final class MLuaForgeNetworkAdapter {
     private static final String DEFAULT_PROTOCOL_VERSION = "2";
     private static final Identifier REMOTE_ID = MLuaResourceLocations.build("mlua", "remote");
@@ -35,6 +38,7 @@ public final class MLuaForgeNetworkAdapter {
     private MLuaForgeNetworkAdapter() {
     }
 
+    @SubscribeEvent
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar(DEFAULT_PROTOCOL_VERSION);
         registrar.playBidirectional(RemotePayload.TYPE, RemotePayload.CODEC,

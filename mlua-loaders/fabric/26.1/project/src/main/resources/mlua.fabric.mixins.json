@@ -25,7 +25,8 @@
     "ScreenLayoutMixin",
     "ChatLineMixin",
     "ChatHudMixin",
-    "GuiHudMixin"
+    "GuiHudMixin",
+    "ExperienceBarRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
