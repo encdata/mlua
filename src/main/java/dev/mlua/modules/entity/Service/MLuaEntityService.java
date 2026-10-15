@@ -19,7 +19,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -49,7 +48,11 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
     public LuaValue FindByUUID(String uuid) {
-        return wrap(resolveEntity(UUID.fromString(uuid)));
+        try {
+            return wrap(resolveEntity(UUID.fromString(uuid)));
+        } catch (IllegalArgumentException invalidUuid) {
+            throw new LuaError("[MLua] EntityService:FindByUUID expects a valid UUID string.");
+        }
     }
 
     @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
@@ -72,15 +75,10 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         Level level = centerEntity != null ? centerEntity.level() : currentLevel();
         LuaTable out = new LuaTable();
         if (level == null) return out;
-        AABB box = new AABB(center[0] - radius, center[1] - radius, center[2] - radius,
-            center[0] + radius, center[1] + radius, center[2] + radius);
         int index = 1;
-        double radiusSquared = radius * radius;
-        for (Entity entity : level.getEntities((Entity) null, box, entity -> entity != centerEntity)) {
-            if (entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared
-                && MLuaEntityQuery.matches(entity, requestedFilter.orElse(LuaValue.NIL), context.mlua().registration())) {
-                out.set(index++, wrap(entity));
-            }
+        for (Entity entity : MLuaEntityQuery.findWithinRadius(level, center[0], center[1], center[2],
+                radius, centerEntity, requestedFilter.orElse(LuaValue.NIL), context.mlua().registration())) {
+            out.set(index++, wrap(entity));
         }
         return out;
     }
@@ -186,7 +184,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
             if (level == null) {
                 return out;
             }
-            for (Entity entity : clientRenderingEntities(level)) {
+            for (Entity entity : MLuaEntityQuery.loadedEntities(level)) {
                 out.set(index++, wrap(entity));
             }
             return out;
@@ -223,7 +221,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
             if (level == null) {
                 return null;
             }
-            for (Entity entity : clientRenderingEntities(level)) {
+            for (Entity entity : MLuaEntityQuery.loadedEntities(level)) {
                 if (uuid.equals(entity.getUUID())) {
                     return entity;
                 }
@@ -307,20 +305,6 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         }
     }
 
-    private static Iterable<Entity> clientRenderingEntities(Level level) {
-        try {
-            Object value = level.getClass().getMethod("entitiesForRendering").invoke(level);
-            if (value instanceof Iterable<?> iterable) {
-                List<Entity> entities = new ArrayList<>();
-                for (Object entity : iterable) {
-                    if (entity instanceof Entity rawEntity) entities.add(rawEntity);
-                }
-                return entities;
-            }
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-        }
-        return List.of();
-    }
     private LuaValue wrap(Entity entity) {
         if (entity == null) {
             return LuaValue.NIL;

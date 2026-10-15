@@ -3,9 +3,14 @@ package dev.mlua.modules.entity;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.runtime.data.MLuaDataManager;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -13,6 +18,59 @@ import org.luaj.vm2.LuaValue;
 /** Shared EntityQuery matching for world, service, and entity instance queries. */
 public final class MLuaEntityQuery {
     private MLuaEntityQuery() {
+    }
+
+    /** Returns loaded entities inside a spherical query, applying the shared EntityQuery filter. */
+    public static List<Entity> findWithinRadius(Level level, double x, double y, double z,
+            double radius, Entity excluded, LuaValue filter, MLuaRegistration registration) {
+        if (level == null) return List.of();
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            throw new LuaError("[MLua] Entity query center must contain only finite coordinates.");
+        }
+        if (!Double.isFinite(radius) || radius < 0.0) {
+            throw new LuaError("[MLua] Entity query radius must be finite and non-negative.");
+        }
+
+        double minX = x - radius;
+        double minY = y - radius;
+        double minZ = z - radius;
+        double maxX = x + radius;
+        double maxY = y + radius;
+        double maxZ = z + radius;
+        boolean finiteBounds = Double.isFinite(minX) && Double.isFinite(minY) && Double.isFinite(minZ)
+            && Double.isFinite(maxX) && Double.isFinite(maxY) && Double.isFinite(maxZ)
+            && Double.isFinite(maxX - minX) && Double.isFinite(maxY - minY) && Double.isFinite(maxZ - minZ);
+        Iterable<Entity> candidates = finiteBounds
+            ? level.getEntities((Entity) null, new AABB(minX, minY, minZ, maxX, maxY, maxZ))
+            : loadedEntities(level);
+
+        double radiusSquared = radius * radius;
+        List<Entity> matches = new ArrayList<>();
+        for (Entity entity : candidates) {
+            if (entity == excluded
+                || entity.distanceToSqr(x, y, z) > radiusSquared
+                || !matches(entity, filter, registration)) continue;
+            matches.add(entity);
+        }
+        return matches;
+    }
+
+    /** Returns the entities visible to this level's current side. */
+    public static Iterable<Entity> loadedEntities(Level level) {
+        if (level == null) return List.of();
+        if (level instanceof ServerLevel serverLevel) return serverLevel.getAllEntities();
+        try {
+            Object value = level.getClass().getMethod("entitiesForRendering").invoke(level);
+            if (value instanceof Iterable<?> iterable) {
+                List<Entity> entities = new ArrayList<>();
+                for (Object entity : iterable) {
+                    if (entity instanceof Entity rawEntity) entities.add(rawEntity);
+                }
+                return entities;
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+        }
+        return List.of();
     }
 
     public static boolean matches(Entity entity, LuaValue filter, MLuaRegistration registration) {
