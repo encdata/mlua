@@ -280,9 +280,26 @@ tasks.named('processResources', ProcessResources).configure {
         exclude 'META-INF/**', 'module-info.class'
     }
     from(runtimeProject.tasks.named('jar')) { rename { 'mlua-runtime.jar' }; into 'embedded/mlua' }
-    exclude 'META-INF/services/dev.mlua.module.MLuaModule', 'META-INF/services/net.minecraftforge.forgespi.locating.IModLocator', 'mlua.mixins.json'
+    exclude 'META-INF/services/dev.mlua.module.MLuaModule', 'META-INF/services/net.minecraftforge.forgespi.locating.IModLocator', 'mlua.mixins.json', 'mlua.forge.mixins.json'
+}
+def generateNeoForgeMixinConfig = tasks.register('generateNeoForgeMixinConfig') {
+    def output = layout.buildDirectory.file('generated/neoforge-mixins/mlua.forge.mixins.json')
+    outputs.file(output)
+    doLast {
+        output.get().asFile.parentFile.mkdirs()
+        output.get().asFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+            required: true,
+            minVersion: '0.8',
+            package: 'dev.mlua.modules.mixin.Service',
+            compatibilityLevel: 'JAVA_17',
+            client: ['FirstPersonItemRendererMixin'],
+            injectors: [defaultRequire: 1]
+        ])) + System.lineSeparator()
+    }
 }
 tasks.named('jar', Jar).configure {
+    dependsOn generateNeoForgeMixinConfig
+    from(generateNeoForgeMixinConfig.map { it.outputs.files.singleFile })
     excludeMluaExternalScripts(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(project(':mlua-loader-api').sourceSets.main.output)
@@ -302,6 +319,10 @@ tasks.named('jar', Jar).configure {
             && !(entry.path.startsWith('dev/mlua/common/mixin/')
                 || entry.path.startsWith('dev/mlua/common/enums/')
                 || entry.path == 'dev/mlua/common/service/MLuaServiceMetadata.class')
+    }
+    exclude { entry ->
+        entry.path.startsWith('dev/mlua/modules/')
+            && entry.path != 'dev/mlua/modules/mixin/Service/FirstPersonItemRendererMixin.class'
     }
 }
 publishing { publications { register('mavenJava', MavenPublication) { artifact jar } }; repositories { maven { url "file://${project.projectDir}/repo" } } }
