@@ -211,6 +211,10 @@ jobs:
           $template = "client-smoke/${{ matrix.loader }}"
           New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
           New-Item -ItemType Directory -Force "$template/run/mlua/scripts" | Out-Null
+          if ('${{ matrix.loader }}' -eq 'neoforge' -and '${{ matrix.target }}' -eq '1.21.1') {
+            New-Item -ItemType Directory -Force "$template/run/config" | Out-Null
+            'earlyWindowControl = false' | Set-Content "$template/run/config/fml.toml"
+          }
           Copy-Item $jar.FullName "$template/run/mods/mlua.jar"
           @'
           local Mixin = Minecraft:GetService("Mixin")
