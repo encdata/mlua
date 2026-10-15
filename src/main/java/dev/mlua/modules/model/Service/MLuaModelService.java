@@ -9,6 +9,7 @@ import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientModelManager;
+import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
 import dev.mlua.core.MLuaRuntime;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,38 @@ public final class MLuaModelService extends MLuaReflectiveService {
     @MLuaDescription("Normalizes a model part name for the active renderer.")
     public String ResolvePartName(String name) {
         return MLuaClientModelManager.normalizePartName(name);
+    }
+
+    @MLuaDescription("Registers named animation bones and model part paths for a Java model class. Use its full class name; another addon cannot claim an already registered class.")
+    public void RegisterAdapter(String modelClass, LuaTable parts) {
+        ensureClient();
+        java.util.LinkedHashMap<String, String> mapping = new java.util.LinkedHashMap<>();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs next = parts.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            LuaValue path = next.arg(2);
+            if (!key.isstring() || !path.isstring()) {
+                throw new LuaError("[MLua] RegisterAdapter expects a table of string bone names to string model part paths.");
+            }
+            mapping.put(key.tojstring(), path.tojstring());
+        }
+        try {
+            MLuaModelAdapterRegistry.register(modelClass, mapping, adapterOwner());
+        } catch (IllegalArgumentException | IllegalStateException invalid) {
+            throw new LuaError("[MLua] " + invalid.getMessage());
+        }
+    }
+
+    @MLuaDescription("Removes the model adapter registered by the calling addon for a Java model class.")
+    public boolean UnregisterAdapter(String modelClass) {
+        ensureClient();
+        try {
+            return MLuaModelAdapterRegistry.unregister(modelClass, adapterOwner());
+        } catch (IllegalArgumentException invalid) {
+            throw new LuaError("[MLua] " + invalid.getMessage());
+        }
     }
 
     @MLuaDescription("Sets a model part transform override.")
@@ -134,6 +167,11 @@ public final class MLuaModelService extends MLuaReflectiveService {
     private MLuaClientModelManager.Owner owner() {
         Object runtimeOwner = context.mlua().registration() instanceof MLuaRuntime runtime ? runtime.session() : null;
         return new MLuaClientModelManager.Owner(runtimeOwner, context.mlua().ownerModId());
+    }
+
+    private MLuaModelAdapterRegistry.Owner adapterOwner() {
+        Object runtimeOwner = context.mlua().registration() instanceof MLuaRuntime runtime ? runtime.session() : null;
+        return new MLuaModelAdapterRegistry.Owner(runtimeOwner, context.mlua().ownerModId());
     }
 
     private MLuaEntityScope resolveEntityScope(LuaValue value) {

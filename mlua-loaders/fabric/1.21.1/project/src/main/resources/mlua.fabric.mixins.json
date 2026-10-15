@@ -21,6 +21,7 @@
     "CameraMixin",
     "MouseHandlerMixin",
     "HumanoidModelMixin",
+    "LivingEntityRendererMixin",
     "PlayerModelMixin",
     "ScreenLayoutMixin",
     "ChatLineMixin",

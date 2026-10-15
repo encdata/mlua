@@ -21,9 +21,16 @@ public final class MLuaHumanoidPoseApplier {
     }
 
     private static void apply(HumanoidModel<?> self, MLuaEntityScope scope) {
+        Map<String, String> adapter = MLuaModelAdapterRegistry.findMapping(self.getClass());
+        java.util.Set<String> adapterBones = adapter == null ? java.util.Set.of() : adapter.keySet();
         Map<String, MLuaCFrame> pose = MLuaBonePose.getPose(scope);
         if (pose == null || pose.isEmpty()) {
             return;
+        }
+        if (!adapterBones.isEmpty()) {
+            Map<String, MLuaCFrame> remaining = new java.util.HashMap<>(pose);
+            for (String bone : adapterBones) remaining.remove(bone);
+            pose = remaining;
         }
 
         applyPose(self.head, pose.get(MLuaBonePose.BONE_HEAD));
@@ -40,21 +47,21 @@ public final class MLuaHumanoidPoseApplier {
         applyReflectivePose(self, pose, "rightPants", MLuaBonePose.BONE_RIGHT_LEG);
         applyReflectivePose(self, pose, "leftPants", MLuaBonePose.BONE_LEFT_LEG);
 
-        applyModelState(self.head, scope, MLuaBonePose.BONE_HEAD);
-        applyModelState(self.hat, scope, "hat");
-        applyModelState(self.body, scope, MLuaBonePose.BONE_BODY);
-        applyModelState(self.rightArm, scope, MLuaBonePose.BONE_RIGHT_ARM);
-        applyModelState(self.leftArm, scope, MLuaBonePose.BONE_LEFT_ARM);
-        applyModelState(self.rightLeg, scope, MLuaBonePose.BONE_RIGHT_LEG);
-        applyModelState(self.leftLeg, scope, MLuaBonePose.BONE_LEFT_LEG);
-        applyReflectiveState(self, scope, "jacket");
-        applyReflectiveState(self, scope, "rightSleeve");
-        applyReflectiveState(self, scope, "leftSleeve");
-        applyReflectiveState(self, scope, "rightPants");
-        applyReflectiveState(self, scope, "leftPants");
-        applyReflectiveState(self, scope, "cloak");
-        applyReflectiveState(self, scope, "ear");
-        applyReflectiveState(self, scope, "ears");
+        applyModelState(self.head, scope, MLuaBonePose.BONE_HEAD, adapterBones);
+        applyModelState(self.hat, scope, "hat", adapterBones);
+        applyModelState(self.body, scope, MLuaBonePose.BONE_BODY, adapterBones);
+        applyModelState(self.rightArm, scope, MLuaBonePose.BONE_RIGHT_ARM, adapterBones);
+        applyModelState(self.leftArm, scope, MLuaBonePose.BONE_LEFT_ARM, adapterBones);
+        applyModelState(self.rightLeg, scope, MLuaBonePose.BONE_RIGHT_LEG, adapterBones);
+        applyModelState(self.leftLeg, scope, MLuaBonePose.BONE_LEFT_LEG, adapterBones);
+        applyReflectiveState(self, scope, "jacket", adapterBones);
+        applyReflectiveState(self, scope, "rightSleeve", adapterBones);
+        applyReflectiveState(self, scope, "leftSleeve", adapterBones);
+        applyReflectiveState(self, scope, "rightPants", adapterBones);
+        applyReflectiveState(self, scope, "leftPants", adapterBones);
+        applyReflectiveState(self, scope, "cloak", adapterBones);
+        applyReflectiveState(self, scope, "ear", adapterBones);
+        applyReflectiveState(self, scope, "ears", adapterBones);
         for (String partName : MLuaClientModelManager.getPartNames(scope)) {
             if (MLuaBonePose.BONE_HEAD.equals(partName)
                 || "hat".equals(partName)
@@ -74,7 +81,7 @@ public final class MLuaHumanoidPoseApplier {
                 continue;
             }
             applyReflectivePose(self, pose, partName, partName);
-            applyReflectiveState(self, scope, partName);
+            applyReflectiveState(self, scope, partName, adapterBones);
         }
     }
 
@@ -97,14 +104,18 @@ public final class MLuaHumanoidPoseApplier {
         }
     }
 
-    private static void applyModelState(ModelPart part, MLuaEntityScope scope, String partName) {
-        MLuaClientModelManager.applyState(part, MLuaClientModelManager.getPartState(scope, partName));
+    private static void applyModelState(ModelPart part, MLuaEntityScope scope, String partName, java.util.Set<String> adapterBones) {
+        if (!adapterBones.contains(partName)) {
+            MLuaClientModelManager.applyState(part, MLuaClientModelManager.getPartState(scope, partName));
+        }
     }
 
-    private static void applyReflectiveState(HumanoidModel<?> self, MLuaEntityScope scope, String fieldName) {
+    private static void applyReflectiveState(HumanoidModel<?> self, MLuaEntityScope scope, String fieldName,
+            java.util.Set<String> adapterBones) {
+        if (adapterBones.contains(fieldName)) return;
         ModelPart part = resolveReflectivePart(self, fieldName);
         if (part != null) {
-            applyModelState(part, scope, fieldName);
+            applyModelState(part, scope, fieldName, adapterBones);
         }
     }
 
