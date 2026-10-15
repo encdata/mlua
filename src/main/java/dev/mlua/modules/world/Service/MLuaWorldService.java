@@ -722,6 +722,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private LuaTable entitiesTable(Level level, AABB box, LuaValue filter) {
+      MLuaEntityQuery.validateFilter(filter, context.mlua().registration());
       LuaTable list = new LuaTable();
       Iterable<Entity> entities = box == null ? this.allEntities(level) : level.getEntities((Entity)null, box);
       int index = 1;

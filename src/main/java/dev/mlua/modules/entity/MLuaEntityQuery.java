@@ -23,6 +23,7 @@ public final class MLuaEntityQuery {
     /** Returns loaded entities inside a spherical query, applying the shared EntityQuery filter. */
     public static List<Entity> findWithinRadius(Level level, double x, double y, double z,
             double radius, Entity excluded, LuaValue filter, MLuaRegistration registration) {
+        validateFilter(filter, registration);
         if (level == null) return List.of();
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
             throw new LuaError("[MLua] Entity query center must contain only finite coordinates.");
@@ -127,6 +128,38 @@ public final class MLuaEntityQuery {
         return true;
     }
 
+    /** Validates a filter before a query starts, including when it finds no candidates. */
+    public static void validateFilter(LuaValue filter, MLuaRegistration registration) {
+        if (filter == null || filter.isnil() || filter.isstring()) return;
+        if (!filter.istable()) {
+            throw new LuaError("[MLua] EntityQuery must be an entity type id or a filter table.");
+        }
+        LuaTable table = filter.checktable();
+        optionalString(table, "type");
+        optionalString(table, "name");
+        optionalString(table, "name_contains");
+        optionalString(table, "tag");
+        optionalBoolean(table, "players_only");
+        optionalBoolean(table, "exclude_players");
+        optionalBoolean(table, "alive");
+        validateStringList(table.get("types"), "EntityQuery.types");
+        validateStringList(table.get("exclude_types"), "EntityQuery.exclude_types");
+        validateStringList(table.get("tags"), "EntityQuery.tags");
+        validateStringList(table.get("exclude_tags"), "EntityQuery.exclude_tags");
+        LuaValue excluded = table.get("exclude");
+        if (!excluded.isnil()) entityReference(excluded, registration, "EntityQuery.exclude");
+        LuaValue excludedEntities = table.get("exclude_entities");
+        if (!excludedEntities.isnil()) {
+            if (!excludedEntities.istable()) {
+                throw new LuaError("[MLua] EntityQuery.exclude_entities must be an array of live Entity instances.");
+            }
+            LuaTable entities = excludedEntities.checktable();
+            for (int index = 1; !entities.get(index).isnil(); index++) {
+                entityReference(entities.get(index), registration, "EntityQuery.exclude_entities");
+            }
+        }
+    }
+
     private static String optionalString(LuaTable table, String key) {
         LuaValue value = table.get(key);
         if (value.isnil()) return null;
@@ -151,6 +184,10 @@ public final class MLuaEntityQuery {
             if (expected.equals(item.tojstring())) found = true;
         }
         return found;
+    }
+
+    private static void validateStringList(LuaValue value, String field) {
+        if (!value.isnil()) stringList(value, field);
     }
 
     private static boolean hasAllTags(Entity entity, LuaValue value, String field) {
