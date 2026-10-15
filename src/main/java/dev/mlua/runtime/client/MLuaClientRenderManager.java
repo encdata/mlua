@@ -62,6 +62,7 @@ public final class MLuaClientRenderManager {
             Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
             for (RenderObject object : OBJECTS.values()) {
                 if (!object.visible() || (object.type() != RenderType.MESH && object.type() != RenderType.BBMODEL)) continue;
+                if (!object.worldSpace() && object.followEntityScope() == null) continue;
                 renderWorldModel(pose, buffers, object, camera, look);
             }
         } catch (ReflectiveOperationException | RuntimeException ignored) {
@@ -384,6 +385,10 @@ public final class MLuaClientRenderManager {
         objects.sort(Comparator.comparingInt(RenderObject::zIndex));
         for (RenderObject object : objects) {
             if (!object.visible) {
+                continue;
+            }
+            if ((object.type == RenderType.MESH || object.type == RenderType.BBMODEL)
+                    && (object.worldSpace || object.followEntityScope != null)) {
                 continue;
             }
             render(graphics, object);
