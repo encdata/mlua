@@ -41,7 +41,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
         return MLuaClientModelManager.normalizePartName(name);
     }
 
-    @MLuaDescription("Registers named animation bones and model part paths for a Java model class. Subclasses inherit parent mappings and can override individual bone names. Use the full class name; another addon cannot claim an already registered class.")
+    @MLuaDescription("Registers named animation bones and model part paths for a Java model class. Addons can contribute different bones to the same class; duplicate bone names conflict. Subclasses inherit parent mappings and can override individual bone names. Use the full class name.")
     public void RegisterAdapter(String modelClass, LuaTable parts) {
         ensureClient();
         java.util.LinkedHashMap<String, String> mapping = new java.util.LinkedHashMap<>();

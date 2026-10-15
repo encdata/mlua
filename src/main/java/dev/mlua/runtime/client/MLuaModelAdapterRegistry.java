@@ -22,8 +22,7 @@ public final class MLuaModelAdapterRegistry {
     }
 
     private static final Owner LEGACY_OWNER = new Owner(null, "");
-    private record RegisteredAdapter(Owner owner, Map<String, String> parts) {}
-    private static final ConcurrentHashMap<String, RegisteredAdapter> ADAPTERS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Map<Owner, Map<String, String>>> ADAPTERS = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Map<String, String>> RESOLVED_MAPPINGS =
         Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -45,12 +44,22 @@ public final class MLuaModelAdapterRegistry {
             }
         });
         Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
-        RegisteredAdapter next = new RegisteredAdapter(resolvedOwner, Map.copyOf(copy));
+        Map<String, String> registeredParts = Map.copyOf(copy);
         ADAPTERS.compute(className, (ignored, current) -> {
-            if (current != null && !current.owner().equals(resolvedOwner)) {
-                throw new IllegalStateException("A model adapter is already registered for " + className);
+            LinkedHashMap<Owner, Map<String, String>> owners = current == null
+                ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
+            for (Map.Entry<Owner, Map<String, String>> entry : owners.entrySet()) {
+                if (entry.getKey().equals(resolvedOwner)) continue;
+                for (String bone : registeredParts.keySet()) {
+                    if (entry.getValue().containsKey(bone)) {
+                        String addon = entry.getKey().modId().isBlank() ? "another owner" : "addon '" + entry.getKey().modId() + "'";
+                        throw new IllegalStateException("Model bone '" + bone + "' for " + className
+                            + " is already registered by " + addon);
+                    }
+                }
             }
-            return next;
+            owners.put(resolvedOwner, registeredParts);
+            return Map.copyOf(owners);
         });
         RESOLVED_MAPPINGS.clear();
     }
@@ -58,23 +67,40 @@ public final class MLuaModelAdapterRegistry {
     public static boolean unregister(String modelClass, Owner owner) {
         Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
         String className = normalizeClassName(modelClass);
-        RegisteredAdapter adapter = ADAPTERS.get(className);
-        boolean removed = adapter != null && adapter.owner().equals(resolvedOwner) && ADAPTERS.remove(className, adapter);
-        if (removed) RESOLVED_MAPPINGS.clear();
-        return removed;
+        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+        ADAPTERS.computeIfPresent(className, (ignored, current) -> {
+            if (!current.containsKey(resolvedOwner)) return current;
+            LinkedHashMap<Owner, Map<String, String>> owners = new LinkedHashMap<>(current);
+            owners.remove(resolvedOwner);
+            removed.set(true);
+            return owners.isEmpty() ? null : Map.copyOf(owners);
+        });
+        if (removed.get()) RESOLVED_MAPPINGS.clear();
+        return removed.get();
     }
 
     public static void clearOwned(Owner owner) {
-        if (owner != null && ADAPTERS.entrySet().removeIf(entry -> entry.getValue().owner().equals(owner))) {
-            RESOLVED_MAPPINGS.clear();
-        }
+        if (owner == null) return;
+        boolean removed = removeOwned((registeredOwner) -> registeredOwner.equals(owner));
+        if (removed) RESOLVED_MAPPINGS.clear();
     }
 
     public static void clearRuntime(Object runtimeSession) {
         if (runtimeSession == null) return;
-        if (ADAPTERS.entrySet().removeIf(entry -> entry.getValue().owner().runtimeSession() == runtimeSession)) {
-            RESOLVED_MAPPINGS.clear();
+        boolean removed = removeOwned((owner) -> owner.runtimeSession() == runtimeSession);
+        if (removed) RESOLVED_MAPPINGS.clear();
+    }
+
+    private static boolean removeOwned(java.util.function.Predicate<Owner> predicate) {
+        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+        for (String className : ADAPTERS.keySet()) {
+            ADAPTERS.computeIfPresent(className, (ignored, current) -> {
+                LinkedHashMap<Owner, Map<String, String>> owners = new LinkedHashMap<>(current);
+                if (owners.keySet().removeIf(predicate)) removed.set(true);
+                return owners.isEmpty() ? null : Map.copyOf(owners);
+            });
         }
+        return removed.get();
     }
 
     /** Called by loader render hooks; it reads registered data and never invokes Lua. */
@@ -106,8 +132,10 @@ public final class MLuaModelAdapterRegistry {
             Collections.reverse(hierarchy);
             LinkedHashMap<String, String> merged = new LinkedHashMap<>();
             for (Class<?> type : hierarchy) {
-                RegisteredAdapter adapter = ADAPTERS.get(type.getName());
-                if (adapter != null) merged.putAll(adapter.parts());
+                Map<Owner, Map<String, String>> adapters = ADAPTERS.get(type.getName());
+                if (adapters != null) {
+                    for (Map<String, String> parts : adapters.values()) merged.putAll(parts);
+                }
             }
             Map<String, String> resolved = merged.isEmpty() ? Map.of() : Map.copyOf(merged);
             RESOLVED_MAPPINGS.put(modelClass, resolved);
