@@ -2334,6 +2334,12 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
+            synchronized (this.context.mlua().executionLock()) {
+                return invokeLocked(proxy, method, args);
+            }
+        }
+
+        private Object invokeLocked(Object proxy, Method method, Object[] args) {
             if (method.getDeclaringClass() == Object.class) {
                 return switch (method.getName()) {
                     case "toString" -> "LuaProxy(" + proxy.getClass().getInterfaces()[0].getName() + ")";

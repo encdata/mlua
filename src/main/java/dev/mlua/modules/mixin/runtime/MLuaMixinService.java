@@ -20,7 +20,8 @@ public final class MLuaMixinService extends MLuaServiceBase {
 
    @Override
    public LuaTable toLua() {
-      return MLuaMixinLuaApi.create(this::scope, this::registrationAllowed);
+      return MLuaMixinLuaApi.create(this::scope, this::registrationAllowed,
+         () -> this.context.mlua().executionLock());
    }
 
    private boolean registrationAllowed() {

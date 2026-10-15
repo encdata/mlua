@@ -24,6 +24,14 @@ public interface MLuaContextView {
       throw new UnsupportedOperationException("This MLua context does not expose Lua globals");
    }
 
+   /**
+    * Monitor shared with the Lua engine for callbacks that Java may invoke from another thread.
+    * Runtime contexts return the engine monitor; lightweight host contexts default to themselves.
+    */
+   default Object executionLock() {
+      return this;
+   }
+
    /** Returns the runtime registration surface, or throws when the implementation does not expose it. */
    default MLuaRegistration registration() {
       throw new UnsupportedOperationException("This MLua context does not expose runtime registration");

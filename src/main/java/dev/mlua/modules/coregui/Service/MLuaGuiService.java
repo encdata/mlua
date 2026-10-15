@@ -68,6 +68,7 @@ public final class MLuaGuiService implements MLuaService {
     public MLuaGuiService(MLuaService.Context context) {
         this.context = context;
         this.state = stateFor(context.mlua().scheduler());
+        this.state.executionLock = context.mlua().executionLock();
     }
 
     private MLuaGuiService(GuiState state) {
@@ -120,17 +121,20 @@ public final class MLuaGuiService implements MLuaService {
 
     private static void renderHudElement(HudElement element, Object graphics) {
         Object window = Minecraft.getInstance() == null ? null : Minecraft.getInstance().getWindow();
-        element.graphics = graphics;
-        element.canvas.set("Width", LuaValue.valueOf(readNumber(window, "getGuiScaledWidth", "guiScaledWidth")));
-        element.canvas.set("Height", LuaValue.valueOf(readNumber(window, "getGuiScaledHeight", "guiScaledHeight")));
-        element.canvas.set("Anchor", LuaValue.valueOf(element.anchor));
-        element.canvas.set("Phase", LuaValue.valueOf(element.before ? "Before" : "After"));
-        try { element.callback.invoke(element.canvas); }
-        catch (RuntimeException failure) {
-            element.failed = true;
-            MLuaLogger.LOGGER.error("Lua HUD element '{}' failed; rendering is paused until it is registered again", element.id, failure);
-        } finally {
-            element.graphics = null;
+        synchronized (element.executionLock) {
+            element.graphics = graphics;
+            element.canvas.set("Width", LuaValue.valueOf(readNumber(window, "getGuiScaledWidth", "guiScaledWidth")));
+            element.canvas.set("Height", LuaValue.valueOf(readNumber(window, "getGuiScaledHeight", "guiScaledHeight")));
+            element.canvas.set("Anchor", LuaValue.valueOf(element.anchor));
+            element.canvas.set("Phase", LuaValue.valueOf(element.before ? "Before" : "After"));
+            try {
+                element.callback.invoke(element.canvas);
+            } catch (RuntimeException failure) {
+                element.failed = true;
+                MLuaLogger.LOGGER.error("Lua HUD element '{}' failed; rendering is paused until it is registered again", element.id, failure);
+            } finally {
+                element.graphics = null;
+            }
         }
     }
 
@@ -1421,7 +1425,7 @@ public final class MLuaGuiService implements MLuaService {
         String key = owner + ":" + id;
         String position = (before ? "Before" : "After") + positionAnchor;
         HudElement element = new HudElement(key, owner, positionAnchor, before, position, callback,
-            priority, NEXT_HUD_ELEMENT_ID.getAndIncrement());
+            priority, NEXT_HUD_ELEMENT_ID.getAndIncrement(), this.context.mlua().executionLock());
         this.state.hudElements.put(key, element);
         return id;
     }
@@ -1626,22 +1630,24 @@ public final class MLuaGuiService implements MLuaService {
                 }
             });
             try {
-                if (this.luaInstance == null) {
-                    this.initialize.invoke(builder);
-                } else {
-                    this.luaInstance.rawset("AddText", builder.get("AddText"));
-                    this.luaInstance.rawset("AddButton", builder.get("AddButton"));
-                    this.luaInstance.rawset("AddEditBox", builder.get("AddEditBox"));
-                    this.luaInstance.rawset("AddRenderableWidget", builder.get("AddRenderableWidget"));
-                    this.luaInstance.rawset("SetOnClose", builder.get("SetOnClose"));
-                    this.luaInstance.rawset("SetOnRender", builder.get("SetOnRender"));
-                    if (!this.classInitialized) {
-                        this.registration.initializeClassInstance(this.luaInstance, this.className, this.fields);
-                        this.classInitialized = true;
+                synchronized (this.state.executionLock) {
+                    if (this.luaInstance == null) {
+                        this.invokeLua(this.initialize, LuaValue.varargsOf(new LuaValue[]{builder}));
                     } else {
-                        LuaValue init = this.luaInstance.get("Init");
-                        if (init.isfunction()) init.invoke(LuaValue.varargsOf(new LuaValue[]{this.luaInstance,
-                            this.fields == null ? LuaValue.NIL : this.fields}));
+                        this.luaInstance.rawset("AddText", builder.get("AddText"));
+                        this.luaInstance.rawset("AddButton", builder.get("AddButton"));
+                        this.luaInstance.rawset("AddEditBox", builder.get("AddEditBox"));
+                        this.luaInstance.rawset("AddRenderableWidget", builder.get("AddRenderableWidget"));
+                        this.luaInstance.rawset("SetOnClose", builder.get("SetOnClose"));
+                        this.luaInstance.rawset("SetOnRender", builder.get("SetOnRender"));
+                        if (!this.classInitialized) {
+                            this.registration.initializeClassInstance(this.luaInstance, this.className, this.fields);
+                            this.classInitialized = true;
+                        } else {
+                            LuaValue init = this.luaInstance.get("Init");
+                            if (init.isfunction()) this.invokeLua(init, LuaValue.varargsOf(new LuaValue[]{this.luaInstance,
+                                this.fields == null ? LuaValue.NIL : this.fields}));
+                        }
                     }
                 }
             } catch (RuntimeException failure) {
@@ -1667,7 +1673,7 @@ public final class MLuaGuiService implements MLuaService {
             Component component = label instanceof Component styled ? styled : Component.literal((String) label);
             Button button = Button.builder(component, clicked -> {
                 try {
-                    callback.invoke(controlRef[0]);
+                    this.invokeLua(callback, LuaValue.varargsOf(new LuaValue[]{controlRef[0]}));
                 }
                 catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen button callback failed", failure); }
             }).bounds(x, y, width, height).build();
@@ -1690,7 +1696,7 @@ public final class MLuaGuiService implements MLuaService {
                 new MLuaNativeControl.Backing(field, this, this.getClass().getName(), controlIndex));
             if (changed.isfunction()) {
                 field.setResponder(value -> {
-                    try { changed.invoke(LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(value), control})); }
+                    try { this.invokeLua(changed, LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(value), control})); }
                     catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua screen edit box callback failed", failure); }
                 });
             }
@@ -1702,7 +1708,7 @@ public final class MLuaGuiService implements MLuaService {
             this.state.scriptScreens.remove(this);
             if (!this.disposed) {
                 if (this.closed.isfunction()) {
-                    try { this.closed.invoke(LuaValue.NONE); }
+                    try { this.invokeLua(this.closed, LuaValue.NONE); }
                     catch (RuntimeException failure) { MLuaLogger.LOGGER.error("Lua native screen close callback failed", failure); }
                 }
                 this.invokeClassMethod("OnClose");
@@ -1738,7 +1744,7 @@ public final class MLuaGuiService implements MLuaService {
             LuaValue method = this.luaInstance.get("IsPauseScreen");
             if (!method.isfunction()) return true;
             try {
-                LuaValue result = method.invoke(this.luaInstance).arg1();
+                LuaValue result = this.invokeLua(method, LuaValue.varargsOf(new LuaValue[]{this.luaInstance})).arg1();
                 return result.isnil() || result.toboolean();
             } catch (RuntimeException failure) {
                 this.failedInputMethods.add("IsPauseScreen");
@@ -1773,7 +1779,7 @@ public final class MLuaGuiService implements MLuaService {
             LuaValue method = this.luaInstance.get(methodName);
             if (!method.isfunction()) return;
             if (parameters.length == 0) {
-                try { method.invoke(this.luaInstance); }
+                try { this.invokeLua(method, LuaValue.varargsOf(new LuaValue[]{this.luaInstance})); }
                 catch (RuntimeException failure) {
                     MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
                 }
@@ -1782,7 +1788,7 @@ public final class MLuaGuiService implements MLuaService {
             LuaValue[] arguments = new LuaValue[parameters.length + 1];
             arguments[0] = this.luaInstance;
             System.arraycopy(parameters, 0, arguments, 1, parameters.length);
-            try { method.invoke(LuaValue.varargsOf(arguments)); }
+            try { this.invokeLua(method, LuaValue.varargsOf(arguments)); }
             catch (RuntimeException failure) {
                 MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
             }
@@ -1795,7 +1801,7 @@ public final class MLuaGuiService implements MLuaService {
             LuaValue[] arguments = new LuaValue[parameters.length + 1];
             arguments[0] = this.luaInstance;
             System.arraycopy(parameters, 0, arguments, 1, parameters.length);
-            try { return method.invoke(LuaValue.varargsOf(arguments)).arg1().toboolean(); }
+            try { return this.invokeLua(method, LuaValue.varargsOf(arguments)).arg1().toboolean(); }
             catch (RuntimeException failure) {
                 this.failedInputMethods.add(methodName);
                 MLuaLogger.LOGGER.error("Lua screen input method '{}' failed", methodName, failure);
@@ -1926,7 +1932,7 @@ public final class MLuaGuiService implements MLuaService {
             LuaValue[] arguments = !classLifecycle
                 ? new LuaValue[]{canvas, LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY), LuaValue.valueOf(delta)}
                 : new LuaValue[]{this.luaInstance, canvas, LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY), LuaValue.valueOf(delta)};
-            try { callback.invoke(LuaValue.varargsOf(arguments)); }
+            try { this.invokeLua(callback, LuaValue.varargsOf(arguments)); }
             catch (RuntimeException failure) {
                 this.renderFailed = true;
                 MLuaLogger.LOGGER.error("Lua native screen render callback failed; further render callbacks are paused for this screen", failure);
@@ -1938,6 +1944,12 @@ public final class MLuaGuiService implements MLuaService {
             this.textLines.clear();
             this.state.scriptScreens.remove(this);
             if (MLuaGuiService.currentScreen() == this) Minecraft.getInstance().setScreen(null);
+        }
+
+        private Varargs invokeLua(LuaValue function, Varargs arguments) {
+            synchronized (this.state.executionLock) {
+                return function.invoke(arguments);
+            }
         }
 
         @Override
@@ -1987,6 +1999,7 @@ public final class MLuaGuiService implements MLuaService {
         private final Map<String, ScreenTarget> screenTargets = new ConcurrentHashMap<>();
         private final MLuaSignal screenOpened = new MLuaSignal();
         private final MLuaSignal chatLineAdding = new MLuaSignal();
+        private volatile Object executionLock = this;
         private volatile boolean enabled = true;
 
         private void clear() {
@@ -2018,12 +2031,13 @@ public final class MLuaGuiService implements MLuaService {
         private final int priority;
         private final LuaValue callback;
         private final long order;
+        private final Object executionLock;
         private final LuaTable canvas;
         private volatile Object graphics;
         private volatile boolean failed;
 
         private HudElement(String id, String owner, String anchor, boolean before, String position,
-                           LuaValue callback, int priority, long order) {
+                           LuaValue callback, int priority, long order, Object executionLock) {
             this.id = id;
             this.owner = owner;
             this.anchor = anchor;
@@ -2032,6 +2046,7 @@ public final class MLuaGuiService implements MLuaService {
             this.priority = priority;
             this.callback = callback;
             this.order = order;
+            this.executionLock = executionLock;
             this.canvas = createHudCanvas(this);
         }
     }

@@ -692,6 +692,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (object == null) {
             throw new LuaError("[MLua] Render object no longer exists");
         }
+        object.setExecutionLock(context.mlua().executionLock());
         return object;
     }
 

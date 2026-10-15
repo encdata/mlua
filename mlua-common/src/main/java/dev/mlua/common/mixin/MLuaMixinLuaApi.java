@@ -42,31 +42,37 @@ public final class MLuaMixinLuaApi {
    }
 
    public static LuaTable create(Supplier<String> activeScope) {
-      return create(activeScope, () -> true);
+      return create(activeScope, () -> true, () -> MLuaMixinLuaApi.class);
    }
 
    public static LuaTable create(Supplier<String> activeScope, BooleanSupplier registrationAllowed) {
+      return create(activeScope, registrationAllowed, () -> MLuaMixinLuaApi.class);
+   }
+
+   public static LuaTable create(Supplier<String> activeScope, BooleanSupplier registrationAllowed,
+                                 Supplier<Object> executionLock) {
+      Supplier<Object> callbackLock = executionLock == null ? () -> MLuaMixinLuaApi.class : executionLock;
       LuaTable table = new LuaTable();
       table.set("CallOriginal", function(args -> MLuaMixinCallbackRegistry.callOriginalLua()));
       table.set("GetRules", function(args -> getRules(activeScope.get())));
       table.set("GetFailures", function(args -> getFailures()));
-      table.set("Target", function(args -> targetApi(args.checkjstring(2), activeScope, registrationAllowed)));
-      bindOperations(table, args -> args.checkjstring(2), 3, 4, activeScope, registrationAllowed);
+      table.set("Target", function(args -> targetApi(args.checkjstring(2), activeScope, registrationAllowed, callbackLock)));
+      bindOperations(table, args -> args.checkjstring(2), 3, 4, activeScope, registrationAllowed, callbackLock);
       MLuaServiceMetadata.attachMethodDescriptions(table, FUNCTION_DESCRIPTIONS);
       return table;
    }
 
    private static LuaTable targetApi(String targetClass, Supplier<String> activeScope,
-                                     BooleanSupplier registrationAllowed) {
+                                     BooleanSupplier registrationAllowed, Supplier<Object> executionLock) {
       LuaTable target = new LuaTable();
-      bindOperations(target, args -> targetClass, 2, 3, activeScope, registrationAllowed);
+      bindOperations(target, args -> targetClass, 2, 3, activeScope, registrationAllowed, executionLock);
       MLuaServiceMetadata.attachMethodDescriptions(target, FUNCTION_DESCRIPTIONS);
       return target;
    }
 
    private static void bindOperations(LuaTable table, Function<Varargs, String> targetClass,
                                       int methodIndex, int optionsIndex, Supplier<String> activeScope,
-                                      BooleanSupplier registrationAllowed) {
+                                      BooleanSupplier registrationAllowed, Supplier<Object> executionLock) {
       for (MixinType type : MixinType.values()) {
          String methodName = type.name().equals("MODIFY_ARG") ? "ModifyArg" : titleCase(type.name());
          if (type != MixinType.INJECT && type != MixinType.OVERWRITE
@@ -76,7 +82,7 @@ public final class MLuaMixinLuaApi {
             String target = targetClass.apply(args);
             String method = args.checkjstring(methodIndex);
             LuaTable options = args.checktable(optionsIndex);
-            LuaValue callback = options.get("callback");
+            LuaValue callback = serializeCallback(options.get("callback"), executionLock.get());
             MLuaMixinRule rule;
             switch (type) {
                case INJECT -> {
@@ -109,6 +115,19 @@ public final class MLuaMixinLuaApi {
             return LuaValue.NONE;
          }));
       }
+   }
+
+   private static LuaValue serializeCallback(LuaValue callback, Object lock) {
+      if (callback == null || !callback.isfunction()) return callback;
+      Object executionLock = lock == null ? MLuaMixinLuaApi.class : lock;
+      return new VarArgFunction() {
+         @Override
+         public Varargs invoke(Varargs args) {
+            synchronized (executionLock) {
+               return callback.invoke(args);
+            }
+         }
+      };
    }
 
    private static String titleCase(String value) {

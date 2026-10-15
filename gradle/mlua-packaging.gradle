@@ -2,6 +2,9 @@
 ext.configureMluaIcon = { ProcessResources resourcesTask ->
     resourcesTask.from(rootProject.file('src/main/resources/Icon.png')) {
         into ''
+    }
+    resourcesTask.from(rootProject.file('src/main/resources/Icon.png')) {
+        into ''
         rename { 'icon.png' }
     }
 }

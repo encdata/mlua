@@ -22,13 +22,15 @@ repositories {
 }
 
 dependencies {
+    def modDependencyConfiguration = providers.gradleProperty('minecraftVersion').get().startsWith('26.')
+        ? 'implementation' : 'modImplementation'
     minecraft "com.mojang:minecraft:${providers.gradleProperty('minecraftVersion').get()}"
     if (!providers.gradleProperty('minecraftVersion').get().startsWith('26.')) {
         mappings loom.officialMojangMappings()
     }
-    modImplementation "net.fabricmc:fabric-loader:${providers.gradleProperty('fabricLoaderVersion').get()}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty('fabricApiVersion').get()}"
-    modImplementation files('run/mods/mlua.jar')
+    add(modDependencyConfiguration, "net.fabricmc:fabric-loader:${providers.gradleProperty('fabricLoaderVersion').get()}")
+    add(modDependencyConfiguration, "net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty('fabricApiVersion').get()}")
+    add(modDependencyConfiguration, files('run/mods/mlua.jar'))
 }
 
 loom {

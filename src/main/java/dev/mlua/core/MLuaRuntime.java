@@ -801,7 +801,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private MLuaContext contextFor(MLuaScript script, Side side, RegistrationPhase phase,
                                  MinecraftServer server, MLuaRegistration registration) {
       boolean serverSide = side == Side.SERVER;
-      return new MLuaContext(
+      MLuaContext context = new MLuaContext(
          script,
          side,
          phase,
@@ -814,6 +814,8 @@ public final class MLuaRuntime implements MLuaRegistration {
          this.session,
          registration
       );
+      context.bindExecutionLock(this.engine);
+      return context;
    }
 
    private String entrypointName(Side side, RegistrationPhase phase) {

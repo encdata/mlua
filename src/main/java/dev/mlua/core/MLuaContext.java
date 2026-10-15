@@ -34,6 +34,7 @@ public final class MLuaContext implements MLuaContextView {
    private final MLuaRuntimeSession session;
    private final MLuaRegistration registration;
    private volatile Globals globals;
+   private volatile Object executionLock;
    private final Map<String, LuaTable> materializedServices = new LinkedHashMap<>();
    private final Map<String, LuaTable> serviceProxies = new LinkedHashMap<>();
    private final ArrayDeque<String> serviceMaterializationStack = new ArrayDeque<>();
@@ -62,6 +63,7 @@ public final class MLuaContext implements MLuaContextView {
       this.failureReporter = failureReporter;
       this.session = session;
       this.registration = registration;
+      this.executionLock = this;
    }
 
    public MLuaScript script() {
@@ -152,6 +154,13 @@ public final class MLuaContext implements MLuaContextView {
 
    public void bindGlobals(Globals globals) { this.globals = globals; }
 
+   @Override
+   public Object executionLock() { return this.executionLock; }
+
+   public void bindExecutionLock(Object executionLock) {
+      this.executionLock = executionLock == null ? this : executionLock;
+   }
+
    public void reportRuntimeFailure(String summary, Throwable throwable) {
       if (this.failureReporter == null) {
          this.scheduler.reportRuntimeFailure(summary, throwable);
@@ -221,6 +230,7 @@ public final class MLuaContext implements MLuaContextView {
    public MLuaContext withScript(MLuaScript script) {
       MLuaContext context = new MLuaContext(script, this.side, this.phase, this.services, this.scheduler, this.moduleCache, this.server, this.filesRoot, this.failureReporter, this.session, this.registration);
       context.bindGlobals(this.globals);
+      context.bindExecutionLock(this.executionLock);
       return context;
    }
 }

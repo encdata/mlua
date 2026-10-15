@@ -60,8 +60,10 @@ public final class MLuaClientRenderManager {
 
     private static void tickAnimations() {
         for (RenderObject object : OBJECTS.values()) {
-            if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
-            object.sampleFollowOffset();
+            synchronized (object.executionLock()) {
+                if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
+                object.sampleFollowOffset();
+            }
         }
     }
 
@@ -76,8 +78,10 @@ public final class MLuaClientRenderManager {
             var lookVector = rawCamera instanceof Camera ? ((Camera) rawCamera).getLookVector() : Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
             Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
             for (RenderObject object : OBJECTS.values()) {
-                if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL) continue;
-                renderWorldModel(pose, buffers, object, camera, look);
+                synchronized (object.executionLock()) {
+                    if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL) continue;
+                    renderWorldModel(pose, buffers, object, camera, look);
+                }
             }
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             // The UI projection remains available when a loader changes its
@@ -428,13 +432,11 @@ public final class MLuaClientRenderManager {
         List<RenderObject> objects = new ArrayList<>(OBJECTS.values());
         objects.sort(Comparator.comparingInt(RenderObject::zIndex));
         for (RenderObject object : objects) {
-            if (!object.visible) {
-                continue;
+            synchronized (object.executionLock()) {
+                if (!object.visible) continue;
+                if (object.target() == RenderTarget.WORLD_MODEL || object.target() == RenderTarget.ENTITY_MODEL) continue;
+                render(graphics, object);
             }
-            if (object.target() == RenderTarget.WORLD_MODEL || object.target() == RenderTarget.ENTITY_MODEL) {
-                continue;
-            }
-            render(graphics, object);
         }
     }
 
@@ -838,6 +840,7 @@ public final class MLuaClientRenderManager {
         private List<ResourceLocation> resolvedTextures = List.of();
         private float modelScale = 1.0F;
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
+        private volatile Object executionLock = this;
 
         private RenderObject(int id, RenderType type, String resource) {
             this.id = id;
@@ -846,6 +849,10 @@ public final class MLuaClientRenderManager {
         }
 
         public int id() { return id; }
+        public Object executionLock() { return executionLock; }
+        public void setExecutionLock(Object executionLock) {
+            this.executionLock = executionLock == null ? this : executionLock;
+        }
         public RenderType type() { return type; }
         public String resource() { return resource; }
         public double x() { return x; }
@@ -1002,6 +1009,7 @@ public final class MLuaClientRenderManager {
             copy.followOffset = followOffset;
             copy.followOffsetCallback = followOffsetCallback;
             copy.followOffsetCallbackFailed = followOffsetCallbackFailed;
+            copy.executionLock = executionLock;
             copy.worldX = worldX;
             copy.worldY = worldY;
             copy.worldZ = worldZ;

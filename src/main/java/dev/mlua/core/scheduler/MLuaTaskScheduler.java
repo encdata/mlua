@@ -162,15 +162,18 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    }
 
    private void runTask(MLuaScheduledTask task) {
-      MLuaLuaBindings.bindContext(task.globals, task.context);
-      LuaThread thread = task.thread != null ? task.thread : new LuaThread(task.globals, task.function);
-      Varargs resumeArgs = task.resumeArgs == null ? LuaValue.NONE : task.resumeArgs;
-      Varargs result = thread.resume(resumeArgs);
-      if (!result.arg1().toboolean()) {
-         throw new LuaError(result.arg(2).tojstring());
-      } else {
-         this.scheduleResumableThread(task.globals, thread, result, task.context, task.ownerModId, task.side);
+      Object executionLock = task.context == null ? task.globals : task.context.executionLock();
+      synchronized (executionLock) {
+         MLuaLuaBindings.bindContext(task.globals, task.context);
+         LuaThread thread = task.thread != null ? task.thread : new LuaThread(task.globals, task.function);
+         Varargs resumeArgs = task.resumeArgs == null ? LuaValue.NONE : task.resumeArgs;
+         Varargs result = thread.resume(resumeArgs);
+         if (!result.arg1().toboolean()) {
+            throw new LuaError(result.arg(2).tojstring());
+         } else {
+            this.scheduleResumableThread(task.globals, thread, result, task.context, task.ownerModId, task.side);
 
+         }
       }
    }
 
