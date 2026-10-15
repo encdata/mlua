@@ -207,12 +207,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         double[] other = targetPosition(args.arg(2));
-         MCVec3 p = wrapped.getPosition();
-         double dx = p.x() - other[0];
-         double dy = p.y() - other[1];
-         double dz = p.z() - other[2];
-         return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
+         return distanceTo(wrapped, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetIsAlive", luaFn(() -> LuaValue.valueOf(wrapped.isAlive())));
       MLuaClassMethods.setInstanceMethod(table, "GetIsOnGround", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().onGround())));
@@ -547,12 +542,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         double[] other = targetPosition(args.arg(2));
-         MCVec3 p = wrapped.getPosition();
-         double dx = p.x() - other[0];
-         double dy = p.y() - other[1];
-         double dz = p.z() - other[2];
-         return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
+         return distanceTo(wrapped, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetIsAlive", luaFn(() -> {
          return LuaValue.valueOf(wrapped.isAlive());
@@ -1061,6 +1051,15 @@ public final class MLuaEntityWrapper {
       } else {
          applyRotation(entity, args.arg(valueIndex));
       }
+   }
+
+   public static LuaValue distanceTo(MCEntity entity, LuaValue targetValue) {
+      double[] target = targetPosition(targetValue);
+      MCVec3 position = entity.getPosition();
+      double dx = position.x() - target[0];
+      double dy = position.y() - target[1];
+      double dz = position.z() - target[2];
+      return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
    }
 
    public static void applyRotation(MCEntity entity, LuaValue value) {

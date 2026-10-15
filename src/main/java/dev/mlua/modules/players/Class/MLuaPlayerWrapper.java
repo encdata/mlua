@@ -278,12 +278,7 @@ public final class MLuaPlayerWrapper {
          return MLuaEntityWrapper.setVelocity(player, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         double[] other = MLuaEntityWrapper.targetPosition(args.arg(2));
-         MCVec3 p = MLuaEntityWrapper.position(player);
-         double dx = p.x() - other[0];
-         double dy = p.y() - other[1];
-         double dz = p.z() - other[2];
-         return LuaValue.valueOf(Math.sqrt(dx * dx + dy * dy + dz * dz));
+         return MLuaEntityWrapper.distanceTo(player, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetGameMode", luaFn(() -> {
          return getGameModeLua(player);
