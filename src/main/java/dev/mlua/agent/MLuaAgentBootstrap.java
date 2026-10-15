@@ -1,7 +1,6 @@
 package dev.mlua.agent;
 
 import com.sun.tools.attach.VirtualMachine;
-import dev.mlua.core.MLuaLogger;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public final class MLuaAgentBootstrap {
+   private static final System.Logger LOGGER = System.getLogger("MLua");
    private static volatile boolean attempted;
 
    private MLuaAgentBootstrap() {
@@ -30,7 +30,7 @@ public final class MLuaAgentBootstrap {
       try {
          Path jarPath = resolveOwnJarPath();
          if (jarPath == null || !Files.isRegularFile(jarPath)) {
-            MLuaLogger.LOGGER.warn("[MLua] Could not resolve mod jar for self-attach: {}", jarPath);
+            LOGGER.log(System.Logger.Level.WARNING, "[MLua] Could not resolve mod jar for self-attach: " + jarPath);
             return;
          }
 
@@ -40,12 +40,12 @@ public final class MLuaAgentBootstrap {
          }
 
          if (resolveTransformerInstrumentation() != null) {
-            MLuaLogger.LOGGER.info("[MLua] Self-attach agent loaded from {}", jarPath);
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Self-attach agent loaded from " + jarPath);
          } else {
-            MLuaLogger.LOGGER.warn("[MLua] Self-attach completed but instrumentation is still unavailable");
+            LOGGER.log(System.Logger.Level.WARNING, "[MLua] Self-attach completed but instrumentation is still unavailable");
          }
       } catch (Throwable t) {
-         MLuaLogger.LOGGER.warn("[MLua] Failed to self-attach runtime transformer: {}", t.toString());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] Failed to self-attach runtime transformer: " + t);
       }
    }
 
@@ -59,7 +59,7 @@ public final class MLuaAgentBootstrap {
             vm.detach();
          }
       } catch (Throwable t) {
-         MLuaLogger.LOGGER.info("[MLua] Direct self-attach unavailable, falling back to helper JVM: {}", t.toString());
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Direct self-attach unavailable, falling back to helper JVM: " + t);
          return false;
       }
    }
@@ -94,7 +94,7 @@ public final class MLuaAgentBootstrap {
             return fabricPath;
          }
       } catch (Throwable t) {
-         MLuaLogger.LOGGER.debug("[MLua] Fabric mod jar resolution not available: {}", t.toString());
+         LOGGER.log(System.Logger.Level.DEBUG, "[MLua] Fabric mod jar resolution not available: " + t);
       }
 
       try {
@@ -126,7 +126,7 @@ public final class MLuaAgentBootstrap {
          }
          return Paths.get(uri);
       } catch (Exception e) {
-         MLuaLogger.LOGGER.warn("[MLua] Failed to resolve own jar path for agent attach: {}", e.getMessage());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] Failed to resolve own jar path for agent attach: " + e.getMessage());
          return null;
       }
    }
@@ -170,7 +170,7 @@ public final class MLuaAgentBootstrap {
          Path path = (Path) paths.get(0);
          return path != null && Files.isRegularFile(path) ? path : null;
       } catch (Throwable t) {
-         MLuaLogger.LOGGER.debug("[MLua] Fabric mod jar resolution failed: {}", t.toString());
+         LOGGER.log(System.Logger.Level.DEBUG, "[MLua] Fabric mod jar resolution failed: " + t);
          return null;
       }
    }

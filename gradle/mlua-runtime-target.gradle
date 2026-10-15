@@ -158,7 +158,6 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Vendor': mod_authors
         ])
     }
-    exclude 'dev/mlua/common/enums/**'
     exclude 'dev/mlua/common/mixin/**'
     exclude 'dev/mlua/transformer/**'
     exclude 'org/luaj/**'

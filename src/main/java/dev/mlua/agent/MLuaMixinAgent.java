@@ -1,10 +1,10 @@
 package dev.mlua.agent;
 
-import dev.mlua.core.MLuaLogger;
 import java.lang.instrument.Instrumentation;
 import java.util.jar.JarFile;
 
 public final class MLuaMixinAgent {
+   private static final System.Logger LOGGER = System.getLogger("MLua");
    private static final String[] MOD_CLASSLOADER_ANCHORS = {
       "dev.mlua.MLuaMod",
       "dev.mlua.loader.impl.fabric.MLuaFabricMod",
@@ -37,7 +37,7 @@ public final class MLuaMixinAgent {
       try {
          ClassLoader modLoader = resolveModClassLoader(inst);
          if (modLoader == null) {
-            MLuaLogger.LOGGER.warn("[MLua] Could not find MLua mod classloader during agent install");
+            LOGGER.log(System.Logger.Level.WARNING, "[MLua] Could not find MLua mod classloader during agent install");
             return;
          }
 
@@ -50,10 +50,10 @@ public final class MLuaMixinAgent {
             Object transformer = transformerClass.getMethod("get").invoke(null);
             inst.addTransformer((java.lang.instrument.ClassFileTransformer) transformer, true);
             transformerInstalled = true;
-            MLuaLogger.LOGGER.info("[MLua] Installed MLua runtime transformer via java agent");
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Installed MLua runtime transformer via java agent");
          }
       } catch (Exception e) {
-         MLuaLogger.LOGGER.warn("[MLua] Failed to hand off instrumentation to MLua mod classloader: {}", e.toString());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] Failed to hand off instrumentation to MLua mod classloader: " + e);
       }
    }
 
@@ -100,7 +100,7 @@ public final class MLuaMixinAgent {
             inst.appendToSystemClassLoaderSearch(new JarFile(path.toFile()));
          }
       } catch (Exception e) {
-         MLuaLogger.LOGGER.warn("[MLua] Failed to append agent jar to system classloader search: {}", e.getMessage());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] Failed to append agent jar to system classloader search: " + e.getMessage());
       }
    }
 
