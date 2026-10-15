@@ -32,6 +32,17 @@ final class MLuaModelAdapterRegistryTest {
     }
 
     @Test
+    void repeatedRegistrationsByOneAddonAccumulateAndCanUpdateItsBones() {
+        String modelClass = RepeatedModel.class.getName();
+        MLuaModelAdapterRegistry.register(modelClass, Map.of("head", "head"), addonA);
+        MLuaModelAdapterRegistry.register(modelClass, Map.of("tail", "tail"), addonA);
+        MLuaModelAdapterRegistry.register(modelClass, Map.of("head", "hat"), addonA);
+
+        assertEquals(Map.of("head", "hat", "tail", "tail"),
+            MLuaModelAdapterRegistry.findMapping(RepeatedModel.class));
+    }
+
+    @Test
     void duplicateBoneNamesCannotReplaceAnotherAddonsMapping() {
         String modelClass = ConflictingModel.class.getName();
         MLuaModelAdapterRegistry.register(modelClass, Map.of("head", "head"), addonA);
@@ -64,6 +75,7 @@ final class MLuaModelAdapterRegistryTest {
 
     private static class SharedModel {}
     private static class ConflictingModel {}
+    private static class RepeatedModel {}
     private static class ParentModel {}
     private static final class ChildModel extends ParentModel {}
 }

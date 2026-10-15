@@ -48,6 +48,7 @@ public final class MLuaModelAdapterRegistry {
         ADAPTERS.compute(className, (ignored, current) -> {
             LinkedHashMap<Owner, Map<String, String>> owners = current == null
                 ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
+            LinkedHashMap<String, String> ownedParts = new LinkedHashMap<>(owners.getOrDefault(resolvedOwner, Map.of()));
             for (Map.Entry<Owner, Map<String, String>> entry : owners.entrySet()) {
                 if (entry.getKey().equals(resolvedOwner)) continue;
                 for (String bone : registeredParts.keySet()) {
@@ -58,7 +59,8 @@ public final class MLuaModelAdapterRegistry {
                     }
                 }
             }
-            owners.put(resolvedOwner, registeredParts);
+            ownedParts.putAll(registeredParts);
+            owners.put(resolvedOwner, Map.copyOf(ownedParts));
             return Map.copyOf(owners);
         });
         RESOLVED_MAPPINGS.clear();
