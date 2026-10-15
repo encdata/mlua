@@ -286,7 +286,10 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> LuaValue.valueOf(itemTag(self, false) != null && !itemTag(self, false).isEmpty())), "Returns whether this item has NBT data.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> {
+            net.minecraft.nbt.CompoundTag compoundData = itemTag(self, false);
+            return LuaValue.valueOf(compoundData != null && !compoundData.getAllKeys().isEmpty());
+         }), "Returns whether this item has NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayName", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getHoverName().getString())), "Returns this item's rendered display name as plain text.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayComponent", selfItem((self, ignored) ->
             dev.mlua.api.MLuaLuaCoercions.toLuaValue(((MCItemStackImpl)stack(self)).inner().getHoverName())),
@@ -319,12 +322,12 @@ public final class MLuaItemWrapper {
          }), "Returns this item's NBT value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetTagKeys", selfItem((self, ignored) -> {
             LuaTable keys = new LuaTable();
-            net.minecraft.nbt.CompoundTag tag = itemTag(self, false);
-            if (tag == null) {
+            net.minecraft.nbt.CompoundTag compoundData = itemTag(self, false);
+            if (compoundData == null) {
                return keys;
             }
             int i = 1;
-            for (String key : tag.getAllKeys()) {
+            for (String key : compoundData.getAllKeys()) {
                keys.set(i++, LuaValue.valueOf(key));
             }
             return keys;

@@ -42,7 +42,7 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
             count.orElse(LuaValue.NIL), 1, "ItemStackService:Of", "count"));
     }
 
-    @MLuaDescription("Returns an empty item stack instance.")
+    @MLuaDescription("Returns an empty item stack instance. Since a stack with no item type cannot hold Minecraft item components, NBT assigned to this instance is isolated to the Lua Item wrapper and is not serialized.")
     public LuaValue Empty() {
         return MLuaItemWrapper.itemTable(ItemStack.EMPTY, this.context.registration());
     }
