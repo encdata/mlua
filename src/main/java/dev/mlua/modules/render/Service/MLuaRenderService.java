@@ -39,7 +39,6 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         String description = "A live client render instance with mutable screen-space or world-space properties and rendering methods.";
         registration.registerClass("RenderObject", registration.requireInstanceBaseClassName(), description);
         registerObjectProperty(registration, "Id", "number", "The render object's runtime identifier.", "", null);
-        registerObjectProperty(registration, "ClassName", "string", "The registered Lua class used by this render instance.", "GetClassName", null);
         registerObjectProperty(registration, "Type", "string", "The render object's type.", "GetType", null);
         registerObjectProperty(registration, "IsDestroyed", "boolean", "Whether this render object has been removed.", "GetIsDestroyed", null);
         registerObjectProperty(registration, "Position", "Vector2", "The render object's screen position.", "GetPosition", "SetPosition");
@@ -65,7 +64,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
         String[][] methods = {
-            {"GetId", "Returns the object's runtime identifier."}, {"GetClassName", "Returns the registered Lua class used by this instance."}, {"GetType", "Returns the object's render type."},
+            {"GetId", "Returns the object's runtime identifier."}, {"GetType", "Returns the object's render type."},
             {"GetIsDestroyed", "Returns whether this object has been removed."},
             {"GetPosition", "Returns the object's screen position."}, {"SetPosition", "Changes the object's screen position."},
             {"GetEndPosition", "Returns the second screen position."}, {"SetEndPosition", "Changes the second screen position."},
@@ -380,7 +379,6 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             var object = requireObject(id);
             return LuaValue.valueOf(object.type().name().toLowerCase());
         }));
-        operations.set("GetClassName", fn(args -> LuaValue.valueOf(requireObject(id).luaClassName())));
         operations.set("GetIsDestroyed", fn(args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, owner()) == null)));
         operations.set("GetPosition", fn(args -> {
             var object = requireObject(id);
