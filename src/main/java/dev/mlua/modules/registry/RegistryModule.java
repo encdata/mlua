@@ -284,7 +284,7 @@ public class RegistryModule implements MLuaModule {
             "onInventoryTick?", "fun(context: ItemInventoryTickContext)", "Runs while the item is in an inventory.",
             "onCrafted?", "fun(context: ItemCraftedContext)", "Runs when the item is crafted.",
             "onConsume?", "fun(context: ItemConsumeContext)", "Runs once on the server when eating finishes.",
-            "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean?", "Runs when the item attacks an entity. Return false to cancel; return true to handle a generic scripted item attack. On native tool kinds, true allows Minecraft's tool hit behavior to continue.",
+            "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean?", "Runs from Minecraft's item hit hook after the target has been attacked, so it cannot cancel that hit. Return false to skip item hit handling; true allows native tool handling and requests durability handling for a generic scripted item.",
             "kind?", "string", "Built-in item kind such as item, sword, pickaxe, axe, shovel, hoe, or bow; registered custom kinds are also accepted.",
             "tier?", "string", "Tool material tier: wood, stone, iron, gold, diamond, or netherite.",
             "attackDamage?", "number", "Finite attack damage value for a supported tool kind.",
