@@ -2,10 +2,13 @@ package dev.mlua.runtime.client;
 
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
+import dev.mlua.loaderapi.LoaderApi;
+import dev.mlua.core.MLuaLogger;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectileType;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import java.lang.reflect.Proxy;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.world.entity.EntityType;
@@ -21,6 +24,8 @@ import net.neoforged.fml.common.EventBusSubscriber.Bus;
    value = {Dist.CLIENT}
 )
 public final class MLuaClientModels {
+   private static final AtomicBoolean MISSING_LOADER_WARNING_LOGGED = new AtomicBoolean();
+
    private MLuaClientModels() {
    }
 
@@ -31,6 +36,13 @@ public final class MLuaClientModels {
    @SubscribeEvent
    @SuppressWarnings({"rawtypes", "unchecked"})
    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+      if (!LoaderApi.isInstalled()) {
+         if (MISSING_LOADER_WARNING_LOGGED.compareAndSet(false, true)) {
+            MLuaLogger.LOGGER.error("[MLua] Skipping scripted entity renderer registration because the NeoForge loader provider was not installed before renderer registration.");
+         }
+         return;
+      }
+
       for (Map.Entry<String, RegistryHandle<?>> entry : MLuaLoaderRegistry.getRegisteredHandles(RegistryKind.ENTITY).entrySet()) {
          EntityType<?> type = (EntityType)((RegistryHandle)entry.getValue()).get();
          if (type != null) {

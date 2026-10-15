@@ -61,13 +61,13 @@ public abstract class GuiHudMixin {
         MLuaGuiService.renderHudElements("AfterHealth", graphics);
     }
 
-    @Inject(method = "extractExperienceBar", at = @At("HEAD"))
-    private void mlua$beforeExperience(GuiGraphicsExtractor graphics, int x, CallbackInfo callback) {
+    @Inject(method = "extractContextualInfoBar", at = @At("HEAD"))
+    private void mlua$beforeExperience(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
         MLuaGuiService.renderHudElements("BeforeExperience", graphics);
     }
 
-    @Inject(method = "extractExperienceBar", at = @At("TAIL"))
-    private void mlua$afterExperience(GuiGraphicsExtractor graphics, int x, CallbackInfo callback) {
+    @Inject(method = "extractContextualInfoBar", at = @At("TAIL"))
+    private void mlua$afterExperience(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo callback) {
         MLuaGuiService.renderHudElements("AfterExperience", graphics);
     }
 

@@ -27,6 +27,7 @@ def collectLoaderJars = tasks.register('collectLoaderJars', Copy) {
         // Fabric projects expose `remapJar`. Resolve whichever task actually
         // exists instead of assuming every target has remapJar.
         def producer = project(loaderProject.path).tasks.findByName('remapJar')
+        if (producer == null) producer = project(loaderProject.path).tasks.findByName('reobfJar')
         if (producer == null) producer = project(loaderProject.path).tasks.named('jar').get()
         dependsOn producer
         from(producer) {

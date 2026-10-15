@@ -31,6 +31,10 @@ public final class LoaderApi {
         provider = Objects.requireNonNull(installed, "installed");
     }
 
+    public static boolean isInstalled() {
+        return provider != null;
+    }
+
     private static LoaderProvider provider() {
         LoaderProvider installed = provider;
         if (installed == null) throw new IllegalStateException("MLua loader is not installed yet");
