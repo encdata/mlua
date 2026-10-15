@@ -438,6 +438,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, properties: BlockStateProperties?, loadChunk: boolean?, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, loadChunk: boolean, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, updateFlags: number)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlockState(position: Vector3|CFrame, state: BlockState, updateFlags: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetBlockEntity(position: Vector3|CFrame)", "BlockEntity?"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:CanSeeSky(position: Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:IsRaining()", "boolean"));
