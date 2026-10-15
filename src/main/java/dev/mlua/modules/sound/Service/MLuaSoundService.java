@@ -1,6 +1,5 @@
 package dev.mlua.modules.sound.Service;
 
-import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
@@ -38,9 +37,9 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleProperty(registration, "Looped", "boolean", "Whether playback repeats after reaching the end.", "GetLooped", "SetLooped");
         registerHandleProperty(registration, "Volume", "number", "The sound's finite, non-negative playback volume.", "GetVolume", "SetVolume");
         registerHandleProperty(registration, "Pitch", "number", "The sound's finite, non-negative playback pitch.", "GetPitch", "SetPitch");
-        registerHandleProperty(registration, "Position", "Vector3|CFrame", "The sound's current position.", "GetPosition", "SetPosition");
+        registerHandleProperty(registration, "Position", "Vector3|CFrame", "The sound's current position with finite coordinates.", "GetPosition", "SetPosition");
         registerHandleProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this sound. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
-        registerHandleProperty(registration, "FollowOffset", "Vector3", "The offset from the followed entity.", "GetFollowOffset", "SetFollowOffset");
+        registerHandleProperty(registration, "FollowOffset", "Vector3", "The finite offset from the followed entity.", "GetFollowOffset", "SetFollowOffset");
         registerHandleMethod(registration, "Stop", "Stops playback of this sound.");
         registerHandleMethod(registration, "Destroy", "Stops playback and removes this sound handle.");
         registerHandleMethod(registration, "GetIsPlaying", "Returns whether this sound is currently playing.");
@@ -52,13 +51,13 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleMethod(registration, "GetPitch", "Returns the sound's playback pitch.");
         registerHandleMethod(registration, "SetPitch", "Sets a finite, non-negative playback pitch.");
         registerHandleMethod(registration, "GetPosition", "Returns the sound's current position.");
-        registerHandleMethod(registration, "SetPosition", "Moves the sound to a Vector3 or CFrame position and clears any entity-follow target.");
+        registerHandleMethod(registration, "SetPosition", "Moves the sound to a Vector3 or CFrame with finite coordinates and clears any entity-follow target.");
         registerHandleMethod(registration, "GetFollowEntity", "Returns the entity id followed by this sound, or nil.");
         registerHandleMethod(registration, "SetFollowEntity", "Attaches this sound to an entity.");
         registerHandleMethod(registration, "AttachToEntity", "Attaches this sound to an entity.");
         registerHandleMethod(registration, "ClearFollowEntity", "Stops this sound from following an entity.");
         registerHandleMethod(registration, "GetFollowOffset", "Returns the offset from the followed entity.");
-        registerHandleMethod(registration, "SetFollowOffset", "Changes the offset from the followed entity.");
+        registerHandleMethod(registration, "SetFollowOffset", "Sets a finite Vector3 offset from the followed entity.");
     }
 
     private static void registerHandleProperty(MLuaRegistration registration, String name, String type,
@@ -167,7 +166,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         double followOffsetZ = 0.0;
         LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
         if (!position.isnil()) {
-            double[] coordinates = MLuaCFrame.vector(position);
+            double[] coordinates = MLuaLuaArguments.finiteVector3(position, "SoundService:Play position");
             x = coordinates[0];
             y = coordinates[1];
             z = coordinates[2];
@@ -222,7 +221,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             return vector3(sound.xPos(), sound.yPos(), sound.zPos());
         }));
         operations.set("SetPosition", fn(args -> {
-            double[] position = MLuaCFrame.vector(args.arg(2));
+            double[] position = MLuaLuaArguments.finiteVector3(args.arg(2), "SoundHandle:SetPosition");
             requireSound(id).setPosition(position[0], position[1], position[2]);
             return LuaValue.NONE;
         }));
@@ -280,7 +279,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     private static double[] vector3(LuaValue value, String name) {
         if (!MLuaVector.isVector3(value)) throw new LuaError("[MLua] Sound " + name + " requires a native Vector3 value.");
-        return MLuaVector.components3(value);
+        return MLuaLuaArguments.finiteVector3(value, "Sound " + name);
     }
 
     private MLuaEntityScope resolveOptionalEntityScope(LuaValue value) {

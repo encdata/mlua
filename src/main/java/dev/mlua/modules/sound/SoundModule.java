@@ -60,9 +60,9 @@ public final class SoundModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Volume", "number", "Finite, non-negative playback volume. Defaults to 1."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Pitch", "number", "Finite, non-negative playback pitch. Defaults to 1."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat."));
-        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position used when FollowEntity is not set."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position with finite coordinates, used when FollowEntity is not set."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow."));
-        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowOffset", "Vector3", "Offset from the followed entity; used with FollowEntity."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowOffset", "Vector3", "Finite offset from the followed entity; used with FollowEntity."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Category", "string", "Minecraft sound category. Defaults to players."));
         docs.register(MLuaDocBuilder.Registration.guideStep("SoundService", "Control a sound after starting it",
             "Playback functions return a SoundHandle instance. Its positions accept Vector3 or CFrame; follow offsets use native Vector3 values. Coordinate tables are rejected. Setting Position clears an entity-follow target. Its properties read and update the live sound, and Destroy stops playback.",
