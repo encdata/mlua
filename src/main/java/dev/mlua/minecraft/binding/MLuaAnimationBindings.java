@@ -72,7 +72,7 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Resume",
             "Resumes this animation track from its current position.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AdjustSpeed",
-            "Sets this animation track's playback speed.");
+            "Sets this animation track's finite, non-negative playback speed.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetTimePosition",
             "Returns this animation track's current playback position.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetPriority",
@@ -88,11 +88,11 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetLooped",
             "Returns whether this animation track repeats.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetLooped",
-            "Sets whether this animation track repeats.");
+            "Sets whether this animation track repeats; the value must be a boolean.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetWeight",
             "Returns this animation track's current weight.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetWeight",
-            "Changes this animation track's weight.");
+            "Sets this animation track's blend weight from zero to one.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetAnimation",
             "Returns the Animation instance played by this track.");
     }
@@ -178,7 +178,8 @@ public final class MLuaAnimationBindings {
         });
         MLuaClassMethods.setInstanceMethod(table, "AdjustSpeed", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                track.adjustSpeed((float) args.checkdouble(2));
+                track.adjustSpeed(MLuaLuaArguments.finiteNonNegativeFloat(
+                    args, 2, "AnimationTrack:AdjustSpeed", "speed"));
                 return LuaValue.NONE;
             }
         });
@@ -222,7 +223,8 @@ public final class MLuaAnimationBindings {
         });
         MLuaClassMethods.setInstanceMethod(table, "SetLooped", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                track.setLooped(args.arg(2).optboolean(false));
+                track.setLooped(MLuaLuaArguments.optionalBoolean(
+                    args, 2, false, "AnimationTrack:SetLooped", "looped"));
                 return LuaValue.NONE;
             }
         });
@@ -233,7 +235,8 @@ public final class MLuaAnimationBindings {
         });
         MLuaClassMethods.setInstanceMethod(table, "SetWeight", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                track.fadeTo((float) args.checkdouble(2));
+                track.fadeTo(MLuaLuaArguments.unitIntervalFloat(
+                    args, 2, "AnimationTrack:SetWeight", "weight"));
                 return LuaValue.NONE;
             }
         });

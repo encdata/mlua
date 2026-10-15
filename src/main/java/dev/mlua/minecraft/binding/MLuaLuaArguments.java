@@ -95,6 +95,18 @@ public final class MLuaLuaArguments {
         return converted;
     }
 
+    public static float unitIntervalFloat(Varargs args, int index, String method, String parameter) {
+        LuaValue value = args.arg(index);
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a number from zero to one.");
+        }
+        double number = value.todouble();
+        if (!Double.isFinite(number) || number < 0.0 || number > 1.0) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be finite and from zero to one.");
+        }
+        return (float)number;
+    }
+
     public static float finiteFloat(Varargs args, int index, String method, String parameter) {
         LuaValue value = args.arg(index);
         if (!value.isnumber()) {
