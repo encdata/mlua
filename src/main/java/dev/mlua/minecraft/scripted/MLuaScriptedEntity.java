@@ -10,6 +10,7 @@ import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.network.MLuaAnimationSyncPacket;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
+import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +40,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -315,17 +315,23 @@ public class MLuaScriptedEntity extends PathfinderMob {
          public Varargs invoke(Varargs args) {
             double distance = boundedSearchDistance(MLuaLuaArguments.optionalFiniteNumber(args, 2, 16.0,
                "ScriptedEntity:FindNearestPlayer", "range"));
-            boolean requireLineOfSight = args.arg(3).optboolean(false);
-            AABB bounds = MLuaScriptedEntity.this.getBoundingBox().inflate(distance);
-            List<Player> players = MLuaScriptedEntity.this.level().getEntitiesOfClass(Player.class, bounds,
-               candidate -> candidate.isAlive() && (!requireLineOfSight || MLuaScriptedEntity.this.hasLineOfSight(candidate)));
+            boolean requireLineOfSight = MLuaLuaArguments.optionalBoolean(args, 3, false,
+               "ScriptedEntity:FindNearestPlayer", "requireLineOfSight");
+            LuaTable filter = new LuaTable();
+            filter.set("players_only", LuaValue.TRUE);
+            filter.set("alive", LuaValue.TRUE);
             Player player = null;
             double nearestDistance = distance * distance;
-            for (Player candidate : players) {
-               double candidateDistance = MLuaScriptedEntity.this.distanceToSqr(candidate);
-               if (candidateDistance <= nearestDistance) {
+            for (Entity candidate : MLuaEntityQuery.findWithinRadius(MLuaScriptedEntity.this.level(),
+                  MLuaScriptedEntity.this.getX(), MLuaScriptedEntity.this.getY(), MLuaScriptedEntity.this.getZ(),
+                  distance, MLuaScriptedEntity.this, filter,
+                  MLuaRuntime.registrationForLevel(MLuaScriptedEntity.this.level()))) {
+               if (candidate instanceof Player target
+                     && (!requireLineOfSight || MLuaScriptedEntity.this.hasLineOfSight(target))) {
+                  double candidateDistance = MLuaScriptedEntity.this.distanceToSqr(target);
+                  if (candidateDistance > nearestDistance) continue;
                   nearestDistance = candidateDistance;
-                  player = candidate;
+                  player = target;
                }
             }
             return player == null ? LuaValue.NIL : MLuaScriptedEntity.this.entityToLua(player);
@@ -333,22 +339,23 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("FindNearestEntity", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            String typeId = args.arg(2).optjstring(null);
+            LuaValue typeValue = args.arg(2);
+            if (!typeValue.isnil() && !typeValue.isstring()) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:FindNearestEntity type must be an entity type id or nil.");
+            }
+            String typeId = typeValue.isnil() ? null : typeValue.tojstring();
             double distance = boundedSearchDistance(MLuaLuaArguments.optionalFiniteNumber(args, 3, 16.0,
                "ScriptedEntity:FindNearestEntity", "range"));
-            AABB bounds = MLuaScriptedEntity.this.getBoundingBox().inflate(distance);
-            List<LivingEntity> entities = MLuaScriptedEntity.this.level().getEntitiesOfClass(LivingEntity.class, bounds, entity -> {
-               if (entity == null || entity == MLuaScriptedEntity.this || !entity.isAlive()) {
-                  return false;
-               }
-               if (typeId == null || typeId.isBlank()) {
-                  return true;
-               }
-               return net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString().equals(typeId);
-            });
+            LuaTable filter = new LuaTable();
+            filter.set("alive", LuaValue.TRUE);
+            if (typeId != null && !typeId.isBlank()) filter.set("type", typeId);
             LivingEntity nearest = null;
             double bestDistance = distance * distance;
-            for (LivingEntity entity : entities) {
+            for (Entity candidate : MLuaEntityQuery.findWithinRadius(MLuaScriptedEntity.this.level(),
+                  MLuaScriptedEntity.this.getX(), MLuaScriptedEntity.this.getY(), MLuaScriptedEntity.this.getZ(),
+                  distance, MLuaScriptedEntity.this, filter,
+                  MLuaRuntime.registrationForLevel(MLuaScriptedEntity.this.level()))) {
+               if (!(candidate instanceof LivingEntity entity)) continue;
                double entityDistance = MLuaScriptedEntity.this.distanceToSqr(entity);
                if (entityDistance < bestDistance) {
                   bestDistance = entityDistance;
