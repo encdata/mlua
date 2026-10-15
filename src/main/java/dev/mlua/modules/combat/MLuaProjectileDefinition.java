@@ -15,7 +15,6 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectile;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectileType;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
-import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
@@ -45,18 +44,18 @@ public class MLuaProjectileDefinition {
       }
       ownerModId = ownerModId == null ? "" : ownerModId;
       Key key = new Key(runtimeOwner, ownerModId, name);
-      double speed = props.get("Speed").optdouble(60.0);
-      double damage = props.get("Damage").optdouble(10.0);
-      boolean gravity = props.get("Gravity").optboolean(false);
-      boolean piercing = props.get("Piercing").optboolean(false);
-      double maxDistance = props.get("MaxDistance").optdouble(200.0);
+      double speed = nonNegativeOption(props, "Speed", 60.0, "Registry.Projectiles:Register");
+      double damage = nonNegativeOption(props, "Damage", 10.0, "Registry.Projectiles:Register");
+      boolean gravity = booleanOption(props, "Gravity", false, "Registry.Projectiles:Register");
+      boolean piercing = booleanOption(props, "Piercing", false, "Registry.Projectiles:Register");
+      double maxDistance = positiveOption(props, "MaxDistance", 200.0, "Registry.Projectiles:Register");
       int maxTicks = MLuaLuaArguments.optionalWholeInt(props.get("MaxTicks"), 200,
          "Registry.Projectiles:Register", "MaxTicks");
-      float size = (float)props.get("Size").optdouble(0.25);
-      String damageSource = props.get("DamageSource").optjstring("generic");
+      float size = positiveFloatOption(props, "Size", 0.25f, "Registry.Projectiles:Register");
+      String damageSource = stringOption(props, "DamageSource", "generic", "Registry.Projectiles:Register");
       LuaValue classNameValue = props.get("className");
       if (classNameValue.isnil()) classNameValue = props.get("ClassName");
-      String className = classNameValue.optjstring("Projectile");
+      String className = stringValue(classNameValue, "Projectile", "Registry.Projectiles:Register", "className");
       MLuaRegistration registration = context == null ? MLuaRuntime.get() : context.registration();
       if (registration != null && (registration.classTable(className) == null || !registration.isSubclassOf(className, "Projectile"))) {
          throw new LuaError("[MLua] Projectile class '" + className + "' must be registered and inherit from Projectile");
@@ -64,11 +63,11 @@ public class MLuaProjectileDefinition {
       int fireTicks = MLuaLuaArguments.optionalWholeInt(props.get("FireTicks"), 0,
          "Registry.Projectiles:Register", "FireTicks");
       validateTickOptions(maxTicks, fireTicks, "Registry.Projectiles:Register");
-      double knockback = props.get("Knockback").optdouble(0.0);
-      LuaValue onHitEntity = props.get("OnHitEntity");
-      LuaValue onHitBlock = props.get("OnHitBlock");
-      LuaValue onExpired = props.get("OnExpired");
-      LuaValue onTick = props.get("OnTick");
+      double knockback = nonNegativeOption(props, "Knockback", 0.0, "Registry.Projectiles:Register");
+      LuaValue onHitEntity = callbackOption(props, "OnHitEntity", LuaValue.NIL, "Registry.Projectiles:Register");
+      LuaValue onHitBlock = callbackOption(props, "OnHitBlock", LuaValue.NIL, "Registry.Projectiles:Register");
+      LuaValue onExpired = callbackOption(props, "OnExpired", LuaValue.NIL, "Registry.Projectiles:Register");
+      LuaValue onTick = callbackOption(props, "OnTick", LuaValue.NIL, "Registry.Projectiles:Register");
       ProjectileDef definition = new ProjectileDef(speed, damage, gravity, piercing, maxDistance, maxTicks, size, damageSource, fireTicks, knockback,
          onHitEntity.isnil() ? LuaValue.NIL : onHitEntity,
          onHitBlock.isnil() ? LuaValue.NIL : onHitBlock,
@@ -153,7 +152,7 @@ public class MLuaProjectileDefinition {
          double oz = owner.getZ();
          LuaValue position = config.get("Position");
          if (!position.isnil()) {
-            double[] components = MLuaCFrame.vector(position);
+            double[] components = MLuaLuaArguments.finiteVector3(position, "Projectile Position");
             ox = components[0];
             oy = components[1];
             oz = components[2];
@@ -163,30 +162,31 @@ public class MLuaProjectileDefinition {
          Vec3 dir;
          if (!dirVal.isnil()) {
             if (!MLuaVector.isVector3(dirVal)) throw new LuaError("[MLua] Projectile Direction requires a Vector3 value");
-            double[] components = MLuaCFrame.vector(dirVal);
+            double[] components = MLuaLuaArguments.finiteVector3(dirVal, "Projectile Direction");
             dir = new Vec3(components[0], components[1], components[2]).normalize();
+            if (dir.lengthSqr() < 1.0E-12) throw new LuaError("[MLua] Projectile Direction must not be zero.");
          } else {
             dir = owner.getLookAngle();
          }
 
-         double speed = config.get("Speed").optdouble(def.speed);
-         double damage = config.get("Damage").optdouble(def.damage);
-         boolean gravity = config.get("Gravity").optboolean(def.gravity);
-         boolean piercing = config.get("Piercing").optboolean(def.piercing);
-         double maxDistance = config.get("MaxDistance").optdouble(def.maxDistance);
+         double speed = nonNegativeOption(config, "Speed", def.speed, "ProjectileType:Fire");
+         double damage = nonNegativeOption(config, "Damage", def.damage, "ProjectileType:Fire");
+         boolean gravity = booleanOption(config, "Gravity", def.gravity, "ProjectileType:Fire");
+         boolean piercing = booleanOption(config, "Piercing", def.piercing, "ProjectileType:Fire");
+         double maxDistance = positiveOption(config, "MaxDistance", def.maxDistance, "ProjectileType:Fire");
          int maxTicks = MLuaLuaArguments.optionalWholeInt(config.get("MaxTicks"), def.maxTicks,
             "ProjectileType:Fire", "MaxTicks");
-         float size = (float)config.get("Size").optdouble(def.size);
-         String damageSource = config.get("DamageSource").optjstring(def.damageSource);
+         float size = positiveFloatOption(config, "Size", def.size, "ProjectileType:Fire");
+         String damageSource = stringOption(config, "DamageSource", def.damageSource, "ProjectileType:Fire");
          int fireTicks = MLuaLuaArguments.optionalWholeInt(config.get("FireTicks"), def.fireTicks,
             "ProjectileType:Fire", "FireTicks");
          validateTickOptions(maxTicks, fireTicks, "ProjectileType:Fire");
-         double knockback = config.get("Knockback").optdouble(def.knockback);
+         double knockback = nonNegativeOption(config, "Knockback", def.knockback, "ProjectileType:Fire");
 
-         LuaValue onHitEntity = config.get("OnHitEntity").isnil() ? def.onHitEntity : config.get("OnHitEntity");
-         LuaValue onHitBlock = config.get("OnHitBlock").isnil() ? def.onHitBlock : config.get("OnHitBlock");
-         LuaValue onExpired = config.get("OnExpired").isnil() ? def.onExpired : config.get("OnExpired");
-         LuaValue onTick = config.get("OnTick").isnil() ? def.onTick : config.get("OnTick");
+         LuaValue onHitEntity = callbackOption(config, "OnHitEntity", def.onHitEntity, "ProjectileType:Fire");
+         LuaValue onHitBlock = callbackOption(config, "OnHitBlock", def.onHitBlock, "ProjectileType:Fire");
+         LuaValue onExpired = callbackOption(config, "OnExpired", def.onExpired, "ProjectileType:Fire");
+         LuaValue onTick = callbackOption(config, "OnTick", def.onTick, "ProjectileType:Fire");
 
          EntityType<MLuaScriptedProjectile> projType = MLuaScriptedProjectileType.get();
          if (projType == null) {
@@ -220,6 +220,62 @@ public class MLuaProjectileDefinition {
       if (fireTicks < 0) {
          throw new LuaError("[MLua] " + method + " FireTicks must be non-negative");
       }
+   }
+
+   private static double numberOption(LuaTable values, String key, double fallback, String method) {
+      LuaValue value = values.get(key);
+      if (value.isnil()) return fallback;
+      if (!value.isnumber()) throw new LuaError("[MLua] " + method + " " + key + " must be a number.");
+      double number = value.todouble();
+      if (!Double.isFinite(number)) throw new LuaError("[MLua] " + method + " " + key + " must be finite.");
+      return number;
+   }
+
+   private static double nonNegativeOption(LuaTable values, String key, double fallback, String method) {
+      double number = numberOption(values, key, fallback, method);
+      if (number < 0.0) throw new LuaError("[MLua] " + method + " " + key + " must be non-negative.");
+      return number;
+   }
+
+   private static double positiveOption(LuaTable values, String key, double fallback, String method) {
+      double number = numberOption(values, key, fallback, method);
+      if (number <= 0.0) throw new LuaError("[MLua] " + method + " " + key + " must be greater than zero.");
+      return number;
+   }
+
+   private static float positiveFloatOption(LuaTable values, String key, float fallback, String method) {
+      double number = positiveOption(values, key, fallback, method);
+      float converted = (float)number;
+      if (!Float.isFinite(converted)) {
+         throw new LuaError("[MLua] " + method + " " + key + " exceeds the supported range.");
+      }
+      return converted;
+   }
+
+   private static boolean booleanOption(LuaTable values, String key, boolean fallback, String method) {
+      LuaValue value = values.get(key);
+      if (value.isnil()) return fallback;
+      if (!value.isboolean()) throw new LuaError("[MLua] " + method + " " + key + " must be a boolean.");
+      return value.toboolean();
+   }
+
+   private static String stringOption(LuaTable values, String key, String fallback, String method) {
+      return stringValue(values.get(key), fallback, method, key);
+   }
+
+   private static String stringValue(LuaValue value, String fallback, String method, String parameter) {
+      if (value.isnil()) return fallback;
+      if (!value.isstring() || value.tojstring().isBlank()) {
+         throw new LuaError("[MLua] " + method + " " + parameter + " must be a non-empty string.");
+      }
+      return value.tojstring();
+   }
+
+   private static LuaValue callbackOption(LuaTable values, String key, LuaValue fallback, String method) {
+      LuaValue value = values.get(key);
+      if (value.isnil()) return fallback;
+      if (!value.isfunction()) throw new LuaError("[MLua] " + method + " " + key + " must be a function.");
+      return value;
    }
 
    public static void clearRuntime(Object runtimeOwner) {
