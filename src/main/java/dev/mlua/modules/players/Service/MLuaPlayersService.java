@@ -11,11 +11,9 @@ import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.core.signal.MLuaSignal;
-import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import java.util.UUID;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.Minecraft;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -67,8 +65,8 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
       LuaTable players = new LuaTable();
       int index = 1;
       if (this.isClientSide()) {
-         for (AbstractClientPlayer player : this.clientPlayers()) {
-            players.set(index++, MLuaPlayerWrapper.clientPlayerTable(player, this.context.mlua().registration()));
+         for (Object player : this.clientPlayers()) {
+            players.set(index++, this.clientPlayerTable(player));
          }
       } else if (this.server() != null) {
          for (ServerPlayer player : this.server().getPlayerList().getPlayers()) {
@@ -85,9 +83,9 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
          return player == null ? LuaValue.NIL : playerTable(player, this.context.mlua().registration());
       }
       if (this.isClientSide()) {
-         for (AbstractClientPlayer player : this.clientPlayers()) {
-            if (player.getName().getString().equals(name)) {
-               return MLuaPlayerWrapper.clientPlayerTable(player, this.context.mlua().registration());
+         for (Object player : this.clientPlayers()) {
+            if (this.clientPlayerName(player).equals(name)) {
+               return this.clientPlayerTable(player);
             }
          }
       }
@@ -101,9 +99,9 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
          ? null : this.server().getPlayerList().getPlayer(uuid);
       if (player != null) return playerTable(player, this.context.mlua().registration());
       if (this.isClientSide()) {
-         for (AbstractClientPlayer local : this.clientPlayers()) {
-            if (uuid.equals(local.getUUID())) {
-               return MLuaPlayerWrapper.clientPlayerTable(local, this.context.mlua().registration());
+         for (Object local : this.clientPlayers()) {
+            if (uuid.equals(this.invokeClient(local, "getUUID"))) {
+               return this.clientPlayerTable(local);
             }
          }
       }
@@ -118,9 +116,9 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
          if (player != null) return playerTable(player, this.context.mlua().registration());
       }
       if (this.isClientSide()) {
-         for (AbstractClientPlayer local : this.clientPlayers()) {
-            if (local.getId() == id) {
-               return MLuaPlayerWrapper.clientPlayerTable(local, this.context.mlua().registration());
+         for (Object local : this.clientPlayers()) {
+            if (((Number)this.invokeClient(local, "getId")).intValue() == id) {
+               return this.clientPlayerTable(local);
             }
          }
       }
@@ -154,20 +152,71 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
       return MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration);
    }
 
-   private java.util.List<AbstractClientPlayer> clientPlayers() {
+   private java.util.List<?> clientPlayers() {
       if (!this.isClientSide()) return java.util.List.of();
-      Minecraft minecraft = MLuaMinecraftClient.instance();
-      return minecraft.level != null
-         ? minecraft.level.players() : java.util.List.of();
+      try {
+         Object minecraft = this.clientMinecraft();
+         Object level = minecraft.getClass().getField("level").get(minecraft);
+         if (level == null) return java.util.List.of();
+         Object players = level.getClass().getMethod("players").invoke(level);
+         return players instanceof java.util.List<?> values ? values : java.util.List.of();
+      } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+         throw new IllegalStateException("Unable to read players from the active client world", error);
+      }
    }
 
    private LuaValue localPlayer() {
       if (this.context.mlua().side() != Side.CLIENT) {
          return LuaValue.NIL;
       } else {
-         LocalPlayer player = MLuaMinecraftClient.localPlayer();
-         return (LuaValue)(player == null ? LuaValue.NIL : MLuaPlayerWrapper.clientPlayerTable(player, context.mlua().registration()));
+         try {
+            Object minecraft = this.clientMinecraft();
+            Object player = minecraft.getClass().getField("player").get(minecraft);
+            return player == null ? LuaValue.NIL : this.clientPlayerTable(player);
+         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+            throw new IllegalStateException("Unable to read the local client player", error);
+         }
       }
+   }
+
+   private Object clientMinecraft() throws ReflectiveOperationException {
+      Class<?> minecraftType = Class.forName("net.minecraft.client.Minecraft");
+      return minecraftType.getMethod("getInstance").invoke(null);
+   }
+
+   private String clientPlayerName(Object player) {
+      Object component = this.invokeClient(player, "getName");
+      return String.valueOf(this.invokeClient(component, "getString"));
+   }
+
+   private Object invokeClient(Object target, String methodName) {
+      try {
+         return target.getClass().getMethod(methodName).invoke(target);
+      } catch (InvocationTargetException error) {
+         Throwable cause = error.getCause() == null ? error : error.getCause();
+         if (cause instanceof RuntimeException runtime) throw runtime;
+         throw new IllegalStateException("Client player method '" + methodName + "' failed", cause);
+      } catch (ReflectiveOperationException | RuntimeException error) {
+         throw new IllegalStateException("Unable to call client player method '" + methodName + "'", error);
+      }
+   }
+
+   private LuaTable clientPlayerTable(Object player) {
+      try {
+         for (Method method : MLuaPlayerWrapper.class.getMethods()) {
+            if (!method.getName().equals("clientPlayerTable") || method.getParameterCount() != 2
+               || !method.getParameterTypes()[0].isInstance(player)
+               || !method.getParameterTypes()[1].isInstance(this.context.mlua().registration())) continue;
+            return (LuaTable)method.invoke(null, player, this.context.mlua().registration());
+         }
+      } catch (InvocationTargetException error) {
+         Throwable cause = error.getCause() == null ? error : error.getCause();
+         if (cause instanceof RuntimeException runtime) throw runtime;
+         throw new IllegalStateException("Unable to create a Lua client player instance", cause);
+      } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+         throw new IllegalStateException("Unable to create a Lua client player instance", error);
+      }
+      throw new IllegalStateException("No client player wrapper accepts " + player.getClass().getName());
    }
 
    private boolean isClientSide() {

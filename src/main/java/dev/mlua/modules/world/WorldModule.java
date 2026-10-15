@@ -328,7 +328,6 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetFluidState(position: Vector3|CFrame)", "FluidState"));
-        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:GetFluidState()", "FluidState"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetId()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetBlock()", "Block"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetPosition()", "Vector3"));

@@ -19,6 +19,7 @@ import dev.mlua.mc.impl.item.MCItemStackImpl;
 import dev.mlua.mc.impl.nbt.MCCompoundTagImpl;
 //--endversion
 
+@MLuaDescription("Create, clone, inspect, and mutate Minecraft ItemStack values.")
 public final class MLuaItemStackService extends MLuaReflectiveService {
     public MLuaItemStackService(MLuaService.Context context) {
         super(context);

@@ -18,7 +18,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
-@MLuaDescription("Client-side camera service.")
+@MLuaDescription("Client-side camera control for transforms, subjects, field of view, and held-item offsets.")
 public final class MLuaCameraService extends MLuaReflectiveService {
    public MLuaCameraService(MLuaService.Context context) {
       super(context);

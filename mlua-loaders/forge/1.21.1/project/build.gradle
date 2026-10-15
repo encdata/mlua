@@ -267,6 +267,7 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/api/**'
     exclude 'dev/mlua/core/**'
     exclude 'dev/mlua/loaderapi/**'
+    exclude 'dev/mlua/common/**'
     exclude 'dev/mlua/math/**'
     exclude 'dev/mlua/mc/**'
     exclude 'dev/mlua/mcapi/**'

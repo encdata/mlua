@@ -295,7 +295,7 @@ tasks.named('jar', Jar).configure {
     }
     exclude 'dev/mlua/api/**', 'dev/mlua/core/**', 'dev/mlua/loaderapi/**', 'dev/mlua/math/**', 'dev/mlua/mc/**', 'dev/mlua/mcapi/**',
         'dev/mlua/minecraft/**', 'dev/mlua/module/**', 'dev/mlua/modules/**', 'dev/mlua/runtime/**', 'dev/mlua/loader/impl/forge/**',
-        'dev/mlua/MLuaMod.java', 'dev/mlua/MLuaMod.class', 'dev/mlua/agent/**', 'dev/mlua/common/enums/**',
+        'dev/mlua/MLuaMod.java', 'dev/mlua/MLuaMod.class', 'dev/mlua/agent/**', 'dev/mlua/common/**',
         'META-INF/services/net.minecraftforge.forgespi.locating.IModLocator'
 }
 publishing { publications { register('mavenJava', MavenPublication) { artifact jar } }; repositories { maven { url "file://${project.projectDir}/repo" } } }

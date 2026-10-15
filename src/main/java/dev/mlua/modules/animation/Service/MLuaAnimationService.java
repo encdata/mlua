@@ -20,6 +20,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import java.util.Optional;
 
+@MLuaDescription("Service for creating and managing animations.")
 public final class MLuaAnimationService extends MLuaReflectiveService {
     private final Map<String, MLuaAnimation> registeredAnimations = new ConcurrentHashMap<>();
 

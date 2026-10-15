@@ -20,7 +20,7 @@ import dev.mlua.mcapi.server.MCPlayerAdvancements;
 import dev.mlua.mc.impl.server.MCPlayerAdvancementsImpl;
 //--endversion
 
-@MLuaDescription("Reads advancement definitions and manages player advancement progress.")
+@MLuaDescription("Provides server-side advancement lookup and progress control.")
 public final class MLuaAdvancementService extends MLuaReflectiveService {
    public MLuaAdvancementService(MLuaService.Context context) {
       super(context);

@@ -16,7 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.List;
 
-@MLuaDescription("Creates mutable registry tag builders for items, blocks, and entity types.")
+@MLuaDescription("Creates mutable item, block, and entity type tag builders for registration through Registry.Tags.")
 public final class MLuaTagService extends MLuaReflectiveService {
     private static final String BUILDER_STATE = "__mlua_tag_builder_state";
 
