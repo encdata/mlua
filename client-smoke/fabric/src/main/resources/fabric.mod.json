@@ -2,9 +2,10 @@
   "schemaVersion": 1,
   "id": "mlua_ci_smoke",
   "version": "1.0.0",
-  "name": "MLua packaged JAR client smoke test",
-  "environment": "client",
+  "name": "MLua packaged JAR smoke test",
+  "environment": "*",
   "entrypoints": {
+    "main": ["dev.mlua.ci.SmokeServer"],
     "client": ["dev.mlua.ci.SmokeClient"]
   },
   "depends": {

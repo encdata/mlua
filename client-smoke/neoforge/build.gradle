@@ -18,6 +18,11 @@ neoForge {
         client {
             client()
         }
+        server {
+            server()
+            gameDirectory = project.file('run')
+            programArguments.add('--nogui')
+        }
     }
 }
 

@@ -5,13 +5,20 @@ plugins {
 version = '1.0.0'
 group = 'dev.mlua.ci'
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+java.toolchain.languageVersion = JavaLanguageVersion.of(providers.gradleProperty('javaVersion').get().toInteger())
 
 minecraft {
     mappings channel: 'official', version: providers.gradleProperty('minecraftVersion').get()
     runs {
         client {
             workingDirectory project.file('run')
+            mods {
+                mlua_ci_smoke { source sourceSets.main }
+            }
+        }
+        server {
+            workingDirectory project.file('run')
+            args '--nogui'
             mods {
                 mlua_ci_smoke { source sourceSets.main }
             }

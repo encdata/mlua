@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 10
       matrix:
         include:
           - target: '1.20.1'
             loader: fabric
             java: '17'
-            gradle: '8.10.2'
+            gradle: '8.14.3'
           - target: '1.20.1'
             loader: forge
             java: '17'
@@ -28,7 +28,7 @@ jobs:
           - target: '1.21.1'
             loader: fabric
             java: '21'
-            gradle: '8.10.2'
+            gradle: '8.14.3'
           - target: '1.21.1'
             loader: forge
             java: '21'
@@ -88,17 +88,18 @@ jobs:
   run-client:
     name: Run packaged ${{ matrix.target }} / ${{ matrix.loader }} client (Windows)
     needs: build
+    if: ${{ !cancelled() }}
     runs-on: windows-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 10
       matrix:
         include:
           - target: '1.20.1'
             loader: fabric
             java: '17'
-            gradle: '8.10.2'
+            gradle: '8.14.3'
             loaderVersion: '0.16.10'
             fabricApi: '0.92.9+1.20.1'
             loom: '1.11.8'
@@ -111,7 +112,7 @@ jobs:
           - target: '1.21.1'
             loader: fabric
             java: '21'
-            gradle: '8.10.2'
+            gradle: '8.14.3'
             loaderVersion: '0.16.14'
             fabricApi: '0.116.13+1.21.1'
             loom: '1.11.8'
@@ -188,7 +189,7 @@ jobs:
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |
-          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}")
+          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
           if ('${{ matrix.loader }}' -eq 'fabric') {
             $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
           } elseif ('${{ matrix.loader }}' -eq 'forge') {
@@ -212,5 +213,138 @@ jobs:
             client-smoke/**/logs/latest.log
             client-smoke/**/crash-reports/*.txt
             client-smoke.log
+          if-no-files-found: ignore
+          retention-days: 5
+
+  run-server:
+    name: Run packaged ${{ matrix.target }} / ${{ matrix.loader }} server (Windows)
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - target: '1.20.1'
+            loader: fabric
+            java: '17'
+            gradle: '8.14.3'
+            loaderVersion: '0.16.10'
+            fabricApi: '0.92.9+1.20.1'
+            loom: '1.11.8'
+          - target: '1.20.1'
+            loader: forge
+            java: '17'
+            gradle: '8.10.2'
+            forgeVersion: '47.2.0'
+            forgeLoaderRange: '[47,)'
+          - target: '1.21.1'
+            loader: fabric
+            java: '21'
+            gradle: '8.14.3'
+            loaderVersion: '0.16.14'
+            fabricApi: '0.116.13+1.21.1'
+            loom: '1.11.8'
+          - target: '1.21.1'
+            loader: forge
+            java: '21'
+            gradle: '8.10.2'
+            forgeVersion: '52.1.14'
+            forgeLoaderRange: '[52,)'
+          - target: '1.21.1'
+            loader: neoforge
+            java: '21'
+            gradle: '9.2.1'
+            neoForgeVersion: '21.1.228'
+          - target: '26.1'
+            loader: fabric
+            java: '25'
+            gradle: '9.2.1'
+            loaderVersion: '0.19.3'
+            fabricApi: '0.154.2+26.1.2'
+            loom: '1.15.4'
+          - target: '26.1'
+            loader: neoforge
+            java: '25'
+            gradle: '9.2.1'
+            neoForgeVersion: '26.1.2.6-beta'
+          - target: '26.1.1'
+            loader: fabric
+            java: '25'
+            gradle: '9.2.1'
+            loaderVersion: '0.19.3'
+            fabricApi: '0.154.2+26.1.2'
+            loom: '1.15.4'
+          - target: '26.1.2'
+            loader: fabric
+            java: '25'
+            gradle: '9.2.1'
+            loaderVersion: '0.19.3'
+            fabricApi: '0.154.2+26.1.2'
+            loom: '1.15.4'
+          - target: '26.1.2'
+            loader: neoforge
+            java: '25'
+            gradle: '9.2.1'
+            neoForgeVersion: '26.1.2.6-beta'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mlua-${{ matrix.loader }}-${{ matrix.target }}
+          path: client-smoke/mod
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
+
+      - name: Prepare dedicated server and packaged MLua JAR
+        shell: pwsh
+        run: |
+          $jar = Get-ChildItem client-smoke/mod -Filter '*.jar' | Select-Object -First 1
+          if ($null -eq $jar) { throw 'Build artifact did not contain an MLua mod JAR.' }
+          $template = "client-smoke/${{ matrix.loader }}"
+          New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
+          Copy-Item $jar.FullName "$template/run/mods/mlua.jar"
+          Set-Content "$template/run/eula.txt" 'eula=true'
+          Set-Content "$template/run/server.properties" @('online-mode=false', 'server-port=25565', 'enable-query=false', 'enable-rcon=false')
+
+      - name: Run packaged JAR on a dedicated Minecraft server
+        shell: pwsh
+        working-directory: client-smoke/${{ matrix.loader }}
+        run: |
+          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
+          if ('${{ matrix.loader }}' -eq 'fabric') {
+            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
+          } elseif ('${{ matrix.loader }}' -eq 'forge') {
+            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
+          } else {
+            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
+          }
+          gradle @gradleArgs runServer 2>&1 | Tee-Object -FilePath server-smoke.log
+          $serverExitCode = $LASTEXITCODE
+          if ($serverExitCode -ne 0) { throw "runServer failed with exit code $serverExitCode" }
+          if (-not (Select-String -Path server-smoke.log -Pattern 'MLUA_PACKAGED_SERVER_SMOKE_OK' -Quiet)) {
+            throw 'The test mod did not reach its clean dedicated server shutdown marker.'
+          }
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-${{ matrix.loader }}-${{ matrix.target }}
+          path: |
+            client-smoke/**/logs/latest.log
+            client-smoke/**/crash-reports/*.txt
+            server-smoke.log
           if-no-files-found: ignore
           retention-days: 5
