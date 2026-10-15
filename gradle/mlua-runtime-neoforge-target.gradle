@@ -303,6 +303,9 @@ tasks.named('test', Test).configure {
 
 tasks.named('processResources', ProcessResources).configure {
     dependsOn prepareRuntimeNeoForgeResources
+    filesMatching('META-INF/services/dev.mlua.module.MLuaModule') {
+        filter { line -> line != 'dev.mlua.modules.mixin.MixinModule' }
+    }
     from(rootProject.file('src/main/resources/Icon.png')) {
         into ''
         rename { 'icon.png' }
