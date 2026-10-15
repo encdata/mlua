@@ -358,13 +358,13 @@ final class MLuaRuntimeIntegrationTest {
                 script("first-mod", ScriptType.CLIENT, "modal.lua", "modal", "return true"), Side.CLIENT)));
         MLuaModalService secondModal = new MLuaModalService(new MLuaService.Context(context(second,
                 script("second-mod", ScriptType.CLIENT, "modal.lua", "modal", "return true"), Side.CLIENT)));
-        firstModal.setModal(true);
-        secondModal.setModal(true);
+        firstModal.SetModal(true);
+        secondModal.SetModal(true);
 
         MLuaModalService.clearForSession(first.session(), Side.CLIENT);
 
-        assertEquals(false, firstModal.isModal());
-        assertTrue(secondModal.isModal());
+        assertEquals(false, firstModal.IsModal());
+        assertTrue(secondModal.IsModal());
     }
 
     private static final class ReloadProbeModule implements MLuaModule {

@@ -22,8 +22,8 @@ final class EventsModuleStateTest {
         UUID staying = UUID.randomUUID();
         Object runtimeOwner = new Object();
         Object otherRuntime = new Object();
-        ResourceLocation overworld = ResourceLocation.withDefaultNamespace("overworld");
-        ResourceLocation nether = ResourceLocation.withDefaultNamespace("the_nether");
+        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation nether = new ResourceLocation("minecraft", "the_nether");
         EventsModule.PlayerStepKey leavingKey = new EventsModule.PlayerStepKey(runtimeOwner, leaving, overworld);
         EventsModule.PlayerStepKey otherDimension = new EventsModule.PlayerStepKey(runtimeOwner, leaving, nether);
         EventsModule.PlayerStepKey stayingKey = new EventsModule.PlayerStepKey(runtimeOwner, staying, overworld);
@@ -47,8 +47,8 @@ final class EventsModuleStateTest {
         UUID second = UUID.randomUUID();
         Object firstRuntime = new Object();
         Object secondRuntime = new Object();
-        ResourceLocation overworld = ResourceLocation.withDefaultNamespace("overworld");
-        ResourceLocation nether = ResourceLocation.withDefaultNamespace("the_nether");
+        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
+        ResourceLocation nether = new ResourceLocation("minecraft", "the_nether");
         EventsModule.PlayerStepKey firstOverworld = new EventsModule.PlayerStepKey(firstRuntime, first, overworld);
         EventsModule.PlayerStepKey secondOverworld = new EventsModule.PlayerStepKey(secondRuntime, second, overworld);
         EventsModule.PlayerStepKey netherKey = new EventsModule.PlayerStepKey(firstRuntime, first, nether);
@@ -67,7 +67,7 @@ final class EventsModuleStateTest {
     void runtimeCleanupPreservesStepSnapshotsOwnedByOtherSessions() {
         Object firstRuntime = new Object();
         Object secondRuntime = new Object();
-        ResourceLocation overworld = ResourceLocation.withDefaultNamespace("overworld");
+        ResourceLocation overworld = new ResourceLocation("minecraft", "overworld");
         var first = new EventsModule.PlayerStepKey(firstRuntime, UUID.randomUUID(), overworld);
         var second = new EventsModule.PlayerStepKey(secondRuntime, UUID.randomUUID(), overworld);
         EventsModule.LAST_PLAYER_STEP_POSITIONS.put(first, 1L);

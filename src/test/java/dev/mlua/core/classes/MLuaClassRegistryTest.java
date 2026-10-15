@@ -79,7 +79,7 @@ final class MLuaClassRegistryTest {
     @Test
     void serviceClassesCanOnlyBeMaterializedThroughTheirServiceLifecycle() {
         LuaTable serviceClass = new LuaTable();
-        serviceClass.set("__mlua_service_class", true);
+        serviceClass.set("__mlua_service_class", LuaValue.valueOf(true));
         MLuaRegistration registration = new MLuaRegistration() {
             @Override public LuaTable registerClass(String name, String parentName) { throw new UnsupportedOperationException(); }
             @Override public LuaTable registerClass(String name, String parentName, String description) { throw new UnsupportedOperationException(); }
