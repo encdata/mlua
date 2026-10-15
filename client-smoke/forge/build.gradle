@@ -12,6 +12,11 @@ minecraft {
     runs {
         client {
             workingDirectory project.file('run')
+            if (providers.gradleProperty('minecraftVersion').get() == '1.20.1') {
+                // The packaged Forge 1.20.1 refmap targets production SRG names,
+                // while this ForgeGradle smoke client loads named development classes.
+                jvmArgs '-Dmixin.env.disableRefMap=true'
+            }
         }
         server {
             workingDirectory project.file('run')
