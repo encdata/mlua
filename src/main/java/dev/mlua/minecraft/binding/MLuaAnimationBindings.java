@@ -179,7 +179,7 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.setInstanceMethod(table, "AdjustSpeed", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 track.adjustSpeed(MLuaLuaArguments.finiteNonNegativeFloat(
-                    args, 2, "AnimationTrack:AdjustSpeed", "speed"));
+                    args.arg(2), "AnimationTrack:AdjustSpeed", "speed"));
                 return LuaValue.NONE;
             }
         });
