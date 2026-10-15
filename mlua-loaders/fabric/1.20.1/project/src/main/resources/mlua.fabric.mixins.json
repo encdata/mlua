@@ -19,6 +19,7 @@
   "client": [
     "CameraInvoker",
     "CameraMixin",
+    "FirstPersonItemRendererMixin",
     "MouseHandlerMixin",
     "HumanoidModelMixin",
     "LivingEntityRendererMixin",

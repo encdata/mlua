@@ -5,9 +5,7 @@ import com.mojang.math.Axis;
 import dev.mlua.runtime.registry.MLuaAssetResolver;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import dev.mlua.runtime.registry.MLuaTextureDescriptor;
-import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.MLuaResourceLocations;
-import dev.mlua.minecraft.client.MLuaCameraController;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.EntityModelSet;
@@ -44,7 +42,6 @@ public final class MLuaVisualItemRenderer extends BlockEntityWithoutLevelRendere
           ResourceLocation texture = this.resolveTexture(stack, id);
           int renderLight = context != ItemDisplayContext.GUI && context != ItemDisplayContext.GROUND && context != ItemDisplayContext.FIXED ? light : 15728880;
           poseStack.pushPose();
-          applyViewmodelOffset(poseStack, context);
          if (stack.getItem() instanceof BlockItem) {
             if (context != ItemDisplayContext.GUI && context != ItemDisplayContext.GROUND && context != ItemDisplayContext.FIXED) {
                if (context != ItemDisplayContext.THIRD_PERSON_LEFT_HAND && context != ItemDisplayContext.THIRD_PERSON_RIGHT_HAND) {
@@ -81,23 +78,6 @@ public final class MLuaVisualItemRenderer extends BlockEntityWithoutLevelRendere
 
          poseStack.popPose();
       }
-   }
-
-   private void applyViewmodelOffset(PoseStack poseStack, ItemDisplayContext context) {
-      MLuaCFrame offset;
-      if (context == ItemDisplayContext.FIRST_PERSON_LEFT_HAND) {
-         offset = MLuaCameraController.getHeldItemLeftOffset();
-      } else if (context == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND) {
-         offset = MLuaCameraController.getHeldItemOffset();
-      } else {
-         return;
-      }
-      if (offset == null) return;
-      poseStack.translate(offset.x(), offset.y(), offset.z());
-      double[] euler = offset.toEulerAnglesXYZ();
-      if (euler[0] != 0.0) poseStack.mulPose(Axis.XP.rotation((float)euler[0]));
-      if (euler[1] != 0.0) poseStack.mulPose(Axis.YP.rotation((float)euler[1]));
-      if (euler[2] != 0.0) poseStack.mulPose(Axis.ZP.rotation((float)euler[2]));
    }
 
    private ResourceLocation resolveTexture(ItemStack stack, ResourceLocation id) {

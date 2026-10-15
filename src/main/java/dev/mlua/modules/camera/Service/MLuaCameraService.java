@@ -116,28 +116,52 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    @MLuaDescription("Sets the first-person or third-person view mode.")
    public void SetViewMode(String value) { ensureClient(); MLuaCameraController.setViewMode(value); }
 
-   @MLuaDescription("Sets the first-person right-hand camera offset.")
-   public void SetRightHandOffset(LuaValue value) { ensureClient(); MLuaCameraController.setHeldItemOffset(MLuaCFrame.fromLua(value)); }
-
-   @MLuaDescription("Returns the first-person right-hand camera offset.")
-   public LuaValue GetRightHandOffset() {
+   @MLuaDescription("Sets the first-person right-hand offset to a CFrame or a function returning a CFrame, sampled once per client tick.")
+   public void SetRightHandOffset(LuaValue value) {
       ensureClient();
-      MLuaCFrame offset = MLuaCameraController.getHeldItemOffset();
-      return offset != null ? offset.toLua() : LuaValue.NIL;
+      setHandOffset(value, false);
    }
 
-   @MLuaDescription("Sets the first-person left-hand camera offset.")
-   public void SetLeftHandOffset(LuaValue value) { ensureClient(); MLuaCameraController.setHeldItemLeftOffset(MLuaCFrame.fromLua(value)); }
+   @MLuaDescription("Returns the current first-person right-hand offset CFrame, callback, or nil.")
+   public LuaValue GetRightHandOffset() {
+      ensureClient();
+      return MLuaCameraController.getHeldItemOffsetValue();
+   }
 
-   @MLuaDescription("Returns the first-person left-hand camera offset.")
+   @MLuaDescription("Sets the first-person left-hand offset to a CFrame or a function returning a CFrame, sampled once per client tick.")
+   public void SetLeftHandOffset(LuaValue value) {
+      ensureClient();
+      setHandOffset(value, true);
+   }
+
+   @MLuaDescription("Returns the current first-person left-hand offset CFrame, callback, or nil.")
    public LuaValue GetLeftHandOffset() {
       ensureClient();
-      MLuaCFrame offset = MLuaCameraController.getHeldItemLeftOffset();
-      return offset != null ? offset.toLua() : LuaValue.NIL;
+      return MLuaCameraController.getHeldItemLeftOffsetValue();
    }
 
    @MLuaDescription("Clears scriptable camera overrides.")
    public void Reset() { ensureClient(); MLuaCameraController.reset(); }
+
+   private void setHandOffset(LuaValue value, boolean leftHand) {
+      if (value.isnil()) {
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffset(null);
+         else MLuaCameraController.setHeldItemOffset(null);
+         return;
+      }
+      if (value.isfunction()) {
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffsetCallback(value, context.mlua().executionLock());
+         else MLuaCameraController.setHeldItemOffsetCallback(value, context.mlua().executionLock());
+         return;
+      }
+      try {
+         MLuaCFrame offset = MLuaCFrame.fromLua(value);
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffset(offset);
+         else MLuaCameraController.setHeldItemOffset(offset);
+      } catch (IllegalArgumentException error) {
+         throw new LuaError("[MLua] Hand offset must be a CFrame or a function returning CFrame: " + error.getMessage());
+      }
+   }
 
    private void ensureClient() {
       if (this.context.mlua().side() != Side.CLIENT) {
