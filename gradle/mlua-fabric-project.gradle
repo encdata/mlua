@@ -387,6 +387,7 @@ processResources {
     from("${rootProject.projectDir}/src/main/resources") {
         exclude 'META-INF/mods.toml'
         exclude 'mlua.mixins.json'
+        exclude 'mlua.firstperson.mixins.json'
         exclude 'Icon.png'
     }
     filesMatching('fabric.mod.json') {
