@@ -163,8 +163,8 @@ public final class MLuaAnimationBindings {
                 for (MLuaAnimation.Keyframe kf : animation.getKeyframes()) {
                     LuaTable kfEntry = new LuaTable();
                     kfEntry.set("Time", LuaValue.valueOf(kf.time));
-                    kfEntry.set("EasingStyle", kf.easingStyle.name());
-                    kfEntry.set("EasingDirection", kf.easingDirection.name());
+                    kfEntry.set("EasingStyle", MLuaEnumValue.forJava(kf.easingStyle));
+                    kfEntry.set("EasingDirection", MLuaEnumValue.forJava(kf.easingDirection));
                     LuaTable dataTable = new LuaTable();
                     for (Map.Entry<String, MLuaCFrame> entry : kf.data.entrySet()) {
                         dataTable.set(entry.getKey(), entry.getValue().toLua());

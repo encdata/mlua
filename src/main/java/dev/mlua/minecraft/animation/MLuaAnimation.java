@@ -2,6 +2,7 @@ package dev.mlua.minecraft.animation;
 
 import dev.mlua.common.enums.EasingDirection;
 import dev.mlua.common.enums.EasingStyle;
+import dev.mlua.common.enums.MLuaTypedEnumValue;
 import dev.mlua.math.MLuaCFrame;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -172,29 +173,32 @@ public final class MLuaAnimation {
             data.put(boneName, cframe);
         }
 
-        EasingStyle easingStyle = EasingStyle.Linear;
-        LuaValue styleVal = table.get("EasingStyle");
-        if (!styleVal.isnil()) {
-            if (!styleVal.isstring()) throw new LuaError("[MLua] EasingStyle must be a string.");
-            try {
-                easingStyle = EasingStyle.valueOf(styleVal.tojstring());
-            } catch (IllegalArgumentException e) {
-                throw new LuaError("[MLua] Unknown EasingStyle: " + styleVal.tojstring());
-            }
-        }
-
-        EasingDirection easingDirection = EasingDirection.In;
-        LuaValue dirVal = table.get("EasingDirection");
-        if (!dirVal.isnil()) {
-            if (!dirVal.isstring()) throw new LuaError("[MLua] EasingDirection must be a string.");
-            try {
-                easingDirection = EasingDirection.valueOf(dirVal.tojstring());
-            } catch (IllegalArgumentException e) {
-                throw new LuaError("[MLua] Unknown EasingDirection: " + dirVal.tojstring());
-            }
-        }
+        EasingStyle easingStyle = enumValue(table.get("EasingStyle"), EasingStyle.class,
+                "EasingStyle", EasingStyle.Linear);
+        EasingDirection easingDirection = enumValue(table.get("EasingDirection"), EasingDirection.class,
+                "EasingDirection", EasingDirection.In);
 
         return new Keyframe(time, data, easingStyle, easingDirection);
+    }
+
+    private static <T extends Enum<T>> T enumValue(LuaValue value, Class<T> enumClass,
+                                                   String fieldName, T defaultValue) {
+        if (value == null || value.isnil()) return defaultValue;
+        String name;
+        if (value.isstring()) {
+            name = value.tojstring();
+        } else if (value.istable() && value.checktable() instanceof MLuaTypedEnumValue typed
+                && typed.enumClass() == enumClass) {
+            name = typed.enumName();
+        } else {
+            throw new LuaError("[MLua] " + fieldName + " must be an "
+                    + enumClass.getSimpleName() + " enum value or name.");
+        }
+        try {
+            return Enum.valueOf(enumClass, name);
+        } catch (IllegalArgumentException failure) {
+            throw new LuaError("[MLua] Unknown " + fieldName + ": " + name);
+        }
     }
 
     public static final class Keyframe {

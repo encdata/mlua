@@ -63,6 +63,8 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:ClearPose(entity?: Entity|number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetRegisteredAnimations()", "table<string, Animation>"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetAnimationPriority()", "AnimationPriority"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetLength()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetKeyframes()", "KeyframeDefinition[]"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:Pause()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:Resume()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustSpeed(speed: number)", "void"));
@@ -119,10 +121,11 @@ public class AnimationModule implements MLuaModule {
             "Whether playback repeats. Readable and writable.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Weight", "number",
             "The current blend weight from zero to one. Assigning it fades toward the new weight.", "client:Client"));
-        docs.register(MLuaDocBuilder.Registration.type("KeyframeDefinition", null, "One time and pose value in an animation keyframe sequence."));
-        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "time", "number", "Time position of the keyframe in seconds."));
-        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "value", "any", "Pose values to apply at this keyframe."));
-        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "easing?", "string", "Optional easing function used between this and the next keyframe."));
+        docs.register(MLuaDocBuilder.Registration.type("KeyframeDefinition", null, "A pose at a point in an animation. Time and Data are required; the easing values are optional."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "Time", "number", "Position in seconds. Keyframes are sorted by this value and duplicate times are rejected."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "Data", "table<string, CFrame>", "Maps each registered bone name to its pose at this keyframe."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "EasingStyle?", "EasingStyle", "Optional Enum.EasingStyle value, or its exact name, used to interpolate from the previous keyframe into this one. Defaults to Linear."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "EasingDirection?", "EasingDirection", "Optional Enum.EasingDirection value, or its exact name, used to interpolate from the previous keyframe into this one. Defaults to In."));
         docs.register(MLuaDocBuilder.Registration.guideStep("AnimationTrack", "React to animation markers",
             "AddEvent invokes callback(track, time) when playback crosses its time in seconds. A marker at zero runs as soon as the track starts. ClearEvents removes callbacks that have not fired yet.",
             "local Animations = Minecraft:GetService(\"Animation\")\nlocal animation = Animations:GetAnimation(\"myaddon:reload\")\nlocal track = entity:LoadAnimation(animation)\n\ntrack:AddEvent(0, function(activeTrack, time)\n    print(\"Reload started on track\", activeTrack:GetTrackId(), time)\nend)\ntrack:AddEvent(0.65, function(activeTrack, time)\n    print(\"Insert the magazine at\", time)\nend)\ntrack:Play()\n\n-- Remove marker callbacks when they are no longer needed.\ntrack:ClearEvents()"));
