@@ -181,6 +181,18 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
 
+      - name: Install Mesa software OpenGL renderer
+        uses: f3d-app/install-mesa-windows-action@0bf56c0087f284825523b99b5a5320cb17ac6f43
+        with:
+          path: ${{ env.JAVA_HOME }}/bin
+          version: 23.3.5
+
+      - name: Force software OpenGL rendering
+        shell: pwsh
+        run: |
+          'GALLIUM_DRIVER=llvmpipe' >> $env:GITHUB_ENV
+          'LIBGL_ALWAYS_SOFTWARE=1' >> $env:GITHUB_ENV
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: ${{ matrix.gradle }}
