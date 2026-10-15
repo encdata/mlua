@@ -33,7 +33,8 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetDimension()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetLookVector()", "Vector3"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetRotation()", "Vector2"));
-        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotation(rotation: Vector2)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotation(rotation: Vector2|CFrame|table)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotation(pitch: number, yaw: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetIsAlive()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetIsOnGround()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetIsInWater()", "boolean"));
