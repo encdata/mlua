@@ -74,8 +74,10 @@ try {
 
     $text = Get-SmokeOutput
 
-    if ($text -match "(?im)MLua module '.+' (failed during classes|failed while registering|was disabled after its registration failed|was disabled after its class registration failed)") {
-        throw 'MLua reached Minecraft startup but one or more API modules failed registration; see the captured launcher log.'
+    $registrationFailures = [regex]::Matches($text, "(?im)MLua module '.+' (?:failed during classes|failed while registering|was disabled after its registration failed|was disabled after its class registration failed)")
+    if ($registrationFailures.Count -gt 0) {
+        $failureDetails = (($registrationFailures | ForEach-Object { $_.Value }) -join [Environment]::NewLine)
+        throw "MLua reached Minecraft startup but an API module failed registration:`n$failureDetails"
     }
     if (-not $booted) {
         throw "Gradle task '$Task' exited before MLua emitted '$BootMarker'."
@@ -95,5 +97,8 @@ finally {
     if (-not $process.HasExited) {
         & taskkill.exe /PID $process.Id /T /F | Out-Null
         $process.WaitForExit()
+    }
+    if (Test-Path $minecraftLogPath) {
+        Copy-Item $minecraftLogPath "$stdoutPath.minecraft.log" -Force
     }
 }
