@@ -746,9 +746,11 @@ public final class MLuaWorldService extends MLuaServiceBase {
    private LuaTable playersInRadius(Level level, double[] center, double radius) {
       LuaTable list = new LuaTable();
       int index = 1;
-      double radiusSquared = radius * radius;
-      for (Player player : this.players(level)) {
-         if (player.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
+      LuaTable playerFilter = new LuaTable();
+      playerFilter.set("players_only", LuaValue.TRUE);
+      for (Entity entity : MLuaEntityQuery.findWithinRadius(level, center[0], center[1], center[2],
+            radius, null, playerFilter, context.mlua().registration())) {
+         if (entity instanceof Player player) {
             list.set(index++, MLuaPlayerWrapper.playerEntityTable(player, context.mlua().registration()));
          }
       }
@@ -811,21 +813,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private Iterable<Entity> allEntities(Level level) {
-      if (level instanceof ServerLevel serverLevel) {
-         return serverLevel.getAllEntities();
-      }
-      try {
-         Object entities = level.getClass().getMethod("entitiesForRendering").invoke(level);
-         if (entities instanceof Iterable<?> iterable) {
-            List<Entity> result = new ArrayList<>();
-            for (Object entity : iterable) {
-               if (entity instanceof Entity value) result.add(value);
-            }
-            return result;
-         }
-      } catch (ReflectiveOperationException | RuntimeException ignored) {
-      }
-      return List.of();
+      return MLuaEntityQuery.loadedEntities(level);
    }
 
    private static Level clientLevel() {

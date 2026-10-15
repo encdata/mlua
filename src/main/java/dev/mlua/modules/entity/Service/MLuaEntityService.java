@@ -9,7 +9,6 @@ import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
