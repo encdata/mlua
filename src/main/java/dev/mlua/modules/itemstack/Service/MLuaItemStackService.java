@@ -5,7 +5,6 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
-import dev.mlua.minecraft.binding.MLuaNbtWrapper;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import java.util.Optional;
@@ -13,12 +12,6 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import dev.mlua.api.MLuaDescription;
-//--version 1.21.1,26.1
-import net.minecraft.nbt.CompoundTag;
-import dev.mlua.mc.impl.item.MCItemStackImpl;
-import dev.mlua.mc.impl.nbt.MCCompoundTagImpl;
-//--endversion
-
 @MLuaDescription("Create, clone, inspect, and mutate Minecraft ItemStack values.")
 public final class MLuaItemStackService extends MLuaReflectiveService {
     public MLuaItemStackService(MLuaService.Context context) {
@@ -82,39 +75,12 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns an item stack's NBT data or one value by key.")
     public LuaValue GetNbt(LuaValue item, Optional<String> key) {
-        //--version 1.20.1
-        ItemStack stack = stack(item);
-        if (key.isEmpty()) {
-            return MLuaNbtWrapper.table(stack::getOrCreateTag, stack::setTag, this.context.registration());
-        }
-        return stack.hasTag() ? MLuaNbtWrapper.get(stack.getTag(), key.get()) : LuaValue.NIL;
-        //--endversion
-        //--version 1.21.1,26.1
-        MCItemStackImpl stack = new MCItemStackImpl(stack(item));
-        if (key.isEmpty()) {
-            return MLuaNbtWrapper.table(
-                () -> {
-                    var tag = stack.getOrCreateTag();
-                    return ((MCCompoundTagImpl) tag).inner();
-                },
-                tag -> stack.setTag(MCCompoundTagImpl.fromReal(tag)), this.context.registration()
-            );
-        }
-        return stack.hasTag() ? MLuaNbtWrapper.get(((MCCompoundTagImpl) stack.getTag()).inner(), key.get()) : LuaValue.NIL;
-        //--endversion
+        return MLuaItemWrapper.getNbt(item, key, this.context.registration());
     }
 
     @MLuaDescription("Sets one NBT value in an item stack's NBT data.")
     public void SetNbt(LuaValue item, String key, LuaValue value) {
-        //--version 1.20.1
-        MLuaNbtWrapper.set(stack(item).getOrCreateTag(), key, value);
-        //--endversion
-        //--version 1.21.1,26.1
-        MCItemStackImpl stack = new MCItemStackImpl(stack(item));
-        CompoundTag tag = ((MCCompoundTagImpl) stack.getOrCreateTag()).inner();
-        MLuaNbtWrapper.set(tag, key, value);
-        stack.setTag(MCCompoundTagImpl.fromReal(tag));
-        //--endversion
+        MLuaItemWrapper.setNbt(item, key, value, this.context.registration());
     }
 
     private LuaValue create(String id, int count) {

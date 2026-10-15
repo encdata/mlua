@@ -286,7 +286,7 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).hasTag())), "Returns whether this item has NBT data.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> LuaValue.valueOf(itemTag(self, false) != null && !itemTag(self, false).isEmpty())), "Returns whether this item has NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayName", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getHoverName().getString())), "Returns this item's rendered display name as plain text.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDisplayComponent", selfItem((self, ignored) ->
             dev.mlua.api.MLuaLuaCoercions.toLuaValue(((MCItemStackImpl)stack(self)).inner().getHoverName())),
@@ -315,12 +315,11 @@ public final class MLuaItemWrapper {
             return LuaValue.NONE;
          }), "Sets this item's lore lines.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetTag", selfItem((self, args) -> {
-            MCCompoundTag tag = stack(self).getTag();
-            return MLuaNbtWrapper.get(tag != null ? ((MCCompoundTagImpl)tag).inner() : null, args.checkjstring(2));
+            return MLuaNbtWrapper.get(itemTag(self, false), args.checkjstring(2));
          }), "Returns this item's NBT value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetTagKeys", selfItem((self, ignored) -> {
             LuaTable keys = new LuaTable();
-            MCCompoundTag tag = stack(self).getTag();
+            net.minecraft.nbt.CompoundTag tag = itemTag(self, false);
             if (tag == null) {
                return keys;
             }
@@ -335,33 +334,40 @@ public final class MLuaItemWrapper {
             return LuaValue.NONE;
          }), "Sets one value in this item's NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetNbtTable", selfItem((self, ignored) -> MLuaNbtWrapper.table(
-            () -> ((MCCompoundTagImpl)stack(self).getOrCreateTag()).inner(),
-            tag -> stack(self).setTag(MCCompoundTagImpl.fromReal(tag)), registration
+            () -> itemTag(self, true),
+            tag -> setItemTag(self, tag), registration
          )), "Returns a live table view of this item's NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetNbt", selfItem((self, args) -> {
             if (args.narg() < 2 || args.arg(2).isnil()) {
                return MLuaNbtWrapper.table(
-                  () -> ((MCCompoundTagImpl)stack(self).getOrCreateTag()).inner(),
-                  tag -> stack(self).setTag(MCCompoundTagImpl.fromReal(tag)), registration
+                  () -> itemTag(self, true),
+                  tag -> setItemTag(self, tag), registration
                );
             }
-            MCCompoundTag tag = stack(self).getTag();
-            return MLuaNbtWrapper.get(tag != null ? ((MCCompoundTagImpl)tag).inner() : null, args.checkjstring(2));
+            return MLuaNbtWrapper.get(itemTag(self, false), args.checkjstring(2));
          }), "Returns this item's NBT data or one value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "getNbt", classTable.rawget("GetNbt"), "Returns this item's NBT data or one value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetNbt", selfItem((self, args) -> {
             if (args.narg() == 2 && args.arg(2).istable()) {
-               stack(self).setTag(MCCompoundTagImpl.fromReal(MLuaNbtWrapper.toCompound(args.arg(2))));
+               setItemTag(self, MLuaNbtWrapper.toCompound(args.arg(2)));
                return LuaValue.NONE;
             }
             setNbtValue(self, args.checkjstring(2), args.arg(3));
             return LuaValue.NONE;
          }), "Sets one NBT value or replaces this item's NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "setNbt", classTable.rawget("SetNbt"), "Sets one NBT value or replaces this item's NBT data.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "HasTagKey", selfItem((self, args) -> LuaValue.valueOf(stack(self).hasTag() && stack(self).getTag().contains(args.checkjstring(2)))), "Returns whether this item's NBT data contains the given key.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "HasTagKey", selfItem((self, args) -> {
+            net.minecraft.nbt.CompoundTag tag = itemTag(self, false);
+            return LuaValue.valueOf(tag != null && tag.contains(args.checkjstring(2)));
+         }), "Returns whether this item's NBT data contains the given key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Clone", selfItem((self, ignored) -> {
             MCItemStack copy = stack(self).copy();
-            return itemTable(copy != null ? ((MCItemStackImpl)copy).inner() : net.minecraft.world.item.ItemStack.EMPTY);
+            LuaTable cloned = itemTable(copy != null ? ((MCItemStackImpl)copy).inner() : net.minecraft.world.item.ItemStack.EMPTY);
+            if (!hasItemType(stack(self))) {
+               net.minecraft.nbt.CompoundTag tag = itemTag(self, false);
+               if (tag != null) setItemTag(cloned, tag);
+            }
+            return cloned;
          }), "Returns a copy of this item stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Copy", classTable.rawget("Clone"), "Returns a copy of this item stack.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetEnchantments", selfItem((self, ignored) -> {
@@ -473,10 +479,35 @@ public final class MLuaItemWrapper {
    }
 
    private static void setNbtValue(LuaValue self, String key, LuaValue value) {
+      net.minecraft.nbt.CompoundTag tag = itemTag(self, true);
+      MLuaNbtWrapper.set(tag, key, value);
+      setItemTag(self, tag);
+   }
+
+   private static net.minecraft.nbt.CompoundTag itemTag(LuaValue self, boolean create) {
       MCItemStack item = stack(self);
-      MCCompoundTag tag = item.getOrCreateTag();
-      MLuaNbtWrapper.set(((MCCompoundTagImpl)tag).inner(), key, value);
-      item.setTag(tag);
+      if (!hasItemType(item)) {
+         LuaValue stored = self.checktable().rawget("__mlua_empty_stack_nbt");
+         if (stored.isuserdata(net.minecraft.nbt.CompoundTag.class)) {
+            return (net.minecraft.nbt.CompoundTag)stored.touserdata(net.minecraft.nbt.CompoundTag.class);
+         }
+         if (!create) return null;
+         net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+         self.checktable().rawset("__mlua_empty_stack_nbt", LuaValue.userdataOf(tag));
+         return tag;
+      }
+      MCCompoundTag tag = create ? item.getOrCreateTag() : item.getTag();
+      return tag == null ? null : ((MCCompoundTagImpl)tag).inner();
+   }
+
+   private static void setItemTag(LuaValue self, net.minecraft.nbt.CompoundTag tag) {
+      MCItemStack item = stack(self);
+      if (!hasItemType(item)) {
+         self.checktable().rawset("__mlua_empty_stack_nbt", tag == null
+            ? LuaValue.NIL : LuaValue.userdataOf(tag.copy()));
+         return;
+      }
+      item.setTag(MCCompoundTagImpl.fromReal(tag));
    }
 
    private static int nonNegativeCount(int count, String method) {
@@ -497,6 +528,23 @@ public final class MLuaItemWrapper {
          throw new LuaError("[MLua] ItemStackService:SetCount expects an Item instance.");
       }
       setCount(new MCItemStackImpl(toItemStack(item, registration)), count);
+   }
+
+   public static LuaValue getNbt(LuaValue item, java.util.Optional<String> key, MLuaRegistration registration) {
+      if (registration == null || !registration.isInstanceOf(item, "Item")) {
+         throw new LuaError("[MLua] ItemStackService:GetNbt expects an Item instance.");
+      }
+      if (key.isEmpty()) {
+         return MLuaNbtWrapper.table(() -> itemTag(item, true), tag -> setItemTag(item, tag), registration);
+      }
+      return MLuaNbtWrapper.get(itemTag(item, false), key.get());
+   }
+
+   public static void setNbt(LuaValue item, String key, LuaValue value, MLuaRegistration registration) {
+      if (registration == null || !registration.isInstanceOf(item, "Item")) {
+         throw new LuaError("[MLua] ItemStackService:SetNbt expects an Item instance.");
+      }
+      setNbtValue(item, key, value);
    }
 
    private static boolean hasItemType(MCItemStack item) {
