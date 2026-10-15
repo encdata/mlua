@@ -24,7 +24,6 @@ import dev.mlua.minecraft.client.MLuaCameraController;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.data.MLuaDataManager;
 import dev.mlua.mcapi.container.MCAbstractContainerMenu;
-import dev.mlua.mcapi.core.MCAABB;
 import dev.mlua.mcapi.core.MCComponent;
 import dev.mlua.mcapi.core.MCMutableComponent;
 import dev.mlua.mcapi.core.MCResourceLocation;
@@ -349,20 +348,7 @@ public final class MLuaPlayerWrapper {
          return invokeInstance(inventory, "SetOffhandSlot", args.arg(2));
       }));
       bindLevelMethods(table, ((MCLevelImpl) player.getLevel()).inner(), registration);
-      MLuaClassMethods.setInstanceMethod(table, "GetNearbyPlayers", varArg((args) -> {
-         double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Player:GetNearbyPlayers", "radius");
-         MCAABB box = player.getBoundingBox().inflate(radius);
-         LuaTable list = new LuaTable();
-         int i = 1;
-         net.minecraft.world.level.Level rawLevel = ((MCLevelImpl) player.getLevel()).inner();
-         net.minecraft.world.phys.AABB rawBox = new net.minecraft.world.phys.AABB(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ());
-         for (net.minecraft.server.level.ServerPlayer e : rawLevel.getEntitiesOfClass(net.minecraft.server.level.ServerPlayer.class, rawBox, (p) -> {
-            return p != raw;
-         })) {
-            list.set(i++, playerTable(MCServerPlayerImpl.fromReal(e), registration));
-         }
-         return list;
-      }));
+      attachNearbyPlayers(table, raw, registration);
       MLuaClassMethods.setInstanceMethod(table, "GiveEffect", varArg((args) -> {
          return MLuaPotionEffectsService.giveEffect((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner(), args);
       }));
@@ -496,6 +482,7 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetOpenContainer", luaFn(() -> LuaValue.NIL));
       MLuaClassMethods.setInstanceMethod(table, "GetOpenContainerTitle", luaFn(() -> LuaValue.NIL));
       MLuaClassMethods.setInstanceMethod(table, "GetOpenContainerSize", luaFn(() -> LuaValue.valueOf(0)));
+      attachNearbyPlayers(table, player, registration);
       MLuaEntityWrapper.attachEntityProperties(table);
       MLuaEntityWrapper.cachePlayerTable(player, registration, table);
       return table;
@@ -703,6 +690,7 @@ public final class MLuaPlayerWrapper {
          player.getInventory().setSelected(slot);
          return LuaValue.NONE;
       }));
+      attachNearbyPlayers(table, raw, registration);
       MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> {
          return MLuaPotionEffectsService.effectsTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner());
       }));
@@ -868,6 +856,22 @@ public final class MLuaPlayerWrapper {
          }));
       }
       return inventory;
+   }
+
+   private static void attachNearbyPlayers(LuaTable table,
+                                           net.minecraft.world.entity.player.Player player,
+                                           MLuaRegistration registration) {
+      MLuaClassMethods.setInstanceMethod(table, "GetNearbyPlayers", varArg(args -> {
+         double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Player:GetNearbyPlayers", "radius");
+         net.minecraft.world.phys.AABB bounds = player.getBoundingBox().inflate(radius);
+         LuaTable nearby = new LuaTable();
+         int index = 1;
+         for (net.minecraft.world.entity.player.Player other : player.level().getEntitiesOfClass(
+               net.minecraft.world.entity.player.Player.class, bounds, candidate -> candidate != player)) {
+            nearby.set(index++, playerEntityTable(other, registration));
+         }
+         return nearby;
+      }));
    }
 
    private static LuaValue containerSlot(LuaTable inventory, int index) {

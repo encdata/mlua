@@ -733,6 +733,7 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetViewMode(mode: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:HasPermission(level: number)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:DistanceTo(target: Vector3|CFrame|Entity)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetNearbyPlayers(radius: number)", "Player[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:HasEffect(effect: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:RemoveEffect(effect: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetFood(food: number)", null));
