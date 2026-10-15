@@ -347,6 +347,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetBlock()", "Block"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetPosition()", "Vector3"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetProperties()", "BlockStateProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:SetStateProperties(properties: BlockStateProperties, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Set(blockId: string, properties: BlockStateProperties?, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetProperty(name: string)", "string|number|boolean|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:WithProperty(name: string, value: string|number|boolean)", "BlockState"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:WithProperties(properties: BlockStateProperties)", "BlockState"));

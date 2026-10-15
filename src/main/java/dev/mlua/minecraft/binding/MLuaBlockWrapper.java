@@ -340,8 +340,9 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             net.minecraft.world.level.block.state.BlockState state =
                MLuaBlockStateProperties.apply(rawLevel.getBlockState(rawPos), args.arg(2));
-            return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, 3));
-         }), "Updates this block's Minecraft state properties while keeping its block type.");
+            int updateFlags = args.arg(3).isnil() ? 3 : args.arg(3).checkint();
+            return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
+         }), "Updates this block's Minecraft state properties while keeping its block type. Optional Minecraft update flags default to 3.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetFluid", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
@@ -422,10 +423,14 @@ public final class MLuaBlockWrapper {
             }
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
-            net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(newBlock.defaultBlockState(), args.arg(3));
-            rawLevel.setBlock(rawPos, state, 3);
-            return LuaValue.TRUE;
-         }), "Replaces this block with a registered block identifier and optional state properties.");
+            LuaValue properties = args.arg(3);
+            if (!properties.isnil() && !properties.istable() && !properties.isnumber()) {
+               throw new LuaError("[MLua] Block:Set expects a state property table followed by optional update flags.");
+            }
+            net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(newBlock.defaultBlockState(), properties.istable() ? properties : LuaValue.NIL);
+            int updateFlags = args.arg(properties.istable() ? 4 : 3).isnil() ? 3 : args.arg(properties.istable() ? 4 : 3).checkint();
+            return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
+         }), "Replaces this block with a registered block identifier and optional state properties. Optional Minecraft update flags default to 3.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "ScheduleTick", selfBlock((self, args) -> {
             int delay = args.checkint(2);
             if (delay < 1) throw new LuaError("[MLua] Block:ScheduleTick delay must be at least one tick");
