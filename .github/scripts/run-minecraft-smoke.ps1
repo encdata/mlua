@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Task,
     [Parameter(Mandatory = $true)][string[]]$GradleArgs,
     [Parameter(Mandatory = $true)][string]$BootMarker,
-    [string]$RequiredMarker,
+    [string[]]$RequiredMarker = @(),
     [Parameter(Mandatory = $true)][string]$LogFile,
     [int]$TimeoutSeconds = 480,
     [int]$ShutdownGraceSeconds = 30
@@ -71,8 +71,10 @@ try {
     if (-not $booted) {
         throw "Gradle task '$Task' exited before MLua emitted '$BootMarker'."
     }
-    if ($RequiredMarker -and -not $text.Contains($RequiredMarker)) {
-        throw "Minecraft emitted '$BootMarker' but did not emit the required smoke marker '$RequiredMarker'."
+    foreach ($marker in $RequiredMarker) {
+        if (-not $text.Contains($marker)) {
+            throw "Minecraft emitted '$BootMarker' but did not emit the required smoke marker '$marker'."
+        }
     }
     if (-not $clientTask -and $process.ExitCode -ne 0) {
         throw "Dedicated server smoke task exited with code $($process.ExitCode)."
