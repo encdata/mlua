@@ -176,10 +176,10 @@ public final class MLuaJavaService extends MLuaServiceBase {
             public Varargs invoke(Varargs args) {
                 int valueIndex = serviceArgumentIndex(args, table, 1);
                 Object value = unwrapJavaValue(args.arg(valueIndex));
+                Class<?> clazz = resolveClassArg(args.arg(valueIndex + 1));
                 if (value == null) {
                     return LuaValue.NIL;
                 }
-                Class<?> clazz = resolveClassArg(args.arg(valueIndex + 1));
                 if (!clazz.isInstance(value)) {
                     throw new LuaError("[MLua] Cannot cast " + value.getClass().getName() + " to " + clazz.getName());
                 }
