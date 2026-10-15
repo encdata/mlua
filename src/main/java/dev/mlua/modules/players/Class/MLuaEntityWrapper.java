@@ -547,13 +547,11 @@ public final class MLuaEntityWrapper {
          @Override public Varargs invoke(Varargs args) {
             double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Entity:GetNearbyEntities", "radius");
             LuaValue filter = args.arg(3);
-            net.minecraft.world.phys.AABB bounds = entity.getBoundingBox().inflate(radius);
             LuaTable nearby = new LuaTable();
             int index = 1;
-            for (net.minecraft.world.entity.Entity other : entity.level().getEntities(entity, bounds)) {
-               if (MLuaEntityQuery.matches(other, filter, registration)) {
-                  nearby.set(index++, entityTable(other, registration));
-               }
+            for (net.minecraft.world.entity.Entity other : MLuaEntityQuery.findWithinRadius(
+                  entity.level(), entity.getX(), entity.getY(), entity.getZ(), radius, entity, filter, registration)) {
+               nearby.set(index++, entityTable(other, registration));
             }
             return nearby;
          }

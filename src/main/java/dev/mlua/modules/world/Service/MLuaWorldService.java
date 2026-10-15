@@ -423,10 +423,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          LuaValue filter = args.arg(distanceIndex + 1);
          Entity nearest = null;
          double nearestDistance = maxDistance * maxDistance;
-         for (Entity entity : entityCandidates(level, pos, maxDistance)) {
-            if (!matchesFilter(entity, filter)) {
-               continue;
-            }
+         for (Entity entity : MLuaEntityQuery.findWithinRadius(level, pos[0], pos[1], pos[2],
+               maxDistance, null, filter, context.mlua().registration())) {
             double distance = entity.distanceToSqr(pos[0], pos[1], pos[2]);
             if (distance <= nearestDistance) {
                nearestDistance = distance;
@@ -737,28 +735,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaTable entitiesInRadius(Level level, double[] center, double radius, LuaValue filter) {
       LuaTable list = new LuaTable();
-      double radiusSquared = radius * radius;
       int index = 1;
-      for (Entity entity : entityCandidates(level, center, radius)) {
-         if (matchesFilter(entity, filter) && entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
-            list.set(index++, wrapEntity(entity));
-         }
+      for (Entity entity : MLuaEntityQuery.findWithinRadius(level, center[0], center[1], center[2],
+            radius, null, filter, context.mlua().registration())) {
+         list.set(index++, wrapEntity(entity));
       }
       return list;
-   }
-
-   private Iterable<Entity> entityCandidates(Level level, double[] center, double radius) {
-      double minX = center[0] - radius;
-      double minY = center[1] - radius;
-      double minZ = center[2] - radius;
-      double maxX = center[0] + radius;
-      double maxY = center[1] + radius;
-      double maxZ = center[2] + radius;
-      if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(minZ)
-            || !Double.isFinite(maxX) || !Double.isFinite(maxY) || !Double.isFinite(maxZ)) {
-         return this.allEntities(level);
-      }
-      return level.getEntities((Entity)null, new AABB(minX, minY, minZ, maxX, maxY, maxZ));
    }
 
    private LuaTable playersInRadius(Level level, double[] center, double radius) {
