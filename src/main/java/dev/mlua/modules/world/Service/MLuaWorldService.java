@@ -464,14 +464,34 @@ public final class MLuaWorldService extends MLuaServiceBase {
             throw new LuaError("[MLua] World:SetBlock expects block properties, a loadChunk boolean, or update flags after the block.");
          }
          LuaValue properties = propertiesArg.istable() ? propertiesArg : LuaValue.NIL;
-         int loadIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 2;
-         int flagsIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 3;
-         if (properties.isnil() && propertiesArg.isboolean()) flagsIndex = blockIndex + 2;
-         boolean loadChunk = properties.isnil()
-            ? (!propertiesArg.isboolean() || propertiesArg.toboolean())
-            : MLuaLuaArguments.optionalBoolean(args, loadIndex, true, "World:SetBlock", "loadChunk");
+         boolean loadChunk = true;
+         LuaValue updateFlagsValue;
+         if (propertiesArg.istable()) {
+            LuaValue loadOrFlags = args.arg(blockIndex + 2);
+            if (loadOrFlags.isboolean()) {
+               loadChunk = loadOrFlags.toboolean();
+               updateFlagsValue = args.arg(blockIndex + 3);
+            } else {
+               updateFlagsValue = loadOrFlags.isnil() ? args.arg(blockIndex + 3) : loadOrFlags;
+            }
+         } else if (propertiesArg.isboolean()) {
+            loadChunk = propertiesArg.toboolean();
+            updateFlagsValue = args.arg(blockIndex + 2);
+         } else if (propertiesArg.isnumber()) {
+            updateFlagsValue = propertiesArg;
+         } else if (propertiesArg.isnil()) {
+            LuaValue loadOrFlags = args.arg(blockIndex + 2);
+            if (loadOrFlags.isboolean()) {
+               loadChunk = loadOrFlags.toboolean();
+               updateFlagsValue = args.arg(blockIndex + 3);
+            } else {
+               updateFlagsValue = loadOrFlags.isnil() ? args.arg(blockIndex + 3) : loadOrFlags;
+            }
+         } else {
+            throw new LuaError("[MLua] World:SetBlock expects block properties, a loadChunk boolean, or integer update flags after the block.");
+         }
          if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
-         int updateFlags = MLuaBlockUpdateFlags.read(args.arg(flagsIndex), "World:SetBlock");
+         int updateFlags = MLuaBlockUpdateFlags.read(updateFlagsValue, "World:SetBlock");
          return LuaValue.valueOf(level.setBlock(blockPos, MLuaBlockStateProperties.apply(state, properties), updateFlags));
       }));
       table.set("SetBlockState", serverLevelFn(supplier, (level, args) -> {
