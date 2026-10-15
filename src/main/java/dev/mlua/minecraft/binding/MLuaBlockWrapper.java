@@ -440,7 +440,7 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             net.minecraft.world.level.block.Block block = rawLevel.getBlockState(rawPos).getBlock();
             rawLevel.scheduleTick(rawPos, block, delay);
-            return LuaValue.TRUE;
+            return LuaValue.NONE;
          }), "Schedules this block's onTick callback after the given server tick delay. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetNbt", selfBlock((self, args) -> {
             if (args.narg() < 2 || args.arg(2).isnil()) {
