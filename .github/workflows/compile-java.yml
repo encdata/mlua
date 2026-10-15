@@ -172,7 +172,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: mlua-${{ matrix.loader }}-${{ matrix.target }}
           path: client-smoke/mod
@@ -204,9 +203,7 @@ jobs:
         run: |
           $jar = Get-ChildItem client-smoke/mod -Filter '*.jar' | Select-Object -First 1
           if ($null -eq $jar) {
-            'artifact_available=false' >> $env:GITHUB_OUTPUT
-            Write-Warning 'Skipping boot checks because this loader/version build did not publish a packaged JAR.'
-            return
+            throw "Build artifact is missing for ${{ matrix.loader }} / ${{ matrix.target }}; refusing to skip packaged boot checks."
           }
           $template = "client-smoke/${{ matrix.loader }}"
           New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
@@ -244,10 +241,8 @@ jobs:
           '@ | Set-Content "$template/run/mlua/scripts/ci_empty_stack.server.lua"
           Set-Content "$template/run/eula.txt" 'eula=true'
           Set-Content "$template/run/server.properties" @('online-mode=false', 'server-port=25565', 'enable-query=false', 'enable-rcon=false')
-          'artifact_available=true' >> $env:GITHUB_OUTPUT
 
       - name: Boot Minecraft client with the packaged MLua JAR
-        if: steps.prepare.outputs.artifact_available == 'true'
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |
@@ -268,7 +263,6 @@ jobs:
             -TimeoutSeconds 480
 
       - name: Boot dedicated server with the packaged MLua JAR
-        if: ${{ !cancelled() && steps.prepare.outputs.artifact_available == 'true' }}
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |
