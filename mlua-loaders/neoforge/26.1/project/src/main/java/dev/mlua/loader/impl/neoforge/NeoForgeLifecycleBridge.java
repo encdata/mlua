@@ -39,14 +39,27 @@ public final class NeoForgeLifecycleBridge implements LifecycleBridge {
     @Override public void onConstruct(Runnable callback) { callback.run(); }
     @Override public void onSetup(Runnable callback) { modBus.addListener((FMLCommonSetupEvent event) -> callback.run()); }
     @Override public void onClientSetup(Runnable callback) { modBus.addListener((FMLClientSetupEvent event) -> callback.run()); }
-    @Override public void onServerStarted(Consumer<Object> callback) { serverStarted = callback; }
-    @Override public void onServerStopping(Consumer<Object> callback) { serverStopping = callback; }
+    @Override public void onServerStarted(Consumer<Object> callback) { serverStarted = append(serverStarted, callback); }
+    @Override public void onServerStopping(Consumer<Object> callback) { serverStopping = append(serverStopping, callback); }
     @Override public void onLoadComplete(Runnable callback) { modBus.addListener((FMLLoadCompleteEvent event) -> callback.run()); }
-    @Override public void onRegisterCommands(Consumer<Object> callback) { registerCommands = callback; }
-    @Override public void onServerTickEnd(Runnable callback) { serverTickEnd = callback; }
-    @Override public void onClientTickEnd(Runnable callback) { clientTickEnd = callback; }
-    @Override public void onRenderTickStart(DoubleConsumer callback) { renderTickStart = callback; }
-    @Override public void onRenderTickEnd(Runnable callback) { renderTickEnd = callback; }
+    @Override public void onRegisterCommands(Consumer<Object> callback) { registerCommands = append(registerCommands, callback); }
+    @Override public void onServerTickEnd(Runnable callback) { serverTickEnd = append(serverTickEnd, callback); }
+    @Override public void onClientTickEnd(Runnable callback) { clientTickEnd = append(clientTickEnd, callback); }
+    @Override public void onRenderTickStart(DoubleConsumer callback) { renderTickStart = append(renderTickStart, callback); }
+    @Override public void onRenderTickEnd(Runnable callback) { renderTickEnd = append(renderTickEnd, callback); }
+
+    private static Runnable append(Runnable current, Runnable next) {
+        if (current == null) return next;
+        return () -> { current.run(); next.run(); };
+    }
+
+    private static Consumer<Object> append(Consumer<Object> current, Consumer<Object> next) {
+        return current == null ? next : current.andThen(next);
+    }
+
+    private static DoubleConsumer append(DoubleConsumer current, DoubleConsumer next) {
+        return current == null ? next : current.andThen(next);
+    }
 
     private void handleServerStarted(ServerStartedEvent event) {
         if (serverStarted != null) serverStarted.accept(event.getServer());

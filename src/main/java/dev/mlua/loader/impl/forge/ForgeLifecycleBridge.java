@@ -51,11 +51,11 @@ public class ForgeLifecycleBridge implements LifecycleBridge {
 
     @Override
     public void onServerStarted(Consumer<Object> callback) {
-        this.onServerStarted = callback;
+        this.onServerStarted = append(this.onServerStarted, callback);
     }
 
     @Override
-    public void onServerStopping(Consumer<Object> callback) { this.onServerStopping = callback; }
+    public void onServerStopping(Consumer<Object> callback) { this.onServerStopping = append(this.onServerStopping, callback); }
 
     @Override
     public void onLoadComplete(Runnable callback) {
@@ -64,27 +64,40 @@ public class ForgeLifecycleBridge implements LifecycleBridge {
 
     @Override
     public void onRegisterCommands(Consumer<Object> callback) {
-        this.onRegisterCommands = callback;
+        this.onRegisterCommands = append(this.onRegisterCommands, callback);
     }
 
     @Override
     public void onServerTickEnd(Runnable callback) {
-        this.onServerTickEnd = callback;
+        this.onServerTickEnd = append(this.onServerTickEnd, callback);
     }
 
     @Override
     public void onClientTickEnd(Runnable callback) {
-        this.onClientTickEnd = callback;
+        this.onClientTickEnd = append(this.onClientTickEnd, callback);
     }
 
     @Override
     public void onRenderTickStart(DoubleConsumer callback) {
-        this.onRenderTickStart = callback;
+        this.onRenderTickStart = append(this.onRenderTickStart, callback);
     }
 
     @Override
     public void onRenderTickEnd(Runnable callback) {
-        this.onRenderTickEnd = callback;
+        this.onRenderTickEnd = append(this.onRenderTickEnd, callback);
+    }
+
+    private static Runnable append(Runnable current, Runnable next) {
+        if (current == null) return next;
+        return () -> { current.run(); next.run(); };
+    }
+
+    private static Consumer<Object> append(Consumer<Object> current, Consumer<Object> next) {
+        return current == null ? next : current.andThen(next);
+    }
+
+    private static DoubleConsumer append(DoubleConsumer current, DoubleConsumer next) {
+        return current == null ? next : current.andThen(next);
     }
 
     private void handleServerStarted(ServerStartedEvent event) {
