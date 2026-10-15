@@ -322,7 +322,7 @@ tasks.named('jar', Jar).configure {
     }
     exclude { entry ->
         entry.path.startsWith('dev/mlua/modules/')
-            && entry.path != 'dev/mlua/modules/mixin/Service/FirstPersonItemRendererMixin.class'
+            && !entry.path.startsWith('dev/mlua/modules/mixin/Service/')
     }
 }
 publishing { publications { register('mavenJava', MavenPublication) { artifact jar } }; repositories { maven { url "file://${project.projectDir}/repo" } } }
