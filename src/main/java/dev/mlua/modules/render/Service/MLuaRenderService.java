@@ -60,6 +60,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerObjectProperty(registration, "FollowBone", "string|nil", "A registered model adapter bone to attach this 3D object to on the followed entity.", "GetFollowBone", "SetFollowBone");
+        registerObjectProperty(registration, "FollowOffset", "CFrame|function", "A local transform after the followed model bone. A function returning CFrame is sampled once per client tick.", "GetFollowOffset", "SetFollowOffset");
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
         String[][] methods = {
@@ -86,6 +87,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"ClearFollowEntity", "Stops the object from following an entity."},
             {"GetFollowBone", "Returns the registered model bone used by this attachment, or nil."},
             {"SetFollowBone", "Attaches a 3D object to a model bone registered by ModelService."},
+            {"GetFollowOffset", "Returns the local CFrame or callback used after the followed model bone."},
+            {"SetFollowOffset", "Sets a local CFrame or a function returning CFrame, sampled once per client tick."},
             {"GetResource", "Returns the image or model resource."}, {"SetResource", "Changes the image or model resource."},
             {"GetText", "Returns the displayed text."}, {"SetText", "Changes the displayed text."},
             {"GetAnimations", "Returns animation names available on a Blockbench model."},
@@ -514,6 +517,17 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 requireObject(id).setFollowBoneName(value.isnil() ? null : value.checkjstring());
             } catch (IllegalArgumentException invalid) {
                 throw new LuaError("[MLua] " + invalid.getMessage());
+            }
+            return LuaValue.NONE;
+        }));
+        operations.set("GetFollowOffset", fn(args -> requireObject(id).followOffsetValue()));
+        operations.set("SetFollowOffset", fn(args -> {
+            LuaValue value = args.arg(2);
+            try {
+                if (value.isfunction()) requireObject(id).setFollowOffsetCallback(value);
+                else requireObject(id).setFollowOffset(MLuaCFrame.fromLua(value));
+            } catch (IllegalArgumentException | LuaError invalid) {
+                throw new LuaError("[MLua] FollowOffset must be a CFrame or a function returning CFrame: " + invalid.getMessage());
             }
             return LuaValue.NONE;
         }));

@@ -3,6 +3,8 @@ package dev.mlua.runtime.client;
 import dev.mlua.runtime.client.model.MLuaBBModelAsset;
 import dev.mlua.runtime.client.model.MLuaAnimationPlayer;
 import dev.mlua.runtime.client.model.MLuaMeshDefinition;
+import dev.mlua.math.MLuaCFrame;
+import dev.mlua.core.MLuaLogger;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.registry.MLuaAssetResolver;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
 import dev.mlua.loaderapi.LoaderApi;
+import org.luaj.vm2.LuaValue;
 
 public final class MLuaClientRenderManager {
     private static final AtomicInteger NEXT_ID = new AtomicInteger(1);
@@ -47,6 +50,7 @@ public final class MLuaClientRenderManager {
     private static void tickAnimations() {
         for (RenderObject object : OBJECTS.values()) {
             if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
+            object.sampleFollowOffset();
         }
     }
 
@@ -62,6 +66,7 @@ public final class MLuaClientRenderManager {
                 pose.popPose();
                 continue;
             }
+            object.applyFollowOffset(pose);
             pose.translate(object.worldX, object.worldY, object.worldZ);
             if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
             if (object.bbmodel != null) submitBBModelAttachment(pose, collector, object, light);
@@ -107,38 +112,49 @@ public final class MLuaClientRenderManager {
                 pose.mulPose(Axis.ZP.rotationDegrees(rotation[2]));
                 pose.translate(-pivot[0] / 16.0F, -pivot[1] / 16.0F, -pivot[2] / 16.0F);
             }
-            collector.submitCustomGeometry(pose, RenderTypes.entityCutout(attachmentTexture(object, cube)),
-                (matrix, vertices) -> submitCube(vertices, matrix, cube.from(), cube.to(), light));
+            for (var entry : cube.faces().entrySet()) {
+                var face = entry.getValue();
+                collector.submitCustomGeometry(pose, RenderTypes.entityCutout(attachmentTexture(object, face)),
+                    (matrix, vertices) -> submitBBFace(vertices, matrix, entry.getKey(), cube.from(), cube.to(),
+                        face, asset.textureWidth(), asset.textureHeight(), light));
+            }
             pose.popPose();
         }
     }
 
-    private static Identifier attachmentTexture(RenderObject object, MLuaBBModelAsset.Cube cube) {
-        if (object.bbmodel == null || cube.faces().isEmpty()) return ATTACHMENT_TEXTURE;
-        var face = cube.faces().values().iterator().next();
+    private static Identifier attachmentTexture(RenderObject object, MLuaBBModelAsset.Face face) {
+        if (object.bbmodel == null) return ATTACHMENT_TEXTURE;
         return face.texture() >= 0 && face.texture() < object.resolvedTextures.size()
             ? object.resolvedTextures.get(face.texture()) : ATTACHMENT_TEXTURE;
     }
 
-    private static void submitCube(VertexConsumer out, PoseStack.Pose pose, float[] from, float[] to, int light) {
+    private static void submitBBFace(VertexConsumer out, PoseStack.Pose pose, String direction,
+                                     float[] from, float[] to, MLuaBBModelAsset.Face face,
+                                     int textureWidth, int textureHeight, int light) {
         float x1 = from[0] / 16.0F, y1 = from[1] / 16.0F, z1 = from[2] / 16.0F;
         float x2 = to[0] / 16.0F, y2 = to[1] / 16.0F, z2 = to[2] / 16.0F;
-        submitQuad(out, pose, light, 0, 0, -1, x1,y1,z1, x2,y1,z1, x2,y2,z1, x1,y2,z1);
-        submitQuad(out, pose, light, 0, 0, 1, x2,y1,z2, x1,y1,z2, x1,y2,z2, x2,y2,z2);
-        submitQuad(out, pose, light, -1, 0, 0, x1,y1,z2, x1,y1,z1, x1,y2,z1, x1,y2,z2);
-        submitQuad(out, pose, light, 1, 0, 0, x2,y1,z1, x2,y1,z2, x2,y2,z2, x2,y2,z1);
-        submitQuad(out, pose, light, 0, 1, 0, x1,y2,z1, x2,y2,z1, x2,y2,z2, x1,y2,z2);
-        submitQuad(out, pose, light, 0, -1, 0, x1,y1,z2, x2,y1,z2, x2,y1,z1, x1,y1,z1);
-    }
-
-    private static void submitQuad(VertexConsumer out, PoseStack.Pose pose, int light,
-                                   float nx, float ny, float nz,
-                                   float x1,float y1,float z1, float x2,float y2,float z2,
-                                   float x3,float y3,float z3, float x4,float y4,float z4) {
-        submitVertex(out, pose, x1,y1,z1, 0,1, 0xFFFFFFFF, light, nx,ny,nz);
-        submitVertex(out, pose, x2,y2,z2, 1,1, 0xFFFFFFFF, light, nx,ny,nz);
-        submitVertex(out, pose, x3,y3,z3, 1,0, 0xFFFFFFFF, light, nx,ny,nz);
-        submitVertex(out, pose, x4,y4,z4, 0,0, 0xFFFFFFFF, light, nx,ny,nz);
+        float nx = 0, ny = 0, nz = 0;
+        float[][] points = switch (direction) {
+            case "north" -> { nz = -1; yield new float[][]{{x1,y1,z1},{x2,y1,z1},{x2,y2,z1},{x1,y2,z1}}; }
+            case "south" -> { nz = 1; yield new float[][]{{x2,y1,z2},{x1,y1,z2},{x1,y2,z2},{x2,y2,z2}}; }
+            case "west" -> { nx = -1; yield new float[][]{{x1,y1,z2},{x1,y1,z1},{x1,y2,z1},{x1,y2,z2}}; }
+            case "east" -> { nx = 1; yield new float[][]{{x2,y1,z1},{x2,y1,z2},{x2,y2,z2},{x2,y2,z1}}; }
+            case "up" -> { ny = 1; yield new float[][]{{x1,y2,z1},{x2,y2,z1},{x2,y2,z2},{x1,y2,z2}}; }
+            case "down" -> { ny = -1; yield new float[][]{{x1,y1,z2},{x2,y1,z2},{x2,y1,z1},{x1,y1,z1}}; }
+            default -> null;
+        };
+        if (points == null) return;
+        float[] uv = face.uv();
+        if (uv == null || uv.length < 4) uv = new float[]{0, 0, textureWidth, textureHeight};
+        float u1 = uv[0] / Math.max(1, textureWidth), v1 = uv[1] / Math.max(1, textureHeight);
+        float u2 = uv[2] / Math.max(1, textureWidth), v2 = uv[3] / Math.max(1, textureHeight);
+        float[][] corners = {{u1,v2},{u2,v2},{u2,v1},{u1,v1}};
+        int turns = Math.floorMod(face.rotation(), 360) / 90;
+        for (int i = 0; i < 4; i++) {
+            float[] point = points[i];
+            float[] tex = corners[Math.floorMod(i - turns, 4)];
+            submitVertex(out, pose, point[0],point[1],point[2], tex[0],tex[1], 0xFFFFFFFF, light, nx,ny,nz);
+        }
     }
 
     private static void submitVertex(VertexConsumer out, PoseStack.Pose pose, float x, float y, float z,
@@ -406,6 +422,9 @@ public final class MLuaClientRenderManager {
         private boolean worldSpace = false;
         private boolean entityModelTarget;
         private String followBoneName;
+        private MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
+        private LuaValue followOffsetCallback = LuaValue.NIL;
+        private boolean followOffsetCallbackFailed;
         private double worldX = 0.0;
         private double worldY = 0.0;
         private double worldZ = 0.0;
@@ -462,6 +481,8 @@ public final class MLuaClientRenderManager {
         public boolean scaleWithDistance() { return scaleWithDistance; }
         public MLuaEntityScope followEntityScope() { return followEntityScope; }
         public String followBoneName() { return followBoneName; }
+        public MLuaCFrame followOffset() { return followOffset; }
+        public LuaValue followOffsetValue() { return followOffsetCallback.isfunction() ? followOffsetCallback : followOffset.toLua(); }
         public MLuaMeshDefinition mesh() { return mesh; }
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
@@ -531,6 +552,36 @@ public final class MLuaClientRenderManager {
             entityModelTarget = true;
             worldSpace = true;
         }
+        public void setFollowOffset(MLuaCFrame offset) {
+            if (offset == null) throw new IllegalArgumentException("FollowOffset must be a CFrame");
+            followOffset = offset;
+            followOffsetCallback = LuaValue.NIL;
+            followOffsetCallbackFailed = false;
+        }
+        public void setFollowOffsetCallback(LuaValue callback) {
+            if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("FollowOffset callback must be a function");
+            followOffsetCallback = callback;
+            followOffsetCallbackFailed = false;
+        }
+        private void sampleFollowOffset() {
+            if (!followOffsetCallback.isfunction()) return;
+            try {
+                followOffset = MLuaCFrame.fromLua(followOffsetCallback.invoke(LuaValue.NONE).arg1());
+                followOffsetCallbackFailed = false;
+            } catch (RuntimeException failure) {
+                if (!followOffsetCallbackFailed) {
+                    MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; keeping its last valid CFrame", failure);
+                    followOffsetCallbackFailed = true;
+                }
+            }
+        }
+        private void applyFollowOffset(PoseStack pose) {
+            pose.translate(followOffset.x(), followOffset.y(), followOffset.z());
+            double[] angles = followOffset.toEulerAnglesXYZ();
+            pose.mulPose(Axis.XP.rotation((float) angles[0]));
+            pose.mulPose(Axis.YP.rotation((float) angles[1]));
+            pose.mulPose(Axis.ZP.rotation((float) angles[2]));
+        }
 
         private RenderObject copy() {
             RenderObject copy = new RenderObject(id, type, resource);
@@ -546,6 +597,9 @@ public final class MLuaClientRenderManager {
             copy.worldSpace = worldSpace;
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
+            copy.followOffset = followOffset;
+            copy.followOffsetCallback = followOffsetCallback;
+            copy.followOffsetCallbackFailed = followOffsetCallbackFailed;
             copy.worldX = worldX;
             copy.worldY = worldY;
             copy.worldZ = worldZ;

@@ -1,6 +1,8 @@
 package dev.mlua.runtime.client;
 
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.math.MLuaCFrame;
+import dev.mlua.core.MLuaLogger;
 import dev.mlua.runtime.client.model.MLuaBBModelAsset;
 import dev.mlua.runtime.client.model.MLuaAnimationPlayer;
 import dev.mlua.runtime.client.model.MLuaMeshDefinition;
@@ -29,6 +31,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import org.luaj.vm2.LuaValue;
 
 public final class MLuaClientRenderManager {
     private static final AtomicInteger NEXT_ID = new AtomicInteger(1);
@@ -58,6 +61,7 @@ public final class MLuaClientRenderManager {
     private static void tickAnimations() {
         for (RenderObject object : OBJECTS.values()) {
             if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
+            object.sampleFollowOffset();
         }
     }
 
@@ -124,6 +128,11 @@ public final class MLuaClientRenderManager {
     }
 
     private static void renderBBModelWorld(PoseStack pose, MultiBufferSource buffers, RenderObject object) {
+        renderBBModelWorld(pose, buffers, object, 15728880, 0);
+    }
+
+    private static void renderBBModelWorld(PoseStack pose, MultiBufferSource buffers, RenderObject object,
+                                          int light, int overlay) {
         List<ResourceLocation> textures = new ArrayList<>();
         for (int index = 0; index < object.bbmodel.textures().size(); index++) {
             ResourceLocation embedded = index < object.resolvedTextures.size() ? object.resolvedTextures.get(index) : null;
@@ -157,7 +166,7 @@ public final class MLuaClientRenderManager {
                 pose.translate(position[0] / 16.0F, position[1] / 16.0F, position[2] / 16.0F);
             }
             MLuaRenderHelper.renderBBModelCube(pose, buffers, cube, textures,
-                object.bbmodel.textureWidth(), object.bbmodel.textureHeight(), MLuaRenderHelper.fallbackTexture(), 15728880, 0);
+                object.bbmodel.textureWidth(), object.bbmodel.textureHeight(), MLuaRenderHelper.fallbackTexture(), light, overlay);
             pose.popPose();
         }
     }
@@ -174,6 +183,7 @@ public final class MLuaClientRenderManager {
                 pose.popPose();
                 continue;
             }
+            object.applyFollowOffset(pose);
             pose.translate(object.worldX, object.worldY, object.worldZ);
             if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
             if (object.type == RenderType.MESH && object.mesh != null) {
@@ -181,7 +191,7 @@ public final class MLuaClientRenderManager {
                 MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
                     texture == null ? MLuaRenderHelper.fallbackTexture() : texture, light, overlay);
             } else if (object.bbmodel != null) {
-                renderBBModelWorld(pose, buffers, object);
+                renderBBModelWorld(pose, buffers, object, light, overlay);
             }
             pose.popPose();
         }
@@ -808,6 +818,9 @@ public final class MLuaClientRenderManager {
         private boolean worldSpace = false;
         private boolean entityModelTarget;
         private String followBoneName;
+        private MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
+        private LuaValue followOffsetCallback = LuaValue.NIL;
+        private boolean followOffsetCallbackFailed;
         private double worldX = 0.0;
         private double worldY = 0.0;
         private double worldZ = 0.0;
@@ -864,6 +877,7 @@ public final class MLuaClientRenderManager {
         public boolean scaleWithDistance() { return scaleWithDistance; }
         public MLuaEntityScope followEntityScope() { return followEntityScope; }
         public String followBoneName() { return followBoneName; }
+        public MLuaCFrame followOffset() { return followOffset; }
         public MLuaMeshDefinition mesh() { return mesh; }
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
@@ -938,6 +952,38 @@ public final class MLuaClientRenderManager {
             this.entityModelTarget = true;
             this.worldSpace = true;
         }
+        public void setFollowOffset(MLuaCFrame offset) {
+            if (offset == null) throw new IllegalArgumentException("FollowOffset must be a CFrame");
+            this.followOffset = offset;
+            this.followOffsetCallback = LuaValue.NIL;
+            this.followOffsetCallbackFailed = false;
+        }
+        public void setFollowOffsetCallback(LuaValue callback) {
+            if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("FollowOffset callback must be a function");
+            this.followOffsetCallback = callback;
+            this.followOffsetCallbackFailed = false;
+        }
+        public LuaValue followOffsetValue() { return followOffsetCallback.isfunction() ? followOffsetCallback : followOffset.toLua(); }
+        private void sampleFollowOffset() {
+            if (!followOffsetCallback.isfunction()) return;
+            try {
+                LuaValue result = followOffsetCallback.invoke(LuaValue.NONE).arg1();
+                followOffset = MLuaCFrame.fromLua(result);
+                followOffsetCallbackFailed = false;
+            } catch (RuntimeException failure) {
+                if (!followOffsetCallbackFailed) {
+                    MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; keeping its last valid CFrame", failure);
+                    followOffsetCallbackFailed = true;
+                }
+            }
+        }
+        private void applyFollowOffset(PoseStack pose) {
+            pose.translate(followOffset.x(), followOffset.y(), followOffset.z());
+            double[] angles = followOffset.toEulerAnglesXYZ();
+            pose.mulPose(com.mojang.math.Axis.XP.rotation((float) angles[0]));
+            pose.mulPose(com.mojang.math.Axis.YP.rotation((float) angles[1]));
+            pose.mulPose(com.mojang.math.Axis.ZP.rotation((float) angles[2]));
+        }
 
         private RenderObject copy() {
             RenderObject copy = new RenderObject(id, type, resource);
@@ -953,6 +999,9 @@ public final class MLuaClientRenderManager {
             copy.worldSpace = worldSpace;
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
+            copy.followOffset = followOffset;
+            copy.followOffsetCallback = followOffsetCallback;
+            copy.followOffsetCallbackFailed = followOffsetCallbackFailed;
             copy.worldX = worldX;
             copy.worldY = worldY;
             copy.worldZ = worldZ;
