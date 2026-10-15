@@ -247,7 +247,10 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/mcapi/**'
     exclude 'dev/mlua/minecraft/**'
     exclude 'dev/mlua/module/**'
-    exclude 'dev/mlua/modules/**'
+    exclude { entry ->
+        entry.path.startsWith('dev/mlua/modules/')
+            && entry.path != 'dev/mlua/modules/mixin/Service/FirstPersonItemRendererMixin.class'
+    }
     exclude 'dev/mlua/runtime/**'
     exclude 'dev/mlua/loader/impl/forge/**'
     exclude 'dev/mlua/MLuaMod.java'
