@@ -14,7 +14,7 @@ public class ForgeLoaderProvider implements LoaderApi.LoaderProvider {
     private final ForgeNetworkBridge network;
     private final ForgeConfigBridge config;
     private final ForgeLifecycleBridge lifecycle;
-    private final ForgeClientBridge client;
+    private final ClientBridge client;
 
     public ForgeLoaderProvider() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -26,7 +26,7 @@ public class ForgeLoaderProvider implements LoaderApi.LoaderProvider {
         this.network = new ForgeNetworkBridge();
         this.config = new ForgeConfigBridge();
         this.lifecycle = new ForgeLifecycleBridge(modBus);
-        this.client = new ForgeClientBridge(modBus);
+        this.client = this.platform.isClient() ? new ForgeClientBridge(modBus) : ClientBridge.unavailable();
     }
 
     @Override
