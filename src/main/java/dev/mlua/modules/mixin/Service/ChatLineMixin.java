@@ -41,7 +41,8 @@ public abstract class ChatLineMixin {
     //--version 26.1
     @ModifyVariable(
         method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;"
-            + "Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/GuiMessageTag;)V",
+            + "Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;"
+            + "Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V",
         at = @At("HEAD"),
         argsOnly = true,
         require = 0
