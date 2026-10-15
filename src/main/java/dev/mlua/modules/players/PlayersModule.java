@@ -96,6 +96,7 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLookVector", "Returns the direction this entity is facing.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "LookAt", "Turns this entity toward a finite Vector3, CFrame, or live entity position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a finite Vector3, CFrame, or live entity position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetNearbyEntities", "Returns all entity types within a box expanded around this entity's bounds by a finite, non-negative radius.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsAlive", "Returns whether this entity is alive.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnGround", "Returns whether this entity is on the ground.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsInWater", "Returns whether this entity is in water.");
@@ -288,7 +289,7 @@ public class PlayersModule implements MLuaModule {
             "Adds food exhaustion to this player; server-side only for authoritative changes.");
         for (String method : List.of("GetDisplayName", "SendMessage", "SendTitle", "SendActionBar",
                 "GetEyeCFrame", "GetCameraCFrame", "GiveItem", "ClearInventory", "GiveEffect",
-                "RemoveEffect", "HasEffect", "ClearEffects", "PlaySound", "GetNearbyEntities",
+                "RemoveEffect", "HasEffect", "ClearEffects", "PlaySound",
                 "GetNearbyPlayers", "GetPersistentData", "GetSyncedData",
                 "SetData", "GetData", "RemoveData", "HasPermission", "IsOperator")) {
             String description = switch (method) {
@@ -305,7 +306,6 @@ public class PlayersModule implements MLuaModule {
                 case "HasEffect" -> "Checks whether this player has a potion effect.";
                 case "ClearEffects" -> "Removes all potion effects from this player.";
                 case "PlaySound" -> "Plays a sound for this player.";
-                case "GetNearbyEntities" -> "Returns all entity types within a box expanded around this player's bounds by a finite, non-negative radius.";
                 case "GetNearbyPlayers" -> "Returns other players within a box expanded around this player's bounds by a finite, non-negative radius.";
                 case "GetPersistentData" -> "Returns this player's persistent data.";
                 case "GetSyncedData" -> "Returns this player's synchronized data.";

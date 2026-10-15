@@ -29,6 +29,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetCFrame(value: CFrame)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:LookAt(target: Vector3|CFrame|Entity)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:DistanceTo(target: Vector3|CFrame|Entity)", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetNearbyEntities(radius: number)", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetLevel()", "World"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetDimension()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetLookVector()", "Vector3"));

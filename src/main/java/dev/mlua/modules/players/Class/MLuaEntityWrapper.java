@@ -738,6 +738,18 @@ public final class MLuaEntityWrapper {
       if (!value.isuserdata(net.minecraft.world.entity.Entity.class)) return;
       net.minecraft.world.entity.Entity entity = (net.minecraft.world.entity.Entity)value.touserdata(net.minecraft.world.entity.Entity.class);
       MLuaRegistration registration = MLuaRuntime.registrationForLevel(entity.level());
+      MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Entity:GetNearbyEntities", "radius");
+            net.minecraft.world.phys.AABB bounds = entity.getBoundingBox().inflate(radius);
+            LuaTable nearby = new LuaTable();
+            int index = 1;
+            for (net.minecraft.world.entity.Entity other : entity.level().getEntities(entity, bounds)) {
+               nearby.set(index++, entityTable(other, registration));
+            }
+            return nearby;
+         }
+      });
       MLuaClassMethods.setInstanceMethod(table, "GetVehicle", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             net.minecraft.world.entity.Entity vehicle = entity.getVehicle();
