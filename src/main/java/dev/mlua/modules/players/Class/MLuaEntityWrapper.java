@@ -149,57 +149,7 @@ public final class MLuaEntityWrapper {
       if (cached == null) cache.put(cacheKey, table);
       MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(entity.level(), registration)));
       MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(entity.level().dimension().location().toString())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
-         MCVec3 p = wrapped.getPosition();
-         return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().x())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().y())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().z())));
-      MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
-         double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
-         ((MCEntityImpl)wrapped).inner().setPos(pos[0], pos[1], pos[2]);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg((args) -> {
-         double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
-         ((MCEntityImpl)wrapped).inner().teleportTo(pos[0], pos[1], pos[2]);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
-         MCVec3 v = wrapped.getDeltaMovement();
-         return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         return setVelocity(wrapped, args.arg(2));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot())));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()))));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         double[] rotation = MLuaVector.components2(args.arg(2));
-         applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> cframe(wrapped).toLua()));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
-         MCVec3 look = lookAngle(wrapped);
-         return MLuaPlayerWrapper.positionTable(look.x(), look.y(), look.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetCFrame", varArg((args) -> {
-         MLuaCFrame cf = MLuaCFrame.fromLua(args.arg(2));
-         applyCFrame(wrapped, cf);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         applyRotationArguments(wrapped, args, 2);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
-         double[] target = targetPosition(args.arg(2));
-         MCVec3 p = wrapped.getPosition();
-         applyCFrame(wrapped, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
-         return LuaValue.NONE;
-      }));
+      bindTransformMethods(table, wrapped);
       MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
          ((MCEntityImpl)wrapped).inner().kill();
          return LuaValue.NONE;
@@ -278,30 +228,7 @@ public final class MLuaEntityWrapper {
        table.rawset("__entity", LuaValue.userdataOf(entity));
        attachLivingEntityClass(registration, table);
        if (cached == null) cache.put(cacheKey, table);
-      MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
-         MCVec3 p = wrapped.getPosition();
-         return MLuaPlayerWrapper.positionTable(p.x(), p.y(), p.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().x())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().y())));
-      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(wrapped.getPosition().z())));
-      MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
-         double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
-         ((MCEntityImpl)wrapped).inner().setPos(pos[0], pos[1], pos[2]);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg((args) -> {
-         double[] pos = MLuaPlayerWrapper.positionArgs(args, 2);
-         ((MCEntityImpl)wrapped).inner().teleportTo(pos[0], pos[1], pos[2]);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
-         MCVec3 v = wrapped.getDeltaMovement();
-         return MLuaPlayerWrapper.positionTable(v.x(), v.y(), v.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         return setVelocity(wrapped, args.arg(2));
-      }));
+      bindTransformMethods(table, wrapped);
       MLuaClassMethods.setInstanceMethod(table, "GetHealth", luaFn(() -> {
          return LuaValue.valueOf((double)wrapped.getHealth());
       }));
@@ -398,39 +325,6 @@ public final class MLuaEntityWrapper {
             return LuaValue.NONE;
          }));
       }
-      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> {
-         return MLuaVector.vector2((double)wrapped.getXRot(), (double)wrapped.getYRot());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> {
-         return MLuaVector.vector2(Math.toRadians((double)wrapped.getXRot()), Math.toRadians((double)wrapped.getYRot()));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         double[] rotation = MLuaVector.components2(args.arg(2));
-         applyRotation(wrapped, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> {
-         return cframe(wrapped).toLua();
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
-         MCVec3 look = lookAngle(wrapped);
-         return MLuaPlayerWrapper.positionTable(look.x(), look.y(), look.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetCFrame", varArg((args) -> {
-         MLuaCFrame cf = MLuaCFrame.fromLua(args.arg(2));
-         applyCFrame(wrapped, cf);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         applyRotationArguments(wrapped, args, 2);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
-         double[] target = targetPosition(args.arg(2));
-         MCVec3 p = wrapped.getPosition();
-         applyCFrame(wrapped, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
-         return LuaValue.NONE;
-      }));
       MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
          ((MCEntityImpl)wrapped).inner().kill();
          return LuaValue.NONE;
@@ -974,6 +868,59 @@ public final class MLuaEntityWrapper {
 
    public static MCVec3 position(MCEntity entity) {
       return entity.getPosition();
+   }
+
+   private static void bindTransformMethods(LuaTable table, MCEntity entity) {
+      MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
+         MCVec3 position = entity.getPosition();
+         return MLuaPlayerWrapper.positionTable(position.x(), position.y(), position.z());
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionX", luaFn(() -> LuaValue.valueOf(entity.getPosition().x())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionY", luaFn(() -> LuaValue.valueOf(entity.getPosition().y())));
+      MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(entity.getPosition().z())));
+      MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg(args -> {
+         double[] position = MLuaPlayerWrapper.positionArgs(args, 2);
+         ((MCEntityImpl)entity).inner().setPos(position[0], position[1], position[2]);
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg(args -> {
+         double[] position = MLuaPlayerWrapper.positionArgs(args, 2);
+         ((MCEntityImpl)entity).inner().teleportTo(position[0], position[1], position[2]);
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
+         MCVec3 velocity = entity.getDeltaMovement();
+         return MLuaPlayerWrapper.positionTable(velocity.x(), velocity.y(), velocity.z());
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg(args -> setVelocity(entity, args.arg(2))));
+      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() ->
+         MLuaVector.vector2((double)entity.getXRot(), (double)entity.getYRot())));
+      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() ->
+         MLuaVector.vector2(Math.toRadians((double)entity.getXRot()), Math.toRadians((double)entity.getYRot()))));
+      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg(args -> {
+         double[] rotation = MLuaVector.components2(args.arg(2));
+         applyRotation(entity, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> cframe(entity).toLua()));
+      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
+         MCVec3 look = lookAngle(entity);
+         return MLuaPlayerWrapper.positionTable(look.x(), look.y(), look.z());
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "SetCFrame", varArg(args -> {
+         applyCFrame(entity, MLuaCFrame.fromLua(args.arg(2)));
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg(args -> {
+         applyRotationArguments(entity, args, 2);
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg(args -> {
+         double[] target = targetPosition(args.arg(2));
+         MCVec3 position = entity.getPosition();
+         applyCFrame(entity, MLuaCFrame.lookAt(position.x(), position.y(), position.z(), target[0], target[1], target[2]));
+         return LuaValue.NONE;
+      }));
    }
 
    public static LuaValue setVelocity(MCEntity entity, LuaValue value) {
