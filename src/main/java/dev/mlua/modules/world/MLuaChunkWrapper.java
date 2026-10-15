@@ -175,17 +175,24 @@ public final class MLuaChunkWrapper {
             int valueIndex = 2 + coordinateWidth(args, 2);
             LuaValue blockValue = args.arg(valueIndex);
             BlockState state;
+            int updateFlagsIndex;
             if (registration.isInstanceOf(blockValue, "BlockState")) {
                 state = MLuaBlockStateWrapper.blockStateFromLua(blockValue, registration);
+                updateFlagsIndex = valueIndex + 1;
             } else {
                 String id = blockValue.checkjstring();
                 Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
                 if (block == null) throw new LuaError("[MLua] Unknown block: " + id);
                 LuaValue properties = args.arg(valueIndex + 1);
-                state = MLuaBlockStateProperties.apply(block.defaultBlockState(), properties);
+                if (!properties.isnil() && !properties.istable() && !properties.isnumber()) {
+                    throw new LuaError("[MLua] Chunk:SetBlockAt expects a property table followed by optional update flags.");
+                }
+                state = MLuaBlockStateProperties.apply(block.defaultBlockState(), properties.istable() ? properties : LuaValue.NIL);
+                updateFlagsIndex = properties.istable() ? valueIndex + 2 : valueIndex + 1;
             }
             if (!ensureLoaded(server, args.arg1())) return LuaValue.FALSE;
-            return LuaValue.valueOf(server.setBlock(pos, state, 3));
+            int updateFlags = args.arg(updateFlagsIndex).isnil() ? 3 : args.arg(updateFlagsIndex).checkint();
+            return LuaValue.valueOf(server.setBlock(pos, state, updateFlags));
         });
         bind(chunk, "GetEntities", args -> {
             Level world = level(args.arg1());

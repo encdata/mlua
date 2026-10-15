@@ -459,14 +459,20 @@ public final class MLuaWorldService extends MLuaServiceBase {
             state = block.defaultBlockState();
          }
          LuaValue propertiesArg = args.arg(blockIndex + 1);
-         if (!propertiesArg.isnil() && !propertiesArg.istable() && !propertiesArg.isboolean()) {
-            throw new LuaError("[MLua] World:SetBlock properties must be a table when provided.");
+         if (!propertiesArg.isnil() && !propertiesArg.istable() && !propertiesArg.isboolean() && !propertiesArg.isnumber()) {
+            throw new LuaError("[MLua] World:SetBlock expects block properties, a loadChunk boolean, or update flags after the block.");
          }
          LuaValue properties = propertiesArg.istable() ? propertiesArg : LuaValue.NIL;
          int loadIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 2;
-         if (!ensureChunkLoaded(level, blockPos,
-            MLuaLuaArguments.optionalBoolean(args, loadIndex, true, "World:SetBlock", "loadChunk"))) return LuaValue.FALSE;
-         return LuaValue.valueOf(level.setBlock(blockPos, MLuaBlockStateProperties.apply(state, properties), 3));
+         int flagsIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 3;
+         if (properties.isnil() && propertiesArg.isboolean()) flagsIndex = blockIndex + 2;
+         boolean loadChunk = properties.isnil()
+            ? (!propertiesArg.isboolean() || propertiesArg.toboolean())
+            : MLuaLuaArguments.optionalBoolean(args, loadIndex, true, "World:SetBlock", "loadChunk");
+         if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
+         int updateFlags = args.arg(flagsIndex).isnil() || args.arg(flagsIndex).isboolean()
+            ? 3 : args.arg(flagsIndex).checkint();
+         return LuaValue.valueOf(level.setBlock(blockPos, MLuaBlockStateProperties.apply(state, properties), updateFlags));
       }));
       table.set("SetBlockState", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
@@ -474,9 +480,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int stateIndex = 2 + coordinateWidth(args, 2);
          net.minecraft.world.level.block.state.BlockState state =
             MLuaBlockStateWrapper.blockStateFromLua(args.arg(stateIndex), context.mlua().registration());
-         if (!ensureChunkLoaded(level, blockPos,
-            MLuaLuaArguments.optionalBoolean(args, stateIndex + 1, true, "World:SetBlockState", "loadChunk"))) return LuaValue.FALSE;
-         return LuaValue.valueOf(level.setBlock(blockPos, state, 3));
+         LuaValue loadOrFlags = args.arg(stateIndex + 1);
+         boolean loadChunk = !loadOrFlags.isboolean() || loadOrFlags.toboolean();
+         if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
+         int flagsIndex = loadOrFlags.isboolean() ? stateIndex + 2 : stateIndex + 1;
+         int updateFlags = args.arg(flagsIndex).isnil() ? 3 : args.arg(flagsIndex).checkint();
+         return LuaValue.valueOf(level.setBlock(blockPos, state, updateFlags));
       }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);

@@ -41,7 +41,7 @@ public class WorldModule implements MLuaModule {
         Map.entry("GetLightAt", "Loads this chunk if needed and returns the raw local light level at a world position inside it."),
         Map.entry("GetHeightAt", "Loads this chunk if needed and returns the first free Y coordinate above the selected heightmap at a world X/Z position."),
         Map.entry("GetTopBlockAt", "Loads this chunk if needed and returns the live Block immediately below the selected heightmap's first free Y position."),
-        Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block id with optional properties or an existing BlockState at a world position. Server-side only."),
+        Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block id with optional properties or an existing BlockState at a world position. Optional Minecraft update flags default to 3. Server-side only."),
         Map.entry("GetEntities", "Loads this chunk if needed and returns its live entities."),
         Map.entry("GetBlockEntities", "Loads this chunk if needed and returns its live registered BlockEntity instances.")
     );
@@ -224,7 +224,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetBlock", "Returns the live block instance at a position."),
             Map.entry("GetBlockEntity", "Returns the live block entity at a position, or nil."),
             Map.entry("GetBlockState", "Returns a BlockState instance with the block type, position, and current state properties."),
-            Map.entry("SetBlockState", "Places an immutable BlockState at a position, loading its chunk by default. This method is server-side only."),
+            Map.entry("SetBlockState", "Places an immutable BlockState at a position, loading its chunk by default. Optional Minecraft update flags default to 3. This method is server-side only."),
             Map.entry("GetFluid", "Returns the fluid identifier at a position, or nil when empty."),
             Map.entry("GetFluidState", "Returns the live position-aware FluidState at a position."),
             Map.entry("GetBiome", "Returns the biome identifier at a position."),
@@ -251,7 +251,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("FindNearestPlayer", "Returns the nearest player to a position, or nil."),
             Map.entry("GetNearestPlayer", "Returns the nearest player to a position, or nil."),
             Map.entry("FindNearestEntity", "Returns the nearest matching entity to a position, or nil."),
-            Map.entry("SetBlock", "Sets a block from its registry identifier or a typed BlockState, with optional state properties. Loads its chunk by default and returns whether Minecraft changed the block. This method is server-side only."),
+            Map.entry("SetBlock", "Sets a block from its registry identifier or a typed BlockState, with optional state properties and Minecraft update flags (default 3). Loads its chunk by default and returns whether Minecraft changed the block. This method is server-side only."),
             Map.entry("BreakBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("DestroyBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("PlaySound", "Plays a sound at a position. Volume and pitch default to one and must be finite and non-negative; this method is server-side only."),
@@ -335,11 +335,13 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:ForceLoadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]"));
-        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, block: string|BlockState, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, block: string|BlockState, loadChunk: boolean)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, block: string|BlockState, properties: BlockStateProperties?, loadChunk: boolean?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, block: string|BlockState, loadChunk: boolean, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlock(position: Vector3|CFrame, block: string|BlockState, updateFlags: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?)", "BlockRaycastResult?"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetBlockState(position: Vector3|CFrame)", "BlockState"));
-        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, loadChunk: boolean?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetBlockState(position: Vector3|CFrame, state: BlockState, updateFlags: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetFluidState(position: Vector3|CFrame)", "FluidState"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetId()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetBlock()", "Block"));
@@ -405,8 +407,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetLightAt(position: Vector3|CFrame)", "number?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetHeightAt(position: Vector3|CFrame, heightmap: string?)", "number?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetTopBlockAt(position: Vector3|CFrame, heightmap: string?)", "Block?"));
-        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, state: BlockState)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, state: BlockState, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetEntities()", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBlockEntities()", "BlockEntity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:Get(dimensionId: string)", "World?"));
@@ -427,7 +429,9 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:ForceLoadChunk(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:IsChunkForced(coordinates: Vector2|Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetEntitiesInChunk(coordinates: Vector2|Vector3|CFrame, loadChunk: boolean?)", "Entity[]"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, loadChunk: boolean)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, properties: BlockStateProperties?, loadChunk: boolean?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, loadChunk: boolean, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, updateFlags: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:GetBlockEntity(position: Vector3|CFrame)", "BlockEntity?"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:CanSeeSky(position: Vector3|CFrame)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:IsRaining()", "boolean"));
@@ -448,7 +452,6 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetSkyLight(position: Vector3|CFrame)", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBlockLight(position: Vector3|CFrame)", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBlockInventory(position: Vector3|CFrame)", "Container?"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetBlock(position: Vector3|CFrame, block: string|BlockState, properties: BlockStateProperties?, loadChunk: boolean?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.type("BlockStateProperties", null, "Property names and values supported by the selected Minecraft block. Values are strings, numbers, or booleans and are validated against that block's state definition."));
         docs.register(MLuaDocBuilder.Registration.field("BlockStateProperties", "*", "string|number|boolean", "A block state property, such as facing = \"north\" or waterlogged = false."));
         docs.register(MLuaDocBuilder.Registration.type("GameRuleList", null, "ListGameRules returns numeric entries containing Name and Value, plus direct lookup by gamerule name. Gamerule changes and reads require a server World."));
@@ -558,8 +561,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("World", "world.SpawnPosition", "Vector3", "This world's shared spawn position; assign a native Vector3 or CFrame to change it on the server.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.service("World", "MLuaWorldService", "Provides live world instances for loaded dimensions.", "services/world.html"));
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Load and edit chunks in a dimension",
-            "Each World instance is one dimension. Vector2 means chunk coordinates (X, Z); Vector3 and CFrame select the chunk containing a block position. GetChunk returns a live Chunk handle without loading it. Data methods load that chunk when called. Chunk:GetHeightAt returns the first free Y value, and Chunk:GetTopBlockAt returns the live registered Block instance below it. Both accept a Minecraft heightmap name, defaulting to MOTION_BLOCKING. SetBlock and SetBlockAt accept an optional property table for states such as stair facing and waterlogging, or a typed BlockState. Property names and values follow the block's Minecraft state definition. LoadChunk loads immediately; ForceLoad adds a persistent ticket, while Unload removes that ticket and lets Minecraft decide when to unload.",
-            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal coordinates = Vector2.new(2, -1)\nlocal blockPosition = Vector3.new(32, 70, -16)\nlocal chunk = nether:GetChunk(coordinates)\n\nchunk:SetBlockAt(blockPosition, \"minecraft:oak_stairs\", { facing = \"north\", half = \"bottom\", waterlogged = false })\nlocal state = chunk:GetBlockStateAt(blockPosition)\nlocal fluidState = chunk:GetFluidStateAt(blockPosition)\nif state then\n    chunk:SetBlockAt(blockPosition, state)\nend\nlocal biome = chunk:GetBiomeAt(blockPosition)\nlocal fluid = chunk:GetFluidAt(blockPosition)\nlocal loaded = nether:LoadChunk(coordinates)\nprint(loaded.Loaded, loaded.Position, biome, fluid, fluidState.Id)\n\nchunk:ForceLoad()\nprint(chunk.Forced)\nchunk:Unload()"));
+            "Each World instance is one dimension. Vector2 means chunk coordinates (X, Z); Vector3 and CFrame select the chunk containing a block position. GetChunk returns a live Chunk handle without loading it. Data methods load that chunk when called. Chunk:GetHeightAt returns the first free Y value, and Chunk:GetTopBlockAt returns the live registered Block instance below it. Both accept a Minecraft heightmap name, defaulting to MOTION_BLOCKING. SetBlock and SetBlockAt accept an optional property table for states such as stair facing and waterlogging, or a typed BlockState. Both also accept Minecraft block update flags, defaulting to 3. Property names and values follow the block's Minecraft state definition. LoadChunk loads immediately; ForceLoad adds a persistent ticket, while Unload removes that ticket and lets Minecraft decide when to unload.",
+            "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal coordinates = Vector2.new(2, -1)\nlocal blockPosition = Vector3.new(32, 70, -16)\nlocal chunk = nether:GetChunk(coordinates)\n\nchunk:SetBlockAt(blockPosition, \"minecraft:oak_stairs\", { facing = \"north\", half = \"bottom\", waterlogged = false }, 3)\nlocal state = chunk:GetBlockStateAt(blockPosition)\nlocal fluidState = chunk:GetFluidStateAt(blockPosition)\nif state then\n    chunk:SetBlockAt(blockPosition, state, 3)\nend\nlocal biome = chunk:GetBiomeAt(blockPosition)\nlocal fluid = chunk:GetFluidAt(blockPosition)\nlocal loaded = nether:LoadChunk(coordinates)\nprint(loaded.Loaded, loaded.Position, biome, fluid, fluidState.Id)\n\nchunk:ForceLoad()\nprint(chunk.Forced)\nchunk:Unload()"));
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Find and remove entities in a chunk",
             "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances, so use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
             "local worlds = Minecraft:GetService(\"World\")\nlocal world = worlds:Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = Minecraft:GetService(\"EntityService\"):Spawn(\"minecraft:zombie\", position, world)"));
