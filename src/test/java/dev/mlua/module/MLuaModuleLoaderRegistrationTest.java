@@ -161,7 +161,7 @@ final class MLuaModuleLoaderRegistrationTest {
             @Override public Side side() { return Side.BOTH; }
             @Override public void registerClasses(MLuaRegistration registration) {
                 phases.add(id + ":classes");
-                registration.registerClass(className, null, "A class used by the registration fixture.");
+                registration.registerClass(className, "Service", "Service used by the registration fixture.");
             }
             @Override public List<ServiceEntry> services() {
                 return List.of(new ServiceEntry(service, className, context -> null,

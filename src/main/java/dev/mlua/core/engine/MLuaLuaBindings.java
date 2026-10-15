@@ -726,7 +726,7 @@ public final class MLuaLuaBindings {
          } catch (RuntimeException failure) {
             throw new LuaError(new RuntimeException("[MLua] Could not materialize service '" + serviceName
                + "' for mod '" + context.ownerModId() + "' on " + context.side()
-               + " scripts during " + context.phase(), failure));
+               + " scripts during " + context.phase() + ": " + failure.getMessage(), failure));
          }
       });
    }

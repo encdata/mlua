@@ -18,12 +18,17 @@ import dev.mlua.modules.javabridge.JavaModule;
 import dev.mlua.modules.coregui.Service.MLuaGuiService;
 import dev.mlua.modules.modal.Service.MLuaModalService;
 import dev.mlua.minecraft.ui.element.ScreenGui;
+import dev.mlua.loaderapi.LoaderApi;
+import dev.mlua.loaderapi.JavaClassBridge;
+import dev.mlua.common.mixin.MLuaMappingResolver;
 import java.nio.file.Path;
 import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.io.TempDir;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.Globals;
@@ -38,6 +43,28 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class MLuaRuntimeIntegrationTest {
+    @BeforeAll
+    static void installLoaderBridgeForJavaServiceTests() {
+        LoaderApi.install((LoaderApi.LoaderProvider) Proxy.newProxyInstance(
+            LoaderApi.LoaderProvider.class.getClassLoader(), new Class<?>[]{LoaderApi.LoaderProvider.class},
+            (proxy, method, args) -> switch (method.getName()) {
+                case "mappings" -> new MLuaMappingResolver() {
+                    @Override public String loaderId() { return "test"; }
+                };
+                case "javaClasses" -> (JavaClassBridge) (canonicalName, preferredLoaders) -> {
+                    if (preferredLoaders != null) for (ClassLoader loader : preferredLoaders) {
+                        if (loader == null) continue;
+                        try { return Class.forName(canonicalName, false, loader); }
+                        catch (ClassNotFoundException ignored) { }
+                    }
+                    try { return Class.forName(canonicalName, false, ClassLoader.getSystemClassLoader()); }
+                    catch (ClassNotFoundException ignored) { return null; }
+                };
+                default -> null;
+            }
+        ));
+    }
+
     @TempDir
     Path temp;
 
@@ -53,7 +80,7 @@ final class MLuaRuntimeIntegrationTest {
         MLuaScript main = script("mlua", ScriptType.SERVER, "base_registration.server.lua", "base_registration", """
                 local service = Minecraft:GetService("BaseProbe")
                 assert(service.Value == "registered")
-                return { service:GetValue(), BasePlayer.ClassName }
+                return { service:GetValue(), Classes.BasePlayer.ClassName }
                 """);
         MLuaContext context = context(base, main, Side.SERVER);
 
@@ -387,8 +414,8 @@ final class MLuaRuntimeIntegrationTest {
         services.register("SideService", Side.CLIENT, context -> new NamedService("client"),
             "Side-specific test service.", java.util.Map.of("Probe", "Returns the fixture probe value."));
 
-        assertEquals("server", services.create("SideService", context(main, Side.SERVER, services, new MLuaTaskScheduler())).name());
-        assertEquals("client", services.create("SideService", context(main, Side.CLIENT, services, new MLuaTaskScheduler())).name());
+        assertEquals("server", services.create("SideService", context(main, Side.SERVER, services, new MLuaTaskScheduler())).toLua().get("Value").tojstring());
+        assertEquals("client", services.create("SideService", context(main, Side.CLIENT, services, new MLuaTaskScheduler())).toLua().get("Value").tojstring());
     }
 
     private int executeAs(LuaJEngineBackend engine, MLuaScript script, Side side, MLuaTaskScheduler scheduler) {
@@ -567,12 +594,12 @@ final class MLuaRuntimeIntegrationTest {
 
                 run_server = function(ctx)
                     state.server = state.server + 1
-                    state.lastServerSide = ctx:GetSide()
+                    state.lastServerSide = ctx.Minecraft:GetSide()
                 end
 
                 run_client = function(ctx)
                     state.client = state.client + 1
-                    state.lastClientSide = ctx:GetSide()
+                    state.lastClientSide = ctx.Minecraft:GetSide()
                 end
 
                 return state
@@ -1052,8 +1079,13 @@ final class MLuaRuntimeIntegrationTest {
         }
     }
 
-    private record NamedService(String name) implements MLuaService {
-        @Override public LuaTable toLua() { return new LuaTable(); }
+    private record NamedService(String value) implements MLuaService {
+        @Override public String name() { return "SideService"; }
+        @Override public LuaTable toLua() {
+            LuaTable table = new LuaTable();
+            table.set("Value", value);
+            return table;
+        }
     }
 
     public static final class JavaBridgeFixture {

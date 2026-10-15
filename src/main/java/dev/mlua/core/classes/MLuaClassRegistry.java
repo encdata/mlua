@@ -1229,6 +1229,29 @@ public final class MLuaClassRegistry {
                   if (!meta.rawget("__mlua_service_instance").istable() && serviceResolver.isfunction()) {
                      serviceResolver.invoke(args.arg1());
                   }
+                  LuaValue serviceDispatchers = classTable.rawget("__mlua_service_dispatchers");
+                  if (classTable.rawget("__mlua_service_class").toboolean()
+                     && serviceDispatchers.istable()
+                     && serviceDispatchers.checktable().rawget(key).toboolean()) {
+                     LuaValue dispatcher = inherited;
+                     LuaTable boundInstance = args.arg1().checktable();
+                     String serviceName = classTable.rawget("__mlua_service_name").optjstring("");
+                     return new VarArgFunction() {
+                        @Override
+                        public Varargs invoke(Varargs callArgs) {
+                           LuaValue first = callArgs.arg1();
+                           if (first == boundInstance || isServiceReceiver(first, className, serviceName)) {
+                              return dispatcher.invoke(callArgs);
+                           }
+                           LuaValue[] withReceiver = new LuaValue[callArgs.narg() + 1];
+                           withReceiver[0] = boundInstance;
+                           for (int index = 1; index < withReceiver.length; index++) {
+                              withReceiver[index] = callArgs.arg(index);
+                           }
+                           return dispatcher.invoke(LuaValue.varargsOf(withReceiver));
+                        }
+                     };
+                  }
                }
                return inherited;
             }
@@ -1288,6 +1311,16 @@ public final class MLuaClassRegistry {
             return LuaValue.NONE;
          }
       });
+   }
+
+   private static boolean isServiceReceiver(LuaValue value, String className, String serviceName) {
+      if (!value.istable()) return false;
+      LuaValue metaValue = value.getmetatable();
+      if (!metaValue.istable()) return false;
+      LuaTable meta = metaValue.checktable();
+      if (serviceName.equals(meta.rawget("__mlua_service_name").optjstring(""))) return true;
+      LuaValue type = value.rawget("__type");
+      return type.isstring() && className.equals(type.tojstring());
    }
 
    private void refreshParentLookup(LuaTable classTable, String className) {

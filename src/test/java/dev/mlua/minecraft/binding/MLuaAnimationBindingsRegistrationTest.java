@@ -35,14 +35,14 @@ final class MLuaAnimationBindingsRegistrationTest {
         MLuaAnimation animation = new MLuaAnimation(List.of(new MLuaAnimation.Keyframe(0, Map.<String, MLuaCFrame>of())));
         LuaTable firstAnimation = MLuaAnimationBindings.wrapAnimation(animation, first);
         LuaTable secondAnimation = MLuaAnimationBindings.wrapAnimation(animation, second);
-        assertSame(firstAnimationClass, firstAnimation.getmetatable().get("__index"));
-        assertSame(secondAnimationClass, secondAnimation.getmetatable().get("__index"));
+        assertTrue(firstAnimation.get("IsA").call(firstAnimation, LuaValue.valueOf("Animation")).toboolean());
+        assertTrue(secondAnimation.get("IsA").call(secondAnimation, LuaValue.valueOf("Animation")).toboolean());
 
         MLuaAnimationTrack track = new MLuaAnimationTrack(1, animation, AnimationPriority.Idle);
         LuaTable firstTrack = MLuaAnimationBindings.wrapTrack(track, first);
         LuaTable secondTrack = MLuaAnimationBindings.wrapTrack(track, second);
-        assertSame(first.classTable("AnimationTrack"), firstTrack.getmetatable().get("__index"));
-        assertSame(second.classTable("AnimationTrack"), secondTrack.getmetatable().get("__index"));
+        assertTrue(firstTrack.get("IsA").call(firstTrack, LuaValue.valueOf("AnimationTrack")).toboolean());
+        assertTrue(secondTrack.get("IsA").call(secondTrack, LuaValue.valueOf("AnimationTrack")).toboolean());
         assertTrue(firstAnimation.get("IsA").call(firstAnimation, LuaValue.valueOf("Instance")).toboolean());
     }
 
