@@ -46,7 +46,19 @@ public final class MLuaLuaArguments {
 
     public static float optionalFiniteFloat(Varargs args, int index, float fallback,
                                             String method, String parameter) {
-        double number = optionalFiniteNumber(args, index, fallback, method, parameter);
+        if (args.arg(index).isnil()) return fallback;
+        return finiteFloat(args, index, method, parameter);
+    }
+
+    public static float finiteFloat(Varargs args, int index, String method, String parameter) {
+        LuaValue value = args.arg(index);
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a number.");
+        }
+        double number = value.todouble();
+        if (!Double.isFinite(number)) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be finite.");
+        }
         float converted = (float)number;
         if (!Float.isFinite(converted)) {
             throw new LuaError("[MLua] " + method + " " + parameter + " exceeds the supported range.");

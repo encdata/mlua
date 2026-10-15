@@ -807,7 +807,8 @@ public final class MLuaEntityWrapper {
       });
       MLuaClassMethods.setInstanceMethod(table, "SetFallDistance", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
-            entity.fallDistance = Math.max(0.0F, (float)args.checkdouble(2));
+            float distance = MLuaLuaArguments.finiteFloat(args, 2, "Entity:SetFallDistance", "distance");
+            entity.fallDistance = Math.max(0.0F, distance);
             return LuaValue.NONE;
          }
       });
@@ -858,7 +859,11 @@ public final class MLuaEntityWrapper {
          @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(entity.getRemainingFireTicks()); }
       });
       MLuaClassMethods.setInstanceMethod(table, "SetFireTicks", new VarArgFunction() {
-         @Override public Varargs invoke(Varargs args) { entity.setRemainingFireTicks(Math.max(0, args.checkint(2))); return LuaValue.NONE; }
+         @Override public Varargs invoke(Varargs args) {
+            int ticks = MLuaLuaArguments.wholeInt(args, 2, "Entity:SetFireTicks", "ticks");
+            entity.setRemainingFireTicks(Math.max(0, ticks));
+            return LuaValue.NONE;
+         }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetEyePosition", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
