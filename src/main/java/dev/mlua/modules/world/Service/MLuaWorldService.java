@@ -445,11 +445,18 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("SetBlock", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          int blockIndex = 2 + coordinateWidth(args, 2);
-         String blockId = args.checkjstring(blockIndex);
          BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
-         Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(blockId)).orElse(null);
-         if (block == null) {
-            throw new LuaError("[MLua] Unknown block: " + blockId);
+         LuaValue blockValue = args.arg(blockIndex);
+         net.minecraft.world.level.block.state.BlockState state;
+         if (context.mlua().registration().isInstanceOf(blockValue, "BlockState")) {
+            state = MLuaBlockStateWrapper.blockStateFromLua(blockValue, context.mlua().registration());
+         } else {
+            String blockId = blockValue.checkjstring();
+            Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(blockId)).orElse(null);
+            if (block == null) {
+               throw new LuaError("[MLua] Unknown block: " + blockId);
+            }
+            state = block.defaultBlockState();
          }
          LuaValue propertiesArg = args.arg(blockIndex + 1);
          if (!propertiesArg.isnil() && !propertiesArg.istable() && !propertiesArg.isboolean()) {
@@ -459,8 +466,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int loadIndex = properties.isnil() ? blockIndex + 1 : blockIndex + 2;
          if (!ensureChunkLoaded(level, blockPos,
             MLuaLuaArguments.optionalBoolean(args, loadIndex, true, "World:SetBlock", "loadChunk"))) return LuaValue.FALSE;
-         level.setBlock(blockPos, MLuaBlockStateProperties.apply(block.defaultBlockState(), properties), 3);
-         return LuaValue.TRUE;
+         return LuaValue.valueOf(level.setBlock(blockPos, MLuaBlockStateProperties.apply(state, properties), 3));
       }));
       table.set("SetBlockState", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
