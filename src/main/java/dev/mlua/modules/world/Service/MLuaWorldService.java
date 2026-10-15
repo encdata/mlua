@@ -845,10 +845,23 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private LuaTable gameRuleEntry(Level level, String name, GameRules.Key<?> key) {
-      LuaTable entry = this.context.mlua().registration().createClassInstance("GameRuleEntry");
-      entry.set("Name", LuaValue.valueOf(name));
-      entry.set("Value", gameRuleValue(level.getGameRules(), key));
-      return entry;
+      LuaTable fields = new LuaTable();
+      fields.set("Name", LuaValue.valueOf(name));
+      fields.set("__mlua_get_game_rule_value", new org.luaj.vm2.lib.ZeroArgFunction() {
+         @Override public LuaValue call() {
+            return gameRuleValue(level.getGameRules(), key);
+         }
+      });
+      fields.set("__mlua_set_game_rule_value", new org.luaj.vm2.lib.OneArgFunction() {
+         @Override public LuaValue call(LuaValue value) {
+            if (!(level instanceof ServerLevel serverLevel)) {
+               throw new LuaError("[MLua] GameRuleEntry values can only be changed on the server.");
+            }
+            setGameRule(serverLevel, name, value);
+            return LuaValue.NONE;
+         }
+      });
+      return this.context.mlua().registration().createClassInstance("GameRuleEntry", fields);
    }
 
    private LuaValue getGameRule(Level level, String name) {
