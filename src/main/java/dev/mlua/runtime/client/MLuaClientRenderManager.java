@@ -36,11 +36,16 @@ public final class MLuaClientRenderManager {
     private static final ConcurrentHashMap<MLuaEntityScope, java.util.Set<Integer>> ENTITY_MODELS = new ConcurrentHashMap<>();
     private static final MLuaEmbeddedTextureRegistry EMBEDDED_TEXTURES = new MLuaEmbeddedTextureRegistry();
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
+    private static boolean animationClockRegistered;
 
     private MLuaClientRenderManager() {
     }
 
     public static void registerOverlay() {
+        if (!animationClockRegistered) {
+            animationClockRegistered = true;
+            dev.mlua.loaderapi.LoaderApi.lifecycle().onClientTickEnd(MLuaClientRenderManager::tickAnimations);
+        }
         dev.mlua.loaderapi.LoaderApi.client().registerOverlay("mlua_render_service", obj -> {
             if (!(obj instanceof GuiGraphics graphics)) {
                 return;
@@ -48,6 +53,12 @@ public final class MLuaClientRenderManager {
             renderAll(graphics);
         });
         dev.mlua.loaderapi.LoaderApi.client().registerWorldRenderer(MLuaClientRenderManager::renderWorldContext);
+    }
+
+    private static void tickAnimations() {
+        for (RenderObject object : OBJECTS.values()) {
+            if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
+        }
     }
 
     private static void renderWorldContext(Object context) {
@@ -113,7 +124,6 @@ public final class MLuaClientRenderManager {
     }
 
     private static void renderBBModelWorld(PoseStack pose, MultiBufferSource buffers, RenderObject object) {
-        object.animationPlayer.tick(1.0F / 60.0F, object.bbmodel);
         List<ResourceLocation> textures = new ArrayList<>();
         for (int index = 0; index < object.bbmodel.textures().size(); index++) {
             ResourceLocation embedded = index < object.resolvedTextures.size() ? object.resolvedTextures.get(index) : null;
@@ -489,7 +499,6 @@ public final class MLuaClientRenderManager {
 
     private static boolean renderBBModel(GuiGraphics graphics, RenderObject object) {
         try {
-            object.animationPlayer.tick(1.0F / 60.0F, object.bbmodel);
             Object rawBuffer = graphics.getClass().getMethod("bufferSource").invoke(graphics);
             if (!(rawBuffer instanceof MultiBufferSource buffer)) return false;
             PoseStack pose = graphics.pose();

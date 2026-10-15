@@ -19,14 +19,25 @@ public final class MLuaClientRenderManager {
     private static final ConcurrentHashMap<Integer, RenderObject> OBJECTS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<MLuaEntityScope, java.util.Set<Integer>> ENTITY_MODELS = new ConcurrentHashMap<>();
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
+    private static boolean animationClockRegistered;
 
     private MLuaClientRenderManager() {
     }
 
     public static void registerOverlay() {
+        if (!animationClockRegistered) {
+            animationClockRegistered = true;
+            LoaderApi.lifecycle().onClientTickEnd(MLuaClientRenderManager::tickAnimations);
+        }
         LoaderApi.client().registerOverlay("mlua_render_service", graphics -> {
             if (graphics instanceof GuiGraphicsExtractor extractor) renderOverlayObjects(extractor);
         });
+    }
+
+    private static void tickAnimations() {
+        for (RenderObject object : OBJECTS.values()) {
+            if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
+        }
     }
 
     private static void renderOverlayObjects(GuiGraphicsExtractor graphics) {
