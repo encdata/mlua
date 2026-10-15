@@ -34,6 +34,10 @@ public final class FabricLifecycleWiring {
         });
     }
 
+    public static void wireClient(FabricLifecycleBridge bridge) {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> bridge.fireClientTickEnd());
+    }
+
     public static void wireRender(FabricLifecycleBridge bridge) {
         long[] previousFrameNanos = {System.nanoTime()};
         WorldRenderEvents.START.register(context -> {

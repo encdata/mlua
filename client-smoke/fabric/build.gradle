@@ -40,7 +40,8 @@ dependencies {
     add(modDependencyConfiguration, fabricLoader)
     add(modDependencyConfiguration, fabricApi)
 
-    def mluaCompileJars = files('compile-libs/mlua.jar', 'compile-libs/mlua-runtime.jar')
+    // Fabric packages the runtime classes directly in the outer MLua JAR.
+    def mluaCompileJars = files('compile-libs/mlua.jar')
     if (targetMinecraftVersion.startsWith('26.')) {
         compileOnly mluaCompileJars
     } else {

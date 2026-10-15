@@ -11,6 +11,7 @@ public final class MLuaFabricClientMod implements ClientModInitializer {
     public void onInitializeClient() {
         FabricLoaderProvider provider = MLuaFabricMod.provider();
         provider.initializeClient();
+        FabricLifecycleWiring.wireClient(provider.fabricLifecycle());
         FabricLifecycleWiring.wireRender(provider.fabricLifecycle());
         FabricClientWiring.wire(provider.fabricClient());
         FabricNetworkWiring.wireClient(provider.fabricNetwork());

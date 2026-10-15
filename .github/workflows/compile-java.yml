@@ -288,6 +288,7 @@ jobs:
             -TimeoutSeconds 480
 
       - name: Boot dedicated server with the packaged MLua JAR
+        if: ${{ always() && !cancelled() }}
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |

@@ -11,6 +11,9 @@ import net.minecraft.server.MinecraftServer;
 
 public final class FabricLifecycleWiring {
     private FabricLifecycleWiring() {}
+    public static void wireClient(FabricLifecycleBridge bridge) {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> bridge.fireClientTickEnd());
+    }
     public static void wire(FabricLifecycleBridge bridge) {
         ServerLifecycleEvents.SERVER_STARTED.register((MinecraftServer server) -> bridge.fireServerStarted(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(bridge::fireServerStopping);
