@@ -4,7 +4,6 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.common.mixin.MLuaClassViewer;
-import dev.mlua.loaderapi.LoaderApi;
 import java.lang.reflect.Array;
 import java.lang.reflect.Member;
 import java.lang.reflect.Constructor;
@@ -47,7 +46,7 @@ import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 public final class MLuaJavaService extends MLuaServiceBase {
     private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
     private final Object javaProxyMarker = new Object();
-    private final Map<String, Class<?>> resolvedClasses = new ConcurrentHashMap<>();
+    private final MLuaJavaClassResolver classResolver;
     private final Map<MethodCacheKey, List<Method>> resolvedMethods = new ConcurrentHashMap<>();
     private final Map<Class<?>, List<Method>> collectedMethods = new ConcurrentHashMap<>();
     private final Map<Class<?>, List<Field>> collectedFields = new ConcurrentHashMap<>();
@@ -55,6 +54,12 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     public MLuaJavaService(MLuaService.Context context) {
         super(context);
+        this.classResolver = new MLuaJavaClassResolver(() -> new ClassLoader[]{
+            Thread.currentThread().getContextClassLoader(),
+            context.getClass().getClassLoader(),
+            this.getClass().getClassLoader(),
+            ClassLoader.getSystemClassLoader()
+        });
     }
 
     public static Map<String, String> serviceMethodDescriptions() {
@@ -2237,57 +2242,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private Class<?> tryResolveClass(String name) {
-        Class<?> cached = this.resolvedClasses.get(name);
-        if (cached != null) {
-            return cached;
-        }
-
-        if (name.endsWith("[]")) {
-            Class<?> componentType = tryResolveClass(name.substring(0, name.length() - 2));
-            if (componentType == null) return null;
-            Class<?> arrayType = Array.newInstance(componentType, 0).getClass();
-            this.resolvedClasses.put(name, arrayType);
-            return arrayType;
-        }
-
-        Class<?> primitive = primitiveType(name);
-        if (primitive != null) {
-            this.resolvedClasses.put(name, primitive);
-            return primitive;
-        }
-
-        String runtimeName = LoaderApi.mappings().mapClassName(name);
-
-        ClassLoader[] loaders = new ClassLoader[]{
-            Thread.currentThread().getContextClassLoader(),
-            this.context.getClass().getClassLoader(),
-            this.getClass().getClassLoader(),
-            ClassLoader.getSystemClassLoader()
-        };
-
-        Class<?> resolved = LoaderApi.javaClasses().resolve(runtimeName, loaders);
-        if (resolved == null && !runtimeName.equals(name)) {
-            resolved = LoaderApi.javaClasses().resolve(name, loaders);
-        }
-
-        if (resolved != null) {
-            this.resolvedClasses.put(name, resolved);
-        }
-        return resolved;
-    }
-
-    private static Class<?> primitiveType(String name) {
-        return switch (name) {
-            case "boolean" -> boolean.class;
-            case "byte" -> byte.class;
-            case "char" -> char.class;
-            case "short" -> short.class;
-            case "int" -> int.class;
-            case "long" -> long.class;
-            case "float" -> float.class;
-            case "double" -> double.class;
-            default -> null;
-        };
+        return this.classResolver.resolve(name);
     }
 
     private record LuaTableArgument(LuaValue value, Object defaultValue) { }

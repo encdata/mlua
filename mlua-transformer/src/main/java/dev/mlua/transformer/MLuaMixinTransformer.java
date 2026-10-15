@@ -143,9 +143,26 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
                }
                LOGGER.info("[MLua] Retransformed class '{}'", target);
             } else {
-               LOGGER.info("[MLua] Class '{}' is not loaded yet or not modifiable — will transform on first load", target);
+               List<MLuaMixinRule> matchingRules = MixinRuleEngine.get().getRules().stream()
+                     .filter(rule -> rule.targetsClass(target))
+                     .toList();
+               if (!matchingRules.isEmpty()) {
+                  IllegalStateException failure = new IllegalStateException(
+                        "Loaded target class is not modifiable by JVM instrumentation");
+                  MixinRuleEngine.get().recordApplicationFailure(target, matchingRules, failure);
+                  LOGGER.warn("[MLua] Cannot apply {} registered mixin rules to '{}': {}",
+                        matchingRules.size(), target, failure.getMessage());
+               } else {
+                  LOGGER.info("[MLua] Class '{}' is not modifiable; no active mixin rules remain", target);
+               }
             }
          } catch (Exception e) {
+            List<MLuaMixinRule> matchingRules = MixinRuleEngine.get().getRules().stream()
+                  .filter(rule -> rule.targetsClass(target))
+                  .toList();
+            if (!matchingRules.isEmpty()) {
+               MixinRuleEngine.get().recordApplicationFailure(target, matchingRules, e);
+            }
             LOGGER.error("[MLua] Failed to retransform class '{}': {}", target, e.getMessage());
          }
       }

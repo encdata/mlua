@@ -13,17 +13,39 @@ public final class MLuaEarlyJavaService {
 
    public static LuaTable create() {
       LuaTable table = new LuaTable();
-      LuaValue inspect = function(args -> MLuaClassViewer.inspect(resolveClass(args.checkjstring(2))));
-      LuaValue view = function(args -> LuaValue.valueOf(MLuaClassViewer.renderLua(resolveClass(args.checkjstring(2)))));
+      LuaValue inspect = function(args -> MLuaClassViewer.inspect(resolveClass(args, table, 1)));
+      LuaValue view = function(args -> LuaValue.valueOf(MLuaClassViewer.renderLua(resolveClass(args, table, 1))));
       table.set("Inspect", inspect);
       table.set("ViewClass", view);
       table.set("ClassViewer", view);
-      table.set("GetMethods", function(args -> MLuaClassViewer.inspect(resolveClass(args.checkjstring(2))).get("Methods")));
-      table.set("GetFields", function(args -> MLuaClassViewer.inspect(resolveClass(args.checkjstring(2))).get("Fields")));
+      table.set("GetMethods", function(args -> MLuaClassViewer.inspect(resolveClass(args, table, 1)).get("Methods")));
+      table.set("GetFields", function(args -> MLuaClassViewer.inspect(resolveClass(args, table, 1)).get("Fields")));
       return table;
    }
 
-   private static Class<?> resolveClass(String canonicalName) {
+   private static Class<?> resolveClass(Varargs args, LuaTable service, int logicalIndex) {
+      int argumentIndex = args.arg1() == service ? logicalIndex + 1 : logicalIndex;
+      String canonicalName = args.checkjstring(argumentIndex);
+      if (canonicalName.endsWith("[]")) {
+         Class<?> component = resolveClassName(canonicalName.substring(0, canonicalName.length() - 2));
+         return java.lang.reflect.Array.newInstance(component, 0).getClass();
+      }
+      return resolveClassName(canonicalName);
+   }
+
+   private static Class<?> resolveClassName(String canonicalName) {
+      Class<?> primitive = switch (canonicalName) {
+         case "boolean" -> boolean.class;
+         case "byte" -> byte.class;
+         case "char" -> char.class;
+         case "short" -> short.class;
+         case "int" -> int.class;
+         case "long" -> long.class;
+         case "float" -> float.class;
+         case "double" -> double.class;
+         default -> null;
+      };
+      if (primitive != null) return primitive;
       String runtimeName = MLuaMappingResolvers.current().mapClassName(canonicalName);
       ClassLoader[] loaders = {
          Thread.currentThread().getContextClassLoader(),

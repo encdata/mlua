@@ -82,6 +82,7 @@ public final class MLuaMixinLuaApi {
             String target = targetClass.apply(args);
             String method = args.checkjstring(methodIndex);
             LuaTable options = args.checktable(optionsIndex);
+            validateOptions(options, type);
             LuaValue callback = serializeCallback(options.get("callback"), executionLock.get());
             MLuaMixinRule rule;
             switch (type) {
@@ -115,6 +116,30 @@ public final class MLuaMixinLuaApi {
             return LuaValue.NONE;
          }));
       }
+   }
+
+   private static void validateOptions(LuaTable options, MixinType type) {
+      java.util.Set<String> accepted = switch (type) {
+         case INJECT -> java.util.Set.of("at", "callback", "descriptor", "target");
+         case OVERWRITE -> java.util.Set.of("callback", "descriptor");
+         case REDIRECT -> java.util.Set.of("callback", "target");
+         case MODIFY_ARG -> java.util.Set.of("callback", "index", "target");
+      };
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = options.next(key);
+         key = entry.arg1();
+         if (key.isnil()) return;
+         if (!key.isstring() || !accepted.contains(key.tojstring())) {
+            throw new LuaError("[MLua] Mixin:" + operationName(type)
+               + " does not accept option '" + key.tojstring() + "'; expected one of "
+               + accepted.stream().sorted().toList());
+         }
+      }
+   }
+
+   private static String operationName(MixinType type) {
+      return type == MixinType.MODIFY_ARG ? "ModifyArg" : titleCase(type.name());
    }
 
    private static LuaValue serializeCallback(LuaValue callback, Object lock) {
@@ -157,7 +182,8 @@ public final class MLuaMixinLuaApi {
    private static LuaTable getFailures() {
       LuaTable result = new LuaTable();
       int index = 1;
-      for (java.util.Map.Entry<String, String> failure : MixinRuleEngine.get().getApplicationFailures().entrySet()) {
+      for (java.util.Map.Entry<String, String> failure : MixinRuleEngine.get().getApplicationFailures()
+            .entrySet().stream().sorted(java.util.Map.Entry.comparingByKey()).toList()) {
          LuaTable entry = new LuaTable();
          entry.set("TargetClass", failure.getKey());
          entry.set("Message", failure.getValue());
