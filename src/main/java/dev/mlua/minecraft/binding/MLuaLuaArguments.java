@@ -112,7 +112,10 @@ public final class MLuaLuaArguments {
     }
 
     public static long wholeLong(Varargs args, int index, String method, String parameter) {
-        LuaValue value = args.arg(index);
+        return wholeLong(args.arg(index), method, parameter);
+    }
+
+    public static long wholeLong(LuaValue value, String method, String parameter) {
         if (!value.isnumber()) {
             throw new LuaError("[MLua] " + method + " " + parameter + " must be an integer number.");
         }
@@ -125,7 +128,11 @@ public final class MLuaLuaArguments {
     }
 
     public static int wholeInt(Varargs args, int index, String method, String parameter) {
-        long number = wholeLong(args, index, method, parameter);
+        return wholeInt(args.arg(index), method, parameter);
+    }
+
+    public static int wholeInt(LuaValue value, String method, String parameter) {
+        long number = wholeLong(value, method, parameter);
         if (number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
             throw new LuaError("[MLua] " + method + " " + parameter + " must fit in a 32-bit integer.");
         }
@@ -134,6 +141,11 @@ public final class MLuaLuaArguments {
 
     public static int optionalWholeInt(Varargs args, int index, int fallback,
                                        String method, String parameter) {
-        return args.arg(index).isnil() ? fallback : wholeInt(args, index, method, parameter);
+        return optionalWholeInt(args.arg(index), fallback, method, parameter);
+    }
+
+    public static int optionalWholeInt(LuaValue value, int fallback,
+                                       String method, String parameter) {
+        return value.isnil() ? fallback : wholeInt(value, method, parameter);
     }
 }

@@ -144,14 +144,16 @@ public final class MLuaItemWrapper {
       table.set("Find", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
-            return find(args.checkjstring(1), args.optint(2, 1), registration);
+            int count = MLuaLuaArguments.optionalWholeInt(args, 2, 1, "Item:Find", "count");
+            return find(args.checkjstring(1), count, registration);
          }
       });
       LuaTable meta = new LuaTable();
       meta.set("__call", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
-            return find(args.checkjstring(2), args.optint(3, 1), registration);
+            int count = MLuaLuaArguments.optionalWholeInt(args, 3, 1, "Item", "count");
+            return find(args.checkjstring(2), count, registration);
          }
       });
       table.setmetatable(meta);
@@ -210,19 +212,20 @@ public final class MLuaItemWrapper {
             @Override
             public Varargs invoke(Varargs args) {
                int offset = args.arg1() == classTable ? 1 : 0;
-               return find(args.checkjstring(offset + 1), args.optint(offset + 2, 1), registration);
+               int count = MLuaLuaArguments.optionalWholeInt(args, offset + 2, 1, "Item.new", "count");
+               return find(args.checkjstring(offset + 1), count, registration);
             }
          }, "Creates a live item stack instance from a registered item identifier and count.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetId", selfItem((self, ignored) -> LuaValue.valueOf(id(stack(self)))), "Returns this item's registered identifier.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetName", classTable.rawget("GetId"), "Returns this item's registered identifier.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetCount", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getCount())), "Returns the number of items in this stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetCount", selfItem((self, args) -> {
-            setCount(stack(self), args.checkint(2));
+            setCount(stack(self), MLuaLuaArguments.wholeInt(args, 2, "Item:SetCount", "count"));
             return LuaValue.NONE;
-         }), "Sets the number of items in this stack.");
+         }), "Sets the stack count to a whole number of zero or greater.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Grow", selfItem((self, args) -> {
             MCItemStack item = stack(self);
-            int amount = nonNegativeCount(args.checkint(2), "Grow");
+            int amount = nonNegativeCount(MLuaLuaArguments.wholeInt(args, 2, "Item:Grow", "count"), "Grow");
             if (amount == 0) return LuaValue.NONE;
             if (!hasItemType(item)) throw new LuaError("[MLua] Item:Grow cannot grow an empty stack without an item type.");
             long count = (long)item.getCount() + amount;
@@ -232,13 +235,13 @@ public final class MLuaItemWrapper {
          }), "Adds items to this stack while keeping its item type and data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Shrink", selfItem((self, args) -> {
             MCItemStack item = stack(self);
-            int amount = nonNegativeCount(args.checkint(2), "Shrink");
+            int amount = nonNegativeCount(MLuaLuaArguments.wholeInt(args, 2, "Item:Shrink", "count"), "Shrink");
             item.setCount(Math.max(0, item.getCount() - amount));
             return LuaValue.NONE;
          }), "Removes items from this stack, reducing its count to zero when necessary.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Split", selfItem((self, args) -> {
             MCItemStack item = stack(self);
-            int amount = nonNegativeCount(args.checkint(2), "Split");
+            int amount = nonNegativeCount(MLuaLuaArguments.wholeInt(args, 2, "Item:Split", "count"), "Split");
             int count = Math.min(amount, Math.max(0, item.getCount()));
             if (count == 0 || !hasItemType(item)) return itemTable(net.minecraft.world.item.ItemStack.EMPTY, registration);
             net.minecraft.world.item.ItemStack source = ((MCItemStackImpl)item).inner();
@@ -263,11 +266,11 @@ public final class MLuaItemWrapper {
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsStackable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isStackable())), "Returns whether this stack can be stacked with another matching stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getDamageValue())), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", selfItem((self, args) -> {
-            int damage = args.checkint(2);
+            int damage = MLuaLuaArguments.wholeInt(args, 2, "Item:SetDamage", "damage");
             if (damage < 0) throw new LuaError("[MLua] Item:SetDamage damage must be zero or greater.");
             stack(self).setDamageValue(damage);
             return LuaValue.NONE;
-         }), "Sets this item's current durability damage.");
+         }), "Sets this item's current durability damage to a whole number of zero or greater.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
@@ -363,7 +366,8 @@ public final class MLuaItemWrapper {
               MCItemStack item = stack(self);
               if (item.isEmpty()) return LuaValue.FALSE;
               String id = args.checkjstring(2);
-              if (!MLuaEnchantmentWrapper.addEnchantment(item, id, args.optint(3, 1))) {
+              int level = MLuaLuaArguments.optionalWholeInt(args, 3, 1, "Item:AddEnchantment", "level");
+              if (!MLuaEnchantmentWrapper.addEnchantment(item, id, level)) {
                   throw new LuaError("[MLua] Unknown or invalid enchantment: " + id);
               }
               return LuaValue.TRUE;

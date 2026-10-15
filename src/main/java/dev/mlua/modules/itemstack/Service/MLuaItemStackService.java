@@ -4,6 +4,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaNbtWrapper;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -35,14 +36,16 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
         return table;
     }
 
-    @MLuaDescription("Creates an item stack by registry identifier and optional count, defaulting to one.")
-    public LuaValue Create(String id, Optional<Integer> count) {
-        return create(id, count.orElse(1));
+    @MLuaDescription("Creates an item stack by registry identifier and optional whole-number count, defaulting to one.")
+    public LuaValue Create(String id, Optional<LuaValue> count) {
+        return create(id, MLuaLuaArguments.optionalWholeInt(
+            count.orElse(LuaValue.NIL), 1, "ItemStackService:Create", "count"));
     }
 
-    @MLuaDescription("Creates an item stack by registry identifier and optional count, defaulting to one.")
-    public LuaValue Of(String id, Optional<Integer> count) {
-        return create(id, count.orElse(1));
+    @MLuaDescription("Creates an item stack by registry identifier and optional whole-number count, defaulting to one.")
+    public LuaValue Of(String id, Optional<LuaValue> count) {
+        return create(id, MLuaLuaArguments.optionalWholeInt(
+            count.orElse(LuaValue.NIL), 1, "ItemStackService:Of", "count"));
     }
 
     @MLuaDescription("Returns an empty item stack instance.")
@@ -70,7 +73,7 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
         return stack(item).getCount();
     }
 
-    @MLuaDescription("Sets the number of items in a stack.")
+    @MLuaDescription("Sets the stack count to a whole number of zero or greater.")
     public void SetCount(LuaValue item, int count) {
         MLuaItemWrapper.setCount(item, count, context.mlua().registration());
     }
