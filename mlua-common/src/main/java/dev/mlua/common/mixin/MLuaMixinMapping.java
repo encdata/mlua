@@ -9,12 +9,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Shared method-name mapping loader and resolver used by every loader's transformer adapter. */
 public final class MLuaMixinMapping {
-   private static final Logger LOGGER = LoggerFactory.getLogger("MLuaTransformer");
+   private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
    private static final Map<ClassLoader, Map<String, Map<String, String>>> CACHE =
       Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -34,7 +32,7 @@ public final class MLuaMixinMapping {
    private static Map<String, Map<String, String>> loadUncached(ClassLoader loader) {
       try (var stream = loader.getResourceAsStream("official_to_srg.json")) {
          if (stream == null) {
-            LOGGER.warn("[MLua] official_to_srg.json not found on classpath");
+            LOGGER.log(System.Logger.Level.WARNING, "[MLua] official_to_srg.json not found on classpath");
             return Map.of();
          }
          try (var reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
@@ -43,7 +41,7 @@ public final class MLuaMixinMapping {
             return mapping == null ? Map.of() : mapping;
          }
       } catch (Exception failure) {
-         LOGGER.warn("[MLua] Failed to load method name mapping: {}", failure.getMessage());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] Failed to load method name mapping: " + failure.getMessage(), failure);
          return Map.of();
       }
    }

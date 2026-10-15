@@ -10,11 +10,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class MLuaMixinCallbackRegistry {
-   private static final Logger LOGGER = LoggerFactory.getLogger("MLuaTransformer");
+   private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
    private static final Map<String, LuaValue> CALLBACKS = new ConcurrentHashMap<>();
    private static final Map<String, OriginalMethod> ORIGINALS = new ConcurrentHashMap<>();
    private static final ThreadLocal<InvocationContext> CURRENT = new ThreadLocal<>();
@@ -192,7 +190,7 @@ public final class MLuaMixinCallbackRegistry {
    }
 
    private static IllegalStateException callbackFailure(String id, String operation, Exception failure) {
-      LOGGER.error("Mixin callback '{}' {} failed", id, operation, failure);
+      LOGGER.log(System.Logger.Level.ERROR, "Mixin callback '" + id + "' " + operation + " failed", failure);
       return new IllegalStateException("[MLua] Mixin callback '" + id + "' " + operation + " failed", failure);
    }
 

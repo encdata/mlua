@@ -24,11 +24,9 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class MLuaMixinClassWriter {
-   private static final Logger LOGGER = LoggerFactory.getLogger("MLuaTransformer");
+   private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
    private static final String REGISTRY = "dev/mlua/common/mixin/MLuaMixinCallbackRegistry";
    private static final String BRIDGE = "dev/mlua/common/mixin/MLuaMixinBridge";
 
@@ -136,22 +134,22 @@ public final class MLuaMixinClassWriter {
             injectHead(method, rule.callbackId());
          }
          if (hasBridgeCallback(method, rule.callbackId())) {
-            LOGGER.info("[MLua] Injected HEAD callback into {}#{}", classNode.name, method.name);
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Injected HEAD callback into " + classNode.name + "#" + method.name);
          }
       } else if (rule.at() == InjectionPoint.RETURN) {
          injectBeforeReturns(method, rule.callbackId());
          if (hasBridgeCallback(method, rule.callbackId())) {
-            LOGGER.info("[MLua] Injected RETURN callback into {}#{}", classNode.name, method.name);
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Injected RETURN callback into " + classNode.name + "#" + method.name);
          }
       } else if (rule.at() == InjectionPoint.TAIL) {
          injectBeforeTailReturn(method, rule.callbackId());
          if (hasBridgeCallback(method, rule.callbackId())) {
-            LOGGER.info("[MLua] Injected TAIL callback into {}#{}", classNode.name, method.name);
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Injected TAIL callback into " + classNode.name + "#" + method.name);
          }
       } else if (rule.at() == InjectionPoint.INVOKE) {
          injectBeforeInvocation(method, rule);
          if (hasBridgeCallback(method, rule.callbackId())) {
-            LOGGER.info("[MLua] Injected INVOKE callback into {}#{}", classNode.name, method.name);
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Injected INVOKE callback into " + classNode.name + "#" + method.name);
          }
       }
       if (!hasBridgeCallback(method, rule.callbackId())) {
@@ -332,8 +330,8 @@ public final class MLuaMixinClassWriter {
       InsnList body = overwriteInvoke(rule.callbackId(), method);
       method.instructions.add(body);
 
-      LOGGER.info("[MLua] Applied Overwrite mixin: {}#{} callbackId={}",
-         rule.targetClassName(), method.name, rule.callbackId());
+      LOGGER.log(System.Logger.Level.INFO, "[MLua] Applied Overwrite mixin: "
+         + rule.targetClassName() + "#" + method.name + " callbackId=" + rule.callbackId());
    }
 
    private static void redirect(MethodNode method, MLuaMixinRule rule) {
@@ -352,8 +350,8 @@ public final class MLuaMixinClassWriter {
                && matchesTarget(min, target)) {
             matchingCalls++;
             if ("<init>".equals(min.name)) {
-               LOGGER.warn("[MLua] Redirect skips constructor call {}#{}{} because its receiver is uninitialized",
-                  min.owner, min.name, min.desc);
+               LOGGER.log(System.Logger.Level.WARNING, "[MLua] Redirect skips constructor call "
+                  + min.owner + "#" + min.name + min.desc + " because its receiver is uninitialized");
                continue;
             }
             method.instructions.insertBefore(insn, redirectInvocation(callbackId, method, min));
@@ -362,8 +360,9 @@ public final class MLuaMixinClassWriter {
       }
 
       if (count > 0) {
-         LOGGER.info("[MLua] Applied Redirect in {}#{} for {}#{}{} ({} call(s))",
-            rule.targetClassName(), method.name, target.owner(), target.name(), target.descriptor(), count);
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Applied Redirect in " + rule.targetClassName() + "#"
+            + method.name + " for " + target.owner() + "#" + target.name() + target.descriptor()
+            + " (" + count + " call(s))");
       } else {
          throw new IllegalStateException("[MLua] Redirect target " + rule.redirectTarget()
             + (matchingCalls == 0 ? " did not match a call" : " matched only constructor calls that cannot be redirected")
@@ -472,8 +471,8 @@ public final class MLuaMixinClassWriter {
             if (targetArgIndex >= 0 && targetArgIndex < argTypes.length) {
                matchingArguments++;
                if ("<init>".equals(min.name)) {
-                  LOGGER.warn("[MLua] ModifyArg skips constructor call {}#{}{} because its receiver is uninitialized",
-                     min.owner, min.name, min.desc);
+                  LOGGER.log(System.Logger.Level.WARNING, "[MLua] ModifyArg skips constructor call "
+                     + min.owner + "#" + min.name + min.desc + " because its receiver is uninitialized");
                   continue;
                }
                method.instructions.insertBefore(insn, modifyArgumentInvoke(callbackId, method, min, targetArgIndex));
@@ -483,8 +482,9 @@ public final class MLuaMixinClassWriter {
       }
 
       if (count > 0) {
-         LOGGER.info("[MLua] Applied ModifyArg in {}#{} for {}#{}{} argument {} ({} call(s))",
-            rule.targetClassName(), method.name, target.owner(), target.name(), target.descriptor(), targetArgIndex, count);
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Applied ModifyArg in " + rule.targetClassName() + "#"
+            + method.name + " for " + target.owner() + "#" + target.name() + target.descriptor()
+            + " argument " + targetArgIndex + " (" + count + " call(s))");
       } else {
          String reason = matchingCalls == 0 ? "did not match a call"
             : matchingArguments == 0 ? "has no argument at index " + targetArgIndex

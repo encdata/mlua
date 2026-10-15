@@ -8,11 +8,9 @@ import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class MLuaMixinTransformer implements ClassFileTransformer {
-   private static final Logger LOGGER = LoggerFactory.getLogger("MLuaTransformer");
+   private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
    private static final MLuaMixinTransformer INSTANCE = new MLuaMixinTransformer();
    private static volatile boolean installedIntoInstrumentation = false;
    private final java.util.Map<String, java.util.Map<String, String>> nameMapping = MLuaTransformer.loadNameMapping();
@@ -38,7 +36,7 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
          if (matchingRules.isEmpty()) {
             return null;
          } else {
-            LOGGER.info("[MLua] Transforming class '{}' with {} mixin rules", binaryName, matchingRules.size());
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Transforming class '" + binaryName + "' with " + matchingRules.size() + " mixin rules");
             try {
                byte[] modified = MLuaMixinClassWriter.apply(
                   classfileBuffer,
@@ -48,7 +46,7 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
                );
                if (modified != null) {
                   this.transformedTargets.add(binaryName);
-                  LOGGER.info("[MLua] Class '{}' transformed successfully", binaryName);
+                  LOGGER.log(System.Logger.Level.INFO, "[MLua] Class '" + binaryName + "' transformed successfully");
                } else {
                   this.transformedTargets.remove(binaryName);
                }
@@ -57,7 +55,7 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
             } catch (Exception failure) {
                this.transformedTargets.remove(binaryName);
                MixinRuleEngine.get().recordApplicationFailure(binaryName, matchingRules, failure);
-               LOGGER.error("[MLua] Transform failed for class '{}'", binaryName, failure);
+               LOGGER.log(System.Logger.Level.ERROR, "[MLua] Transform failed for class '" + binaryName + "'", failure);
                return null;
             }
          }
@@ -102,10 +100,10 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
       try {
          inst.addTransformer(INSTANCE, true);
          installedIntoInstrumentation = true;
-         LOGGER.info("[MLua] Registered MLua runtime transformer with live Instrumentation");
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Registered MLua runtime transformer with live Instrumentation");
          return true;
       } catch (Exception e) {
-         LOGGER.error("[MLua] Failed to register runtime transformer with Instrumentation: {}", e.getMessage());
+         LOGGER.log(System.Logger.Level.ERROR, "[MLua] Failed to register runtime transformer with Instrumentation: " + e.getMessage(), e);
          return false;
       }
    }
@@ -117,15 +115,15 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
             .collect(Collectors.toSet()));
 
       if (targets.isEmpty()) {
-         LOGGER.info("[MLua] No mixin rules to retransform");
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] No mixin rules to retransform");
          return;
       }
 
       Instrumentation inst = resolveInstrumentation();
       if (inst == null) {
-         LOGGER.warn("[MLua] No Instrumentation available — mixins apply only to classes loaded after this point");
-         LOGGER.info("[MLua] Registered {} mixin rules across {} unique classes",
-            MixinRuleEngine.get().getRules().size(), targets.size());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] No Instrumentation available — mixins apply only to classes loaded after this point");
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Registered " + MixinRuleEngine.get().getRules().size()
+            + " mixin rules across " + targets.size() + " unique classes");
          return;
       }
 
@@ -133,7 +131,7 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
          try {
             Class<?> clazz = this.findLoadedClass(inst, target);
             if (clazz == null) {
-               LOGGER.info("[MLua] Class '{}' not loaded yet — will transform on first load", target);
+               LOGGER.log(System.Logger.Level.INFO, "[MLua] Class '" + target + "' not loaded yet — will transform on first load");
                continue;
             }
             if (inst.isModifiableClass(clazz)) {
@@ -141,7 +139,7 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
                if (MixinRuleEngine.get().getRules().stream().noneMatch(rule -> rule.targetsClass(target))) {
                   this.transformedTargets.remove(target);
                }
-               LOGGER.info("[MLua] Retransformed class '{}'", target);
+               LOGGER.log(System.Logger.Level.INFO, "[MLua] Retransformed class '" + target + "'");
             } else {
                List<MLuaMixinRule> matchingRules = MixinRuleEngine.get().getRules().stream()
                      .filter(rule -> rule.targetsClass(target))
@@ -150,10 +148,10 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
                   IllegalStateException failure = new IllegalStateException(
                         "Loaded target class is not modifiable by JVM instrumentation");
                   MixinRuleEngine.get().recordApplicationFailure(target, matchingRules, failure);
-                  LOGGER.warn("[MLua] Cannot apply {} registered mixin rules to '{}': {}",
-                        matchingRules.size(), target, failure.getMessage());
+                  LOGGER.log(System.Logger.Level.WARNING, "[MLua] Cannot apply " + matchingRules.size()
+                     + " registered mixin rules to '" + target + "': " + failure.getMessage());
                } else {
-                  LOGGER.info("[MLua] Class '{}' is not modifiable; no active mixin rules remain", target);
+                  LOGGER.log(System.Logger.Level.INFO, "[MLua] Class '" + target + "' is not modifiable; no active mixin rules remain");
                }
             }
          } catch (Exception e) {
@@ -163,7 +161,7 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
             if (!matchingRules.isEmpty()) {
                MixinRuleEngine.get().recordApplicationFailure(target, matchingRules, e);
             }
-            LOGGER.error("[MLua] Failed to retransform class '{}': {}", target, e.getMessage());
+            LOGGER.log(System.Logger.Level.ERROR, "[MLua] Failed to retransform class '" + target + "': " + e.getMessage(), e);
          }
       }
    }

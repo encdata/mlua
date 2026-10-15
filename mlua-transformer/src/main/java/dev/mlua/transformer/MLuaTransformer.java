@@ -11,11 +11,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.objectweb.asm.tree.ClassNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class MLuaTransformer implements ITransformer<ClassNode> {
-   private static final Logger LOGGER = LoggerFactory.getLogger("MLuaTransformer");
+   private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
    private final Map<String, Map<String, String>> nameMapping;
 
    public MLuaTransformer() {
@@ -46,15 +44,15 @@ public final class MLuaTransformer implements ITransformer<ClassNode> {
 
          if (matchingRules.isEmpty()) return input;
 
-         LOGGER.info("[MLua] Transforming class '{}' with {} mixin rules", binaryName, matchingRules.size());
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Transforming class '" + binaryName + "' with " + matchingRules.size() + " mixin rules");
          ClassNode transformed = MLuaMixinClassWriter.applyToClassNodeCopy(input, binaryName, matchingRules, nameMapping);
          if (transformed != input) {
-            LOGGER.info("[MLua] Class '{}' transformed successfully", binaryName);
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Class '" + binaryName + "' transformed successfully");
          }
          MixinRuleEngine.get().clearApplicationFailure(binaryName);
          return transformed;
        } catch (Exception e) {
-          LOGGER.error("[MLua] Transform error for class '{}'", context.getClassName(), e);
+          LOGGER.log(System.Logger.Level.ERROR, "[MLua] Transform error for class '" + context.getClassName() + "'", e);
           MixinRuleEngine.get().recordApplicationFailure(context.getClassName(), matchingRules, e);
           return input;
        }
@@ -73,7 +71,7 @@ public final class MLuaTransformer implements ITransformer<ClassNode> {
             .map(ITransformer.Target::targetClass)
             .collect(Collectors.toSet());
       } catch (Exception e) {
-         LOGGER.warn("[MLua] targets() failed: {}", e.getMessage());
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] targets() failed: " + e.getMessage(), e);
          return Set.of();
       }
    }

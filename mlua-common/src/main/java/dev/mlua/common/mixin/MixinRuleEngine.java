@@ -5,11 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.luaj.vm2.LuaValue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class MixinRuleEngine {
-    private static final Logger LOGGER = LoggerFactory.getLogger("MLuaMixinEngine");
+    private static final System.Logger LOGGER = System.getLogger("MLuaMixinEngine");
     private static final MixinRuleEngine INSTANCE = new MixinRuleEngine();
     private static volatile boolean earlyBootstrapDone = false;
     private static volatile Runnable retransformTask;
@@ -41,7 +39,7 @@ public final class MixinRuleEngine {
         if (task != null) {
             task.run();
         } else {
-            LOGGER.info("[MLua] No retransform task registered — rules will apply to classes loaded after this point");
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] No retransform task registered — rules will apply to classes loaded after this point");
         }
     }
 
