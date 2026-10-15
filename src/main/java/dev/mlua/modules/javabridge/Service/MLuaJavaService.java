@@ -812,7 +812,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 }
                 try {
                     field.set(null, convertLuaValue(args.arg(3), field.getGenericType()));
-                } catch (IllegalAccessException error) {
+                } catch (IllegalAccessException | IllegalArgumentException error) {
                     throw new LuaError("[MLua] Failed to write field " + clazz.getName() + "." + fieldName + ": " + rootMessage(error));
                 }
                 return LuaValue.NONE;
@@ -863,7 +863,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 if (getter != null) {
                     try {
                         return wrapJavaValue(getter.invoke(instance), getter.getGenericReturnType());
-                    } catch (IllegalAccessException | InvocationTargetException e) {
+                    } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                         throw new LuaError("[MLua] Failed to read property " + instance.getClass().getName() + "." + memberName + ": " + rootMessage(e));
                     }
                 }
@@ -902,7 +902,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 if (setter != null) {
                     try {
                         setter.invoke(instance, convertArguments(new Object[]{rawValue}, setter));
-                    } catch (IllegalAccessException | InvocationTargetException e) {
+                    } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                         throw new LuaError("[MLua] Failed to write property " + instance.getClass().getName()
                             + "." + memberName + ": " + rootMessage(e));
                     }
@@ -920,7 +920,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
                 try {
                     field.set(instance, convertLuaValue(args.arg(3), field.getGenericType()));
-                } catch (IllegalAccessException e) {
+                } catch (IllegalAccessException | IllegalArgumentException e) {
                     throw new LuaError("[MLua] Failed to write field " + instance.getClass().getName() + "." + memberName + ": " + rootMessage(e));
                 }
                 return LuaValue.NONE;
@@ -1097,7 +1097,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 try {
                     Object instance = ctor.newInstance(convertArguments(rawArgs, ctor));
                     return wrapJavaValue(instance);
-                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                     throw new LuaError("[MLua] Failed to construct " + clazz.getName() + ": " + rootMessage(e));
                 }
             }
@@ -1126,7 +1126,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 try {
                     Object result = method.invoke(null, convertArguments(rawArgs, method));
                     return wrapJavaValue(result, method.getGenericReturnType());
-                } catch (IllegalAccessException | InvocationTargetException e) {
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                     throw new LuaError("[MLua] Failed to invoke " + clazz.getName() + "." + methodName + ": " + rootMessage(e));
                 }
             }
@@ -1155,7 +1155,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 try {
                     Object result = method.invoke(instance, convertArguments(rawArgs, method));
                     return wrapJavaValue(result, method.getGenericReturnType());
-                } catch (IllegalAccessException | InvocationTargetException e) {
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                     throw new LuaError("[MLua] Failed to invoke " + instance.getClass().getName() + "." + methodName + ": " + rootMessage(e));
                 }
             }
