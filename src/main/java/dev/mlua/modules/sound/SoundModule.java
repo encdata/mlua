@@ -57,8 +57,8 @@ public final class SoundModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null));
         docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:ClearFollowEntity()", null));
         docs.register(MLuaDocBuilder.Registration.type("SoundPlayOptions", null, "Optional playback settings accepted by SoundService:Play."));
-        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Volume", "number", "Playback volume. Defaults to 1."));
-        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Pitch", "number", "Playback pitch. Defaults to 1."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Volume", "number", "Finite, non-negative playback volume. Defaults to 1."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Pitch", "number", "Finite, non-negative playback pitch. Defaults to 1."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position used when FollowEntity is not set."));
         docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow."));

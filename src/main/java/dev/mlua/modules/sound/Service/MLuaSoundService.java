@@ -9,6 +9,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientSoundManager;
@@ -35,8 +36,8 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleProperty(registration, "IsPlaying", "boolean", "Whether this sound is currently playing.", "GetIsPlaying", null);
         registerHandleProperty(registration, "IsDestroyed", "boolean", "Whether this sound has been removed.", "GetIsDestroyed", null);
         registerHandleProperty(registration, "Looped", "boolean", "Whether playback repeats after reaching the end.", "GetLooped", "SetLooped");
-        registerHandleProperty(registration, "Volume", "number", "The sound's playback volume.", "GetVolume", "SetVolume");
-        registerHandleProperty(registration, "Pitch", "number", "The sound's playback pitch.", "GetPitch", "SetPitch");
+        registerHandleProperty(registration, "Volume", "number", "The sound's finite, non-negative playback volume.", "GetVolume", "SetVolume");
+        registerHandleProperty(registration, "Pitch", "number", "The sound's finite, non-negative playback pitch.", "GetPitch", "SetPitch");
         registerHandleProperty(registration, "Position", "Vector3|CFrame", "The sound's current position.", "GetPosition", "SetPosition");
         registerHandleProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this sound. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerHandleProperty(registration, "FollowOffset", "Vector3", "The offset from the followed entity.", "GetFollowOffset", "SetFollowOffset");
@@ -47,9 +48,9 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleMethod(registration, "GetLooped", "Returns whether playback repeats after reaching the end.");
         registerHandleMethod(registration, "SetLooped", "Enables or disables repeating playback.");
         registerHandleMethod(registration, "GetVolume", "Returns the sound's playback volume.");
-        registerHandleMethod(registration, "SetVolume", "Changes the sound's playback volume.");
+        registerHandleMethod(registration, "SetVolume", "Sets a finite, non-negative playback volume.");
         registerHandleMethod(registration, "GetPitch", "Returns the sound's playback pitch.");
-        registerHandleMethod(registration, "SetPitch", "Changes the sound's playback pitch.");
+        registerHandleMethod(registration, "SetPitch", "Sets a finite, non-negative playback pitch.");
         registerHandleMethod(registration, "GetPosition", "Returns the sound's current position.");
         registerHandleMethod(registration, "SetPosition", "Moves the sound to a Vector3 or CFrame position and clears any entity-follow target.");
         registerHandleMethod(registration, "GetFollowEntity", "Returns the entity id followed by this sound, or nil.");
@@ -122,28 +123,36 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         return table;
     }
 
-    @MLuaDescription("Plays a non-spatial sound and returns its live SoundHandle.")
+    @MLuaDescription("Plays a non-spatial sound and returns its live SoundHandle. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue PlayLocal(String soundId, Optional<Double> volume, Optional<Double> pitch) {
         ensureClient();
-        int id = MLuaClientSoundManager.playLocalId(soundId, volume.orElse(1.0).floatValue(),
-            pitch.orElse(1.0).floatValue(), owner());
+        float checkedVolume = MLuaLuaArguments.finiteNonNegativeFloat(
+            volume.orElse(1.0), "SoundService:PlayLocal", "volume");
+        float checkedPitch = MLuaLuaArguments.finiteNonNegativeFloat(
+            pitch.orElse(1.0), "SoundService:PlayLocal", "pitch");
+        int id = MLuaClientSoundManager.playLocalId(soundId, checkedVolume, checkedPitch, owner());
         return id >= 0 ? soundTable(id, owner()) : LuaValue.NIL;
     }
 
-    @MLuaDescription("Plays a sound at the local player's position and returns its live SoundHandle.")
+    @MLuaDescription("Plays a sound at the local player's position and returns its live SoundHandle. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue PlayAtPlayer(String soundId, Optional<Double> volume, Optional<Double> pitch) {
         ensureClient();
-        int id = MLuaClientSoundManager.playAtPlayerId(soundId, volume.orElse(1.0).floatValue(),
-            pitch.orElse(1.0).floatValue(), owner());
+        float checkedVolume = MLuaLuaArguments.finiteNonNegativeFloat(
+            volume.orElse(1.0), "SoundService:PlayAtPlayer", "volume");
+        float checkedPitch = MLuaLuaArguments.finiteNonNegativeFloat(
+            pitch.orElse(1.0), "SoundService:PlayAtPlayer", "pitch");
+        int id = MLuaClientSoundManager.playAtPlayerId(soundId, checkedVolume, checkedPitch, owner());
         return id >= 0 ? soundTable(id, owner()) : LuaValue.NIL;
     }
 
-    @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings.")
+    @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue Play(String soundId, Optional<LuaValue> properties) {
         ensureClient();
         LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
-        float volume = (float) firstNonNil(props.get("Volume"), props.get("volume")).optdouble(1.0);
-        float pitch = (float) firstNonNil(props.get("Pitch"), props.get("pitch")).optdouble(1.0);
+        float volume = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
+            firstNonNil(props.get("Volume"), props.get("volume")), 1.0f, "SoundService:Play", "volume");
+        float pitch = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
+            firstNonNil(props.get("Pitch"), props.get("pitch")), 1.0f, "SoundService:Play", "pitch");
         boolean loop = firstNonNil(firstNonNil(props.get("Looped"), props.get("looped")),
             firstNonNil(props.get("Loop"), props.get("loop"))).optboolean(false);
         MLuaEntityScope followEntity = resolveOptionalEntityScope(
@@ -198,12 +207,14 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         }));
         operations.set("GetVolume", fn(args -> LuaValue.valueOf(requireSound(id).volumeValue())));
         operations.set("SetVolume", fn(args -> {
-            requireSound(id).setVolumeValue((float) args.checkdouble(2));
+            requireSound(id).setVolumeValue(MLuaLuaArguments.finiteNonNegativeFloat(
+                args.arg(2), "SoundHandle:SetVolume", "volume"));
             return LuaValue.NONE;
         }));
         operations.set("GetPitch", fn(args -> LuaValue.valueOf(requireSound(id).pitchValue())));
         operations.set("SetPitch", fn(args -> {
-            requireSound(id).setPitchValue((float) args.checkdouble(2));
+            requireSound(id).setPitchValue(MLuaLuaArguments.finiteNonNegativeFloat(
+                args.arg(2), "SoundHandle:SetPitch", "pitch"));
             return LuaValue.NONE;
         }));
         operations.set("GetPosition", fn(args -> {

@@ -71,11 +71,28 @@ public final class MLuaLuaArguments {
 
     public static float optionalNonNegativeFiniteFloat(Varargs args, int index, float fallback,
                                                        String method, String parameter) {
-        float value = optionalFiniteFloat(args, index, fallback, method, parameter);
-        if (value < 0.0f) {
-            throw new LuaError("[MLua] " + method + " " + parameter + " must be non-negative.");
+        return optionalNonNegativeFiniteFloat(args.arg(index), fallback, method, parameter);
+    }
+
+    public static float optionalNonNegativeFiniteFloat(LuaValue value, float fallback,
+                                                       String method, String parameter) {
+        return value.isnil() ? fallback : finiteNonNegativeFloat(value, method, parameter);
+    }
+
+    public static float finiteNonNegativeFloat(LuaValue value, String method, String parameter) {
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a number.");
         }
-        return value;
+        return finiteNonNegativeFloat(value.todouble(), method, parameter);
+    }
+
+    public static float finiteNonNegativeFloat(double number, String method, String parameter) {
+        finiteNonNegativeNumber(number, method, parameter);
+        float converted = (float)number;
+        if (!Float.isFinite(converted)) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " exceeds the supported range.");
+        }
+        return converted;
     }
 
     public static float finiteFloat(Varargs args, int index, String method, String parameter) {
