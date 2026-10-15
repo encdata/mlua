@@ -12,8 +12,7 @@ def neo_forge_version = resolveMluaTargetValue(targetVersion, 'neoForgeVersion')
 def neo_forge_version_range = resolveMluaTargetValue(targetVersion, 'neoForgeVersionRange')
 def neo_loader_version_range = resolveMluaTargetValue(targetVersion, 'neoForgeLoaderVersionRange')
 def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
-def prepareRuntimeNeoForgeOverrideSources = registerMergedTree(project, 'prepareRuntimeNeoForgeOverrideSources',
-    targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), [
+def runtimeNeoForgeOverrideExcludes = [
         'dev/mlua/api/**',
         'dev/mlua/modules/**',
         (is26Family ? 'dev/mlua/minecraft/scripted/MLuaBehaviorRegistry.java' : '__mlua_26_1_only__'),
@@ -26,11 +25,19 @@ def prepareRuntimeNeoForgeOverrideSources = registerMergedTree(project, 'prepare
         (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/scripted/MLuaScriptedItem.java'),
         (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java'),
         'dev/mlua/transformer/**'
-    ])
-if (!is26Family) {
+    ]
+if (is26Family) runtimeNeoForgeOverrideExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
+def prepareRuntimeNeoForgeOverrideSources = registerMergedTree(project, 'prepareRuntimeNeoForgeOverrideSources',
+    targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), runtimeNeoForgeOverrideExcludes)
+if (is26Family) {
+    prepareRuntimeNeoForgeOverrideSources.configure {
+        targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion).each { root ->
+            from(root) { include 'dev/mlua/modules/combat/MLuaProjectileDefinition.java' }
+        }
+    }
 }
 def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',
-    targetPathChain('mlua-versions/common/%s', targetVersion), [
+    targetPathChain('mlua-versions/common/%s', targetVersion), is26Family ? [] : [
         'dev/mlua/modules/world/Service/MLuaWorldService.java'
     ])
 def prepareRuntimeNeoForgeAdapterSources = registerMergedTree(project, 'prepareRuntimeNeoForgeAdapterSources',
@@ -56,6 +63,7 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
 def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 def runtimeRootExcludes = [
     'dev/mlua/common/mixin/**',
+    'dev/mlua/modules/mixin/**',
     'dev/mlua/transformer/**',
     'dev/mlua/MLuaMod.java',
     'dev/mlua/runtime/config/MLuaConfigRegistry.java',
@@ -81,6 +89,8 @@ if (is26Family) {
     runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java'
     runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectileType.java'
     runtimeRootExcludes += 'dev/mlua/modules/combat/MLuaProjectileDefinition.java'
+    runtimeRootExcludes += 'dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java'
+    runtimeRootExcludes += 'dev/mlua/modules/world/Service/MLuaWorldService.java'
     runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
     runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedEntity.java'
     runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java'
@@ -139,6 +149,10 @@ if (is26Family) {
              "${buildDir}/generated/prepareRuntimeNeoForgeOverrideSources", "${buildDir}/generated/prepareRuntimeNeoForgeAdapterSources"].each { dir ->
                 fileTree(dir).matching { include '**/*.java' }.each { source ->
                     def text = source.getText('UTF-8')
+                    if (source.name == 'MLuaClientSoundManager.java') {
+                        text = text.replace('BuiltInRegistries.SOUND_EVENT.get(location)',
+                            'BuiltInRegistries.SOUND_EVENT.get(location).map(reference -> reference.value()).orElse(null)')
+                    }
                     if (source.name == 'MLuaResourceLocations.java') text = '''package dev.mlua.minecraft;
 import net.minecraft.resources.Identifier;
 public final class MLuaResourceLocations { private MLuaResourceLocations(){} public static Identifier parse(String id){ Identifier v=tryParseOrNull(id); if(v==null) throw new IllegalArgumentException("Invalid resource location: "+id); return v; } public static Identifier build(String namespace,String path){return Identifier.fromNamespaceAndPath(namespace,path);} public static Identifier tryParseOrNull(String id){ if(id==null||id.trim().isEmpty()) return null; try { String v=id.trim(); int split=v.indexOf(':'); return split<0?Identifier.fromNamespaceAndPath("minecraft",v):Identifier.fromNamespaceAndPath(v.substring(0,split),v.substring(split+1)); } catch(RuntimeException e){return null;} } public static String namespace(Identifier id){String v=id.toString(); int i=v.indexOf(':'); return i<0?"minecraft":v.substring(0,i);} public static String path(Identifier id){String v=id.toString(); int i=v.indexOf(':'); return i<0?v:v.substring(i+1);} }

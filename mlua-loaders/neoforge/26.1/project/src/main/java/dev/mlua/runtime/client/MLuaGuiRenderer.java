@@ -52,6 +52,23 @@ public final class MLuaGuiRenderer {
         for (ScreenGui screen : screenGuis) renderChildren(extractor, screen, 0, 0, width, height);
     }
 
+    public static void renderScreenLayer(Object screen, GuiGraphicsExtractor graphics, boolean before) {
+        if (screen == null || graphics == null) return;
+        MLuaGuiService gui = MLuaGuiService.getInstance();
+        if (gui == null) return;
+        String layer = before ? "Before" : "After";
+        List<ScreenGui> screenGuis = new ArrayList<>();
+        for (ScreenGui candidate : gui.getScreenGuis()) {
+            if (candidate.isVisible() && candidate.targetsScreen(screen)
+                && candidate.getRenderLayer().equals(layer)
+                && gui.isCoreGuiEnabled(candidate.getCoreGuiType())) screenGuis.add(candidate);
+        }
+        screenGuis.sort(Comparator.comparingInt(ScreenGui::getDisplayOrder));
+        for (ScreenGui candidate : screenGuis) {
+            renderChildren(graphics, candidate, 0, 0, graphics.guiWidth(), graphics.guiHeight());
+        }
+    }
+
     private static void renderChildren(GuiGraphicsExtractor graphics, GuiBase parent,
                                       int parentX, int parentY, int parentWidth, int parentHeight) {
         List<GuiBase> children = new ArrayList<>(parent.getChildren());

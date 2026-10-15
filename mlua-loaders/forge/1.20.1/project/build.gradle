@@ -236,7 +236,12 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/api/**'
     exclude 'dev/mlua/core/**'
     exclude 'dev/mlua/loaderapi/**'
-    exclude 'dev/mlua/common/**'
+    exclude { entry ->
+        entry.path.startsWith('dev/mlua/common/')
+            && !(entry.path.startsWith('dev/mlua/common/mixin/')
+                || entry.path.startsWith('dev/mlua/common/enums/')
+                || entry.path == 'dev/mlua/common/service/MLuaServiceMetadata.class')
+    }
     exclude 'dev/mlua/math/**'
     exclude 'dev/mlua/mc/**'
     exclude 'dev/mlua/mcapi/**'

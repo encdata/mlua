@@ -37,6 +37,7 @@ public class AnimationModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder animation = ServiceEntry.builder("Animation", MLuaAnimationService::new)
+            .className("AnimationService")
             .reflective(MLuaAnimationService.class);
         return List.of(animation.build());
     }
