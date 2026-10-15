@@ -31,9 +31,13 @@ import java.util.Optional;
 import java.util.Deque;
 import java.util.Queue;
 import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ConcurrentSkipListMap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -1769,6 +1773,8 @@ public final class MLuaJavaService extends MLuaServiceBase {
         if (Iterable.class.isAssignableFrom(parameterType)
             && (value instanceof Iterable<?> || value.getClass().isArray())) {
             if (parameterType.isAssignableFrom(ArrayList.class)
+                || ((NavigableSet.class.isAssignableFrom(parameterType) || SortedSet.class.isAssignableFrom(parameterType))
+                    && parameterType.isAssignableFrom(TreeSet.class))
                 || (java.util.Set.class.isAssignableFrom(parameterType)
                     && parameterType.isAssignableFrom(LinkedHashSet.class))
                 || ((Queue.class.isAssignableFrom(parameterType) || Deque.class.isAssignableFrom(parameterType))
@@ -1839,6 +1845,23 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     private Collection<Object> newCollection(Class<?> targetType, List<Object> values) {
         if (targetType.isAssignableFrom(ArrayList.class)) return new ArrayList<>(values);
+        if (targetType == ConcurrentSkipListSet.class) {
+            try {
+                return new ConcurrentSkipListSet<>(values);
+            } catch (ClassCastException incompatibleValues) {
+                throw new LuaError("[MLua] Java sorted collection " + targetType.getName()
+                    + " requires mutually comparable values");
+            }
+        }
+        if ((NavigableSet.class.isAssignableFrom(targetType) || SortedSet.class.isAssignableFrom(targetType))
+            && targetType.isAssignableFrom(TreeSet.class)) {
+            try {
+                return new TreeSet<>(values);
+            } catch (ClassCastException incompatibleValues) {
+                throw new LuaError("[MLua] Java sorted collection " + targetType.getName()
+                    + " requires mutually comparable values");
+            }
+        }
         if (java.util.Set.class.isAssignableFrom(targetType)
             && targetType.isAssignableFrom(LinkedHashSet.class)) return new LinkedHashSet<>(values);
         if ((Queue.class.isAssignableFrom(targetType) || Deque.class.isAssignableFrom(targetType))
