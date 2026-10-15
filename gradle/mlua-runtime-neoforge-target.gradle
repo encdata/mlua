@@ -159,6 +159,11 @@ sourceSets.main.resources.setSrcDirs([
     file("${buildDir}/generated/prepareRuntimeNeoForgeResources")
 ])
 sourceSets.main.resources.exclude('META-INF/mods.toml')
+// NeoForge 1.21.x declares @Mod in the outer loader JAR. Keep the embedded
+// runtime as a library there; its duplicate mlua metadata makes NeoForge
+// discover a second mod with the same ID and can prevent the outer entrypoint
+// from being constructed. NeoForge 26.1 keeps its entrypoint in this runtime.
+if (!is26Family) sourceSets.main.resources.exclude('META-INF/neoforge.mods.toml')
 sourceSets.main.resources.exclude('META-INF/services/net.neoforged.neoforgespi.locating.IModFileCandidateLocator')
 
 tasks.named('compileJava').configure {
