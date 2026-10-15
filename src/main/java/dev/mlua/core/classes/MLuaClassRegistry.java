@@ -1113,7 +1113,7 @@ public final class MLuaClassRegistry {
       LuaTable owner = this.classes.get(className);
       if (owner == null) return;
       LuaValue instanceMetaValue = instance.getmetatable();
-      LuaValue dynamicProperties = instanceMetaValue.istable()
+      LuaValue dynamicProperties = instanceMetaValue != null && instanceMetaValue.istable()
          ? instanceMetaValue.checktable().rawget("__mlua_doc_properties") : LuaValue.NIL;
       if (dynamicProperties.istable()) {
          LuaValue dynamicKey = LuaValue.NIL;

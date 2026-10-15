@@ -47,6 +47,7 @@ public class RegionModule implements MLuaModule {
    @Override
    public List<ServiceEntry> services() {
       return List.of(ServiceEntry.builder("Region", MLuaRegionService::new)
+         .className("RegionService")
          .reflective(MLuaRegionService.class)
          .build());
    }

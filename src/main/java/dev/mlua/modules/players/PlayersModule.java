@@ -326,7 +326,6 @@ public class PlayersModule implements MLuaModule {
             {"IsSleeping", "Whether this player is sleeping."},
             {"IsCrouching", "Whether this player is crouching."},
             {"IsSprinting", "Whether this player is sprinting."},
-            {"IsSwimming", "Whether this player is swimming."},
             {"GetBlockPosition", "Returns this player's block-aligned position."},
             {"GetLookVector", "Returns the direction this player is looking."},
             {"GetSelectedSlot", "Returns the selected hotbar slot using a one-based integer index."},
