@@ -501,7 +501,7 @@ public final class MLuaItemWrapper {
       MCItemStack item = stack(self);
       if (!hasItemType(item)) {
          self.checktable().rawset("__mlua_empty_stack_nbt", tag == null
-            ? LuaValue.NIL : LuaValue.userdataOf(tag.copy()));
+            ? LuaValue.NIL : LuaValue.userdataOf(tag));
          return;
       }
       item.setTag(MCCompoundTagImpl.fromReal(tag));
@@ -554,7 +554,7 @@ public final class MLuaItemWrapper {
       LuaTable cloned = itemTable(copiedStack, registration);
       if (!hasItemType(original)) {
          net.minecraft.nbt.CompoundTag compoundData = itemTag(item, false);
-         if (compoundData != null) setItemTag(cloned, compoundData);
+         if (compoundData != null) setItemTag(cloned, compoundData.copy());
       }
       return cloned;
    }

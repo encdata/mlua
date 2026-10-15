@@ -105,6 +105,8 @@ public final class MLuaBootstrap {
                 MLuaInputHandler.registerHandlers();
             });
         }
+
+        MLuaLogger.LOGGER.info("MLUA_RUNTIME_BOOTSTRAP_OK loader={}", provider.platform().loaderName());
     }
 
     private static void installTargetRuntimeProvider() {

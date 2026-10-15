@@ -230,9 +230,16 @@ jobs:
           local stacks = Minecraft:GetService("ItemStackService")
           local first = stacks:Empty()
           local second = stacks:Empty()
-          first:SetNbt("mlua_ci_empty_stack_probe", "changed")
-          assert(first:GetNbt("mlua_ci_empty_stack_probe") == "changed", "empty stack did not retain its own NBT")
+          local key = "mlua_ci_empty_stack_probe"
+          first:SetNbt(key, "changed")
+          local actual = first:GetNbt(key)
+          print("MLUA_EMPTY_STACK_NBT_VALUE=" .. tostring(actual))
+          assert(actual == "changed", "empty stack did not retain its own NBT; got " .. tostring(actual))
           assert(second:GetNbt("mlua_ci_empty_stack_probe") == nil, "empty stack NBT leaked into another empty stack")
+          local copied = stacks:Clone(first)
+          assert(copied:GetNbt(key) == "changed", "empty stack clone lost its NBT")
+          copied:SetNbt(key, "copy")
+          assert(first:GetNbt(key) == "changed", "empty stack clone shares its NBT with the source")
           print("MLUA_EMPTY_STACK_ISOLATION_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_empty_stack.server.lua"
           Set-Content "$template/run/eula.txt" 'eula=true'
@@ -256,6 +263,7 @@ jobs:
             -Task runClient `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK') `
             -LogFile 'client-smoke.log' `
             -TimeoutSeconds 480
 
@@ -276,7 +284,7 @@ jobs:
             -Task runServer `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_SERVER_BOOT_OK' `
-            -RequiredMarker @('MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK') `
             -LogFile 'server-smoke.log' `
             -TimeoutSeconds 600
 
