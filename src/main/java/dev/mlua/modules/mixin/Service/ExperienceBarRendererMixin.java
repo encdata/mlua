@@ -10,7 +10,9 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 //--endversion
 
+//--version 26.1
 @Mixin(targets = "net.minecraft.client.gui.contextualbar.ExperienceBarRenderer")
+//--endversion
 public abstract class ExperienceBarRendererMixin {
     //--version 26.1
     @Inject(method = "extractRenderState", at = @At("HEAD"))

@@ -43,10 +43,10 @@ public final class MLuaForgeNetworkAdapter {
         var registrar = event.registrar(DEFAULT_PROTOCOL_VERSION);
         registrar.playBidirectional(RemotePayload.TYPE, RemotePayload.CODEC,
             MLuaForgeNetworkAdapter::handleRemoteServer);
-        registrar.playToClient(ReloadPayload.TYPE, ReloadPayload.CODEC, MLuaForgeNetworkAdapter::rejectClientToServer);
-        registrar.playToClient(ClientCommandPayload.TYPE, ClientCommandPayload.CODEC, MLuaForgeNetworkAdapter::rejectClientToServer);
-        registrar.playToClient(AnimationSyncPayload.TYPE, AnimationSyncPayload.CODEC, MLuaForgeNetworkAdapter::rejectClientToServer);
-        registrar.playToClient(DataSyncPayload.TYPE, DataSyncPayload.CODEC, MLuaForgeNetworkAdapter::rejectClientToServer);
+        registrar.playToClient(ReloadPayload.TYPE, ReloadPayload.CODEC);
+        registrar.playToClient(ClientCommandPayload.TYPE, ClientCommandPayload.CODEC);
+        registrar.playToClient(AnimationSyncPayload.TYPE, AnimationSyncPayload.CODEC);
+        registrar.playToClient(DataSyncPayload.TYPE, DataSyncPayload.CODEC);
     }
 
     public static boolean hasChannel(Connection connection) {
@@ -61,11 +61,6 @@ public final class MLuaForgeNetworkAdapter {
                 MLuaLogger.LOGGER.warn("MLua Network payload '{}' had no server sender", payload.remoteName());
             }
         });
-    }
-
-    private static void rejectClientToServer(CustomPacketPayload payload, IPayloadContext context) {
-        context.disconnect(net.minecraft.network.chat.Component.literal(
-            "MLua payload is only valid from the server: " + payload.type().id()));
     }
 
     private static List<MLuaNetworkValue> readArguments(RegistryFriendlyByteBuf buf) {
