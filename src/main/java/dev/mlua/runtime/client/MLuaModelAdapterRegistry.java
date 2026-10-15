@@ -7,6 +7,7 @@ import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.ModelPart;
 
 /** Lua-declared mappings from animation bone names to native model part paths. */
@@ -86,6 +87,38 @@ public final class MLuaModelAdapterRegistry {
             if (adapter != null) return adapter.parts();
         }
         return null;
+    }
+
+    /** Resolves an adapter's Lua-facing bone name to the native model part. */
+    public static ModelPart resolvePart(Object model, String boneName) {
+        if (model == null || boneName == null || boneName.isBlank()) return null;
+        Map<String, String> mapping = findMapping(model.getClass());
+        String path = mapping == null ? null : mapping.get(boneName);
+        return path == null ? null : resolvePath(model, path);
+    }
+
+    /** Applies the registered model-part hierarchy to a pose stack for attachments. */
+    public static boolean applyPartTransform(Object model, String boneName, PoseStack poseStack) {
+        if (model == null || boneName == null || boneName.isBlank() || poseStack == null) return false;
+        Map<String, String> mapping = findMapping(model.getClass());
+        String path = mapping == null ? null : mapping.get(boneName);
+        if (path == null) return false;
+        Object current = model;
+        for (String segment : path.split("\\.")) {
+            if (segment.isBlank()) return false;
+            if (current instanceof ModelPart parent) {
+                try {
+                    current = parent.getChild(segment);
+                } catch (RuntimeException missingChild) {
+                    return false;
+                }
+            } else {
+                current = readField(current, segment);
+            }
+            if (!(current instanceof ModelPart part)) return false;
+            part.translateAndRotate(poseStack);
+        }
+        return true;
     }
 
     private static ModelPart resolvePath(Object root, String path) {

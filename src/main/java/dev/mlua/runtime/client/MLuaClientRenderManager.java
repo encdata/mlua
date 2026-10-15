@@ -162,6 +162,31 @@ public final class MLuaClientRenderManager {
         }
     }
 
+    /** Draws Lua-owned 3D objects after Minecraft has posed an entity model. */
+    public static void renderEntityAttachments(Object model, MLuaEntityScope scope, PoseStack pose,
+                                               MultiBufferSource buffers, int light, int overlay) {
+        if (model == null || scope == null || pose == null || buffers == null) return;
+        for (RenderObject object : OBJECTS.values()) {
+            if (!object.visible || object.target() != RenderTarget.ENTITY_MODEL
+                    || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;
+            pose.pushPose();
+            if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) {
+                pose.popPose();
+                continue;
+            }
+            pose.translate(object.worldX, object.worldY, object.worldZ);
+            if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
+            if (object.type == RenderType.MESH && object.mesh != null) {
+                ResourceLocation texture = resolveTexture(object.mesh.texture());
+                MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
+                    texture == null ? MLuaRenderHelper.fallbackTexture() : texture, light, overlay);
+            } else if (object.bbmodel != null) {
+                renderBBModelWorld(pose, buffers, object);
+            }
+            pose.popPose();
+        }
+    }
+
     public static int create(RenderType type, String resource) {
         return create(type, resource, new MLuaRenderOwnershipRegistry.Owner(null, ""));
     }
@@ -396,7 +421,7 @@ public final class MLuaClientRenderManager {
             if (!object.visible) {
                 continue;
             }
-            if (object.target() == RenderTarget.WORLD_MODEL) {
+            if (object.target() == RenderTarget.WORLD_MODEL || object.target() == RenderTarget.ENTITY_MODEL) {
                 continue;
             }
             render(graphics, object);
@@ -404,6 +429,7 @@ public final class MLuaClientRenderManager {
     }
 
     private static void render(GuiGraphics graphics, RenderObject object) {
+        if (object.target() == RenderTarget.ENTITY_MODEL) return;
         if (object.target() == RenderTarget.WORLD_OVERLAY) {
             renderWorld(graphics, object);
             return;
@@ -762,7 +788,8 @@ public final class MLuaClientRenderManager {
     public enum RenderTarget {
         HUD,
         WORLD_OVERLAY,
-        WORLD_MODEL
+        WORLD_MODEL,
+        ENTITY_MODEL
     }
 
     public static final class RenderObject {
@@ -779,6 +806,8 @@ public final class MLuaClientRenderManager {
         private boolean visible = true;
         private int zIndex = 0;
         private boolean worldSpace = false;
+        private boolean entityModelTarget;
+        private String followBoneName;
         private double worldX = 0.0;
         private double worldY = 0.0;
         private double worldZ = 0.0;
@@ -817,6 +846,7 @@ public final class MLuaClientRenderManager {
         public int zIndex() { return zIndex; }
         public boolean worldSpace() { return worldSpace; }
         public RenderTarget target() {
+            if (entityModelTarget || followBoneName != null) return RenderTarget.ENTITY_MODEL;
             if (!worldSpace) return RenderTarget.HUD;
             return type == RenderType.MESH || type == RenderType.BBMODEL
                 ? RenderTarget.WORLD_MODEL : RenderTarget.WORLD_OVERLAY;
@@ -833,6 +863,7 @@ public final class MLuaClientRenderManager {
         public double thickness() { return thickness; }
         public boolean scaleWithDistance() { return scaleWithDistance; }
         public MLuaEntityScope followEntityScope() { return followEntityScope; }
+        public String followBoneName() { return followBoneName; }
         public MLuaMeshDefinition mesh() { return mesh; }
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
@@ -847,18 +878,29 @@ public final class MLuaClientRenderManager {
         public void setVisible(boolean visible) { this.visible = visible; }
         public void setZIndex(int zIndex) { this.zIndex = zIndex; }
         public void setWorldSpace(boolean worldSpace) {
-            if (!worldSpace) setFollowEntityScope(null);
+            if (!worldSpace) {
+                setFollowEntityScope(null);
+                this.followBoneName = null;
+                this.entityModelTarget = false;
+            }
             this.worldSpace = worldSpace;
         }
         public void setTarget(RenderTarget target) {
             if (target == null) throw new IllegalArgumentException("Render target cannot be null");
-            if (target == RenderTarget.WORLD_MODEL && type != RenderType.MESH && type != RenderType.BBMODEL) {
-                throw new IllegalArgumentException("WorldModel target requires a Mesh or BBModel object");
+            boolean model = type == RenderType.MESH || type == RenderType.BBMODEL;
+            if ((target == RenderTarget.WORLD_MODEL || target == RenderTarget.ENTITY_MODEL) && !model) {
+                throw new IllegalArgumentException("WorldModel and EntityModel targets require a Mesh or BBModel object");
             }
             if (target == RenderTarget.WORLD_OVERLAY && (type == RenderType.MESH || type == RenderType.BBMODEL)) {
-                throw new IllegalArgumentException("Mesh and BBModel objects use the WorldModel target");
+                throw new IllegalArgumentException("Mesh and BBModel objects use the WorldModel or EntityModel target");
             }
-            if (target == RenderTarget.HUD) setFollowEntityScope(null);
+            if (target == RenderTarget.HUD) {
+                setFollowEntityScope(null);
+                this.followBoneName = null;
+            } else if (target != RenderTarget.ENTITY_MODEL) {
+                this.followBoneName = null;
+            }
+            this.entityModelTarget = target == RenderTarget.ENTITY_MODEL;
             this.worldSpace = target != RenderTarget.HUD;
         }
         public void setWorldPosition(double x, double y, double z) { this.worldX = x; this.worldY = y; this.worldZ = z; }
@@ -873,10 +915,28 @@ public final class MLuaClientRenderManager {
                 unregisterEntityModel(this.followEntityScope, this.id);
             }
             this.followEntityScope = followEntityScope;
+            if (followEntityScope == null) {
+                this.followBoneName = null;
+                this.entityModelTarget = false;
+            }
             if (followEntityScope != null) {
                 registerEntityModel(followEntityScope, this.id);
                 this.worldSpace = true;
             }
+        }
+
+        public void setFollowBoneName(String boneName) {
+            if (type != RenderType.MESH && type != RenderType.BBMODEL) {
+                throw new IllegalArgumentException("FollowBone requires a Mesh or BBModel object");
+            }
+            if (boneName == null || boneName.isBlank()) {
+                this.followBoneName = null;
+                this.entityModelTarget = false;
+                return;
+            }
+            this.followBoneName = boneName.trim();
+            this.entityModelTarget = true;
+            this.worldSpace = true;
         }
 
         private RenderObject copy() {
@@ -891,6 +951,8 @@ public final class MLuaClientRenderManager {
             copy.visible = visible;
             copy.zIndex = zIndex;
             copy.worldSpace = worldSpace;
+            copy.entityModelTarget = entityModelTarget;
+            copy.followBoneName = followBoneName;
             copy.worldX = worldX;
             copy.worldY = worldY;
             copy.worldZ = worldZ;

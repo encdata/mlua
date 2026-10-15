@@ -2,8 +2,10 @@ package dev.mlua.modules.mixin.Service;
 
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
+import dev.mlua.runtime.client.MLuaClientRenderManager;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.world.entity.LivingEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -28,6 +30,10 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
     )
     private void mlua$applyRegisteredModelAdapter(T entity, float entityYaw, float partialTick,
             PoseStack poseStack, MultiBufferSource buffers, int packedLight, CallbackInfo info) {
-        if (entity != null) MLuaModelAdapterRegistry.apply(model, MLuaEntityScope.of(entity));
+        if (entity != null) {
+            MLuaEntityScope scope = MLuaEntityScope.of(entity);
+            MLuaModelAdapterRegistry.apply(model, scope);
+            MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, buffers, packedLight, OverlayTexture.NO_OVERLAY);
+        }
     }
 }

@@ -55,10 +55,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness");
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
-        registerObjectProperty(registration, "Target", "string", "Render stage: HUD, WorldOverlay, or WorldModel for mesh/model objects.", "GetTarget", "SetTarget");
+        registerObjectProperty(registration, "Target", "string", "Render stage: HUD, WorldOverlay, WorldModel, or EntityModel for model-part attachments.", "GetTarget", "SetTarget");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
         registerObjectProperty(registration, "ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
+        registerObjectProperty(registration, "FollowBone", "string|nil", "A registered model adapter bone to attach this 3D object to on the followed entity.", "GetFollowBone", "SetFollowBone");
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
         String[][] methods = {
@@ -78,11 +79,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetThickness", "Returns the line or outline thickness."}, {"SetThickness", "Sets a finite thickness of at least one pixel."},
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
-            {"GetTarget", "Returns the object's render target."}, {"SetTarget", "Selects Hud, WorldOverlay, or WorldModel."},
+            {"GetTarget", "Returns the object's render target."}, {"SetTarget", "Selects Hud, WorldOverlay, WorldModel, or EntityModel."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
             {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Sets a finite uniform model scale of at least 0.001."},
             {"GetFollowEntity", "Returns the followed entity id, or nil."}, {"SetFollowEntity", "Attaches the object to an entity or clears the attachment with nil."},
             {"ClearFollowEntity", "Stops the object from following an entity."},
+            {"GetFollowBone", "Returns the registered model bone used by this attachment, or nil."},
+            {"SetFollowBone", "Attaches a 3D object to a model bone registered by ModelService."},
             {"GetResource", "Returns the image or model resource."}, {"SetResource", "Changes the image or model resource."},
             {"GetText", "Returns the displayed text."}, {"SetText", "Changes the displayed text."},
             {"GetAnimations", "Returns animation names available on a Blockbench model."},
@@ -475,7 +478,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             try {
                 requireObject(id).setTarget(MLuaClientRenderManager.RenderTarget.valueOf(name));
             } catch (IllegalArgumentException invalid) {
-                throw new LuaError("[MLua] Invalid render target '" + name + "'. Use Hud, WorldOverlay, or WorldModel.");
+                throw new LuaError("[MLua] Invalid render target '" + name + "'. Use Hud, WorldOverlay, WorldModel, or EntityModel.");
             }
             return LuaValue.NONE;
         }));
@@ -499,6 +502,19 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }));
         operations.set("ClearFollowEntity", fn(args -> {
             requireObject(id).setFollowEntityScope(null);
+            return LuaValue.NONE;
+        }));
+        operations.set("GetFollowBone", fn(args -> {
+            String bone = requireObject(id).followBoneName();
+            return bone == null ? LuaValue.NIL : LuaValue.valueOf(bone);
+        }));
+        operations.set("SetFollowBone", fn(args -> {
+            LuaValue value = args.arg(2);
+            try {
+                requireObject(id).setFollowBoneName(value.isnil() ? null : value.checkjstring());
+            } catch (IllegalArgumentException invalid) {
+                throw new LuaError("[MLua] " + invalid.getMessage());
+            }
             return LuaValue.NONE;
         }));
         operations.set("GetResource", fn(args -> {

@@ -62,7 +62,7 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldBox(center: Vector3|CFrame, size: Vector3, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", null));
         docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetTarget(target: string)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetTarget(target: string)", "Selects HUD, projected world, free world-model, or entity-model-part rendering."));
         docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:PlayAnimation(name: string, options: ModelAnimationOptions?)", "void"));
         docs.register(MLuaDocBuilder.Registration.type("ModelAnimationOptions", null, "Playback options shared by entity-attached and standalone Blockbench models."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Loop", "boolean", "Whether playback repeats. Defaults to true."));
@@ -81,17 +81,21 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "WorldPosition", "Vector3|CFrame", "Initial world position."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "EndWorldPosition", "Vector3|CFrame", "Initial endpoint for a world line or beam."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "WorldSpace", "boolean", "Whether the object is positioned in world space."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "Target", "string", "Hud, WorldOverlay, or WorldModel. Mesh and Blockbench model objects use WorldModel for 3D world rendering."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "Target", "string", "Hud, WorldOverlay, WorldModel, or EntityModel for a model part attachment."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "ScaleWithDistance", "boolean", "Whether world-space size follows camera distance."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "ModelScale", "number", "Initial uniform scale for model objects."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "AnimationPath", "string", "Animation file to load with a Blockbench model. LoadBBModel also accepts the alias AnimationsPath."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "AnimationsPath", "string", "Alias for AnimationPath when loading a Blockbench model; provide only one."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "Thickness", "number", "Initial line or outline thickness."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "FollowEntity", "Entity|number|nil", "Entity instance or id to follow."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "FollowBone", "string|nil", "Registered model adapter bone name for attaching a mesh or Blockbench model to the entity's posed model."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "Resource", "string|nil", "Initial image, item, block, or model resource. Provide Resource or Text, not both."));
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "Text", "string|nil", "Initial text for a text render object. Provide Text or Resource, not both."));
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Create and update a render instance",
             "Render constructors return an owned RenderObject. HUD, projected-world, and 3D world-model draws use separate targets under the same object lifecycle. World-space positions accept native Vector3 or CFrame values; screen positions use Vector2. GuiService keeps its layout tree and screen lifecycle.",
             "local Render = Minecraft:GetService(\"RenderService\")\nlocal label = Render:CreateText(\"The door is locked\", { Position = Vector2.new(20, 20), Target = \"Hud\" })\nlocal marker = Render:CreateWorldText(\"Exit\", CFrame.new(12, 65, -4), { Target = \"WorldOverlay\" })\n\nlabel.Position = Vector2.new(24, 32)\nlabel.Visible = true\nmarker.WorldPosition = CFrame.new(14, 65, -4)\nprint(label.Target, marker.Target)\nlabel:Destroy()\nmarker:Destroy()"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Attach a 3D model to an entity part",
+            "EntityModel draws a mesh or Blockbench model from a registered bone path after Minecraft has posed that entity. Register the model class and bone path with ModelService, then set FollowEntity and FollowBone on the 3D render object. WorldPosition becomes a local offset from the part.",
+            "local Models = Minecraft:GetService(\"ModelService\")\nlocal Render = Minecraft:GetService(\"RenderService\")\nlocal Players = Minecraft:GetService(\"Players\")\n\nModels:RegisterAdapter(\"net.minecraft.client.model.PlayerModel\", {\n    head = \"head\",\n})\n\nlocal hat = Render:LoadBBModel(\"myaddon:models/hat.bbmodel\")\nhat.Target = \"EntityModel\"\nhat.FollowEntity = Players.LocalPlayer\nhat.FollowBone = \"head\"\nhat.WorldPosition = Vector3.new(0, 0.35, 0)\nhat.ModelScale = 1\nhat.Visible = true"));
     }
 }

@@ -2,7 +2,9 @@ package dev.mlua.modules.mixin.Service;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
@@ -32,7 +34,12 @@ public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.en
             SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo info) {
         int entityId = MLuaRenderStateEntityResolver.findEntityId(state);
         if (entityId >= 0) {
-            MLuaModelAdapterRegistry.apply(model, MLuaEntityScope.legacy(entityId));
+            var level = Minecraft.getInstance().level;
+            var entity = level == null ? null : level.getEntity(entityId);
+            if (entity == null) return;
+            MLuaEntityScope scope = MLuaEntityScope.of(entity);
+            MLuaModelAdapterRegistry.apply(model, scope);
+            MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, collector, state.lightCoords);
         }
     }
 }
