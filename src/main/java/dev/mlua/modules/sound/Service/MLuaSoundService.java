@@ -147,31 +147,39 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue Play(String soundId, Optional<LuaValue> properties) {
         ensureClient();
-        LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
+        LuaValue propertiesValue = properties.orElse(LuaValue.NIL);
+        if (!propertiesValue.isnil() && !propertiesValue.istable()) {
+            throw new LuaError("[MLua] SoundService:Play properties must be a table when provided.");
+        }
+        LuaTable props = propertiesValue.istable() ? propertiesValue.checktable() : new LuaTable();
         float volume = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
-            firstNonNil(props.get("Volume"), props.get("volume")), 1.0f, "SoundService:Play", "volume");
+            option(props, "Volume"), 1.0f, "SoundService:Play", "volume");
         float pitch = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
-            firstNonNil(props.get("Pitch"), props.get("pitch")), 1.0f, "SoundService:Play", "pitch");
-        boolean loop = firstNonNil(firstNonNil(props.get("Looped"), props.get("looped")),
-            firstNonNil(props.get("Loop"), props.get("loop"))).optboolean(false);
+            option(props, "Pitch"), 1.0f, "SoundService:Play", "pitch");
+        LuaValue loopedOption = option(props, "Looped");
+        LuaValue loopOption = option(props, "Loop");
+        if (!loopedOption.isnil() && !loopOption.isnil()) {
+            throw new LuaError("[MLua] SoundService:Play options Looped and Loop are aliases; provide only one.");
+        }
+        boolean loop = (!loopedOption.isnil() ? loopedOption : loopOption).optboolean(false);
         MLuaEntityScope followEntity = resolveOptionalEntityScope(
-            firstNonNil(props.get("FollowEntity"), props.get("followEntity")));
+            option(props, "FollowEntity"));
         SoundSource category = parseSoundSource(
-            firstNonNil(props.get("Category"), props.get("category")).optjstring("players"));
+            option(props, "Category").optjstring("players"));
         Double x = null;
         Double y = null;
         Double z = null;
         double followOffsetX = 0.0;
         double followOffsetY = 0.0;
         double followOffsetZ = 0.0;
-        LuaValue position = firstNonNil(props.get("Position"), props.get("position"));
+        LuaValue position = option(props, "Position");
         if (!position.isnil()) {
             double[] coordinates = MLuaLuaArguments.finiteVector3(position, "SoundService:Play position");
             x = coordinates[0];
             y = coordinates[1];
             z = coordinates[2];
         }
-        LuaValue followOffset = firstNonNil(props.get("FollowOffset"), props.get("followOffset"));
+        LuaValue followOffset = option(props, "FollowOffset");
         if (!followOffset.isnil()) {
             double[] offset = vector3(followOffset, "FollowOffset");
             followOffsetX = offset[0];
@@ -273,8 +281,16 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         return new MLuaSoundOwnershipRegistry.Owner(runtimeOwner, context.mlua().ownerModId());
     }
 
-    private static LuaValue firstNonNil(LuaValue a, LuaValue b) {
-        return !a.isnil() ? a : b;
+    private static LuaValue option(LuaTable options, String name) {
+        LuaValue canonical = options.rawget(name);
+        String aliasName = name.isEmpty() ? name
+            : Character.toLowerCase(name.charAt(0)) + name.substring(1);
+        LuaValue alias = options.rawget(aliasName);
+        if (!canonical.isnil() && !alias.isnil()) {
+            throw new LuaError("[MLua] SoundService:Play options '" + name + "' and '" + aliasName
+                + "' are aliases; provide only one.");
+        }
+        return canonical.isnil() ? alias : canonical;
     }
 
     private static double[] vector3(LuaValue value, String name) {
