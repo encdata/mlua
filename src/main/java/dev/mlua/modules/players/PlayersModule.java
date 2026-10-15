@@ -305,8 +305,8 @@ public class PlayersModule implements MLuaModule {
                 case "HasEffect" -> "Checks whether this player has a potion effect.";
                 case "ClearEffects" -> "Removes all potion effects from this player.";
                 case "PlaySound" -> "Plays a sound for this player.";
-                case "GetNearbyEntities" -> "Returns nearby entities.";
-                case "GetNearbyPlayers" -> "Returns nearby players.";
+                case "GetNearbyEntities" -> "Returns all entity types within a box expanded around this player's bounds by the given radius.";
+                case "GetNearbyPlayers" -> "Returns other players within a box expanded around this player's bounds by the given radius.";
                 case "GetPersistentData" -> "Returns this player's persistent data.";
                 case "GetSyncedData" -> "Returns this player's synchronized data.";
                 case "SetData" -> "Sets a value in this player's persistent data.";

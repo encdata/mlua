@@ -30,7 +30,6 @@ import dev.mlua.mcapi.core.MCMutableComponent;
 import dev.mlua.mcapi.core.MCResourceLocation;
 import dev.mlua.mcapi.core.MCVec3;
 import dev.mlua.mcapi.entity.MCEntity;
-import dev.mlua.mcapi.entity.MCLivingEntity;
 import dev.mlua.mcapi.entity.MCLocalPlayer;
 import dev.mlua.mcapi.entity.MCPlayer;
 import dev.mlua.mcapi.entity.MCServerPlayer;
@@ -44,7 +43,6 @@ import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mc.impl.core.MCComponentImpl;
 import dev.mlua.mc.impl.core.MCVec3Impl;
 import dev.mlua.mc.impl.entity.MCEntityImpl;
-import dev.mlua.mc.impl.entity.MCLivingEntityImpl;
 import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
 import dev.mlua.mc.impl.entity.MCPlayerImpl;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
@@ -357,9 +355,7 @@ public final class MLuaPlayerWrapper {
          LuaTable list = new LuaTable();
          int i = 1;
          for (MCEntity e : player.getLevel().getEntities(player, box)) {
-            if (e instanceof MCLivingEntity living) {
-               list.set(i++, MLuaEntityWrapper.entityTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) living).inner(), registration));
-            }
+            list.set(i++, MLuaEntityWrapper.entityTable(((MCEntityImpl)e).inner(), registration));
          }
          return list;
       }));
@@ -726,9 +722,7 @@ public final class MLuaPlayerWrapper {
          LuaTable list = new LuaTable();
          int i = 1;
          for (MCEntity e : player.getLevel().getEntities(player, box)) {
-            if (e instanceof MCLivingEntity living) {
-               list.set(i++, MLuaEntityWrapper.entityTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) living).inner(), registration));
-            }
+            list.set(i++, MLuaEntityWrapper.entityTable(((MCEntityImpl)e).inner(), registration));
          }
          return list;
       }));
