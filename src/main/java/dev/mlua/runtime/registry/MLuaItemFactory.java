@@ -51,7 +51,7 @@ public final class MLuaItemFactory {
    /** Registers a Java item type that Lua definitions can select with {@code kind = "typeName"}. */
    public static void registerType(String name, String description, TypeProvider provider) {
       String key = normalizeTypeName(name);
-      if (java.util.Set.of("item", "generic", "bow", "sword", "weapon", "pickaxe", "pick", "axe", "shovel", "spade", "hoe").contains(key)) {
+      if (java.util.Set.of("item", "generic", "bow", "sword", "pickaxe", "pick", "axe", "shovel", "spade", "hoe").contains(key)) {
          throw new IllegalArgumentException("[MLua] Item type '" + key + "' is reserved by MLua");
       }
       if (description == null || description.isBlank()) {
@@ -72,7 +72,6 @@ public final class MLuaItemFactory {
       descriptions.put("generic", "Alias for item.");
       descriptions.put("bow", "A native animated bow with Minecraft draw and ammunition behavior.");
       descriptions.put("sword", "A tiered melee weapon.");
-      descriptions.put("weapon", "Alias for sword.");
       descriptions.put("pickaxe", "A tiered mining tool.");
       descriptions.put("pick", "Alias for pickaxe.");
       descriptions.put("axe", "A tiered axe tool and weapon.");
@@ -708,9 +707,10 @@ public final class MLuaItemFactory {
        };
     }
 
-   public static boolean invokeOnAttackEntity(String behaviorKey, ItemStack stack, LivingEntity target, LivingEntity attacker) {
+   public static LuaValue invokeOnAttackEntityCallback(String behaviorKey, ItemStack stack,
+         LivingEntity target, LivingEntity attacker) {
       LuaValue callback = MLuaBehaviorRegistry.getCallback("item", behaviorKey, "onAttackEntity");
-      if (callback.isnil()) return true;
+      if (callback.isnil()) return LuaValue.NIL;
       try {
          var registration = MLuaRuntime.registrationForLevel(target.level());
          LuaTable targetTable = target instanceof ServerPlayer player
@@ -727,11 +727,16 @@ public final class MLuaItemFactory {
          if (attacker instanceof ServerPlayer) context.set("Player", attackerTable);
          context.set("ItemStack", behaviorKey);
          Varargs result = callback.invoke(context);
-         return !result.arg1().isboolean() || result.arg1().toboolean();
+         return result.arg1();
       } catch (Exception exception) {
          MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", behaviorKey, exception.getMessage());
-         return true;
+         return LuaValue.NIL;
       }
+   }
+
+   public static boolean invokeOnAttackEntity(String behaviorKey, ItemStack stack, LivingEntity target, LivingEntity attacker) {
+      LuaValue result = invokeOnAttackEntityCallback(behaviorKey, stack, target, attacker);
+      return !result.isboolean() || result.toboolean();
    }
 
    public Item.Properties makeProperties(Map<String, Object> properties) {
@@ -1230,7 +1235,7 @@ public final class MLuaItemFactory {
          return switch (value.toLowerCase(Locale.ROOT)) {
             case "item", "generic" -> ITEM;
             case "bow" -> BOW;
-            case "sword", "weapon" -> SWORD;
+            case "sword" -> SWORD;
             case "pickaxe", "pick" -> PICKAXE;
             case "axe" -> AXE;
             case "shovel", "spade" -> SHOVEL;

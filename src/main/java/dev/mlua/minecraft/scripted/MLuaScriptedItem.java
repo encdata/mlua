@@ -164,7 +164,8 @@ public class MLuaScriptedItem extends Item {
    }
 
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
-       if (!MLuaItemFactory.invokeOnAttackEntity(this.behaviorKey, stack, target, attacker)) return false;
+       LuaValue handled = MLuaItemFactory.invokeOnAttackEntityCallback(this.behaviorKey, stack, target, attacker);
+       if (handled.isboolean()) return handled.toboolean();
        return super.hurtEnemy(stack, target, attacker);
     }
 
