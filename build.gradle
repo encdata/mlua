@@ -62,6 +62,12 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
             }
             def entries = classEntries(artifact)
             if (!entries.contains('icon.png')) throw new GradleException("${artifact.name} is missing icon.png")
+            def earlyBootstrapPresent = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                zip.getEntry('dev/mlua/common/mixin/MLuaEarlyMixinBootstrap.class') != null
+            }
+            if (!earlyBootstrapPresent) {
+                throw new GradleException("${artifact.name} is missing the top-level early mixin bootstrap class")
+            }
             def mixinFiles = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
                 zip.entries().findAll { it.name.endsWith('.mixins.json') }.collect { it.name }
             }

@@ -211,6 +211,7 @@ tasks.named('jar', Jar).configure {
     excludeMluaExternalScripts(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(project(':mlua-loader-api').sourceSets.main.output)
+    from(project(':mlua-common').sourceSets.main.output)
     from({
         def bcelJar = configurations.runtimeClasspath.find { it.name.contains('bcel') }
         if (bcelJar != null) {
@@ -236,12 +237,6 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/api/**'
     exclude 'dev/mlua/core/**'
     exclude 'dev/mlua/loaderapi/**'
-    exclude { entry ->
-        entry.path.startsWith('dev/mlua/common/')
-            && !(entry.path.startsWith('dev/mlua/common/mixin/')
-                || entry.path.startsWith('dev/mlua/common/enums/')
-                || entry.path == 'dev/mlua/common/service/MLuaServiceMetadata.class')
-    }
     exclude 'dev/mlua/math/**'
     exclude 'dev/mlua/mc/**'
     exclude 'dev/mlua/mcapi/**'

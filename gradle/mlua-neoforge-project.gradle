@@ -303,6 +303,7 @@ tasks.named('jar', Jar).configure {
     excludeMluaExternalScripts(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(project(':mlua-loader-api').sourceSets.main.output)
+    from(project(':mlua-common').sourceSets.main.output)
     manifest {
         attributes([
             'Automatic-Module-Name': 'mlua_loader', 'MixinConfigs': 'mlua.firstperson.mixins.json', 'Specification-Title': mod_id,
@@ -314,11 +315,5 @@ tasks.named('jar', Jar).configure {
         'dev/mlua/minecraft/**', 'dev/mlua/module/**', 'dev/mlua/modules/**', 'dev/mlua/runtime/**', 'dev/mlua/loader/impl/forge/**',
         'dev/mlua/MLuaMod.java', 'dev/mlua/MLuaMod.class', 'dev/mlua/agent/**',
         'META-INF/services/net.minecraftforge.forgespi.locating.IModLocator'
-    exclude { entry ->
-        entry.path.startsWith('dev/mlua/common/')
-            && !(entry.path.startsWith('dev/mlua/common/mixin/')
-                || entry.path.startsWith('dev/mlua/common/enums/')
-                || entry.path == 'dev/mlua/common/service/MLuaServiceMetadata.class')
-    }
 }
 publishing { publications { register('mavenJava', MavenPublication) { artifact jar } }; repositories { maven { url "file://${project.projectDir}/repo" } } }
