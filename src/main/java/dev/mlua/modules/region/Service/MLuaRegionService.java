@@ -270,7 +270,11 @@ public final class MLuaRegionService extends MLuaReflectiveService {
        for (RegionState state : states) tickSide(state, Side.SERVER, levels);
     }
 
-    public static void tickClient(Minecraft client) {
+   public static void tickClient() {
+      tickClient(Minecraft.getInstance());
+   }
+
+   private static void tickClient(Minecraft client) {
        if (client.level == null) return;
        for (RegionState state : statesSnapshot()) tickSide(state, Side.CLIENT, List.of(client.level));
     }

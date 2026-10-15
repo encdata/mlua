@@ -23,6 +23,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
+@MLuaDescription("Queries loaded entities and performs supported world-side entity operations.")
 public final class MLuaEntityService extends MLuaReflectiveService {
     public MLuaEntityService(MLuaService.Context context) {
         super(context);

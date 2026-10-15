@@ -235,9 +235,7 @@ jobs:
           path: |
             client-smoke/**/logs/latest.log
             client-smoke/**/crash-reports/*.txt
-            client-smoke.log
-            client-smoke.log.stderr
-            server-smoke.log
-            server-smoke.log.stderr
+            client-smoke/**/client-smoke.log*
+            client-smoke/**/server-smoke.log*
           if-no-files-found: ignore
           retention-days: 5

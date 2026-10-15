@@ -360,7 +360,7 @@ public interface MLuaRegistration {
                     + "' has invalid description metadata");
             }
             if (existingDescription.isstring() && !description.equals(existingDescription.tojstring())
-                && !replacingGeneratedConstructor) {
+                && existing != function && !replacingGeneratedConstructor) {
                 throw new IllegalStateException("Lua class '" + className + "' function '" + functionName
                     + "' is already registered with a different description");
             }

@@ -54,11 +54,19 @@ def sharedManifest = {
 jar {
     excludeMluaExternalScripts(delegate)
     manifest sharedManifest
+    from({ configurations.runtimeClasspath.findAll { it.name == 'bcel-6.7.0.jar' || it.name == 'commons-lang3-3.12.0.jar' } }) {
+        into 'META-INF/jars'
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
 }
 
 if (!isUnobfuscated) {
     remapJar {
         manifest sharedManifest
+        from({ configurations.runtimeClasspath.findAll { it.name == 'bcel-6.7.0.jar' || it.name == 'commons-lang3-3.12.0.jar' } }) {
+            into 'META-INF/jars'
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        }
     }
 }
 
@@ -307,6 +315,7 @@ dependencies {
     compileOnly project(':mlua-luaj')
     implementation('org.apache.bcel:bcel:6.7.0')
     include('org.apache.bcel:bcel:6.7.0')
+    include('org.apache.commons:commons-lang3:3.12.0')
 }
 
 // Fabric's dedicated-server DevLaunch must receive loader/API jars as

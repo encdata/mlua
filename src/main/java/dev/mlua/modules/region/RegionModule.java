@@ -55,7 +55,7 @@ public class RegionModule implements MLuaModule {
    public void registerEvents(EventBridge events) {
       events.onServerTickEnd(server -> MLuaRegionService.tick((net.minecraft.server.MinecraftServer) server));
       if (LoaderApi.platform().isClient()) {
-         events.onClientTickEnd(() -> MLuaRegionService.tickClient(net.minecraft.client.Minecraft.getInstance()));
+         events.onClientTickEnd(MLuaRegionService::tickClient);
       }
    }
 

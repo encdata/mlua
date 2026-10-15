@@ -21,16 +21,29 @@ repositories {
     mavenCentral()
 }
 
+def targetMinecraftVersion = providers.gradleProperty('minecraftVersion').get()
+if (targetMinecraftVersion.startsWith('26.')) {
+    configurations.create('smokeFabricMods') {
+        transitive = false
+    }
+}
+
 dependencies {
-    def modDependencyConfiguration = providers.gradleProperty('minecraftVersion').get().startsWith('26.')
+    def modDependencyConfiguration = targetMinecraftVersion.startsWith('26.')
         ? 'implementation' : 'modImplementation'
-    minecraft "com.mojang:minecraft:${providers.gradleProperty('minecraftVersion').get()}"
-    if (!providers.gradleProperty('minecraftVersion').get().startsWith('26.')) {
+    minecraft "com.mojang:minecraft:${targetMinecraftVersion}"
+    if (!targetMinecraftVersion.startsWith('26.')) {
         mappings loom.officialMojangMappings()
     }
-    add(modDependencyConfiguration, "net.fabricmc:fabric-loader:${providers.gradleProperty('fabricLoaderVersion').get()}")
-    add(modDependencyConfiguration, "net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty('fabricApiVersion').get()}")
-    add(modDependencyConfiguration, files('run/mods/mlua.jar'))
+    def fabricLoader = "net.fabricmc:fabric-loader:${providers.gradleProperty('fabricLoaderVersion').get()}"
+    def fabricApi = "net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty('fabricApiVersion').get()}"
+    add(modDependencyConfiguration, fabricLoader)
+    add(modDependencyConfiguration, fabricApi)
+
+    if (targetMinecraftVersion.startsWith('26.')) {
+        smokeFabricMods fabricLoader
+        smokeFabricMods fabricApi
+    }
 }
 
 loom {
@@ -46,6 +59,15 @@ loom {
     mods {
         mlua_ci_smoke { sourceSet sourceSets.main }
     }
+}
+
+if (providers.gradleProperty('minecraftVersion').get().startsWith('26.')) {
+    def installSmokeFabricMods = tasks.register('installSmokeFabricMods', Copy) {
+        from configurations.smokeFabricMods
+        into layout.projectDirectory.dir('run/mods')
+    }
+    tasks.named('runClient').configure { dependsOn installSmokeFabricMods }
+    tasks.named('runServer').configure { dependsOn installSmokeFabricMods }
 }
 
 processResources {

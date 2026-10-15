@@ -22,6 +22,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.util.UUID;
 import java.util.function.Function;
 
+@MLuaDescription("Creates and manages server boss bars and their player visibility.")
 public final class MLuaBossBarService extends MLuaReflectiveService {
     private static final MLuaBossBarRegistry<ServerBossEvent> bossBars = new MLuaBossBarRegistry<>();
 

@@ -291,7 +291,8 @@ public final class MLuaClassRegistry {
       LuaValue docsValue = mixin.rawget("__mlua_doc_methods");
       if (!docsValue.istable()) throw new IllegalStateException("Lua mixin '" + mixinName + "' has invalid method descriptions");
       LuaValue oldDescription = docsValue.checktable().rawget(functionName);
-      if (oldDescription.isstring() && !description.equals(oldDescription.tojstring())) {
+      if (oldDescription.isstring() && !description.equals(oldDescription.tojstring())
+         && existing != function) {
          throw new IllegalStateException("Lua mixin '" + mixinName + "' function '" + functionName
             + "' is already registered with a different description");
       }
