@@ -177,6 +177,7 @@ jobs:
           gradle-version: ${{ matrix.gradle }}
 
       - name: Prepare isolated test mod with the packaged MLua JAR
+        id: prepare
         shell: pwsh
         run: |
           $jar = Get-ChildItem client-smoke/mod -Filter '*.jar' | Select-Object -First 1
@@ -207,7 +208,7 @@ jobs:
           }
 
       - name: Boot dedicated server with the packaged MLua JAR
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |

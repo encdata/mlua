@@ -908,14 +908,30 @@ final class MLuaModuleRegistrations {
 
     private static Map<String, Map<String, String>> declaredMethods(MLuaModule module) {
         MLuaDocBuilder docs = collectDocs(module);
-        Map<String, Map<String, String>> methods = new java.util.LinkedHashMap<>();
+        Map<String, Map<String, Map<String, String>>> overloads = new java.util.LinkedHashMap<>();
         for (MLuaDocBuilder.MethodDoc method : docs.methods()) {
             String name = methodName(method.signature());
             if (name == null || method.description() == null || method.description().isBlank()) continue;
-            Map<String, String> receiverMethods = methods.computeIfAbsent(method.receiver(), ignored -> new java.util.LinkedHashMap<>());
-            putConsistentDescription(receiverMethods, name, method.description(),
-                "method '" + method.receiver() + "." + name + "'");
+            Map<String, Map<String, String>> receiverMethods = overloads.computeIfAbsent(
+                method.receiver(), ignored -> new java.util.LinkedHashMap<>());
+            Map<String, String> signatures = receiverMethods.computeIfAbsent(name,
+                ignored -> new java.util.LinkedHashMap<>());
+            putConsistentDescription(signatures, method.signature().trim(), method.description(),
+                "overload '" + method.signature() + "'");
         }
+        Map<String, Map<String, String>> methods = new java.util.LinkedHashMap<>();
+        overloads.forEach((receiver, receiverOverloads) -> {
+            Map<String, String> descriptions = new java.util.LinkedHashMap<>();
+            receiverOverloads.forEach((name, signatures) -> {
+                String description = signatures.size() == 1
+                    ? signatures.values().iterator().next()
+                    : signatures.entrySet().stream()
+                        .map(entry -> entry.getKey() + " — " + entry.getValue())
+                        .collect(java.util.stream.Collectors.joining("; "));
+                descriptions.put(name, description);
+            });
+            methods.put(receiver, descriptions);
+        });
         return methods;
     }
 

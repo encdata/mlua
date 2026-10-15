@@ -2334,7 +2334,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
-            synchronized (this.context.mlua().executionLock()) {
+            synchronized (MLuaJavaService.this.context.mlua().executionLock()) {
                 return invokeLocked(proxy, method, args);
             }
         }

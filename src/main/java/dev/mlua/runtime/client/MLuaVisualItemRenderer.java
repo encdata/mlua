@@ -85,9 +85,9 @@ public final class MLuaVisualItemRenderer extends BlockEntityWithoutLevelRendere
 
    private void applyViewmodelOffset(PoseStack poseStack, ItemDisplayContext context) {
       MLuaCFrame offset;
-      if (context == ItemDisplayContext.FIRST_PERSON_LEFT_HAND || context == ItemDisplayContext.THIRD_PERSON_LEFT_HAND) {
+      if (context == ItemDisplayContext.FIRST_PERSON_LEFT_HAND) {
          offset = MLuaCameraController.getHeldItemLeftOffset();
-      } else if (context == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND || context == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND) {
+      } else if (context == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND) {
          offset = MLuaCameraController.getHeldItemOffset();
       } else {
          return;

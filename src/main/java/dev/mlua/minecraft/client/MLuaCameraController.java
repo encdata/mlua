@@ -145,6 +145,8 @@ public final class MLuaCameraController {
       scriptableCFrame = null;
       fovOverride = null;
       fovMultiplier = 1.0;
+      heldItemOffset = null;
+      heldItemLeftOffset = null;
       mode = "Custom";
       if (mc.player != null) {
          mc.setCameraEntity(mc.player);
