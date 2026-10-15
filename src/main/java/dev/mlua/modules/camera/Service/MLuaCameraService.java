@@ -123,37 +123,37 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    @MLuaDescription("Sets the first-person or third-person view mode.")
    public void SetViewMode(String value) { ensureClient(); MLuaCameraController.setViewMode(value); }
 
-   @MLuaDescription("Sets the first-person right-hand pose to a CFrame or a callback sampled once per client tick. The callback receives player, hand, itemStack, and arm.")
+   @MLuaDescription("Sets this addon's first-person right-arm pose layer to a CFrame or a callback sampled once per client tick. Addon layers compose in registration order. The callback receives player, hand, itemStack, and arm.")
    public void SetRightHandOffset(LuaValue value) {
       ensureClient();
       setHandOffset(value, false);
    }
 
-   @MLuaDescription("Returns the current first-person right-hand offset CFrame, callback, or nil.")
+   @MLuaDescription("Returns this addon's right-arm CFrame, callback, or nil.")
    public LuaValue GetRightHandOffset() {
       ensureClient();
-      return MLuaCameraController.getHeldItemOffsetValue();
+      return MLuaCameraController.getHeldItemOffsetValue(owner());
    }
 
-   @MLuaDescription("Sets the first-person left-hand pose to a CFrame or a callback sampled once per client tick. The callback receives player, hand, itemStack, and arm.")
+   @MLuaDescription("Sets this addon's first-person left-arm pose layer to a CFrame or a callback sampled once per client tick. Addon layers compose in registration order. The callback receives player, hand, itemStack, and arm.")
    public void SetLeftHandOffset(LuaValue value) {
       ensureClient();
       setHandOffset(value, true);
    }
 
-   @MLuaDescription("Returns the current first-person left-hand offset CFrame, callback, or nil.")
+   @MLuaDescription("Returns this addon's left-arm CFrame, callback, or nil.")
    public LuaValue GetLeftHandOffset() {
       ensureClient();
-      return MLuaCameraController.getHeldItemLeftOffsetValue();
+      return MLuaCameraController.getHeldItemLeftOffsetValue(owner());
    }
 
-   @MLuaDescription("Clears scriptable camera overrides.")
-   public void Reset() { ensureClient(); MLuaCameraController.reset(); }
+   @MLuaDescription("Resets camera overrides and removes this addon's first-person hand-pose layers.")
+   public void Reset() { ensureClient(); MLuaCameraController.reset(owner()); }
 
    private void setHandOffset(LuaValue value, boolean leftHand) {
       if (value.isnil()) {
-         if (leftHand) MLuaCameraController.setHeldItemLeftOffset(null);
-         else MLuaCameraController.setHeldItemOffset(null);
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffset(owner(), null);
+         else MLuaCameraController.setHeldItemOffset(owner(), null);
          return;
       }
       if (value.isfunction()) {
@@ -167,14 +167,14 @@ public final class MLuaCameraService extends MLuaReflectiveService {
             Varargs result = value.invoke(LuaValue.varargsOf(new LuaValue[]{luaPlayer, luaHand, luaStack, luaArm}));
             return MLuaCFrame.fromLua(result.arg1());
          };
-         if (leftHand) MLuaCameraController.setHeldItemLeftOffsetCallback(value, sampler, context.mlua().executionLock());
-         else MLuaCameraController.setHeldItemOffsetCallback(value, sampler, context.mlua().executionLock());
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffsetCallback(owner(), value, sampler, context.mlua().executionLock());
+         else MLuaCameraController.setHeldItemOffsetCallback(owner(), value, sampler, context.mlua().executionLock());
          return;
       }
       try {
          MLuaCFrame offset = MLuaCFrame.fromLua(value);
-         if (leftHand) MLuaCameraController.setHeldItemLeftOffset(offset);
-         else MLuaCameraController.setHeldItemOffset(offset);
+         if (leftHand) MLuaCameraController.setHeldItemLeftOffset(owner(), offset);
+         else MLuaCameraController.setHeldItemOffset(owner(), offset);
       } catch (IllegalArgumentException error) {
          throw new LuaError("[MLua] Hand offset must be a CFrame or a function returning CFrame: " + error.getMessage());
       }
@@ -184,6 +184,11 @@ public final class MLuaCameraService extends MLuaReflectiveService {
       if (this.context.mlua().side() != Side.CLIENT) {
          throw new LuaError("[MLua] Camera is client-side only. Use Minecraft:GetService(\"Camera\") from a .client.lua script. Server camera control needs a future networked player.Camera API.");
       }
+   }
+
+   private dev.mlua.runtime.client.MLuaHandPoseRegistry.Owner owner() {
+      return new dev.mlua.runtime.client.MLuaHandPoseRegistry.Owner(
+         context.mlua().session(), context.mlua().ownerModId());
    }
 
 }
