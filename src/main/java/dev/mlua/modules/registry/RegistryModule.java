@@ -228,6 +228,7 @@ public class RegistryModule implements MLuaModule {
                 "A live block instance at a position in a Minecraft world.",
                 "classes/block.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.method("Block", "Block:GetClassName(): string", "Returns the registered Lua class name of this block instance, including an addon subclass.", "", "string", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Block", "Block:GetRelative(offset: Vector3): Block", "Returns the live block at an integer block offset and resolves its registered Lua subclass.", "", "Block", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.clazz("BlockEntity", "MLuaBlockWrapper",
                 "A live block entity attached to a block position, with persistent state and optional inventory.",
                 "classes/block-entity.html", "Instance"));

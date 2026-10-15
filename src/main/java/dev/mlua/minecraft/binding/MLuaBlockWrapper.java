@@ -311,6 +311,18 @@ public final class MLuaBlockWrapper {
             MCBlockPos pos = pos(self);
             return MLuaVector.vector3((double)pos.getX(), (double)pos.getY(), (double)pos.getZ());
          }), "Returns this block's position.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetRelative", selfBlock((self, args) -> {
+            double[] offset = MLuaVector.components3(args.arg(2));
+            for (double component : offset) {
+               if (component != Math.rint(component) || component < Integer.MIN_VALUE || component > Integer.MAX_VALUE) {
+                  throw new LuaError("[MLua] Block:GetRelative offset components must be whole numbers in the integer range.");
+               }
+            }
+            net.minecraft.core.BlockPos target = ((MCBlockPosImpl)pos(self)).inner().offset(
+               (int)offset[0], (int)offset[1], (int)offset[2]);
+            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            return blockTable(rawLevel, target, registration);
+         }), "Returns the live Block instance at an integer offset, using the target block's registered Lua class.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsAir", selfBlock((self, ignored) -> LuaValue.valueOf(level(self).getBlockState(pos(self)).isAir())), "Returns whether this block position contains air.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetIsSolid", selfBlock((self, ignored) -> LuaValue.valueOf(level(self).getBlockState(pos(self)).isSolid())), "Returns whether this block state is solid.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetState", selfBlock((self, ignored) -> {
