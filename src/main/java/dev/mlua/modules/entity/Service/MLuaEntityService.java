@@ -131,7 +131,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         invokeEntityMethod(requireEntity(value), "Remove");
     }
 
-    @MLuaDescription("Kills an entity using the same behavior as Entity:Kill.")
+    @MLuaDescription("Kills an entity using the same server-side behavior as Entity:Kill.")
     public void Kill(LuaValue value) {
         invokeEntityMethod(requireEntity(value), "Kill");
     }
