@@ -39,6 +39,8 @@ def smokeModJar = tasks.register('smokeModJar', Jar) {
 tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
     dependsOn smokeModJar
     doFirst {
+        file("$buildDir/classes/java/main").mkdirs()
+        file("$buildDir/resources/main").mkdirs()
         copy {
             from smokeModJar.get().archiveFile
             into project.file('run/mods')
