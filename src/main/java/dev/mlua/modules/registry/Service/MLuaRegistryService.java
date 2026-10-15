@@ -104,7 +104,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("GetAll", "Returns definitions keyed by namespaced identifier from an addon-owned category.");
       descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
       descriptions.put("GetRegistered", "Returns identifiers registered in a supported Minecraft registry.");
-      descriptions.put("GetEntry", "Creates a live RegistryEntry view for a kind and namespaced identifier.");
+      descriptions.put("GetEntry", "Creates a live RegistryEntry view for a registry kind and addon-local or namespaced identifier.");
       descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
       descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
@@ -1044,14 +1044,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              RegistryKind kind = MLuaRegistryEntry.kind(args.checkjstring(2));
              return MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(), kind,
-                args.checkjstring(3));
+               MLuaRegistryService.this.registryId(args.checkjstring(3)));
           }
        });
        table.set("Exists", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              RegistryKind kind = MLuaRegistryEntry.kind(args.checkjstring(2));
              LuaTable entry = MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(), kind,
-                args.checkjstring(3));
+               MLuaRegistryService.this.registryId(args.checkjstring(3)));
              return entry.get("Exists").invoke(entry).arg1();
           }
        });
