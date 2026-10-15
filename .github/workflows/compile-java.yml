@@ -1,71 +1,63 @@
-name: Compile and test Java targets
+name: Build and run packaged clients
 
 on:
   push:
   pull_request:
   workflow_dispatch:
-    inputs:
-      target:
-        description: Minecraft target to validate
-        type: choice
-        options:
-          - 1.20.1
-          - 1.21.1
-          - 26.1
-        default: 1.20.1
-        required: true
-      check:
-        description: Run a compile or the target's Java tests
-        type: choice
-        options:
-          - compile
-          - test
-        default: compile
-        required: true
 
 permissions:
   contents: read
 
 jobs:
-  compile:
-    name: ${{ matrix.target }} / ${{ matrix.loader }}
+  build:
+    name: Build ${{ matrix.target }} / ${{ matrix.loader }} (Linux)
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch'
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 5
       matrix:
         include:
-          - target: 1.20.1
-            java: '21'
+          - target: '1.20.1'
             loader: fabric
-          - target: 1.20.1
-            java: '21'
+            java: '17'
+            gradle: '8.10.2'
+          - target: '1.20.1'
             loader: forge
-          - target: 1.21.1
-            java: '21'
+            java: '17'
+            gradle: '8.10.2'
+          - target: '1.21.1'
             loader: fabric
-          - target: 1.21.1
             java: '21'
+            gradle: '8.10.2'
+          - target: '1.21.1'
             loader: forge
-          - target: 1.21.1
             java: '21'
+            gradle: '8.10.2'
+          - target: '1.21.1'
             loader: neoforge
-          - target: 26.1
-            java: '25'
+            java: '21'
+            gradle: '9.2.1'
+          - target: '26.1'
             loader: fabric
-          - target: 26.1
             java: '25'
+            gradle: '9.2.1'
+          - target: '26.1'
             loader: neoforge
-          - target: 26.1.1
             java: '25'
+            gradle: '9.2.1'
+          - target: '26.1.1'
             loader: fabric
-          - target: 26.1.2
             java: '25'
+            gradle: '9.2.1'
+          - target: '26.1.2'
             loader: fabric
-          - target: 26.1.2
             java: '25'
+            gradle: '9.2.1'
+          - target: '26.1.2'
             loader: neoforge
+            java: '25'
+            gradle: '9.2.1'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -76,34 +68,149 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: ${{ matrix.loader == 'forge' && '8.10.2' || '9.2.1' }}
+          gradle-version: ${{ matrix.gradle }}
 
-      - name: Compile or run tests
+      - name: Build and validate the packaged mod JAR
         run: >-
-          gradle --no-daemon
+          gradle --no-daemon --stacktrace
           -PmluaTarget=${{ matrix.target }}
           -PmluaLoader=${{ matrix.loader }}
-          :${{ matrix.loader }}:${{ matrix.target }}:compileJava
+          build
 
-  compile-selected:
-    name: ${{ inputs.target }} / Fabric
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+      - name: Upload packaged mod JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlua-${{ matrix.loader }}-${{ matrix.target }}
+          path: build/loader-jars/*.jar
+          if-no-files-found: error
+          retention-days: 2
+
+  run-client:
+    name: Run packaged ${{ matrix.target }} / ${{ matrix.loader }} client (Windows)
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - target: '1.20.1'
+            loader: fabric
+            java: '17'
+            gradle: '8.10.2'
+            loaderVersion: '0.16.10'
+            fabricApi: '0.92.9+1.20.1'
+            loom: '1.11.8'
+          - target: '1.20.1'
+            loader: forge
+            java: '17'
+            gradle: '8.10.2'
+            forgeVersion: '47.2.0'
+            forgeLoaderRange: '[47,)'
+          - target: '1.21.1'
+            loader: fabric
+            java: '21'
+            gradle: '8.10.2'
+            loaderVersion: '0.16.14'
+            fabricApi: '0.116.13+1.21.1'
+            loom: '1.11.8'
+          - target: '1.21.1'
+            loader: forge
+            java: '21'
+            gradle: '8.10.2'
+            forgeVersion: '52.1.14'
+            forgeLoaderRange: '[52,)'
+          - target: '1.21.1'
+            loader: neoforge
+            java: '21'
+            gradle: '9.2.1'
+            neoForgeVersion: '21.1.228'
+          - target: '26.1'
+            loader: fabric
+            java: '25'
+            gradle: '9.2.1'
+            loaderVersion: '0.19.3'
+            fabricApi: '0.154.2+26.1.2'
+            loom: '1.15.4'
+          - target: '26.1'
+            loader: neoforge
+            java: '25'
+            gradle: '9.2.1'
+            neoForgeVersion: '26.1.2.6-beta'
+          - target: '26.1.1'
+            loader: fabric
+            java: '25'
+            gradle: '9.2.1'
+            loaderVersion: '0.19.3'
+            fabricApi: '0.154.2+26.1.2'
+            loom: '1.15.4'
+          - target: '26.1.2'
+            loader: fabric
+            java: '25'
+            gradle: '9.2.1'
+            loaderVersion: '0.19.3'
+            fabricApi: '0.154.2+26.1.2'
+            loom: '1.15.4'
+          - target: '26.1.2'
+            loader: neoforge
+            java: '25'
+            gradle: '9.2.1'
+            neoForgeVersion: '26.1.2.6-beta'
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mlua-${{ matrix.loader }}-${{ matrix.target }}
+          path: client-smoke/mod
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ inputs.target == '26.1' && '25' || '21' }}
+          java-version: ${{ matrix.java }}
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 9.2.1
+          gradle-version: ${{ matrix.gradle }}
 
-      - name: Compile or run tests
-        run: >-
-          gradle --no-daemon
-          -PmluaTarget=${{ inputs.target }}
-          -PmluaLoader=fabric
-          :fabric:${{ inputs.target }}:${{ inputs.check == 'test' && 'test' || 'compileJava' }}
+      - name: Prepare isolated test mod with the packaged MLua JAR
+        shell: pwsh
+        run: |
+          $jar = Get-ChildItem client-smoke/mod -Filter '*.jar' | Select-Object -First 1
+          if ($null -eq $jar) { throw 'Build artifact did not contain an MLua mod JAR.' }
+          $template = "client-smoke/${{ matrix.loader }}"
+          New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
+          Copy-Item $jar.FullName "$template/run/mods/mlua.jar"
+
+      - name: Run packaged JAR in a clean Minecraft client
+        shell: pwsh
+        working-directory: client-smoke/${{ matrix.loader }}
+        run: |
+          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}")
+          if ('${{ matrix.loader }}' -eq 'fabric') {
+            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
+          } elseif ('${{ matrix.loader }}' -eq 'forge') {
+            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
+          } else {
+            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
+          }
+          gradle @gradleArgs runClient 2>&1 | Tee-Object -FilePath client-smoke.log
+          $clientExitCode = $LASTEXITCODE
+          if ($clientExitCode -ne 0) { throw "runClient failed with exit code $clientExitCode" }
+          if (-not (Select-String -Path client-smoke.log -Pattern 'MLUA_PACKAGED_CLIENT_SMOKE_OK' -Quiet)) {
+            throw 'The test mod did not reach its clean client shutdown marker.'
+          }
+
+      - name: Upload client logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-logs-${{ matrix.loader }}-${{ matrix.target }}
+          path: |
+            client-smoke/**/logs/latest.log
+            client-smoke/**/crash-reports/*.txt
+            client-smoke.log
+          if-no-files-found: ignore
+          retention-days: 5

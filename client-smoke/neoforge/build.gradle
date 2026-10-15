@@ -1,0 +1,33 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+version = '1.0.0'
+group = 'dev.mlua.ci'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(
+    providers.gradleProperty('minecraftVersion').get().startsWith('26.') ? 25 : 21
+)
+
+neoForge {
+    version = providers.gradleProperty('neoForgeVersion').get()
+    mods {
+        mlua_ci_smoke { sourceSet sourceSets.main }
+    }
+    runs {
+        client {
+            client()
+        }
+    }
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${providers.gradleProperty('neoForgeVersion').get()}"
+}
+
+processResources {
+    inputs.property 'neoForgeVersion', providers.gradleProperty('neoForgeVersion').get()
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand neoForgeVersion: providers.gradleProperty('neoForgeVersion').get()
+    }
+}

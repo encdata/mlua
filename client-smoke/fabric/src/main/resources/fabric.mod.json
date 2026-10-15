@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "mlua_ci_smoke",
+  "version": "1.0.0",
+  "name": "MLua packaged JAR client smoke test",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.mlua.ci.SmokeClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "minecraft": "${minecraftVersion}",
+    "java": ">=17",
+    "fabric-api": "*",
+    "mlua": "*"
+  }
+}

@@ -1,0 +1,48 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "net.fabricmc:fabric-loom:${providers.gradleProperty('loomVersion').get()}"
+    }
+}
+
+def loomPluginId = providers.gradleProperty('loomVersion').get().startsWith('1.15')
+    ? 'net.fabricmc.fabric-loom' : 'fabric-loom'
+apply plugin: loomPluginId
+
+version = '1.0.0'
+group = 'dev.mlua.ci'
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${providers.gradleProperty('minecraftVersion').get()}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${providers.gradleProperty('fabricLoaderVersion').get()}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty('fabricApiVersion').get()}"
+    modImplementation files('run/mods/mlua.jar')
+}
+
+loom {
+    runs {
+        client {
+            runDir 'run'
+        }
+    }
+    mods {
+        mlua_ci_smoke { source sourceSets.main }
+    }
+}
+
+processResources {
+    inputs.property 'minecraftVersion', providers.gradleProperty('minecraftVersion').get()
+    filesMatching('fabric.mod.json') {
+        expand minecraftVersion: providers.gradleProperty('minecraftVersion').get()
+    }
+}
