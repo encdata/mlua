@@ -20,6 +20,7 @@ public final class MLuaAnimationTrack {
     private boolean playing;
     private boolean paused;
     private boolean looped;
+    private boolean emitStartEvents;
     private float speed;
     private float time;
     private float weight;
@@ -44,6 +45,7 @@ public final class MLuaAnimationTrack {
         this.playing = false;
         this.paused = false;
         this.looped = false;
+        this.emitStartEvents = false;
         this.time = 0.0f;
         this.computedPose = new HashMap<>();
         this.sampledPose = new HashMap<>();
@@ -80,6 +82,7 @@ public final class MLuaAnimationTrack {
         playing = true;
         paused = false;
         time = 0.0f;
+        emitStartEvents = true;
         fadeTo(1.0f);
     }
 
@@ -136,8 +139,16 @@ public final class MLuaAnimationTrack {
         if (callback == null || !callback.isfunction()) {
             throw new IllegalArgumentException("Animation event callback must be a function");
         }
-        events.add(new AnimationEvent(triggerTime, callback));
-        events.sort((a, b) -> Float.compare(a.triggerTime, b.triggerTime));
+        synchronized (events) {
+            events.add(new AnimationEvent(triggerTime, callback));
+            events.sort((a, b) -> Float.compare(a.triggerTime, b.triggerTime));
+        }
+    }
+
+    public void clearEvents() {
+        synchronized (events) {
+            events.clear();
+        }
     }
 
     public void tick(float delta) {
@@ -181,7 +192,8 @@ public final class MLuaAnimationTrack {
 
         updateComputedPose();
 
-        checkEvents(previousTime, time);
+        checkEvents(previousTime, time, emitStartEvents);
+        emitStartEvents = false;
     }
 
     private void updateComputedPose() {
@@ -217,9 +229,17 @@ public final class MLuaAnimationTrack {
         weight = Math.max(0.0f, Math.min(1.0f, weight));
     }
 
-    private void checkEvents(float fromTime, float toTime) {
-        for (AnimationEvent event : events) {
-            if (event.triggerTime > fromTime && event.triggerTime <= toTime ||
+    private void checkEvents(float fromTime, float toTime, boolean includeStart) {
+        List<AnimationEvent> snapshot;
+        synchronized (events) {
+            snapshot = List.copyOf(events);
+        }
+        for (AnimationEvent event : snapshot) {
+            synchronized (events) {
+                if (!events.contains(event)) continue;
+            }
+            if ((includeStart && event.triggerTime == 0.0f)
+                || event.triggerTime > fromTime && event.triggerTime <= toTime ||
                 (looped && toTime < fromTime && (event.triggerTime > fromTime || event.triggerTime <= toTime))) {
                 if (event.callback != null && !event.callback.isnil()) {
                 try {

@@ -97,6 +97,10 @@ public final class MLuaAnimationBindings {
             "Returns this animation track's current weight.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetWeight",
             "Sets this animation track's blend weight from zero to one.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AddEvent",
+            "Runs a callback when playback crosses a time in seconds. Time zero runs when playback starts.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "ClearEvents",
+            "Removes all marker callbacks from this track.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetAnimation",
             "Returns the Animation instance played by this track.");
     }
@@ -253,6 +257,32 @@ public final class MLuaAnimationBindings {
             public Varargs invoke(Varargs args) {
                 track.fadeTo(MLuaLuaArguments.unitIntervalFloat(
                     args, 2, "AnimationTrack:SetWeight", "weight"));
+                return LuaValue.NONE;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "AddEvent", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                float triggerTime = MLuaLuaArguments.finiteNonNegativeFloat(
+                    args.arg(2), "AnimationTrack:AddEvent", "time");
+                LuaValue callback = args.checkfunction(3);
+                try {
+                    track.addEvent(triggerTime, new VarArgFunction() {
+                        @Override
+                        public Varargs invoke(Varargs eventArgs) {
+                            return callback.invoke(LuaValue.varargsOf(new LuaValue[]{table, eventArgs.arg(2)}));
+                        }
+                    });
+                } catch (IllegalArgumentException error) {
+                    throw new LuaError("[MLua] AnimationTrack:AddEvent: " + error.getMessage());
+                }
+                return LuaValue.NONE;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "ClearEvents", new ZeroArgFunction() {
+            @Override
+            public LuaValue call() {
+                track.clearEvents();
                 return LuaValue.NONE;
             }
         });

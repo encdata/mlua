@@ -61,6 +61,8 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:SetPose(entity: Entity, bone: string, cframe: CFrame)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetPose(entity: Entity)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:ClearPose(entity: Entity)", null));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "Runs callback(track, time) when playback crosses the marker time in seconds. A marker at zero runs as soon as playback starts.", "", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:ClearEvents()", "Removes all marker callbacks from this track.", "", "void", "client:Client", ""));
 
         docs.register(MLuaDocBuilder.Registration.service("Animation", "MLuaAnimationService",
                 "Service for creating and managing animations.",
@@ -75,6 +77,9 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "time", "number", "Time position of the keyframe in seconds."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "value", "any", "Pose values to apply at this keyframe."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "easing?", "string", "Optional easing function used between this and the next keyframe."));
+        docs.register(MLuaDocBuilder.Registration.guideStep("AnimationTrack", "React to animation markers",
+            "AddEvent invokes callback(track, time) when playback crosses its time in seconds. A marker at zero runs as soon as the track starts. ClearEvents removes callbacks that have not fired yet.",
+            "local Animations = Minecraft:GetService(\"Animation\")\nlocal animation = Animations:GetAnimation(\"myaddon:reload\")\nlocal track = entity:LoadAnimation(animation)\n\ntrack:AddEvent(0, function(activeTrack, time)\n    print(\"Reload started on track\", activeTrack:GetTrackId(), time)\nend)\ntrack:AddEvent(0.65, function(activeTrack, time)\n    print(\"Insert the magazine at\", time)\nend)\ntrack:Play()\n\n-- Remove marker callbacks when they are no longer needed.\ntrack:ClearEvents()"));
     }
 
     @Override
