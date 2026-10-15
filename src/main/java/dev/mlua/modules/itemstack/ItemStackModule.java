@@ -59,6 +59,7 @@ public final class ItemStackModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Grow(amount: whole number >= 0)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Shrink(amount: whole number >= 0)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Split(amount: whole number >= 0)", "Item"));
+        docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Clone()", "Item"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Copy()", "Item"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Item", "Read and change a live item stack",
             "Item values are live typed stack instances returned by player inventory and held-item methods. Use Item.Find or Item.new to create one directly, then pass that instance to inventory and container methods.",

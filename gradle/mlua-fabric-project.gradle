@@ -228,7 +228,6 @@ if (isUnobfuscated) {
                     }
                     if (source.name == 'MLuaLevelWrapper.java') text = text.replace('.dimension().location()', '.dimension().identifier()').replace('.getDayTime()', '.getDefaultClockTime()').replace('serverLevel.setDayTime(args.checklong(2));', '((net.minecraft.world.clock.ServerClockManager) serverLevel.clockManager()).setTotalTicks(serverLevel.dimensionType().defaultClock().orElseThrow(() -> new LuaError("[MLua] This dimension does not define a world clock.")), args.checklong(2));')
                     if (source.name == 'MLuaItemWrapper.java') {
-                        text = text.replace('tag.keySet()', 'tag.getAllKeys()')
                         if (!text.contains('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference')) text = text.replace('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)')
                     }
                     if (source.name == 'MLuaMinecraftEnums.java') text = text.replace('d.getKey()', 'd.getSerializedName()')
