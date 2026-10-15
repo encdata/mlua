@@ -488,6 +488,27 @@ public final class MLuaVector {
          }
       });
       methods.set("lerp", methods.get("Lerp"));
+      methods.set("Floor", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable value = checkVector2(self);
+            return MLuaVector.vector2(Math.floor(value.get("X").todouble()), Math.floor(value.get("Y").todouble()));
+         }
+      });
+      methods.set("floor", methods.get("Floor"));
+      methods.set("Ceil", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable value = checkVector2(self);
+            return MLuaVector.vector2(Math.ceil(value.get("X").todouble()), Math.ceil(value.get("Y").todouble()));
+         }
+      });
+      methods.set("ceil", methods.get("Ceil"));
+      methods.set("Abs", new OneArgFunction() {
+         public LuaValue call(LuaValue self) {
+            LuaTable value = checkVector2(self);
+            return MLuaVector.vector2(Math.abs(value.get("X").todouble()), Math.abs(value.get("Y").todouble()));
+         }
+      });
+      methods.set("abs", methods.get("Abs"));
       metatable.set("__index", methods.freeze());
       metatable.set(LuaValue.ADD, new TwoArgFunction() {
          public LuaValue call(LuaValue left, LuaValue right) {

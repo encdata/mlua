@@ -88,6 +88,14 @@ public final class MLuaLuauTypes {
             return MLuaVector.vector2(args.optdouble(1, 0.0), args.optdouble(2, 0.0));
          }
       });
+      table.set("zero", MLuaVector.vector2(0.0, 0.0));
+      table.set("one", MLuaVector.vector2(1.0, 1.0));
+      table.set("xAxis", MLuaVector.vector2(1.0, 0.0));
+      table.set("yAxis", MLuaVector.vector2(0.0, 1.0));
+      table.set("Zero", table.get("zero"));
+      table.set("One", table.get("one"));
+      table.set("XAxis", table.get("xAxis"));
+      table.set("YAxis", table.get("yAxis"));
       return table;
    }
 
