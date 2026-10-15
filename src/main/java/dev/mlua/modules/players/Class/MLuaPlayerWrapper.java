@@ -298,7 +298,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(player.getInventory().getSelected() + 1);
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetSelectedSlot", varArg((args) -> {
-         int slot = args.checkint(2) - 1;
+         int slot = MLuaLuaArguments.wholeInt(args, 2, "Player:SetSelectedSlot", "slot") - 1;
          if (slot < 0 || slot >= 9) {
             throw new LuaError("[MLua] Selected slot must be between 1 and 9.");
          }
@@ -328,7 +328,7 @@ public final class MLuaPlayerWrapper {
       }));
       LuaTable inventory = attachInventoryMethods(table, player, true, true, registration);
       MLuaClassMethods.setInstanceMethod(table, "SetSlot", varArg((args) -> {
-         int slot = args.checkint(2) - 1;
+         int slot = MLuaLuaArguments.wholeInt(args, 2, "Player:SetSlot", "slot") - 1;
          LuaValue itemVal = args.arg(3);
          if (slot < 0 || slot >= player.getInventory().getContainerSize()) {
             throw new LuaError("[MLua] Inventory slot must be between 1 and " + player.getInventory().getContainerSize() + ".");
@@ -709,7 +709,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.valueOf(player.getInventory().getSelected() + 1);
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetSelectedSlot", varArg((args) -> {
-         int slot = args.checkint(2) - 1;
+         int slot = MLuaLuaArguments.wholeInt(args, 2, "Player:SetSelectedSlot", "slot") - 1;
          if (slot < 0 || slot >= 9) {
             throw new LuaError("[MLua] Selected slot must be between 1 and 9.");
          }
@@ -852,7 +852,7 @@ public final class MLuaPlayerWrapper {
 
       MLuaClassMethods.setInstanceMethod(table, "GetInventory", luaFn(() -> inventory));
       MLuaClassMethods.setInstanceMethod(table, "GetSlot", varArg((args) -> {
-         int slot = args.checkint(2);
+         int slot = MLuaLuaArguments.wholeInt(args, 2, "Player:GetSlot", "slot");
          int rawIndex = slot - 1;
          if (rawIndex < 0 || rawIndex >= rawInventory.getContainerSize()) {
             return LuaValue.NIL;
