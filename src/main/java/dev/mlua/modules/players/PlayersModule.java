@@ -146,7 +146,7 @@ public class PlayersModule implements MLuaModule {
             MLuaClassMethods.registerInstanceMethod(registration, "Entity", method[0], method[1]);
         }
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Kill", "Kills this entity. Server-side only.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Removes this entity from its world. Server-side only.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "Remove", "Removes this entity from its world. Server-side only.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPersistentData",
             "Returns this entity's persistent MLua data table.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetSyncedData",
