@@ -336,13 +336,13 @@ public final class MLuaBlockWrapper {
             return MLuaBlockStateProperties.read(rawLevel.getBlockState(rawPos));
          }), "Returns the current values of this block's Minecraft state properties.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "SetStateProperties", selfBlock((self, args) -> {
-            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.server.level.ServerLevel rawLevel = requireServerLevel(self, "SetStateProperties");
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             net.minecraft.world.level.block.state.BlockState state =
                MLuaBlockStateProperties.apply(rawLevel.getBlockState(rawPos), args.arg(2));
             int updateFlags = args.arg(3).isnil() ? 3 : args.arg(3).checkint();
             return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
-         }), "Updates this block's Minecraft state properties while keeping its block type. Optional Minecraft update flags default to 3.");
+         }), "Updates this block's Minecraft state properties while keeping its block type. Optional Minecraft update flags default to 3. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetFluid", selfBlock((self, ignored) -> {
             net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
@@ -411,9 +411,10 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             return LuaValue.valueOf(rawLevel.getBlockState(rawPos).isRandomlyTicking());
          }), "Checks whether this block state receives random game ticks.");
-         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Break", selfBlock((self, args) ->
-            LuaValue.valueOf(level(self).destroyBlock(pos(self), args.optboolean(2, true)))),
-            "Breaks this block, optionally dropping its resources.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Break", selfBlock((self, args) -> {
+            net.minecraft.server.level.ServerLevel server = requireServerLevel(self, "Break");
+            return LuaValue.valueOf(server.destroyBlock(((MCBlockPosImpl)pos(self)).inner(), args.optboolean(2, true)));
+         }), "Breaks this block, optionally dropping its resources. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "Set", selfBlock((self, args) -> {
             String blockId = args.checkjstring(2);
             net.minecraft.world.level.block.Block newBlock =
@@ -421,7 +422,7 @@ public final class MLuaBlockWrapper {
             if (newBlock == null) {
                throw new LuaError("[MLua] Unknown block: " + blockId);
             }
-            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+            net.minecraft.server.level.ServerLevel rawLevel = requireServerLevel(self, "Set");
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             LuaValue properties = args.arg(3);
             if (!properties.isnil() && !properties.istable() && !properties.isnumber()) {
@@ -430,17 +431,16 @@ public final class MLuaBlockWrapper {
             net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(newBlock.defaultBlockState(), properties.istable() ? properties : LuaValue.NIL);
             int updateFlags = args.arg(properties.istable() ? 4 : 3).isnil() ? 3 : args.arg(properties.istable() ? 4 : 3).checkint();
             return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
-         }), "Replaces this block with a registered block identifier and optional state properties. Optional Minecraft update flags default to 3.");
+         }), "Replaces this block with a registered block identifier and optional state properties. Optional Minecraft update flags default to 3. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "ScheduleTick", selfBlock((self, args) -> {
             int delay = args.checkint(2);
             if (delay < 1) throw new LuaError("[MLua] Block:ScheduleTick delay must be at least one tick");
-            net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
-            if (rawLevel.isClientSide) return LuaValue.FALSE;
+            net.minecraft.server.level.ServerLevel rawLevel = requireServerLevel(self, "ScheduleTick");
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             net.minecraft.world.level.block.Block block = rawLevel.getBlockState(rawPos).getBlock();
             rawLevel.scheduleTick(rawPos, block, delay);
             return LuaValue.TRUE;
-         }), "Schedules this block's onTick callback after the given server tick delay.");
+         }), "Schedules this block's onTick callback after the given server tick delay. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetNbt", selfBlock((self, args) -> {
             if (args.narg() < 2 || args.arg(2).isnil()) {
                return nbtTable(level(self), pos(self), registration);
@@ -449,14 +449,15 @@ public final class MLuaBlockWrapper {
          }), "Returns this block entity's NBT data or one value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "getNbt", classTable.rawget("GetNbt"), "Returns this block entity's NBT data or one value by key.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "SetNbt", selfBlock((self, args) -> {
+            requireServerLevel(self, "SetNbt");
             if (args.narg() == 2 && args.arg(2).istable()) {
                return LuaValue.valueOf(replaceBlockEntityNbt(level(self), pos(self), args.arg(2)));
             }
             return LuaValue.valueOf(setBlockEntityNbt(level(self), pos(self), args.checkjstring(2), args.arg(3)));
-         }), "Sets one block entity NBT value or replaces its data.");
-         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "setNbt", classTable.rawget("SetNbt"), "Sets one block entity NBT value or replaces its data.");
-         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "OpenDoor", selfBlock((self, ignored) -> LuaValue.valueOf(toggleDoor(((MCLevelImpl)level(self)).inner(), ((dev.mlua.mc.impl.core.MCBlockPosImpl)pos(self)).inner(), true, true))), "Opens the door at this block position.");
-         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "CloseDoor", selfBlock((self, ignored) -> LuaValue.valueOf(toggleDoor(((MCLevelImpl)level(self)).inner(), ((dev.mlua.mc.impl.core.MCBlockPosImpl)pos(self)).inner(), false, false))), "Closes the door at this block position.");
+         }), "Sets one block entity NBT value or replaces its data. Server-side only.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "setNbt", classTable.rawget("SetNbt"), "Sets one block entity NBT value or replaces its data. Server-side only.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "OpenDoor", selfBlock((self, ignored) -> LuaValue.valueOf(toggleDoor(requireServerLevel(self, "OpenDoor"), ((dev.mlua.mc.impl.core.MCBlockPosImpl)pos(self)).inner(), true, true))), "Opens the door at this block position. Server-side only.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "CloseDoor", selfBlock((self, ignored) -> LuaValue.valueOf(toggleDoor(requireServerLevel(self, "CloseDoor"), ((dev.mlua.mc.impl.core.MCBlockPosImpl)pos(self)).inner(), false, false))), "Closes the door at this block position. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "IsDoorOpen", selfBlock((self, ignored) -> {
             net.minecraft.world.level.block.state.BlockState state = doorBaseState(((MCLevelImpl)level(self)).inner(), ((dev.mlua.mc.impl.core.MCBlockPosImpl)pos(self)).inner());
             return LuaValue.valueOf(state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock && state.hasProperty(net.minecraft.world.level.block.DoorBlock.OPEN) && state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN));
@@ -586,6 +587,14 @@ public final class MLuaBlockWrapper {
          throw new LuaError("[MLua] Block instance lost its level reference");
       }
       return new MCLevelImpl(level);
+   }
+
+   private static net.minecraft.server.level.ServerLevel requireServerLevel(LuaValue self, String method) {
+      net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
+      if (!(rawLevel instanceof net.minecraft.server.level.ServerLevel server)) {
+         throw new LuaError("[MLua] Block:" + method + " is server-side only.");
+      }
+      return server;
    }
 
    private static MCBlockPos pos(LuaValue self) {
