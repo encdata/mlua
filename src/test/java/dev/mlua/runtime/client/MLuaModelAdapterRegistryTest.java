@@ -43,6 +43,18 @@ final class MLuaModelAdapterRegistryTest {
     }
 
     @Test
+    void runtimeCleanupRemovesOnlyItsOwnAdapters() {
+        String modelClass = SharedModel.class.getName();
+        MLuaModelAdapterRegistry.register(modelClass, Map.of("head", "head"), addonA);
+        MLuaModelAdapterRegistry.register(modelClass, Map.of("rightHand", "rightArm"), addonB);
+
+        MLuaModelAdapterRegistry.clearRuntime(addonA.runtimeSession());
+
+        assertEquals(Map.of("rightHand", "rightArm"),
+            MLuaModelAdapterRegistry.findMapping(SharedModel.class));
+    }
+
+    @Test
     void subclassMappingsOverrideInheritedBoneNames() {
         MLuaModelAdapterRegistry.register(ParentModel.class.getName(), Map.of("head", "head"), addonA);
         MLuaModelAdapterRegistry.register(ChildModel.class.getName(), Map.of("head", "hat"), addonB);
