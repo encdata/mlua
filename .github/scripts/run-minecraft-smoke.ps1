@@ -49,6 +49,9 @@ try {
         if ($clientTask -and $text -match $graphicsFailure) {
             throw 'Minecraft could not initialize OpenGL with the CI software renderer; see the captured launcher log.'
         }
+        if ($text -match '(?i)(Mod loading has failed|Missing or unsupported mandatory dependencies|is not a valid mod file)') {
+            throw 'NeoForge rejected the packaged mod during discovery or loading; see the captured launcher log.'
+        }
 
         if ($process.HasExited) { break }
 

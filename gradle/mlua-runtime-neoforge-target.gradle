@@ -6,6 +6,7 @@ group = mod_group_id
 def targetVersion = project.ext.get('mluaRuntimeTargetVersion')
 def target = findMluaTarget(targetVersion)
 def is26Family = target.minecraft.toString().startsWith('26.1')
+def runtimeModId = is26Family ? mod_id : 'mlua_runtime'
 def minecraft_version = resolveMluaTargetValue(targetVersion, 'minecraftDependencyVersion', target.minecraft)
 def minecraft_version_range = resolveMluaTargetValue(targetVersion, 'minecraftVersionRange')
 def neo_forge_version = resolveMluaTargetValue(targetVersion, 'neoForgeVersion')
@@ -159,11 +160,6 @@ sourceSets.main.resources.setSrcDirs([
     file("${buildDir}/generated/prepareRuntimeNeoForgeResources")
 ])
 sourceSets.main.resources.exclude('META-INF/mods.toml')
-// NeoForge 1.21.x declares @Mod in the outer loader JAR. Keep the embedded
-// runtime as a library there; its duplicate mlua metadata makes NeoForge
-// discover a second mod with the same ID and can prevent the outer entrypoint
-// from being constructed. NeoForge 26.1 keeps its entrypoint in this runtime.
-if (!is26Family) sourceSets.main.resources.exclude('META-INF/neoforge.mods.toml')
 sourceSets.main.resources.exclude('META-INF/services/net.neoforged.neoforgespi.locating.IModFileCandidateLocator')
 
 tasks.named('compileJava').configure {
@@ -340,8 +336,8 @@ tasks.named('processResources', ProcessResources).configure {
             neo_forge_version: neo_forge_version,
             neo_forge_version_range: neo_forge_version_range,
             neo_loader_version_range: neo_loader_version_range,
-            mod_id: mod_id,
-            mod_name: mod_name,
+            mod_id: runtimeModId,
+            mod_name: is26Family ? mod_name : 'MLua Runtime',
             mod_license: mod_license,
             mod_version: mod_version,
             mod_authors: mod_authors,
