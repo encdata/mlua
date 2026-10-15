@@ -9,6 +9,7 @@ import org.luaj.vm2.LuaTable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@MLuaDescription("Service for registering and managing textures.")
 public final class MLuaTextureService extends MLuaReflectiveService {
     private final TextureState state;
 

@@ -18,6 +18,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
+@MLuaDescription("Client-side model part overrides and Lua-registered bone adapters for living entity models.")
 public final class MLuaModelService extends MLuaReflectiveService {
     public MLuaModelService(MLuaService.Context context) {
         super(context);

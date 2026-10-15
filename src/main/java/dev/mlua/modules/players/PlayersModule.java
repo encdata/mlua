@@ -700,9 +700,6 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetInventory()", "Container"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetOpenContainer()", "Container"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetEnderChest()", "Container"));
-        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerByName(name: string)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:GetPlayerByUUID(uuid: string)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Players", "Players:Broadcast(message: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendMessage(message: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendActionBar(message: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendTitle(title: string)", null));

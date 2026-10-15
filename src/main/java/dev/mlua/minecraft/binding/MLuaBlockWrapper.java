@@ -287,8 +287,6 @@ public final class MLuaBlockWrapper {
             "Container|nil", "shared:Shared", "The live container owned by this block entity, when available.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Inventory", "GetInventory", null,
             "Container|nil", "shared:Shared", "Alias for Container.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "HasContainer", "HasContainer", null,
-            "boolean", "shared:Shared", "Whether this block entity owns a live Container.");
          blockEntityClass.set("__initialized", LuaValue.TRUE);
       }
       LuaTable classTable = registration.registerClass("Block", registration.requireInstanceBaseClassName(), "A live block instance at a position in a Minecraft world.");

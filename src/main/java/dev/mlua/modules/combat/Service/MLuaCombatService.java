@@ -12,6 +12,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
+@MLuaDescription("Queries registered damage sources and applies damage to supported entities.")
 public final class MLuaCombatService extends MLuaReflectiveService {
    public MLuaCombatService(MLuaService.Context context) {
       super(context);

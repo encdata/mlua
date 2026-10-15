@@ -11,7 +11,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-@MLuaDescription("Displays native Minecraft client toasts, including multiline messages.")
+@MLuaDescription("Displays native Minecraft client toasts with vanilla multiline wrapping.")
 public final class MLuaToastService extends MLuaReflectiveService {
     public MLuaToastService(Context context) {
         super(context);
