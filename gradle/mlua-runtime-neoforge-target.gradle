@@ -6,7 +6,6 @@ group = mod_group_id
 def targetVersion = project.ext.get('mluaRuntimeTargetVersion')
 def target = findMluaTarget(targetVersion)
 def is26Family = target.minecraft.toString().startsWith('26.1')
-def runtimeModId = is26Family ? mod_id : 'mlua_runtime'
 def minecraft_version = resolveMluaTargetValue(targetVersion, 'minecraftDependencyVersion', target.minecraft)
 def minecraft_version_range = resolveMluaTargetValue(targetVersion, 'minecraftVersionRange')
 def neo_forge_version = resolveMluaTargetValue(targetVersion, 'neoForgeVersion')
@@ -336,8 +335,8 @@ tasks.named('processResources', ProcessResources).configure {
             neo_forge_version: neo_forge_version,
             neo_forge_version_range: neo_forge_version_range,
             neo_loader_version_range: neo_loader_version_range,
-            mod_id: runtimeModId,
-            mod_name: is26Family ? mod_name : 'MLua Runtime',
+            mod_id: mod_id,
+            mod_name: mod_name,
             mod_license: mod_license,
             mod_version: mod_version,
             mod_authors: mod_authors,
@@ -365,7 +364,6 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Vendor': mod_authors
         ])
     }
-    exclude 'dev/mlua/MLuaMod.class'
     exclude 'dev/mlua/common/mixin/**'
     // The loader artifact owns shared enum classes used by the early mixin bootstrap.
     exclude 'dev/mlua/common/enums/**'

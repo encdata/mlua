@@ -283,22 +283,6 @@ tasks.named('processResources', ProcessResources).configure {
     from(runtimeProject.tasks.named('jar')) { rename { 'mlua-runtime.jar' }; into 'embedded/mlua' }
     exclude 'META-INF/services/dev.mlua.module.MLuaModule', 'META-INF/services/net.minecraftforge.forgespi.locating.IModLocator', 'mlua.mixins.json', 'mlua.forge.mixins.json', 'mlua.firstperson.mixins.json'
 }
-if (!is26Family) {
-    tasks.named('processResources', ProcessResources).configure {
-        doLast {
-            def metadata = new File(destinationDir, 'META-INF/neoforge.mods.toml')
-            metadata << """
-
-[[dependencies.${mod_id}]]
-modId="mlua_runtime"
-mandatory=true
-versionRange="[${mod_version},)"
-ordering="AFTER"
-side="BOTH"
-"""
-        }
-    }
-}
 def generateNeoForgeMixinConfig = tasks.register('generateNeoForgeMixinConfig') {
     def output = layout.buildDirectory.file('generated/neoforge-mixins/mlua.firstperson.mixins.json')
     outputs.file(output)
@@ -332,6 +316,7 @@ tasks.named('jar', Jar).configure {
         'dev/mlua/minecraft/**', 'dev/mlua/module/**', 'dev/mlua/modules/**', 'dev/mlua/runtime/**', 'dev/mlua/loader/impl/forge/**',
         'dev/mlua/loader/impl/neoforge/**',
         'dev/mlua/MLuaMod.java', 'dev/mlua/agent/**',
+        'dev/mlua/MLuaMod.class',
         'META-INF/services/dev.mlua.module.MLuaModule',
         'META-INF/services/net.minecraftforge.forgespi.locating.IModLocator'
 }
