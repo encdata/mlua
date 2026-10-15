@@ -69,6 +69,15 @@ public final class MLuaLuaArguments {
         return finiteFloat(args, index, method, parameter);
     }
 
+    public static float optionalNonNegativeFiniteFloat(Varargs args, int index, float fallback,
+                                                       String method, String parameter) {
+        float value = optionalFiniteFloat(args, index, fallback, method, parameter);
+        if (value < 0.0f) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be non-negative.");
+        }
+        return value;
+    }
+
     public static float finiteFloat(Varargs args, int index, String method, String parameter) {
         LuaValue value = args.arg(index);
         if (!value.isnumber()) {

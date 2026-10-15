@@ -305,7 +305,7 @@ public class PlayersModule implements MLuaModule {
                 case "RemoveEffect" -> "Removes a potion effect from this player.";
                 case "HasEffect" -> "Checks whether this player has a potion effect.";
                 case "ClearEffects" -> "Removes all potion effects from this player.";
-                case "PlaySound" -> "Plays a sound for this player.";
+                case "PlaySound" -> "Plays a sound for this player; optional volume and pitch must be finite and non-negative.";
                 case "GetNearbyPlayers" -> "Returns other players within a box expanded around this player's bounds by a finite, non-negative radius.";
                 case "GetPersistentData" -> "Returns this player's persistent data.";
                 case "GetSyncedData" -> "Returns this player's synchronized data.";
@@ -721,7 +721,7 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetRotationRadians(rotation: Vector2)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetCFrame()", "CFrame"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetCFrame(transform: CFrame)", "void"));
-        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:PlaySound(sound: string, volume: number, pitch: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:PlaySound(sound: string, volume: number?, pitch: number?)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetData(key: string, value: any)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetData(key: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:RemoveData(key: string)", null));

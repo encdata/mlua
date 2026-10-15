@@ -241,7 +241,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("SetBlock", "Sets a block and optional state properties at a position, loading its chunk by default. Pass loadChunk directly as the third argument to omit properties. This method is server-side only."),
             Map.entry("BreakBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
             Map.entry("DestroyBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
-            Map.entry("PlaySound", "Plays a sound at a position. This method is server-side only."),
+            Map.entry("PlaySound", "Plays a sound at a position. Volume and pitch default to one and must be finite and non-negative; this method is server-side only."),
             Map.entry("SpawnParticle", "Spawns a positive whole-number count of particles at a position. This method is server-side only."),
             Map.entry("SpawnEntity", "Spawns an entity and returns its live instance. This method is server-side only."),
             Map.entry("DropItem", "Drops a positive whole-number item count up to that item's stack limit. This method is server-side only."),

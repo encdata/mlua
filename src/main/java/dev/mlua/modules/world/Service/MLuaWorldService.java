@@ -487,11 +487,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
          if (sound == null) {
             throw new LuaError("[MLua] Unknown sound: " + soundName);
          }
-         float volume = MLuaLuaArguments.optionalFiniteFloat(args, soundIndex + 1, 1.0f, "World:PlaySound", "volume");
-         float pitch = MLuaLuaArguments.optionalFiniteFloat(args, soundIndex + 2, 1.0f, "World:PlaySound", "pitch");
-         if (volume < 0.0f || pitch < 0.0f) {
-            throw new LuaError("[MLua] World:PlaySound volume and pitch must be non-negative.");
-         }
+         float volume = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
+            args, soundIndex + 1, 1.0f, "World:PlaySound", "volume");
+         float pitch = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
+            args, soundIndex + 2, 1.0f, "World:PlaySound", "pitch");
          level.playSound((Player)null, pos[0], pos[1], pos[2], sound, SoundSource.PLAYERS, volume, pitch);
          return LuaValue.NONE;
       }));

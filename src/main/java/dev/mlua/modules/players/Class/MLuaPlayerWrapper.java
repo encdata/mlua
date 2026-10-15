@@ -390,8 +390,8 @@ public final class MLuaPlayerWrapper {
          if (rawSound == null) {
             throw new LuaError("[MLua] Unknown sound: " + args.checkjstring(2));
          }
-         float volume = (float)args.optdouble(3, 1.0);
-         float pitch = (float)args.optdouble(4, 1.0);
+         float volume = MLuaLuaArguments.optionalNonNegativeFiniteFloat(args, 3, 1.0f, "Player:PlaySound", "volume");
+         float pitch = MLuaLuaArguments.optionalNonNegativeFiniteFloat(args, 4, 1.0f, "Player:PlaySound", "pitch");
          player.playNotifySound(MCSoundEvent.create(loc), MCSoundSource.PLAYERS, volume, pitch);
          return LuaValue.NONE;
       }));
