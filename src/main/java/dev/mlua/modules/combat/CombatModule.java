@@ -93,7 +93,7 @@ public class CombatModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.MaxDistance", "number", "The maximum travel distance in blocks.", "server:Server"));
         docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Size", "number", "The projectile hitbox size.", "server:Server"));
         docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.DamageSource", "string", "The registered damage source used for hits.", "server:Server"));
-        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.FireTicks", "number", "The default fire duration applied to hit entities.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.FireTicks", "whole number >= 0", "The default fire duration applied to hit entities.", "server:Server"));
         docs.register(MLuaDocBuilder.Registration.property("ProjectileType", "ProjectileType.Knockback", "number", "The default knockback applied to hit entities.", "server:Server"));
         docs.register(MLuaDocBuilder.Registration.signature("Combat", "Combat:DamageSourceExists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Combat", "Combat:GetDamageSourceInfo(name: string)", null));
@@ -107,10 +107,10 @@ public class CombatModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Gravity?", "boolean", "Whether Minecraft gravity affects the projectile."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Piercing?", "boolean", "Whether the projectile can continue through entities."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "MaxDistance?", "number", "Maximum travel distance in blocks."));
-        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "MaxTicks?", "number", "Maximum lifetime in game ticks."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "MaxTicks?", "whole number >= 1", "Maximum lifetime in game ticks (default 200)."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Size?", "number", "Projectile hitbox size."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "DamageSource?", "string", "Registered damage source identifier."));
-        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "FireTicks?", "number", "How long a hit entity burns, in ticks."));
+        docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "FireTicks?", "whole number >= 0", "How long a hit entity burns, in ticks (default 0)."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "Knockback?", "number", "Knockback strength applied on an entity hit."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "className?", "string", "Registered Lua class inheriting from Projectile."));
         docs.register(MLuaDocBuilder.Registration.field("ProjectileDefinition", "OnHitEntity?", "fun(context: ProjectileHitEntityContext)", "Runs on the server before configured projectile damage is applied."));

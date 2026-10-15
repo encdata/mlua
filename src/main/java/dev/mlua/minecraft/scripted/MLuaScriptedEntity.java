@@ -7,6 +7,7 @@ import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.network.MLuaAnimationSyncPacket;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -245,8 +246,14 @@ public class MLuaScriptedEntity extends PathfinderMob {
       LuaTable methods = new LuaTable();
       methods.set("MoveTo", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            if (MLuaScriptedEntity.this.level().isClientSide) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:MoveTo is server-side only.");
+            }
             double[] position = MLuaCFrame.vector(args.arg(2));
             double speed = args.arg(3).optdouble(1.0);
+            if (!Double.isFinite(speed) || speed <= 0.0) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:MoveTo speed must be finite and greater than zero.");
+            }
             return LuaValue.valueOf(MLuaScriptedEntity.this.navigation.moveTo(
                position[0], position[1], position[2], speed));
          }
@@ -260,6 +267,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("AttackTarget", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            if (MLuaScriptedEntity.this.level().isClientSide) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:AttackTarget is server-side only.");
+            }
             LuaValue targetVal = args.arg(2);
             if (targetVal.isnil()) {
                MLuaScriptedEntity.this.setTarget((LivingEntity)null);
@@ -269,14 +279,11 @@ public class MLuaScriptedEntity extends PathfinderMob {
             if (target == null) {
                throw new org.luaj.vm2.LuaError("[MLua] AttackTarget expects a live LivingEntity or Player instance, or nil to clear the target.");
             }
+            if (target.level() != MLuaScriptedEntity.this.level()) {
+               throw new org.luaj.vm2.LuaError("[MLua] AttackTarget expects an entity in the same dimension.");
+            }
             MLuaScriptedEntity.this.setTarget(target);
             return LuaValue.valueOf(true);
-         }
-      });
-      methods.set("GetTarget", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LivingEntity target = MLuaScriptedEntity.this.getTarget();
-            return target == null ? LuaValue.NIL : MLuaScriptedEntity.this.entityToLua(target);
          }
       });
       methods.set("GetBehaviorKey", new VarArgFunction() {
@@ -306,7 +313,8 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("FindNearestPlayer", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            double distance = boundedSearchDistance(args.arg(2).optdouble(16.0));
+            double distance = boundedSearchDistance(MLuaLuaArguments.optionalFiniteNumber(args, 2, 16.0,
+               "ScriptedEntity:FindNearestPlayer", "range"));
             boolean requireLineOfSight = args.arg(3).optboolean(false);
             AABB bounds = MLuaScriptedEntity.this.getBoundingBox().inflate(distance);
             List<Player> players = MLuaScriptedEntity.this.level().getEntitiesOfClass(Player.class, bounds,
@@ -326,7 +334,8 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("FindNearestEntity", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             String typeId = args.arg(2).optjstring(null);
-            double distance = boundedSearchDistance(args.arg(3).optdouble(16.0));
+            double distance = boundedSearchDistance(MLuaLuaArguments.optionalFiniteNumber(args, 3, 16.0,
+               "ScriptedEntity:FindNearestEntity", "range"));
             AABB bounds = MLuaScriptedEntity.this.getBoundingBox().inflate(distance);
             List<LivingEntity> entities = MLuaScriptedEntity.this.level().getEntitiesOfClass(LivingEntity.class, bounds, entity -> {
                if (entity == null || entity == MLuaScriptedEntity.this || !entity.isAlive()) {
@@ -352,7 +361,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("FindNearestBlock", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             String blockId = args.arg(2).checkjstring();
-            int radius = Math.max(0, Math.min(16, args.arg(3).optint(10)));
+            int requestedRadius = MLuaLuaArguments.optionalWholeInt(args, 3, 10,
+               "ScriptedEntity:FindNearestBlock", "radius");
+            int radius = Math.max(0, Math.min(16, requestedRadius));
             BlockPos origin = MLuaScriptedEntity.this.blockPosition();
             BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
             BlockPos nearest = null;
@@ -377,7 +388,6 @@ public class MLuaScriptedEntity extends PathfinderMob {
                MLuaScriptedEntity.this.level(), nearest, MLuaRuntime.registrationForLevel(MLuaScriptedEntity.this.level()));
          }
       });
-      methods.set("NavigateTo", methods.get("MoveTo"));
       methods.set("OpenDoor", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             BlockPos pos = MLuaScriptedEntity.this.blockArg(args, 2);
@@ -419,7 +429,12 @@ public class MLuaScriptedEntity extends PathfinderMob {
          public Varargs invoke(Varargs args) {
             BlockPos pos = MLuaBlockWrapper.doorBasePos(MLuaScriptedEntity.this.level(), MLuaScriptedEntity.this.blockArg(args, 2));
             BlockState state = MLuaScriptedEntity.this.level().getBlockState(pos);
-            int progress = args.arg(args.arg(2).istable() ? 3 : 5).checkint();
+            int progressIndex = args.arg(2).istable() ? 3 : 5;
+            int progress = MLuaLuaArguments.wholeInt(args, progressIndex,
+               "ScriptedEntity:SetDoorBreakProgress", "progress");
+            if (progress < -1 || progress > 9) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetDoorBreakProgress progress must be -1 to clear or 0 through 9.");
+            }
             if (!(state.getBlock() instanceof DoorBlock) || !DoorBlock.isWoodenDoor(state)) {
                return LuaValue.valueOf(false);
             }
@@ -521,14 +536,10 @@ public class MLuaScriptedEntity extends PathfinderMob {
             return LuaValue.valueOf(Math.sqrt(MLuaScriptedEntity.this.distanceToSqr(other)));
          }
       });
-      methods.set("CanSee", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LivingEntity other = MLuaScriptedEntity.this.resolveLivingEntity(args.arg(2));
-            return LuaValue.valueOf(other != null && MLuaScriptedEntity.this.hasLineOfSight(other));
-         }
-      });
       methods.set("MeleeAttack", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            int cooldownTicks = MLuaLuaArguments.optionalWholeInt(args, 3, 20,
+               "ScriptedEntity:MeleeAttack", "cooldownTicks");
             LivingEntity other = MLuaScriptedEntity.this.resolveLivingEntity(args.arg(2));
             if (other == null || !other.isAlive() || MLuaScriptedEntity.this.meleeCooldown > 0) {
                return LuaValue.valueOf(false);
@@ -540,7 +551,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
             }
             MLuaScriptedEntity.this.swing(MLuaScriptedEntity.this.getUsedItemHand());
             boolean hit = MLuaScriptedEntity.this.doHurtTarget(other);
-            if (hit) MLuaScriptedEntity.this.meleeCooldown = Math.max(1, Math.min(200, args.arg(3).optint(20)));
+            if (hit) MLuaScriptedEntity.this.meleeCooldown = Math.max(1, Math.min(200, cooldownTicks));
             return LuaValue.valueOf(hit);
          }
       });
@@ -740,10 +751,8 @@ public class MLuaScriptedEntity extends PathfinderMob {
    }
 
    private Entity resolveEntity(LuaValue value) {
-      if (!value.istable()) return null;
-      LuaValue idValue = value.checktable().get("Id");
-      if (!idValue.isnumber()) return null;
-      return this.level().getEntity(idValue.checkint());
+      Entity entity = MLuaEntityWrapper.fromLuaInstance(value, MLuaRuntime.registrationForLevel(this.level()));
+      return entity != null && entity.level() == this.level() && !entity.isRemoved() ? entity : null;
    }
 
    private static double boundedSearchDistance(double distance) {

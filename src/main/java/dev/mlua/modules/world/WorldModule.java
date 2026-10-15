@@ -23,15 +23,17 @@ public class WorldModule implements MLuaModule {
     private static final Map<String, String> CHUNK_METHODS = Map.ofEntries(
         Map.entry("GetX", "Returns this chunk's X coordinate."),
         Map.entry("GetZ", "Returns this chunk's Z coordinate."),
+        Map.entry("GetWorld", "Returns the live dimension containing this chunk as a Level instance."),
+        Map.entry("GetLevel", "Returns the live world containing this chunk."),
         Map.entry("GetDimension", "Returns the dimension identifier containing this chunk."),
         Map.entry("GetPosition", "Returns the Vector2 chunk coordinates (chunk X, chunk Z)."),
         Map.entry("GetBlockOrigin", "Returns this chunk's minimum block-space X/Z position as a Vector3."),
         Map.entry("IsLoaded", "Checks whether this chunk is currently loaded without loading it."),
         Map.entry("IsForced", "Checks whether this dimension has a force-load ticket for this chunk."),
         Map.entry("Load", "Loads this chunk on the server and returns the same Chunk instance."),
-        Map.entry("Unload", "Removes this chunk's server force-load ticket; Minecraft decides when it unloads."),
-        Map.entry("SetForced", "Sets this chunk's server force-load ticket."),
-        Map.entry("ForceLoad", "Adds a persistent server force-load ticket for this chunk."),
+        Map.entry("Unload", "On the server, removes this chunk's force-load ticket; Minecraft decides when it unloads."),
+        Map.entry("SetForced", "On the server, sets or removes this chunk's force-load ticket."),
+        Map.entry("ForceLoad", "On the server, adds a persistent force-load ticket for this chunk."),
         Map.entry("GetBlockAt", "Loads this chunk if needed and returns the live Block instance at a world position inside it, including its registered addon subclass."),
         Map.entry("GetBlockStateAt", "Loads this chunk if needed and returns the typed BlockState at a world position."),
         Map.entry("GetFluidStateAt", "Loads this chunk if needed and returns the typed FluidState at a world position."),
@@ -42,7 +44,7 @@ public class WorldModule implements MLuaModule {
         Map.entry("GetHeightAt", "Loads this chunk if needed and returns the first free Y coordinate above the selected heightmap at a world X/Z position."),
         Map.entry("GetTopBlockAt", "Loads this chunk if needed and returns the live Block immediately below the selected heightmap's first free Y position."),
         Map.entry("SetBlockAt", "Loads this chunk if needed and sets a block id with optional properties or an existing BlockState at a world position. Optional Minecraft update flags default to 3. Server-side only."),
-        Map.entry("GetEntities", "Loads this chunk if needed and returns its live entities."),
+        Map.entry("GetEntities", "Loads this chunk if needed and returns live entities whose block position belongs to it."),
         Map.entry("GetBlockEntities", "Loads this chunk if needed and returns its live registered BlockEntity instances.")
     );
 
@@ -147,6 +149,8 @@ public class WorldModule implements MLuaModule {
         String[][] chunkProperties = {
             {"X", "GetX", "number", "This chunk's X coordinate."},
             {"Z", "GetZ", "number", "This chunk's Z coordinate."},
+            {"World", "GetWorld", "Level", "The live dimension containing this chunk."},
+            {"Level", "GetLevel", "Level", "The live world containing this chunk."},
             {"Dimension", "GetDimension", "string", "The identifier of the dimension containing this chunk."},
             {"Position", "GetPosition", "Vector2", "Chunk coordinates: X is chunk X and Y is chunk Z."},
             {"BlockOrigin", "GetBlockOrigin", "Vector3", "The minimum block-space X/Z position of this chunk."},
@@ -205,7 +209,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("SetChunkForced", "Sets whether this dimension keeps a chunk force-loaded."),
             Map.entry("ForceLoadChunk", "Keeps a chunk force-loaded in this dimension until its force-load ticket is removed."),
             Map.entry("IsChunkForced", "Returns whether this dimension has a force-load ticket for the chunk."),
-            Map.entry("GetEntitiesInChunk", "Returns entities in a chunk, optionally loading it first."),
+            Map.entry("GetEntitiesInChunk", "Returns live entities whose block position belongs to the chunk, optionally loading it first."),
             Map.entry("GetTime", "Returns this world's day time in ticks."),
             Map.entry("GetDayTime", "Returns the current day cycle time in ticks."),
             Map.entry("GetGameTime", "Returns the total number of ticks this world has been running."),
@@ -238,18 +242,18 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetSurfaceY", "Returns the motion-blocking surface height at an X/Z column, or nil when its chunk is not loaded."),
             Map.entry("Raycast", "Returns the first block hit by a ray from the given origin."),
             Map.entry("RaycastEntity", "Returns the nearest matching entity hit before a colliding block."),
-            Map.entry("GetPlayers", "Returns the players currently in this world."),
+            Map.entry("GetPlayers", "Returns players currently in this dimension. On the client, this includes only players currently loaded by that client."),
             Map.entry("GetEntities", "Returns the entities currently in this world."),
             Map.entry("FindEntitiesInRadius", "Returns entities within a radius of a position."),
             Map.entry("GetEntitiesInRadius", "Returns entities within a radius of a position."),
             Map.entry("GetEntitiesNearby", "Returns entities within a radius of a position."),
             Map.entry("FindEntitiesInBox", "Returns entities within an axis-aligned box."),
             Map.entry("FindEntitiesInBounds", "Returns entities within an EntityBounds instance."),
-            Map.entry("FindPlayersInBounds", "Returns players whose positions lie within an EntityBounds instance."),
-            Map.entry("FindPlayersInRadius", "Returns players within a radius of a position."),
-            Map.entry("GetPlayersNearby", "Returns players within a radius of a position."),
-            Map.entry("FindNearestPlayer", "Returns the nearest player to a position, or nil."),
-            Map.entry("GetNearestPlayer", "Returns the nearest player to a position, or nil."),
+            Map.entry("FindPlayersInBounds", "Returns loaded players whose positions lie within an EntityBounds instance."),
+            Map.entry("FindPlayersInRadius", "Returns players within a radius of a position. On the client, only currently loaded players are returned."),
+            Map.entry("GetPlayersNearby", "Returns players within a radius of a position. On the client, only currently loaded players are returned."),
+            Map.entry("FindNearestPlayer", "Returns the nearest player to a position, or nil. On the client, searches currently loaded players."),
+            Map.entry("GetNearestPlayer", "Returns the nearest player to a position, or nil. On the client, searches currently loaded players."),
             Map.entry("FindNearestEntity", "Returns the nearest matching entity to a position, or nil."),
             Map.entry("SetBlock", "Sets a block from its registry identifier or a typed BlockState, with optional state properties and Minecraft update flags (default 3). Loads its chunk by default and returns whether Minecraft changed the block. This method is server-side only."),
             Map.entry("BreakBlock", "Breaks a block, optionally dropping its items. This method is server-side only."),
@@ -352,7 +356,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Set(blockId: string, properties: BlockStateProperties?, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Set(blockId: string, updateFlags: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Break(dropItems: boolean?)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:ScheduleTick(delay: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:ScheduleTick(delay: whole number >= 1)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetProperty(name: string)", "string|number|boolean|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:WithProperty(name: string, value: string|number|boolean)", "BlockState"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:WithProperties(properties: BlockStateProperties)", "BlockState"));
@@ -395,6 +399,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("World", "World:SetGameRule(name: string, value: boolean|number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetX()", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetZ()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetWorld()", "Level"));
+        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetLevel()", "Level"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetDimension()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetPosition()", "Vector2"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBlockOrigin()", "Vector3"));
@@ -561,6 +567,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("Chunk", "MLuaChunkWrapper", "A live handle to one chunk in one dimension. Data methods load the chunk when needed.", "classes/chunk.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.X", "number", "This chunk's X coordinate.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.Z", "number", "This chunk's Z coordinate.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.World", "Level", "The live dimension containing this chunk.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.Level", "Level", "The live world containing this chunk.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.Dimension", "string", "The identifier of the dimension containing this chunk.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.Position", "Vector2", "Chunk coordinates: X is chunk X and Y is chunk Z.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Chunk", "chunk.BlockOrigin", "Vector3", "The minimum block-space X/Z position of this chunk.", "shared:Shared"));
@@ -574,7 +582,7 @@ public class WorldModule implements MLuaModule {
             "Each World instance is one dimension. Vector2 means chunk coordinates (X, Z); Vector3 and CFrame select the chunk containing a block position. GetChunk returns a live Chunk handle without loading it. Data methods load that chunk when called. Chunk:GetHeightAt returns the first free Y value, and Chunk:GetTopBlockAt returns the live registered Block instance below it. Both accept a Minecraft heightmap name, defaulting to MOTION_BLOCKING. SetBlock and SetBlockAt accept an optional property table for states such as stair facing and waterlogging, or a typed BlockState. Both also accept Minecraft block update flags, defaulting to 3. Property names and values follow the block's Minecraft state definition. LoadChunk loads immediately; ForceLoad adds a persistent ticket, while Unload removes that ticket and lets Minecraft decide when to unload.",
             "local worlds = Minecraft:GetService(\"World\")\nlocal nether = worlds:Get(\"minecraft:the_nether\")\nlocal coordinates = Vector2.new(2, -1)\nlocal blockPosition = Vector3.new(32, 70, -16)\nlocal chunk = nether:GetChunk(coordinates)\n\nchunk:SetBlockAt(blockPosition, \"minecraft:oak_stairs\", { facing = \"north\", half = \"bottom\", waterlogged = false }, 3)\nlocal state = chunk:GetBlockStateAt(blockPosition)\nlocal fluidState = chunk:GetFluidStateAt(blockPosition)\nif state then\n    chunk:SetBlockAt(blockPosition, state, 3)\nend\nlocal biome = chunk:GetBiomeAt(blockPosition)\nlocal fluid = chunk:GetFluidAt(blockPosition)\nlocal loaded = nether:LoadChunk(coordinates)\nprint(loaded.Loaded, loaded.Position, biome, fluid, fluidState.Id)\n\nchunk:ForceLoad()\nprint(chunk.Forced)\nchunk:Unload()"));
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Find and remove entities in a chunk",
-            "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances, so use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
+            "GetEntitiesInChunk can load an unloaded chunk first. It returns live Entity instances whose block position is inside that chunk, so adjacent chunks do not duplicate entities that merely overlap the boundary. Use their Entity methods to remove or kill them. This operates only in the World instance's dimension.",
             "local worlds = Minecraft:GetService(\"World\")\nlocal world = worlds:Get(\"minecraft:overworld\")\nlocal position = Vector3.new(32, 70, -16)\n\nfor _, entity in ipairs(world:GetEntitiesInChunk(position, true)) do\n    if entity:IsA(\"Mob\") then\n        entity:Remove()\n    end\nend\n\nlocal spawned = Minecraft:GetService(\"EntityService\"):Spawn(\"minecraft:zombie\", position, world)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Set a dimension's shared spawn point",
             "SetSpawnPosition takes a native Vector3 or CFrame and an optional yaw in degrees. It is server-side only; SpawnPosition can also be assigned directly.",

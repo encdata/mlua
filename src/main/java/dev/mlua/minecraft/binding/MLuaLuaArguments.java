@@ -151,6 +151,15 @@ public final class MLuaLuaArguments {
         return (int)number;
     }
 
+    /** Reads an exact integer that may be represented as signed or unsigned 32-bit bits, such as ARGB. */
+    public static int wholeInt32Bits(LuaValue value, String method, String parameter) {
+        long number = wholeLong(value, method, parameter);
+        if (number < Integer.MIN_VALUE || number > 0xFFFF_FFFFL) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must fit in 32-bit integer bits.");
+        }
+        return (int)number;
+    }
+
     public static int optionalWholeInt(Varargs args, int index, int fallback,
                                        String method, String parameter) {
         return optionalWholeInt(args.arg(index), fallback, method, parameter);

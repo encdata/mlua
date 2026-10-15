@@ -14,6 +14,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectile;
 import dev.mlua.minecraft.scripted.MLuaScriptedProjectileType;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -49,7 +50,8 @@ public class MLuaProjectileDefinition {
       boolean gravity = props.get("Gravity").optboolean(false);
       boolean piercing = props.get("Piercing").optboolean(false);
       double maxDistance = props.get("MaxDistance").optdouble(200.0);
-      int maxTicks = props.get("MaxTicks").optint(200);
+      int maxTicks = MLuaLuaArguments.optionalWholeInt(props.get("MaxTicks"), 200,
+         "Registry.Projectiles:Register", "MaxTicks");
       float size = (float)props.get("Size").optdouble(0.25);
       String damageSource = props.get("DamageSource").optjstring("generic");
       LuaValue classNameValue = props.get("className");
@@ -59,7 +61,9 @@ public class MLuaProjectileDefinition {
       if (registration != null && (registration.classTable(className) == null || !registration.isSubclassOf(className, "Projectile"))) {
          throw new LuaError("[MLua] Projectile class '" + className + "' must be registered and inherit from Projectile");
       }
-      int fireTicks = props.get("FireTicks").optint(0);
+      int fireTicks = MLuaLuaArguments.optionalWholeInt(props.get("FireTicks"), 0,
+         "Registry.Projectiles:Register", "FireTicks");
+      validateTickOptions(maxTicks, fireTicks, "Registry.Projectiles:Register");
       double knockback = props.get("Knockback").optdouble(0.0);
       LuaValue onHitEntity = props.get("OnHitEntity");
       LuaValue onHitBlock = props.get("OnHitBlock");
@@ -170,10 +174,13 @@ public class MLuaProjectileDefinition {
          boolean gravity = config.get("Gravity").optboolean(def.gravity);
          boolean piercing = config.get("Piercing").optboolean(def.piercing);
          double maxDistance = config.get("MaxDistance").optdouble(def.maxDistance);
-         int maxTicks = config.get("MaxTicks").optint(def.maxTicks);
+         int maxTicks = MLuaLuaArguments.optionalWholeInt(config.get("MaxTicks"), def.maxTicks,
+            "ProjectileType:Fire", "MaxTicks");
          float size = (float)config.get("Size").optdouble(def.size);
          String damageSource = config.get("DamageSource").optjstring(def.damageSource);
-         int fireTicks = config.get("FireTicks").optint(def.fireTicks);
+         int fireTicks = MLuaLuaArguments.optionalWholeInt(config.get("FireTicks"), def.fireTicks,
+            "ProjectileType:Fire", "FireTicks");
+         validateTickOptions(maxTicks, fireTicks, "ProjectileType:Fire");
          double knockback = config.get("Knockback").optdouble(def.knockback);
 
          LuaValue onHitEntity = config.get("OnHitEntity").isnil() ? def.onHitEntity : config.get("OnHitEntity");
@@ -204,6 +211,15 @@ public class MLuaProjectileDefinition {
 
    public static void clearOwned(Object runtimeOwner, String ownerModId) {
       DEFINITIONS.keySet().removeIf(key -> key.runtimeOwner == runtimeOwner && key.ownerModId.equals(ownerModId));
+   }
+
+   private static void validateTickOptions(int maxTicks, int fireTicks, String method) {
+      if (maxTicks < 1) {
+         throw new LuaError("[MLua] " + method + " MaxTicks must be at least 1 tick");
+      }
+      if (fireTicks < 0) {
+         throw new LuaError("[MLua] " + method + " FireTicks must be non-negative");
+      }
    }
 
    public static void clearRuntime(Object runtimeOwner) {

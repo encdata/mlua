@@ -64,7 +64,7 @@ public class CommandsModule implements MLuaModule {
             "mlua", 0,
             List.of(
                 new MLuaDocBuilder.GuideStep("Commands", "Register during the command phase",
-                    "Commands must be declared in a .commands.lua script. The server callback receives the command context and parsed arguments. Set permission to the required operator level.",
+                    "Commands must be declared in a .commands.lua script. The server callback receives the command context and parsed arguments. Set permission to an operator level from 0 to 4; the default is 0.",
                     "local Commands = Minecraft:GetService(\"Commands\")\n\nCommands:Register(\"mlua_echo\", {\n    description = \"Echo a message\",\n    permission = 0,\n    arguments = {\n        { name = \"message\", type = \"greedy_string\" }\n    },\n    run = function(ctx, args)\n        ctx:Reply(\"server echo: \" .. args.message)\n    end\n})"),
                 new MLuaDocBuilder.GuideStep("Commands", "Add client-side feedback",
                     "An optional run_client callback executes on the client of the player who invoked the command. Strings, numbers, booleans, positions, vectors, resource locations, and dimensions can cross to the client; player and players arguments are server-only.",

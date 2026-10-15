@@ -54,6 +54,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 public final class MLuaEntityWrapper {
+   private static final double MOVEMENT_SPEED_THRESHOLD_SQUARED = 0.0025;
+   private static final double VERTICAL_MOVEMENT_THRESHOLD = 0.08;
    private static final MLuaEntityWrapperCache LEGACY_CACHE = new MLuaEntityWrapperCache();
    private static final Map<MLuaRegistration, MLuaEntityWrapperCache> ENTITY_CACHES =
          Collections.synchronizedMap(new WeakHashMap<>());
@@ -147,59 +149,11 @@ public final class MLuaEntityWrapper {
       table.rawset("__entity", LuaValue.userdataOf(entity));
       attachEntityClass(registration, table);
       if (cached == null) cache.put(cacheKey, table);
-      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(entity.level(), registration)));
-      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(entity.level().dimension().location().toString())));
+      bindLevelMethods(table, entity.level(), registration);
       bindTransformMethods(table, wrapped);
-      MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
-         ((MCEntityImpl)wrapped).inner().kill();
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {
-         ((MCEntityImpl)wrapped).inner().remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         return distanceTo(wrapped, args.arg(2));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsAlive", luaFn(() -> LuaValue.valueOf(wrapped.isAlive())));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsOnGround", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().onGround())));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsInWater", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isInWater())));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsOnFire", luaFn(() -> LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isOnFire())));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsMoving", luaFn(() -> {
-         MCVec3 v = wrapped.getDeltaMovement();
-         double hSpeed = Math.sqrt(v.x() * v.x() + v.z() * v.z());
-         return LuaValue.valueOf(hSpeed > 0.05);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsFalling", luaFn(() -> {
-         net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-         return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y < -0.08);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetNbt", varArg((args) -> {
-         net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-         if (args.narg() < 2 || args.arg(2).isnil()) {
-            return MLuaDataManager.entityPersistentData(raw, !raw.level().isClientSide);
-         }
-         if (raw.level().isClientSide) return LuaValue.NIL;
-         return MLuaNbtWrapper.get(MLuaDataManager.entityPersistentTag(raw), args.checkjstring(2));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
-      MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
-      MLuaClassMethods.setInstanceMethod(table, "getNbt", table.get("GetNbt"));
-      MLuaClassMethods.setInstanceMethod(table, "SetNbt", varArg((args) -> {
-         net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-         if (raw.level().isClientSide) {
-            throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
-         }
-         if (args.narg() == 2 && args.arg(2).istable()) {
-            MLuaDataManager.setEntityPersistentTag(raw, MLuaNbtWrapper.toCompound(args.arg(2)));
-            return LuaValue.NONE;
-         }
-         net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(raw);
-         MLuaNbtWrapper.set(persistentData, args.checkjstring(2), args.arg(3));
-         MLuaDataManager.setEntityPersistentTag(raw, persistentData);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "setNbt", table.get("SetNbt"));
+      bindCoreEntityMethods(table, wrapped);
+      bindEntityStateMethods(table, wrapped);
+      bindEntityDataMethods(table, entity);
       return attachEntityProperties(table);
    }
 
@@ -229,6 +183,7 @@ public final class MLuaEntityWrapper {
        attachLivingEntityClass(registration, table);
        if (cached == null) cache.put(cacheKey, table);
       bindTransformMethods(table, wrapped);
+      bindLevelMethods(table, entity.level(), registration);
       MLuaClassMethods.setInstanceMethod(table, "GetHealth", luaFn(() -> {
          return LuaValue.valueOf((double)wrapped.getHealth());
       }));
@@ -295,6 +250,7 @@ public final class MLuaEntityWrapper {
             return target == null ? LuaValue.NIL : entityTable(target, registration);
          }));
          MLuaClassMethods.setInstanceMethod(table, "SetTarget", varArg((args) -> {
+            if (mob.level().isClientSide) throw new LuaError("[MLua] Mob:SetTarget is server-side only.");
             LuaValue targetValue = args.arg(2);
             if (targetValue.isnil()) {
                mob.setTarget(null);
@@ -305,7 +261,12 @@ public final class MLuaEntityWrapper {
             if (!rawTarget.isuserdata(net.minecraft.world.entity.LivingEntity.class)) {
                throw new LuaError("[MLua] Mob:SetTarget expects a LivingEntity or nil.");
             }
-            mob.setTarget((net.minecraft.world.entity.LivingEntity)rawTarget.touserdata(net.minecraft.world.entity.LivingEntity.class));
+            net.minecraft.world.entity.LivingEntity target =
+               (net.minecraft.world.entity.LivingEntity)rawTarget.touserdata(net.minecraft.world.entity.LivingEntity.class);
+            if (target.level() != mob.level()) {
+               throw new LuaError("[MLua] Mob:SetTarget expects an entity in the same dimension.");
+            }
+            mob.setTarget(target);
             return LuaValue.NONE;
          }));
          MLuaClassMethods.setInstanceMethod(table, "CanSee", varArg((args) -> {
@@ -321,18 +282,11 @@ public final class MLuaEntityWrapper {
          }));
          MLuaClassMethods.setInstanceMethod(table, "GetPersistenceRequired", luaFn(() -> LuaValue.valueOf(mob.isPersistenceRequired())));
          MLuaClassMethods.setInstanceMethod(table, "SetPersistenceRequired", luaFn(() -> {
+            if (mob.level().isClientSide) throw new LuaError("[MLua] Mob:SetPersistenceRequired is server-side only.");
             mob.setPersistenceRequired();
             return LuaValue.NONE;
          }));
       }
-      MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
-         ((MCEntityImpl)wrapped).inner().kill();
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {
-         ((MCEntityImpl)wrapped).inner().remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
-         return LuaValue.NONE;
-      }));
        MLuaClassMethods.setInstanceMethod(table, "Damage", varArg((args) -> {
           float amount = (float)args.checkdouble(2);
           if (!Float.isFinite(amount) || amount < 0) {
@@ -437,63 +391,16 @@ public final class MLuaEntityWrapper {
          //--endversion
          return LuaValue.NONE;
       }));
-      MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         return distanceTo(wrapped, args.arg(2));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsAlive", luaFn(() -> {
-         return LuaValue.valueOf(wrapped.isAlive());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsOnGround", luaFn(() -> {
-         return LuaValue.valueOf(((MCEntityImpl)wrapped).inner().onGround());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetIsInWater", luaFn(() -> {
-         return LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isInWater());
-      }));
-       MLuaClassMethods.setInstanceMethod(table, "GetIsOnFire", luaFn(() -> {
-          return LuaValue.valueOf(((MCEntityImpl)wrapped).inner().isOnFire());
-       }));
-       MLuaClassMethods.setInstanceMethod(table, "GetIsMoving", luaFn(() -> {
-          MCVec3 v = wrapped.getDeltaMovement();
-          double hSpeed = Math.sqrt(v.x() * v.x() + v.z() * v.z());
-          return LuaValue.valueOf(hSpeed > 0.05);
-       }));
+      bindCoreEntityMethods(table, wrapped);
+       bindEntityStateMethods(table, wrapped);
        MLuaClassMethods.setInstanceMethod(table, "GetIsJumping", luaFn(() -> {
           net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-          return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y > 0.08);
-       }));
-       MLuaClassMethods.setInstanceMethod(table, "GetIsFalling", luaFn(() -> {
-          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-          return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y < -0.08);
+          return LuaValue.valueOf(!raw.onGround() && raw.getDeltaMovement().y > VERTICAL_MOVEMENT_THRESHOLD);
        }));
        MLuaClassMethods.setInstanceMethod(table, "GetIsSwimming", luaFn(() -> {
           return LuaValue.valueOf(((MCLivingEntityImpl)wrapped).inner().isSwimming());
        }));
-       MLuaClassMethods.setInstanceMethod(table, "GetNbt", varArg((args) -> {
-          net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-          if (args.narg() < 2 || args.arg(2).isnil()) {
-             return MLuaDataManager.entityPersistentData(raw, !raw.level().isClientSide);
-          }
-          if (raw.level().isClientSide) return LuaValue.NIL;
-          return MLuaNbtWrapper.get(MLuaDataManager.entityPersistentTag(raw), args.checkjstring(2));
-       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPersistentData", luaFn(() -> MLuaDataManager.entityPersistentData(((MCEntityImpl)wrapped).inner(), !((MCEntityImpl)wrapped).inner().level().isClientSide)));
-      MLuaClassMethods.setInstanceMethod(table, "GetSyncedData", luaFn(() -> MLuaDataManager.entitySyncedData(((MCEntityImpl)wrapped).inner())));
-      MLuaClassMethods.setInstanceMethod(table, "getNbt", table.get("GetNbt"));
-      MLuaClassMethods.setInstanceMethod(table, "SetNbt", varArg((args) -> {
-         net.minecraft.world.entity.Entity raw = ((MCEntityImpl)wrapped).inner();
-          if (raw.level().isClientSide) {
-             throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
-          }
-         if (args.narg() == 2 && args.arg(2).istable()) {
-             MLuaDataManager.setEntityPersistentTag(raw, MLuaNbtWrapper.toCompound(args.arg(2)));
-             return LuaValue.NONE;
-          }
-          net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(raw);
-          MLuaNbtWrapper.set(persistentData, args.checkjstring(2), args.arg(3));
-          MLuaDataManager.setEntityPersistentTag(raw, persistentData);
-          return LuaValue.NONE;
-       }));
-       MLuaClassMethods.setInstanceMethod(table, "setNbt", table.get("SetNbt"));
+       bindEntityDataMethods(table, entity);
       MLuaClassMethods.setInstanceMethod(table, "LoadAnimation", varArg((args) -> {
          LuaValue animVal = args.arg(2);
          if (animVal.istable() && animVal.checktable().get("__bbmodel").toboolean()) {
@@ -870,6 +777,71 @@ public final class MLuaEntityWrapper {
       return entity.getPosition();
    }
 
+   private static void bindEntityStateMethods(LuaTable table, MCEntity entity) {
+      net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
+      MLuaClassMethods.setInstanceMethod(table, "GetIsAlive",
+         luaFn(() -> LuaValue.valueOf(entity.isAlive())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsOnGround",
+         luaFn(() -> LuaValue.valueOf(raw.onGround())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsInWater",
+         luaFn(() -> LuaValue.valueOf(raw.isInWater())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsOnFire",
+         luaFn(() -> LuaValue.valueOf(raw.isOnFire())));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsMoving", luaFn(() -> {
+         MCVec3 velocity = entity.getDeltaMovement();
+         double speedSquared = velocity.x() * velocity.x()
+            + velocity.y() * velocity.y()
+            + velocity.z() * velocity.z();
+         return LuaValue.valueOf(speedSquared > MOVEMENT_SPEED_THRESHOLD_SQUARED);
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetIsFalling", luaFn(() -> {
+         MCVec3 velocity = entity.getDeltaMovement();
+         return LuaValue.valueOf(!raw.onGround() && velocity.y() < -VERTICAL_MOVEMENT_THRESHOLD);
+      }));
+   }
+
+   private static void bindCoreEntityMethods(LuaTable table, MCEntity entity) {
+      net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
+      MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
+         raw.kill();
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {
+         raw.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg(args -> distanceTo(entity, args.arg(2))));
+   }
+
+   private static void bindEntityDataMethods(LuaTable table, net.minecraft.world.entity.Entity entity) {
+      MLuaClassMethods.setInstanceMethod(table, "GetNbt", varArg(args -> {
+         if (args.narg() < 2 || args.arg(2).isnil()) {
+            return MLuaDataManager.entityPersistentData(entity, !entity.level().isClientSide);
+         }
+         if (entity.level().isClientSide) return LuaValue.NIL;
+         return MLuaNbtWrapper.get(MLuaDataManager.entityPersistentTag(entity), args.checkjstring(2));
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetPersistentData",
+         luaFn(() -> MLuaDataManager.entityPersistentData(entity, !entity.level().isClientSide)));
+      MLuaClassMethods.setInstanceMethod(table, "GetSyncedData",
+         luaFn(() -> MLuaDataManager.entitySyncedData(entity)));
+      MLuaClassMethods.setInstanceMethod(table, "getNbt", table.get("GetNbt"));
+      MLuaClassMethods.setInstanceMethod(table, "SetNbt", varArg(args -> {
+         if (entity.level().isClientSide) {
+            throw new LuaError("[MLua] Entity persistent data is server-authoritative; use GetSyncedData for client-visible values.");
+         }
+         if (args.narg() == 2 && args.arg(2).istable()) {
+            MLuaDataManager.setEntityPersistentTag(entity, MLuaNbtWrapper.toCompound(args.arg(2)));
+            return LuaValue.NONE;
+         }
+         net.minecraft.nbt.CompoundTag persistentData = MLuaDataManager.entityPersistentTag(entity);
+         MLuaNbtWrapper.set(persistentData, args.checkjstring(2), args.arg(3));
+         MLuaDataManager.setEntityPersistentTag(entity, persistentData);
+         return LuaValue.NONE;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "setNbt", table.get("SetNbt"));
+   }
+
    private static void bindTransformMethods(LuaTable table, MCEntity entity) {
       MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
          MCVec3 position = entity.getPosition();
@@ -880,7 +852,12 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "GetPositionZ", luaFn(() -> LuaValue.valueOf(entity.getPosition().z())));
       MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg(args -> {
          double[] position = MLuaPlayerWrapper.positionArgs(args, 2);
-         ((MCEntityImpl)entity).inner().setPos(position[0], position[1], position[2]);
+         net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
+         if (raw instanceof net.minecraft.world.entity.player.Player) {
+            raw.teleportTo(position[0], position[1], position[2]);
+         } else {
+            raw.setPos(position[0], position[1], position[2]);
+         }
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg(args -> {
@@ -921,6 +898,16 @@ public final class MLuaEntityWrapper {
          applyCFrame(entity, MLuaCFrame.lookAt(position.x(), position.y(), position.z(), target[0], target[1], target[2]));
          return LuaValue.NONE;
       }));
+   }
+
+   static void bindLevelMethods(LuaTable table, net.minecraft.world.level.Level level,
+                                MLuaRegistration registration) {
+      MLuaClassMethods.setInstanceMethod(table, "GetWorld",
+         luaFn(() -> MLuaLevelWrapper.levelTable(level, registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetLevel",
+         luaFn(() -> MLuaLevelWrapper.levelTable(level, registration)));
+      MLuaClassMethods.setInstanceMethod(table, "GetDimension",
+         luaFn(() -> LuaValue.valueOf(level.dimension().location().toString())));
    }
 
    public static LuaValue setVelocity(MCEntity entity, LuaValue value) {

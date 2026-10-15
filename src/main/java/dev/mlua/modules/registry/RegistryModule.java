@@ -51,25 +51,23 @@ public class RegistryModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Get", "Reads a value at the given NBT key.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Set", "Writes a value at the given NBT key.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Remove", "Removes the value at the given NBT key.");
-        registration.registerClass("ScriptedEntity", "LivingEntity",
+        registration.registerClass("ScriptedEntity", "Mob",
             "A registered Lua-controlled mob with navigation, sensing, combat, and persistent AI data.");
         String[][] aiMethods = {
-            {"MoveTo", "Finds a path to a native Vector3 or CFrame position at the given movement speed."},
+            {"MoveTo", "On the server, finds a path to a Vector3 or CFrame position using a finite positive speed."},
             {"LookAt", "Turns the mob toward a native Vector3 or CFrame position."},
-            {"AttackTarget", "Sets or clears the mob's current living target."},
-            {"GetTarget", "Returns the current living target, or nil."},
+            {"AttackTarget", "On the server, sets or clears this mob's target; a target must be in the same dimension."},
             {"GetBehaviorKey", "Returns the registered content key that defines this mob's behavior."},
             {"GetAIState", "Returns the mob's active scripted AI state, or nil."},
             {"GetAIStateTicks", "Returns the number of ticks spent in the active AI state."},
             {"SetAIState", "Changes the active scripted AI state, runs its exit and enter callbacks, and resumes AI disabled after an error."},
-            {"FindNearestPlayer", "Finds the nearest living player in range, optionally requiring line of sight."},
-            {"FindNearestEntity", "Finds the nearest living entity in range, optionally filtering by entity type."},
-            {"FindNearestBlock", "Finds a matching block within the search radius."},
-            {"NavigateTo", "Alias for MoveTo."},
+            {"FindNearestPlayer", "Finds the nearest living player within a finite range capped at 128 blocks, optionally requiring line of sight."},
+            {"FindNearestEntity", "Finds the nearest living entity within a finite range capped at 128 blocks, optionally filtering by entity type."},
+            {"FindNearestBlock", "Finds a matching block within a whole-number radius clamped to 0 through 16 blocks."},
             {"OpenDoor", "Opens or toggles a door at the given position."},
             {"CloseDoor", "Closes a door at the given position."},
             {"IsDoorOpen", "Returns whether the door at the given position is open."},
-            {"SetDoorBreakProgress", "Shows or clears the mob's door breaking progress."},
+            {"SetDoorBreakProgress", "Shows door breaking progress from 0 through 9, or clears it with -1."},
             {"BreakDoor", "Breaks a wooden door at the given position."},
             {"SetCanOpenDoors", "Enables or disables opening doors while navigating."},
             {"SetCanPassDoors", "Enables or disables pathfinding through doors."},
@@ -78,8 +76,7 @@ public class RegistryModule implements MLuaModule {
             {"RandomStroll", "Chooses a nearby safe position and walks there."},
             {"Panic", "Moves away from the last attacker or chooses a random escape direction."},
             {"DistanceTo", "Returns the distance to another entity instance."},
-            {"CanSee", "Returns whether the mob has line of sight to another living entity."},
-            {"MeleeAttack", "Attacks a living target in reach, with a configurable hit cooldown."}
+            {"MeleeAttack", "Attacks a living target in reach, with an optional whole-number cooldown in ticks clamped to 1 through 200."}
         };
         for (String[] method : aiMethods) {
             MLuaClassMethods.registerInstanceMethod(registration, "ScriptedEntity", method[0], method[1]);
@@ -161,7 +158,7 @@ public class RegistryModule implements MLuaModule {
                 "Registry:Register routes definitions through the typed registries for items, blocks, entities, effects, potions, particles, containers, projectiles, world generation, tabs, recipes, loot, tags, common config, and damage sources. Use block_item after registering its block; register a tag as Registry:Register(\"tag\", kind, name, definition). RegisterType defines reusable addon-scoped defaults for each category. Items select them with kind, blocks with type, and other categories with RegistryType. Use Registry.ContentTypes for reusable defaults in your own data domains. GetRegistered returns IDs visible for a Minecraft registry kind.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:Register(\"item\", \"flare_gun\", {\n    kind = \"firearm\",\n    maxStackSize = 1,\n    onUse = function(context)\n        -- Use the live player and projectile services here.\n    end,\n})\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\")) do\n    print(id)\nend"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry", "Add an addon-owned registry category",
-                "RegisterCategory adds a category to Registry. Its handler receives each namespaced id and resolved definition during the registry phase. RegisterType and ResolveType use the same inherited defaults as built-in categories. Get and GetAll return copies of the registered definitions.",
+                "RegisterCategory adds a category under your addon's namespace (for example, 'horror:weapons'). Its handler receives each namespaced id and resolved definition during the registry phase. RegisterType and ResolveType use the same inherited defaults as built-in categories. Get and GetAll return copies of the registered definitions.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:RegisterCategory(\"horror:weapons\", \"Weapon tuning data owned by this addon.\", function(id, definition)\n    if definition.Damage <= 0 then\n        error(\"Weapon damage must be positive\")\n    end\nend)\n\nRegistry:RegisterType(\"horror:weapons\", \"sidearm\", {\n    Base = \"default\",\n    Defaults = { Damage = 8, MagazineSize = 6 },\n})\n\nRegistry:Register(\"horror:weapons\", \"revolver\", {\n    RegistryType = \"sidearm\",\n    Damage = 12,\n})\n\nlocal revolver = Registry:Get(\"horror:weapons\", \"horror:revolver\")\nfor id, weapon in pairs(Registry:GetAll(\"horror:weapons\")) do\n    print(id, weapon.Damage)\nend"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.ContentTypes", "Define types for addon data",
                 "ContentTypes lets an addon reuse inherited defaults and descriptions outside Minecraft's built-in categories. Give each domain a stable name, register its types during the registry phase, then resolve definitions with RegistryType. A definition without a selector passes through unchanged; a named type that is missing from that domain raises an error.",
@@ -237,15 +234,15 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetBlock(): Block", "Returns the live block that owns this block entity.", "", "Block", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetType(): string", "Returns this block entity type's registry identifier.", "", "string", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetNbt(): Nbt", "Returns this block entity's live NBT data.", "", "Nbt", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:SetNbt(keyOrValue: string|table|Nbt, value?: any)", "Writes one NBT value or replaces the full data compound.", "key and value, or a replacement table or Nbt value", "void", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:SetNbt(keyOrValue: string|table|Nbt, value?: any)", "On the server, writes one NBT value or replaces the full data compound.", "key and value, or a replacement table or Nbt value", "void", "server:Server", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetContainer(): Container|nil", "Returns the same live Container exposed by Block.Container, when available.", "", "Container|nil", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetInventory(): Container|nil", "Alias for GetContainer.", "", "Container|nil", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:HasContainer(): boolean", "Whether this block entity owns a live Container.", "", "boolean", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:SetChanged()", "Marks this block entity's saved state as changed.", "", "void", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:SetChanged()", "On the server, marks this block entity's saved state as changed.", "", "void", "server:Server", ""));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Position", "Vector3", "This block entity's world position.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Block", "Block", "The live block that owns this block entity.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Type", "string", "This block entity type's registry identifier.", "shared:Shared"));
-        docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Nbt", "Nbt|table", "The live NBT view; assign a table or Nbt value to replace its data.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Nbt", "Nbt|table", "Reads are available on both sides; writes are server-side only.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Container", "Container|nil", "The same live Container exposed by Block.Container, when available.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Inventory", "Container|nil", "Alias for blockEntity.Container.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.guideStep("BlockEntity", "Extend a block with saved state",
@@ -259,12 +256,22 @@ public class RegistryModule implements MLuaModule {
                 "Minecraft:RegisterClass(\"SignalBlockItem\", \"BlockItem\", \"The item form of a signal block.\")\nMinecraft:RegisterClassFunction(\"SignalBlockItem\", \"IsSignalBlock\", function(self)\n    return self:GetId() == \"myaddon:signal_block\"\nend, \"Checks which registered block this item places.\")\n\nRegistry.Blocks:Register(\"signal_block\", {})\nRegistry.Blocks:RegisterItem(\"signal_block\", { className = \"SignalBlockItem\" })"));
         docs.register(MLuaDocBuilder.Registration.clazz("ScriptedEntity", "MLuaScriptedEntity",
                 "A registered Lua-controlled mob with navigation, sensing, combat, and persistent AI data.",
-                "classes/scripted-entity.html", "LivingEntity"));
+                "classes/scripted-entity.html", "Mob"));
         docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:MoveTo(position: Vector3|CFrame, speed?: number): boolean",
-                "Finds a navigation path to the target position. The path continues after this call returns.",
+                "On the server, finds a navigation path to the target position using a finite positive speed. The path continues after this call returns.",
                 "Native target position and optional movement speed", "boolean", "server:Server", null));
         docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:LookAt(position: Vector3|CFrame)",
                 "Turns the mob toward a native position.", "Native target position", "void", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:FindNearestPlayer(range?: finite number, requireLineOfSight?: boolean): Player|nil",
+                "Finds the nearest living player in this dimension. Range defaults to 16 and is clamped to 0 through 128 blocks.", "Optional search radius and line-of-sight requirement", "Player|nil", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:FindNearestEntity(entityType?: string, range?: finite number): LivingEntity|nil",
+                "Finds the nearest living entity in this dimension, optionally matching a registered type id. Range defaults to 16 and is clamped to 0 through 128 blocks.", "Optional registered entity type id and search radius", "LivingEntity|nil", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:FindNearestBlock(blockId: string, radius?: whole number): Block|nil",
+                "Finds the nearest block with this registered id. Radius defaults to 10 and is clamped to 0 through 16 blocks.", "Registered block id and optional integer search radius", "Block|nil", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:SetDoorBreakProgress(position: Block|Vector3, progress: whole number -1..9): boolean",
+                "Shows Minecraft's door breaking animation at progress 0 through 9, or clears it with -1.", "Door position and Minecraft destroy-progress stage", "boolean", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("ScriptedEntity", "ScriptedEntity:MeleeAttack(target: LivingEntity, cooldownTicks?: whole number): boolean",
+                "Attacks a living target in reach. Cooldown defaults to 20 ticks and is clamped to 1 through 200 ticks.", "Live living entity and optional cooldown in ticks", "boolean", "server:Server", null));
         docs.register(MLuaDocBuilder.Registration.clazz("RegistryEntry", "MLuaRegistryEntry",
                 "A live view of a namespaced key in one of MLua's supported Minecraft registries.",
                 "classes/registry-entry.html", "Instance"));
@@ -376,9 +383,12 @@ public class RegistryModule implements MLuaModule {
             "onSpawn?", "fun(entity: Entity)", "Runs when the entity spawns.",
             "onInteract?", "fun(self: Entity, player: Player, hand: string): boolean", "Handles player interaction.",
             "onRemove?", "fun(entity: Entity)", "Runs when the entity is removed.",
+            "aiInterval?", "whole number", "Ticks between scripted AI updates, clamped to 1–120.",
             "attributes?", "table<string, number>", "Entity attribute values.", "width?", "number", "Entity width.",
-            "height?", "number", "Entity height.", "trackingRange?", "number", "Network tracking range.",
-            "updateInterval?", "number", "Network update interval.", "shadowRadius?", "number", "Rendered shadow radius.",
+            "height?", "number", "Entity height.",
+            "trackingRange?", "whole number >= 0", "Network tracking range in chunks; zero disables client tracking.",
+            "updateInterval?", "whole number >= 1", "Ticks between entity tracking updates.",
+            "shadowRadius?", "number", "Rendered shadow radius.",
             "category?", "string", "Minecraft entity category.", "texture?", "string", "Entity texture resource.",
             "model?", "string", "Entity model resource.", "className?", "string", "Registered Lua class inheriting from ScriptedEntity.");
         schema(docs, "WorldGenerationFeatureDefinition", "Adds one registered placed feature to selected biomes.",
@@ -404,11 +414,19 @@ public class RegistryModule implements MLuaModule {
             "isLightning?", "boolean", "Counts as lightning damage.");
         schema(docs, "EffectDefinition", "Visual and gameplay flags for a registered mob effect.",
             "color?", "number", "Effect particle and tint color.", "isBad?", "boolean", "Whether the effect is harmful.",
-            "isBeneficial?", "boolean", "Whether the effect is beneficial.");
+            "isBeneficial?", "boolean", "Whether the effect is beneficial.",
+            "tickInterval?", "whole number >= 1", "Ticks between scripted onTick callbacks.");
         schema(docs, "PotionDefinition", "Effect and timing options for a registered potion.",
-            "effect", "string", "Mob effect identifier.", "duration?", "number", "Effect duration in ticks.",
-            "amplifier?", "number", "Effect amplifier.", "ambient?", "boolean", "Whether the effect is ambient.",
+            "effect", "string", "Mob effect identifier.", "duration?", "whole number", "Effect duration in ticks (default 600).",
+            "amplifier?", "whole number >= 0", "Effect amplifier (default 0).", "ambient?", "boolean", "Whether the effect is ambient.",
             "showParticles?", "boolean", "Whether effect particles are shown.");
+        schema(docs, "CookingRecipeDefinition", "Ingredient, result, and smelting timing options.",
+            "ingredient", "string|IngredientDefinition", "Input item or ingredient description.",
+            "result", "string", "Output item identifier.", "experience?", "number >= 0", "Experience granted when the result is collected.",
+            "cookingTime?", "whole number >= 1", "Cooking duration in ticks (default 200). The lowercase cookingtime alias is also accepted.");
+        schema(docs, "StonecuttingRecipeDefinition", "Ingredient and output options for a stonecutting recipe.",
+            "ingredient", "string|IngredientDefinition", "Input item or ingredient description.",
+            "result", "string", "Output item identifier.", "count?", "whole number >= 1", "Output count (default 1).");
         schema(docs, "LootDefinition", "Loot table definition with one or more pools.",
             "pools?", "LootPoolDefinition[]", "Loot pools evaluated for this table.");
         schema(docs, "LootPoolDefinition", "One pool of weighted loot entries.",
@@ -443,14 +461,14 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:Register(id: string, definition: table|string)", "Registers a recipe JSON object or JSON string."));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:RegisterShaped(id: string, definition: RecipeDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:RegisterShapeless(id: string, definition: RecipeDefinition)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:RegisterSmelting(id: string, definition: RecipeDefinition)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:RegisterStonecutting(id: string, definition: RecipeDefinition)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:RegisterSmelting(id: string, definition: CookingRecipeDefinition)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Recipes", "Registry.Recipes:RegisterStonecutting(id: string, definition: StonecuttingRecipeDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:Register(definition: LootDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterEntity(id: string, props: LootDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterSimpleBlock(id: string, itemId: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterSelfBlock(id: string)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterSilkTouchBlock(id: string, itemId: string)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterOreBlock(id: string, dropId: string, minCount: number, maxCount: number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterSilkTouchBlock(id: string, itemId: string, count: whole number >= 1?)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Loot", "Registry.Loot:RegisterOreBlock(id: string, dropId: string, minCount: whole number >= 1?, maxCount: whole number >= minCount?)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Tags", "Registry.Tags:Register(definition: TagDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Tags", "Registry.Tags:RegisterItem(id: string, items: string[])", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Tags", "Registry.Tags:RegisterBlock(id: string, blocks: string[])", null));

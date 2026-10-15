@@ -11,6 +11,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.runtime.client.MLuaClientParticleManager;
 import dev.mlua.runtime.client.MLuaParticleOwnershipRegistry;
 import java.util.Optional;
@@ -145,7 +146,11 @@ public final class MLuaParticleService extends MLuaReflectiveService {
         ensureClient();
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
-        int count = firstNonNil(props.get("Count"), props.get("count")).optint(12);
+        int count = MLuaLuaArguments.optionalWholeInt(firstNonNil(props.get("Count"), props.get("count")),
+            12, "ParticleService:SpawnBurst", "Count");
+        if (count < 0) {
+            throw new LuaError("[MLua] ParticleService:SpawnBurst Count must be non-negative.");
+        }
         LuaValue spread = firstNonNil(props.get("Spread"), props.get("spread"));
         double[] spreadVector = spread.isnumber()
             ? new double[]{spread.todouble(), spread.todouble(), spread.todouble()}

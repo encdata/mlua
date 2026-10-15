@@ -211,6 +211,8 @@ public final class MLuaBlockWrapper {
                return MLuaLevelWrapper.levelTable(((MCLevelImpl)level(self)).inner(), registration);
             }
          }, "Returns the live dimension containing this block entity.");
+         registration.registerClassFunction("BlockEntity", "GetWorld", blockEntityClass.rawget("GetLevel"),
+            "Returns the live dimension containing this block entity as a Level instance.");
          registration.registerClassFunction("BlockEntity", "GetDimension", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                net.minecraft.world.level.Level level = ((MCLevelImpl)level(args.arg1().checktable())).inner();
@@ -243,6 +245,7 @@ public final class MLuaBlockWrapper {
          registration.registerClassFunction("BlockEntity", "SetNbt", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                LuaTable self = args.arg1().checktable();
+               requireServerBlockEntity(self, "SetNbt");
                MCLevel level = level(self);
                MCBlockPos pos = pos(self);
                if (args.narg() == 2 && args.arg(2).istable()) {
@@ -250,7 +253,7 @@ public final class MLuaBlockWrapper {
                }
                return LuaValue.valueOf(setBlockEntityNbt(level, pos, args.checkjstring(2), args.arg(3)));
             }
-         }, "Sets one block entity NBT value or replaces its data.");
+         }, "Sets one block entity NBT value or replaces its data on the server.");
          registration.registerClassFunction("BlockEntity", "GetContainer", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                return getContainer(args.arg1().checktable(), registration);
@@ -266,13 +269,17 @@ public final class MLuaBlockWrapper {
          }, "Whether this block entity owns a live Container.");
          registration.registerClassFunction("BlockEntity", "SetChanged", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-               blockEntity(args.arg1()).setChanged();
+               LuaTable self = args.arg1().checktable();
+               requireServerBlockEntity(self, "SetChanged");
+               blockEntity(self).setChanged();
                return LuaValue.NONE;
             }
-         }, "Marks this block entity's saved state as changed.");
+         }, "Marks this block entity's saved state as changed. Server-side only.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Position", "GetPosition", null,
             "Vector3", "shared:Shared", "This block entity's world position.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Level", "GetLevel", null,
+            "Level", "shared:Shared", "The live dimension containing this block entity.");
+         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "World", "GetWorld", null,
             "Level", "shared:Shared", "The live dimension containing this block entity.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Dimension", "GetDimension", null,
             "string", "shared:Shared", "The dimension identifier containing this block entity.");
@@ -283,7 +290,7 @@ public final class MLuaBlockWrapper {
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "IsRemoved", "GetIsRemoved", null,
             "boolean", "shared:Shared", "Whether Minecraft has removed this block entity from its dimension.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Nbt", "GetNbt", "SetNbt",
-            "Nbt|table", "shared:Shared", "This block entity's live NBT view; assign a table or Nbt value to replace its data.");
+            "Nbt|table", "shared:Shared", "This block entity's live NBT view; reads are available on both sides, while writes are server-side only.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Container", "GetContainer", null,
             "Container|nil", "shared:Shared", "The live container owned by this block entity, when available.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Inventory", "GetInventory", null,
@@ -303,6 +310,7 @@ public final class MLuaBlockWrapper {
          }), "Returns the block entity at this position, or nil when none exists.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetId", selfBlock((self, ignored) -> LuaValue.valueOf(blockId(level(self), pos(self)))), "Returns the registered block identifier at this position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetLevel", selfBlock((self, ignored) -> MLuaLevelWrapper.levelTable(((MCLevelImpl) level(self)).inner(), registration)), "Returns the live world containing this block.");
+         MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetWorld", classTable.rawget("GetLevel"), "Returns the live dimension containing this block as a Level instance.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetDimension", selfBlock((self, ignored) -> LuaValue.valueOf(((MCLevelImpl) level(self)).inner().dimension().location().toString())), "Returns the dimension identifier containing this block.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetName", classTable.rawget("GetId"), "Returns the registered block identifier at this position.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetClassName",
@@ -434,7 +442,7 @@ public final class MLuaBlockWrapper {
             return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
          }), "Replaces this block with a registered block identifier and optional state properties. Optional Minecraft update flags default to 3. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "ScheduleTick", selfBlock((self, args) -> {
-            int delay = args.checkint(2);
+            int delay = MLuaLuaArguments.wholeInt(args, 2, "Block:ScheduleTick", "delay");
             if (delay < 1) throw new LuaError("[MLua] Block:ScheduleTick delay must be at least one tick");
             net.minecraft.server.level.ServerLevel rawLevel = requireServerLevel(self, "ScheduleTick");
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
@@ -443,6 +451,9 @@ public final class MLuaBlockWrapper {
             return LuaValue.NONE;
          }), "Schedules this block's onTick callback after the given server tick delay. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetNbt", selfBlock((self, args) -> {
+            if (level(self).getBlockEntity(pos(self)) == null && (args.narg() < 2 || args.arg(2).isnil())) {
+               return LuaValue.NIL;
+            }
             if (args.narg() < 2 || args.arg(2).isnil()) {
                return nbtTable(level(self), pos(self), registration);
             }
@@ -475,6 +486,7 @@ public final class MLuaBlockWrapper {
             {"Id", "GetId", null, "string", "The registered block identifier at this position."},
             {"Name", "GetName", null, "string", "The registered block identifier at this position."},
             {"Level", "GetLevel", null, "Level", "The live world containing this block."},
+            {"World", "GetWorld", null, "Level", "The live dimension containing this block."},
             {"Dimension", "GetDimension", null, "string", "The dimension identifier containing this block."},
             {"Position", "GetPosition", null, "Vector3", "This block's position."},
             {"IsAir", "GetIsAir", null, "boolean", "Whether this block position contains air."},
@@ -493,7 +505,7 @@ public final class MLuaBlockWrapper {
             {"HasBlockEntity", "GetHasBlockEntity", null, "boolean", "Whether this state owns a block entity."},
             {"IsRandomlyTicking", "GetIsRandomlyTicking", null, "boolean", "Whether this state receives random game ticks."},
             {"BlockEntity", "GetBlockEntity", null, "BlockEntity|nil", "The block entity at this position, or nil when none exists."},
-            {"Nbt", "GetNbt", "SetNbt", "Nbt|table", "This block entity's live NBT view; assign a table to replace its data."},
+            {"Nbt", "GetNbt", "SetNbt", "Nbt|table|nil", "This block entity's live NBT view, or nil when this block has no block entity; reads are available on both sides, while writes are server-side only."},
             {"DoorOpen", "IsDoorOpen", null, "boolean", "Whether the door at this block position is open."},
             {"Container", "GetContainer", null, "Container|nil", "The live container at this position, when available."},
             {"Inventory", "GetInventory", null, "Container|nil", "The live inventory at this position, when available."}
@@ -562,6 +574,9 @@ public final class MLuaBlockWrapper {
    }
 
    private static void applyBlockEntityTag(MCLevel level, MCBlockPos pos, MCCompoundTag tag) {
+      if (!(((MCLevelImpl)level).inner() instanceof net.minecraft.server.level.ServerLevel)) {
+         throw new LuaError("[MLua] Block entity NBT writes are server-side only.");
+      }
       MCBlockEntity blockEntity = level.getBlockEntity(pos);
       if (blockEntity == null) {
          return;
@@ -594,6 +609,19 @@ public final class MLuaBlockWrapper {
       net.minecraft.world.level.Level rawLevel = ((MCLevelImpl)level(self)).inner();
       if (!(rawLevel instanceof net.minecraft.server.level.ServerLevel server)) {
          throw new LuaError("[MLua] Block:" + method + " is server-side only.");
+      }
+      return server;
+   }
+
+   private static net.minecraft.server.level.ServerLevel requireServerBlockEntity(LuaTable self, String method) {
+      LuaValue value = self.rawget("__level");
+      if (!value.isuserdata(net.minecraft.world.level.Level.class)) {
+         throw new LuaError("[MLua] BlockEntity has no live dimension.");
+      }
+      net.minecraft.world.level.Level rawLevel =
+         (net.minecraft.world.level.Level)value.touserdata(net.minecraft.world.level.Level.class);
+      if (!(rawLevel instanceof net.minecraft.server.level.ServerLevel server)) {
+         throw new LuaError("[MLua] BlockEntity:" + method + " is server-side only.");
       }
       return server;
    }

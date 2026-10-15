@@ -145,19 +145,20 @@ public final class MLuaItemWrapper {
       LuaTable itemClass = registration.classTable("Item");
       if (itemClass == null) throw new IllegalStateException("Lua class is not registered: Item");
       table.set("Class", itemClass);
-      table.set("Find", new VarArgFunction() {
+      LuaValue findItem = new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
-            int count = MLuaLuaArguments.optionalWholeInt(args, 2, 1, "Item:Find", "count");
-            return find(args.checkjstring(1), count, registration);
+            int offset = args.arg1() == table ? 1 : 0;
+            int count = MLuaLuaArguments.optionalWholeInt(args, offset + 2, 1, "Item:Find", "count");
+            return find(args.checkjstring(offset + 1), count, registration);
          }
-      });
+      };
+      table.set("Find", findItem);
       LuaTable meta = new LuaTable();
       meta.set("__call", new VarArgFunction() {
          @Override
          public Varargs invoke(Varargs args) {
-            int count = MLuaLuaArguments.optionalWholeInt(args, 3, 1, "Item", "count");
-            return find(args.checkjstring(2), count, registration);
+            return findItem.invoke(args);
          }
       });
       table.setmetatable(meta);
@@ -203,20 +204,13 @@ public final class MLuaItemWrapper {
             "string", "shared:Shared", "The identifier of the block placed by this item.");
          blockItemClass.rawset("__initialized", LuaValue.TRUE);
       }
-      LuaTable weaponClass = registration.registerClass("Weapon", "Item", "A scriptable weapon base for melee, ranged, thrown, and other item actions.");
-      if (!weaponClass.rawget("__initialized").toboolean()) {
-         registration.registerClassFunction("Weapon", "GetDurabilityRemaining", selfItem((self, ignored) -> {
-            MCItemStack itemStack = stack(self);
-            return LuaValue.valueOf(itemStack.isDamageableItem() ? itemStack.getMaxDamage() - itemStack.getDamageValue() : -1);
-         }), "Returns remaining durability, or -1 when this item has no durability.");
-         weaponClass.set("__initialized", LuaValue.TRUE);
-      }
+      registration.registerClass("Weapon", "Item", "A scriptable weapon base for melee, ranged, thrown, and other item actions.");
       if (!classTable.rawget("__initialized").toboolean()) {
          registration.registerClassFunction("Item", "new", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
                int offset = args.arg1() == classTable ? 1 : 0;
-               int count = MLuaLuaArguments.optionalWholeInt(args, offset + 2, 1, "Item.new", "count");
+               int count = MLuaLuaArguments.optionalWholeInt(args, offset + 2, 1, "Item.Class.new", "count");
                return find(args.checkjstring(offset + 1), count, registration);
             }
          }, "Creates a live item stack instance from a registered item identifier and count.");
@@ -257,14 +251,16 @@ public final class MLuaItemWrapper {
          LuaValue getMaxStackSize = selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getMaxStackSize()));
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxStackSize", getMaxStackSize, "Returns the maximum stack size for this item.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxCount", getMaxStackSize, "Compatibility alias for GetMaxStackSize.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getMaxDamage())), "Returns the maximum durability damage for this item.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetRemainingDurability", selfItem((self, ignored) -> {
-            MCItemStack item = stack(self);
-            return LuaValue.valueOf(item.isDamageableItem() ? Math.max(0, item.getMaxDamage() - item.getDamageValue()) : 0);
-         }), "Returns remaining durability, or zero for items without durability.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxDamage", selfItem((self, ignored) -> LuaValue.valueOf(maxDamage(rawStack(self)))), "Returns the maximum durability damage for this item.");
+         LuaValue getRemainingDurability = selfItem((self, ignored) -> {
+            return LuaValue.valueOf(remainingDurability(rawStack(self)));
+         });
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetRemainingDurability",
+            getRemainingDurability, "Returns remaining durability, or zero for items without durability.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDurabilityRemaining",
+            getRemainingDurability, "Alias for GetRemainingDurability; returns zero when this item has no durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamagePercent", selfItem((self, ignored) -> {
-            MCItemStack item = stack(self);
-            return LuaValue.valueOf(item.isDamageableItem() ? (double)item.getDamageValue() / item.getMaxDamage() : 0.0);
+            return LuaValue.valueOf(damagePercent(rawStack(self)));
          }), "Returns durability damage as a fraction from zero to one.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEnchantable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isEnchantable())), "Returns whether this stack can receive enchantments.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsStackable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isStackable())), "Returns whether this stack can be stacked with another matching stack.");
@@ -275,17 +271,22 @@ public final class MLuaItemWrapper {
             }
             return LuaValue.valueOf(stack(self).canCombine(new MCItemStackImpl(toItemStack(other, registration))));
          }), "Returns whether another item stack has the same item and data, ignoring stack counts.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getDamageValue())), "Returns this item's current durability damage.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(damage(rawStack(self)))), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", selfItem((self, args) -> {
             int damage = MLuaLuaArguments.wholeInt(args, 2, "Item:SetDamage", "damage");
-            if (damage < 0) throw new LuaError("[MLua] Item:SetDamage damage must be zero or greater.");
-            stack(self).setDamageValue(damage);
+            setDamage(rawStack(self), damage, "Item:SetDamage");
             return LuaValue.NONE;
-         }), "Sets this item's current durability damage to a whole number of zero or greater.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEmpty", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty())), "Returns whether this stack contains no items.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsDamageable", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem())), "Returns whether this item has durability.");
+         }), "Sets this item's current durability damage to a whole number of zero or greater. The stack must be damageable.");
+         LuaValue isEmpty = selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isEmpty()));
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsEmpty", isEmpty,
+            "Returns whether this stack contains no items.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEmpty", isEmpty,
+            "Alias for GetIsEmpty.");
+         LuaValue isDamageable = selfItem((self, ignored) -> LuaValue.valueOf(stack(self).isDamageableItem()));
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetIsDamageable", isDamageable,
+            "Returns whether this item has durability.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsDamageable", isDamageable,
+            "Alias for GetIsDamageable.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetHasTag", selfItem((self, ignored) -> {
             net.minecraft.nbt.CompoundTag compoundData = itemTag(self, false);
             return LuaValue.valueOf(compoundData != null && !compoundData.getAllKeys().isEmpty());
@@ -404,7 +405,7 @@ public final class MLuaItemWrapper {
               {"MaxStackSize", "GetMaxStackSize", null, "number", "The maximum stack size for this item."},
               {"MaxDamage", "GetMaxDamage", null, "number", "The maximum durability damage for this item."},
               {"RemainingDurability", "GetRemainingDurability", null, "number", "Remaining durability, or zero for an item without durability."},
-              {"DamagePercent", "GetDamagePercent", null, "number", "Durability damage as a fraction from zero to one."},
+              {"DamagePercent", "GetDamagePercent", null, "number", "Durability damage as a fraction from zero to one, capped for already-broken items."},
               {"Damage", "GetDamage", "SetDamage", "number", "This item's current durability damage."},
               {"Empty", "IsEmpty", null, "boolean", "Whether this stack contains no items."},
               {"Damageable", "IsDamageable", null, "boolean", "Whether this item has durability."},
@@ -473,6 +474,45 @@ public final class MLuaItemWrapper {
          throw new LuaError("[MLua] Item instance lost its stack reference");
       }
       return new MCItemStackImpl(raw);
+   }
+
+   private static net.minecraft.world.item.ItemStack rawStack(LuaValue self) {
+      return ((MCItemStackImpl)stack(self)).inner();
+   }
+
+   public static int remainingDurability(net.minecraft.world.item.ItemStack raw) {
+      MCItemStack item = new MCItemStackImpl(raw);
+      return item.isDamageableItem() ? Math.max(0, item.getMaxDamage() - Math.max(0, item.getDamageValue())) : 0;
+   }
+
+   public static int damage(net.minecraft.world.item.ItemStack raw) {
+      return new MCItemStackImpl(raw).getDamageValue();
+   }
+
+   public static int maxDamage(net.minecraft.world.item.ItemStack raw) {
+      return new MCItemStackImpl(raw).getMaxDamage();
+   }
+
+   public static double damagePercent(net.minecraft.world.item.ItemStack raw) {
+      MCItemStack item = new MCItemStackImpl(raw);
+      if (!item.isDamageableItem()) return 0.0;
+      return Math.min(1.0, Math.max(0.0, (double)Math.max(0, item.getDamageValue()) / item.getMaxDamage()));
+   }
+
+   public static void setDamage(net.minecraft.world.item.ItemStack raw, int damage, String method) {
+      if (damage < 0) throw new LuaError("[MLua] " + method + " damage must be zero or greater.");
+      MCItemStack item = new MCItemStackImpl(raw);
+      if (!item.isDamageableItem()) {
+         throw new LuaError("[MLua] " + method + " cannot set durability damage on an item without durability.");
+      }
+      item.setDamageValue(damage);
+   }
+
+   public static void setDamage(LuaValue item, int damage, MLuaRegistration registration, String method) {
+      if (registration == null || !registration.isInstanceOf(item, "Item")) {
+         throw new LuaError("[MLua] " + method + " expects an Item instance.");
+      }
+      setDamage(toItemStack(item, registration), damage, method);
    }
 
    private static void setNbtValue(LuaValue self, String key, LuaValue value) {
@@ -544,6 +584,16 @@ public final class MLuaItemWrapper {
       setNbtValue(item, key, value);
    }
 
+   public static void replaceNbt(LuaValue item, LuaValue value, MLuaRegistration registration) {
+      if (registration == null || !registration.isInstanceOf(item, "Item")) {
+         throw new LuaError("[MLua] ItemStackService:ReplaceNbt expects an Item instance.");
+      }
+      if (!value.istable()) {
+         throw new LuaError("[MLua] ItemStackService:ReplaceNbt expects an Nbt or table value.");
+      }
+      setItemTag(item, MLuaNbtWrapper.toCompound(value));
+   }
+
    public static LuaValue cloneItem(LuaValue item, MLuaRegistration registration) {
       if (registration == null || !registration.isInstanceOf(item, "Item")) {
          throw new LuaError("[MLua] ItemStackService:Clone expects an Item instance.");
@@ -573,7 +623,7 @@ public final class MLuaItemWrapper {
       if (itemVal.isnil()) return net.minecraft.world.item.ItemStack.EMPTY;
       if (registration == null) throw new LuaError("[MLua] Item conversion requires an active MLua registration.");
       if (!registration.isInstanceOf(itemVal, "Item")) {
-         throw new LuaError("[MLua] Expected an Item instance created by Item.new, Item.Find, or an inventory API.");
+         throw new LuaError("[MLua] Expected an Item instance created by Item.Find, Item(id, count), Item.Class.new, or an inventory API.");
       }
       LuaTable table = itemVal.checktable();
       LuaValue stackVal = table.rawget("__item_stack");

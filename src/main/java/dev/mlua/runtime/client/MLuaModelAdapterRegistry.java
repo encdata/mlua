@@ -4,8 +4,11 @@ import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.ModelPart;
@@ -21,6 +24,8 @@ public final class MLuaModelAdapterRegistry {
     private static final Owner LEGACY_OWNER = new Owner(null, "");
     private record RegisteredAdapter(Owner owner, Map<String, String> parts) {}
     private static final ConcurrentHashMap<String, RegisteredAdapter> ADAPTERS = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, Map<String, String>> RESOLVED_MAPPINGS =
+        Collections.synchronizedMap(new WeakHashMap<>());
 
     private MLuaModelAdapterRegistry() {}
 
@@ -34,7 +39,10 @@ public final class MLuaModelAdapterRegistry {
             if (normalizedBone.isEmpty() || normalizedPath.isEmpty()) {
                 throw new IllegalArgumentException("Adapter bone names and model part paths cannot be empty");
             }
-            copy.put(normalizedBone, normalizedPath);
+            validatePartPath(normalizedBone, normalizedPath);
+            if (copy.putIfAbsent(normalizedBone, normalizedPath) != null) {
+                throw new IllegalArgumentException("Adapter bone name is registered more than once: " + normalizedBone);
+            }
         });
         Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
         RegisteredAdapter next = new RegisteredAdapter(resolvedOwner, Map.copyOf(copy));
@@ -44,22 +52,29 @@ public final class MLuaModelAdapterRegistry {
             }
             return next;
         });
+        RESOLVED_MAPPINGS.clear();
     }
 
     public static boolean unregister(String modelClass, Owner owner) {
         Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
         String className = normalizeClassName(modelClass);
         RegisteredAdapter adapter = ADAPTERS.get(className);
-        return adapter != null && adapter.owner().equals(resolvedOwner) && ADAPTERS.remove(className, adapter);
+        boolean removed = adapter != null && adapter.owner().equals(resolvedOwner) && ADAPTERS.remove(className, adapter);
+        if (removed) RESOLVED_MAPPINGS.clear();
+        return removed;
     }
 
     public static void clearOwned(Owner owner) {
-        if (owner != null) ADAPTERS.entrySet().removeIf(entry -> entry.getValue().owner().equals(owner));
+        if (owner != null && ADAPTERS.entrySet().removeIf(entry -> entry.getValue().owner().equals(owner))) {
+            RESOLVED_MAPPINGS.clear();
+        }
     }
 
     public static void clearRuntime(Object runtimeSession) {
         if (runtimeSession == null) return;
-        ADAPTERS.entrySet().removeIf(entry -> entry.getValue().owner().runtimeSession() == runtimeSession);
+        if (ADAPTERS.entrySet().removeIf(entry -> entry.getValue().owner().runtimeSession() == runtimeSession)) {
+            RESOLVED_MAPPINGS.clear();
+        }
     }
 
     /** Called by loader render hooks; it reads registered data and never invokes Lua. */
@@ -81,12 +96,23 @@ public final class MLuaModelAdapterRegistry {
     }
 
     public static Map<String, String> findMapping(Class<?> modelClass) {
-        for (Class<?> type = modelClass; type != null; type = type.getSuperclass()) {
-            String canonical = type.getName();
-            RegisteredAdapter adapter = ADAPTERS.get(canonical);
-            if (adapter != null) return adapter.parts();
+        if (modelClass == null) return null;
+        synchronized (RESOLVED_MAPPINGS) {
+            Map<String, String> cached = RESOLVED_MAPPINGS.get(modelClass);
+            if (cached != null) return cached.isEmpty() ? null : cached;
+
+            ArrayList<Class<?>> hierarchy = new ArrayList<>();
+            for (Class<?> type = modelClass; type != null; type = type.getSuperclass()) hierarchy.add(type);
+            Collections.reverse(hierarchy);
+            LinkedHashMap<String, String> merged = new LinkedHashMap<>();
+            for (Class<?> type : hierarchy) {
+                RegisteredAdapter adapter = ADAPTERS.get(type.getName());
+                if (adapter != null) merged.putAll(adapter.parts());
+            }
+            Map<String, String> resolved = merged.isEmpty() ? Map.of() : Map.copyOf(merged);
+            RESOLVED_MAPPINGS.put(modelClass, resolved);
+            return resolved.isEmpty() ? null : resolved;
         }
-        return null;
     }
 
     /** Resolves an adapter's Lua-facing bone name to the native model part. */
@@ -169,6 +195,25 @@ public final class MLuaModelAdapterRegistry {
         if (!className.contains(".")) {
             throw new IllegalArgumentException("Use the model class's full Java class name");
         }
+        for (String segment : className.split("\\.", -1)) {
+            if (segment.isEmpty() || !Character.isJavaIdentifierStart(segment.charAt(0))) {
+                throw new IllegalArgumentException("Invalid Java model class name: " + className);
+            }
+            for (int index = 1; index < segment.length(); index++) {
+                if (!Character.isJavaIdentifierPart(segment.charAt(index))) {
+                    throw new IllegalArgumentException("Invalid Java model class name: " + className);
+                }
+            }
+        }
         return className;
+    }
+
+    private static void validatePartPath(String boneName, String path) {
+        for (String segment : path.split("\\.", -1)) {
+            if (segment.isBlank()) {
+                throw new IllegalArgumentException("Model part path for bone '" + boneName
+                    + "' must use non-empty dot-separated names");
+            }
+        }
     }
 }

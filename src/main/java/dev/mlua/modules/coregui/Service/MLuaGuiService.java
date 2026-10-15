@@ -8,6 +8,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
@@ -24,6 +25,7 @@ import dev.mlua.minecraft.ui.element.GuiButton;
 import dev.mlua.minecraft.binding.MLuaNativeControl;
 import dev.mlua.minecraft.binding.MLuaNativeScreen;
 import dev.mlua.minecraft.binding.MLuaChatLine;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.ui.UDim;
 import dev.mlua.minecraft.ui.UDim2;
 import java.util.List;
@@ -146,15 +148,21 @@ public final class MLuaGuiService implements MLuaService {
         canvas.set("Phase", LuaValue.valueOf(element.before ? "Before" : "After"));
         canvas.set("Fill", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawHudFill(requireHudGraphics(element), args.arg(2).checkint(), args.arg(3).checkint(),
-                    args.arg(4).checkint(), args.arg(5).checkint(), args.arg(6).checkint());
+                drawHudFill(requireHudGraphics(element), MLuaLuaArguments.wholeInt(args, 2, "HudCanvas:Fill", "left"),
+                    MLuaLuaArguments.wholeInt(args, 3, "HudCanvas:Fill", "top"),
+                    MLuaLuaArguments.wholeInt(args, 4, "HudCanvas:Fill", "right"),
+                    MLuaLuaArguments.wholeInt(args, 5, "HudCanvas:Fill", "bottom"),
+                    readColor(args.arg(6), "HudCanvas:Fill", "color"));
                 return LuaValue.NONE;
             }
         });
         canvas.set("DrawText", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawHudText(requireHudGraphics(element), nativeText(args.arg(2)), args.arg(3).checkint(),
-                    args.arg(4).checkint(), args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
+                drawHudText(requireHudGraphics(element), nativeText(args.arg(2)),
+                    MLuaLuaArguments.wholeInt(args, 3, "HudCanvas:DrawText", "x"),
+                    MLuaLuaArguments.wholeInt(args, 4, "HudCanvas:DrawText", "y"),
+                    optionalColor(args.arg(5), 0xFFFFFF, "HudCanvas:DrawText", "color"),
+                    args.arg(6).optboolean(true));
                 return LuaValue.NONE;
             }
         });
@@ -165,6 +173,14 @@ public final class MLuaGuiService implements MLuaService {
         Object graphics = element.graphics;
         if (graphics == null) throw new LuaError("[MLua] HUD canvas drawing methods are only available during the render callback.");
         return graphics;
+    }
+
+    private static int readColor(LuaValue value, String method, String parameter) {
+        return MLuaLuaArguments.wholeInt32Bits(value, method, parameter);
+    }
+
+    private static int optionalColor(LuaValue value, int fallback, String method, String parameter) {
+        return value.isnil() ? fallback : readColor(value, method, parameter);
     }
 
     private static int readNumber(Object target, String... methodNames) {
@@ -1051,13 +1067,15 @@ public final class MLuaGuiService implements MLuaService {
         table.set("AttachElementBefore", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
-                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), true, args.arg(4), args.arg(5).optint(0)));
+                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), true, args.arg(4),
+                    MLuaLuaArguments.optionalWholeInt(args, 5, 0, "Gui:AttachElementBefore", "priority")));
             }
         });
         table.set("AttachElementAfter", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(MLuaGuiService.this.attachHudElement(
-                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), false, args.arg(4), args.arg(5).optint(0)));
+                    args.arg(2).checkjstring(), args.arg(3).checkjstring(), false, args.arg(4),
+                    MLuaLuaArguments.optionalWholeInt(args, 5, 0, "Gui:AttachElementAfter", "priority")));
             }
         });
         table.set("RemoveHudElement", new VarArgFunction() {
@@ -1319,7 +1337,7 @@ public final class MLuaGuiService implements MLuaService {
             }
         });
 
-        return table;
+        return MLuaServiceBase.normalizeServiceCalls(table, this.name());
     }
 
     private boolean removeScreen(LuaValue target) {
@@ -1587,7 +1605,7 @@ public final class MLuaGuiService implements MLuaService {
                 @Override public Varargs invoke(Varargs args) {
                     Object text = nativeText(args.arg(2));
                     LuaTable position = requireScreenUDim2(args.arg(3), "Position");
-                    int color = args.arg(4).optint(0xFFFFFF);
+                    int color = optionalColor(args.arg(4), 0xFFFFFF, "NativeScreen:AddText", "color");
                     MLuaScriptScreen.this.textLines.add(new ScreenText(text,
                         screenCoordinate(position, "X", MLuaScriptScreen.this.width),
                         screenCoordinate(position, "Y", MLuaScriptScreen.this.height), color));
@@ -1917,15 +1935,21 @@ public final class MLuaGuiService implements MLuaService {
             canvas.set("Height", LuaValue.valueOf(this.height));
             canvas.set("Fill", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
-                    drawing.fill(args.arg(2).checkint(), args.arg(3).checkint(), args.arg(4).checkint(),
-                        args.arg(5).checkint(), args.arg(6).checkint());
+                    drawing.fill(MLuaLuaArguments.wholeInt(args, 2, "ScreenCanvas:Fill", "left"),
+                        MLuaLuaArguments.wholeInt(args, 3, "ScreenCanvas:Fill", "top"),
+                        MLuaLuaArguments.wholeInt(args, 4, "ScreenCanvas:Fill", "right"),
+                        MLuaLuaArguments.wholeInt(args, 5, "ScreenCanvas:Fill", "bottom"),
+                        readColor(args.arg(6), "ScreenCanvas:Fill", "color"));
                     return LuaValue.NONE;
                 }
             });
             canvas.set("DrawText", new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
-                    drawing.text(nativeText(args.arg(2)), args.arg(3).checkint(), args.arg(4).checkint(),
-                        args.arg(5).optint(0xFFFFFF), args.arg(6).optboolean(true));
+                    drawing.text(nativeText(args.arg(2)),
+                        MLuaLuaArguments.wholeInt(args, 3, "ScreenCanvas:DrawText", "x"),
+                        MLuaLuaArguments.wholeInt(args, 4, "ScreenCanvas:DrawText", "y"),
+                        optionalColor(args.arg(5), 0xFFFFFF, "ScreenCanvas:DrawText", "color"),
+                        args.arg(6).optboolean(true));
                     return LuaValue.NONE;
                 }
             });

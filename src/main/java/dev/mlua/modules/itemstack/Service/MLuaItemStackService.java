@@ -67,10 +67,37 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
         return stack(item).getCount();
     }
 
+    @MLuaDescription("Returns an item stack's current durability damage.")
+    public int GetDamage(LuaValue item) {
+        return MLuaItemWrapper.damage(stack(item));
+    }
+
+    @MLuaDescription("Returns an item stack's maximum durability damage.")
+    public int GetMaxDamage(LuaValue item) {
+        return MLuaItemWrapper.maxDamage(stack(item));
+    }
+
+    @MLuaDescription("Returns remaining durability, or zero for an item without durability.")
+    public int GetRemainingDurability(LuaValue item) {
+        return MLuaItemWrapper.remainingDurability(stack(item));
+    }
+
+    @MLuaDescription("Returns durability damage as a fraction from zero to one, capped for already-broken items.")
+    public double GetDamagePercent(LuaValue item) {
+        return MLuaItemWrapper.damagePercent(stack(item));
+    }
+
     @MLuaDescription("Sets the stack count to a whole number of zero or greater.")
     public void SetCount(LuaValue item, LuaValue count) {
         int wholeCount = MLuaLuaArguments.wholeInt(count, "ItemStackService:SetCount", "count");
         MLuaItemWrapper.setCount(item, wholeCount, context.mlua().registration());
+    }
+
+    @MLuaDescription("Sets durability damage on a damageable item stack.")
+    public void SetDamage(LuaValue item, LuaValue damage) {
+        MLuaItemWrapper.setDamage(item,
+            MLuaLuaArguments.wholeInt(damage, "ItemStackService:SetDamage", "damage"),
+            context.mlua().registration(), "ItemStackService:SetDamage");
     }
 
     @MLuaDescription("Returns an item stack's NBT data or one value by key.")
@@ -81,6 +108,11 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
     @MLuaDescription("Sets one NBT value in an item stack's NBT data.")
     public void SetNbt(LuaValue item, String key, LuaValue value) {
         MLuaItemWrapper.setNbt(item, key, value, this.context.registration());
+    }
+
+    @MLuaDescription("Replaces an item stack's NBT data with the supplied Nbt value or table.")
+    public void ReplaceNbt(LuaValue item, LuaValue nbt) {
+        MLuaItemWrapper.replaceNbt(item, nbt, this.context.registration());
     }
 
     private LuaValue create(String id, int count) {

@@ -64,9 +64,9 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetKeyframes",
             "Returns this animation's ordered keyframes.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Play",
-            "Starts or resumes this animation track.");
+            "Starts playback. An optional fadeTime in seconds fades the track in.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Stop",
-            "Stops this animation track.");
+            "Stops playback. An optional fadeTime in seconds fades the track out.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Pause",
             "Pauses this animation track at its current position.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Resume",
@@ -96,13 +96,38 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetWeight",
             "Returns this animation track's current weight.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetWeight",
-            "Sets this animation track's blend weight from zero to one.");
+            "Fades this animation track toward a blend weight from zero to one.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AdjustWeight",
+            "Fades this animation track toward a blend weight over an optional duration in seconds.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AddEvent",
             "Runs a callback when playback crosses a time in seconds. Time zero runs when playback starts.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "ClearEvents",
             "Removes all marker callbacks from this track.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetAnimation",
             "Returns the Animation instance played by this track.");
+
+        MLuaClassMethods.registerInstanceProperty(registration, "Animation", "Length", "GetLength", null,
+            "number", "client:Client", "The animation duration in seconds.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Animation", "GetAnimation", null,
+            "Animation", "client:Client", "The animation played by this track.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "TrackId", "GetTrackId", null,
+            "number", "client:Client", "The track's runtime identifier.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Priority", "GetPriority", null,
+            "AnimationPriority", "client:Client", "The track's animation blend priority.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Length", "GetLength", null,
+            "number", "client:Client", "The animation duration in seconds.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "TimePosition", "GetTimePosition", "SetTimePosition",
+            "number", "client:Client", "The current playback position in seconds. Readable and writable.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Speed", "GetSpeed", "AdjustSpeed",
+            "number", "client:Client", "Playback speed; zero stops time advancement while retaining the current pose. Readable and writable.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "IsPlaying", "IsPlaying", null,
+            "boolean", "client:Client", "Whether this track is currently playing.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "IsPaused", "IsPaused", null,
+            "boolean", "client:Client", "Whether this track is paused.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Looped", "GetLooped", "SetLooped",
+            "boolean", "client:Client", "Whether playback repeats. Readable and writable.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Weight", "GetWeight", "SetWeight",
+            "number", "client:Client", "The current blend weight from zero to one. Assigning it fades toward the new weight.");
     }
 
     public static LuaTable createAnimationTable(MLuaRegistration registration) {
@@ -160,15 +185,25 @@ public final class MLuaAnimationBindings {
         fields.set("__entityId", track.entityId());
         LuaTable table = createClassInstance(registration, "AnimationTrack", fields);
 
-        MLuaClassMethods.setInstanceMethod(table, "Play", new ZeroArgFunction() {
-            public LuaValue call() {
-                track.play();
+        MLuaClassMethods.setInstanceMethod(table, "Play", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                if (args.arg(2).isnil()) {
+                    track.play();
+                } else {
+                    track.play(MLuaLuaArguments.finiteNonNegativeFloat(
+                        args.arg(2), "AnimationTrack:Play", "fadeTime"));
+                }
                 return LuaValue.NONE;
             }
         });
-        MLuaClassMethods.setInstanceMethod(table, "Stop", new ZeroArgFunction() {
-            public LuaValue call() {
-                track.stop();
+        MLuaClassMethods.setInstanceMethod(table, "Stop", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                if (args.arg(2).isnil()) {
+                    track.stop();
+                } else {
+                    track.stop(MLuaLuaArguments.finiteNonNegativeFloat(
+                        args.arg(2), "AnimationTrack:Stop", "fadeTime"));
+                }
                 return LuaValue.NONE;
             }
         });
@@ -255,8 +290,24 @@ public final class MLuaAnimationBindings {
         });
         MLuaClassMethods.setInstanceMethod(table, "SetWeight", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                track.fadeTo(MLuaLuaArguments.unitIntervalFloat(
-                    args, 2, "AnimationTrack:SetWeight", "weight"));
+                float weight = MLuaLuaArguments.unitIntervalFloat(
+                    args, 2, "AnimationTrack:SetWeight", "weight");
+                if (args.arg(3).isnil()) {
+                    track.fadeTo(weight);
+                } else {
+                    track.fadeTo(weight, MLuaLuaArguments.finiteNonNegativeFloat(
+                        args.arg(3), "AnimationTrack:SetWeight", "fadeTime"));
+                }
+                return LuaValue.NONE;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "AdjustWeight", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                float weight = MLuaLuaArguments.unitIntervalFloat(
+                    args, 2, "AnimationTrack:AdjustWeight", "weight");
+                float fadeTime = MLuaLuaArguments.finiteNonNegativeFloat(
+                    args.arg(3), "AnimationTrack:AdjustWeight", "fadeTime");
+                track.fadeTo(weight, fadeTime);
                 return LuaValue.NONE;
             }
         });

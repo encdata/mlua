@@ -78,7 +78,10 @@ public class PlayersModule implements MLuaModule {
         registration.registerClassFunction("Entity", "GetIsRemoved",
             entityMethod(registration, entity -> LuaValue.valueOf(entity.isRemoved())), "Returns whether this entity has been removed from its world.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLevel", "Returns the live world containing this entity.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetWorld", "Returns the live dimension containing this entity as a Level instance.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetDimension", "Returns the dimension identifier containing this entity.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Entity", "World", "GetWorld", null,
+            "Level", "shared:Shared", "The live dimension containing this entity.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPosition", "Returns this entity's current position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionX", "Returns this entity's X position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetPositionY", "Returns this entity's Y position.");
@@ -101,8 +104,8 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnGround", "Returns whether this entity is on the ground.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsInWater", "Returns whether this entity is in water.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnFire", "Returns whether this entity is on fire.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsMoving", "Returns whether this entity is moving.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsFalling", "Returns whether this entity is falling.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsMoving", "Returns whether this entity's total velocity exceeds 0.05 blocks per tick.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsFalling", "Returns whether this entity is airborne and moving downward faster than 0.08 blocks per tick.");
         String[][] entityStateMethods = {
             {"GetCustomName", "Returns this entity's custom name, or nil."},
             {"SetCustomName", "Sets or clears this entity's custom name."},
@@ -185,11 +188,11 @@ public class PlayersModule implements MLuaModule {
                 case "SetHealth" -> "Sets this entity's health to a finite, non-negative value.";
                 case "GetMaxHealth" -> "Returns this entity's maximum health.";
                 case "GetArmor" -> "Returns this entity's armor value.";
-                case "GetIsJumping" -> "Returns whether this entity is moving upward while airborne.";
+                case "GetIsJumping" -> "Returns whether this entity is airborne and moving upward faster than 0.08 blocks per tick.";
                 case "GetIsSwimming" -> "Returns whether this entity is swimming.";
                 case "GetAbsorption" -> "Returns this entity's current absorption health.";
                 case "SetAbsorption" -> "Sets this entity's absorption health to a finite, non-negative value.";
-                case "GiveEffect" -> "Applies a potion effect to this living entity.";
+                case "GiveEffect" -> "Applies a potion effect to this living entity and returns whether Minecraft accepted it. Duration defaults to 600 ticks; amplifier is zero-based and defaults to 0.";
                 case "RemoveEffect" -> "Removes a potion effect from this living entity.";
                 case "HasEffect" -> "Checks whether this living entity has a potion effect.";
                 case "GetEffects" -> "Returns this living entity's active effects.";
@@ -213,7 +216,7 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "Absorption", "GetAbsorption", "SetAbsorption",
             "number", "shared:Shared", "This entity's current absorption health.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsJumping", "GetIsJumping", null,
-            "boolean", "shared:Shared", "Whether this entity is moving upward while airborne.");
+            "boolean", "shared:Shared", "Whether this entity is airborne and moving upward faster than 0.08 blocks per tick.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "IsSwimming", "GetIsSwimming", null,
             "boolean", "shared:Shared", "Whether this entity is swimming.");
         MLuaClassMethods.registerInstanceProperty(registration, "LivingEntity", "ActiveEffects", "GetEffects", null,
@@ -261,16 +264,12 @@ public class PlayersModule implements MLuaModule {
             "Returns this player's live ender chest as a Container instance.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetOpenContainer",
             "Returns the live Container instance for the menu this player currently has open.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetWorld",
-            "Returns the live Level instance containing this player.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "Inventory", "GetInventory", null,
             "Inventory", "shared:Shared", "Returns this player's live Inventory instance.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "EnderChest", "GetEnderChest", null,
             "Container", "shared:Shared", "Returns this player's live ender chest as a Container instance.");
         MLuaClassMethods.registerInstanceProperty(registration, "Player", "OpenContainer", "GetOpenContainer", null,
             "Container", "shared:Shared", "Returns the live Container instance for the menu this player currently has open.");
-        MLuaClassMethods.registerInstanceProperty(registration, "Player", "World", "GetWorld", null,
-            "Level", "shared:Shared", "Returns the live Level instance containing this player.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "GetFood",
             "Returns this player's food level.");
         MLuaClassMethods.registerInstanceMethod(registration, "Player", "SetFood",
@@ -299,7 +298,7 @@ public class PlayersModule implements MLuaModule {
                 case "GetCameraCFrame" -> "Returns the local player's camera transform; client-side only.";
                 case "GiveItem" -> "Gives an item to this player.";
                 case "ClearInventory" -> "Clears this player's inventory.";
-                case "GiveEffect" -> "Applies a potion effect to this player.";
+                case "GiveEffect" -> "Applies a potion effect to this player and returns whether Minecraft accepted it. Duration defaults to 600 ticks; amplifier is zero-based and defaults to 0.";
                 case "RemoveEffect" -> "Removes a potion effect from this player.";
                 case "HasEffect" -> "Checks whether this player has a potion effect.";
                 case "ClearEffects" -> "Removes all potion effects from this player.";
@@ -320,7 +319,7 @@ public class PlayersModule implements MLuaModule {
             {"GetExperienceProgress", "Returns this player's progress toward the next experience level."},
             {"GiveExperience", "Adds a whole-number amount of experience points to this player; server-side only."},
             {"GiveExperienceLevels", "Adds a whole-number amount of experience levels to this player; server-side only."},
-            {"IsOnline", "Whether this player is connected and alive."},
+            {"IsOnline", "Whether this player is currently connected to or present in the client world, regardless of health."},
             {"IsCreative", "Whether this player is in Creative mode."},
             {"IsSpectator", "Whether this player is in Spectator mode."},
             {"IsSleeping", "Whether this player is sleeping."},
@@ -612,8 +611,8 @@ public class PlayersModule implements MLuaModule {
             {"IsOnGround", "GetIsOnGround", null, "boolean", "shared:Shared", "Whether this entity is on the ground."},
             {"IsInWater", "GetIsInWater", null, "boolean", "shared:Shared", "Whether this entity is in water."},
             {"IsOnFire", "GetIsOnFire", null, "boolean", "shared:Shared", "Whether this entity is on fire."},
-            {"IsMoving", "GetIsMoving", null, "boolean", "shared:Shared", "Whether this entity is moving."},
-            {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is falling."},
+            {"IsMoving", "GetIsMoving", null, "boolean", "shared:Shared", "Whether this entity's total velocity exceeds 0.05 blocks per tick."},
+            {"IsFalling", "GetIsFalling", null, "boolean", "shared:Shared", "Whether this entity is airborne and moving downward faster than 0.08 blocks per tick."},
             {"EyePosition", "GetEyePosition", null, "Vector3", "shared:Shared", "This entity's eye position."},
             {"BoundingBox", "GetBoundingBox", null, "EntityBounds", "shared:Shared", "This entity's axis-aligned bounds."},
             {"Width", "GetWidth", null, "number", "shared:Shared", "This entity's bounding-box width."},
@@ -697,6 +696,7 @@ public class PlayersModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GiveEffect(effect: string|table, duration: whole number?, amplifier: whole number?, ambient: boolean?, showParticles: boolean?, showIcon: boolean?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetInventory()", "Container"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetOpenContainer()", "Container"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GetEnderChest()", "Container"));
@@ -704,7 +704,7 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendActionBar(message: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SendTitle(title: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveItem(item: Item)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveEffect(effect: string, duration: number, amplifier: number, showParticles: boolean)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveEffect(effect: string|table, duration: whole number?, amplifier: whole number?, ambient: boolean?, showParticles: boolean?, showIcon: boolean?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveExperience(amount: number)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:GiveExperienceLevels(levels: number)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Player", "Player:SetGameMode(mode: string)", null));
@@ -799,6 +799,8 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsOnGround", "boolean", "Whether the entity is on the ground.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsInWater", "boolean", "Whether the entity is in water.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsOnFire", "boolean", "Whether the entity is on fire.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsMoving", "boolean", "Whether the entity's total velocity exceeds 0.05 blocks per tick.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.IsFalling", "boolean", "Whether the entity is airborne and moving downward faster than 0.08 blocks per tick.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.CustomName", "string|nil", "The entity's custom name. Readable and writable.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.CustomNameVisible", "boolean", "Whether the custom name is shown above this entity. Readable and writable.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Glowing", "boolean", "Whether this entity has a glowing outline. Readable and writable.", "shared:Shared"));
@@ -823,6 +825,8 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.ActiveEffects", "table[]", "Active potion effects with identifier, duration, amplifier, ambient, and visibility fields.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.Armor", "number", "The entity's armor value.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.Absorption", "number", "The entity's current absorption health. Readable and writable.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.IsJumping", "boolean", "Whether the entity is airborne and moving upward faster than 0.08 blocks per tick.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("LivingEntity", "entity.IsSwimming", "boolean", "Whether Minecraft currently considers the entity to be swimming.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.clazz("Player", "MLuaPlayerWrapper",
                 "A live player instance with player identity, inventory, messaging, and player controls.",
                 "classes/player.html", "LivingEntity"));
@@ -845,6 +849,10 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsOnGround", "boolean", "Whether the player is on the ground.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsInWater", "boolean", "Whether the player is in water.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsOnFire", "boolean", "Whether the player is on fire.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsMoving", "boolean", "Whether the player's total velocity exceeds 0.05 blocks per tick.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsFalling", "boolean", "Whether the player is airborne and moving downward faster than 0.08 blocks per tick.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsJumping", "boolean", "Whether the player is airborne and moving upward faster than 0.08 blocks per tick.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Player", "player.IsSwimming", "boolean", "Whether Minecraft currently considers the player to be swimming.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Player", "Use a live player instance", "Player values returned by the Players service stay connected to the live entity.",
             "local Players = Minecraft:GetService(\"Players\")\n" +
             "local player = Players:GetLocalPlayer()\n" +

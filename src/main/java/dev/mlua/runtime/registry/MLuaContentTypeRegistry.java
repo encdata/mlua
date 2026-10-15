@@ -32,9 +32,15 @@ public final class MLuaContentTypeRegistry {
         // Freeze the caller's table at registration time; later addon mutations must not
         // silently change the behavior inherited by already-registered content types.
         LuaTable defaultProperties = defaults == null ? new LuaTable() : copy(defaults);
-        String parent = normalizeReference(owner, base);
+        String requestedBase = base.trim();
+        String parent = normalizeReference(owner, requestedBase);
         if (find(scope, domain, owner, parent) == null) {
-            validateBase(domain, parent);
+            if (requestedBase.contains(":")) {
+                throw new LuaError("[MLua] Content type base '" + requestedBase
+                    + "' is not registered for domain '" + domain + "'");
+            }
+            validateBase(domain, requestedBase);
+            parent = requestedBase;
         }
         Definition definition = new Definition(key, parent, description.trim(), defaultProperties);
         dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes = domainRegistry(scope, domain, true);

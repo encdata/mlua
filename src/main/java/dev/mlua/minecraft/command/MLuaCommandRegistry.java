@@ -17,6 +17,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.minecraft.network.MLuaNetworkSerializer;
 import dev.mlua.minecraft.network.MLuaNetworkValue;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -268,7 +269,11 @@ public final class MLuaCommandRegistry {
       if (!callback.isfunction() && !clientCallback.isfunction()) {
          throw new LuaError("[MLua] Command '" + name + "' requires a run and/or run_client function");
       } else {
-         int permission = definition.get("permission").isnil() ? 0 : definition.get("permission").checkint();
+         int permission = definition.get("permission").isnil() ? 0
+            : MLuaLuaArguments.wholeInt(definition.get("permission"), "Commands:Register", "permission");
+         if (permission < 0 || permission > 4) {
+            throw new LuaError("[MLua] Commands:Register permission must be a whole number from 0 to 4.");
+         }
          String description = definition.get("description").isnil() ? "" : definition.get("description").checkjstring();
          List<MLuaCommandArgument> arguments = parseArguments(name, definition.get("arguments"));
          List<String> aliases = parseAliases(definition.get("aliases"));

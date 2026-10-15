@@ -292,15 +292,15 @@ public final class CoreClassesModule implements MLuaModule {
             "Multiply a position transform by a rotation to keep the rotation centered at that position. Angles use radians.",
             "local position = CFrame.new(player:GetEyeCFrame().Position)\nlocal rotation = CFrame.Angles(0, math.rad(90), 0)\nlocal facing = position * rotation"));
 
-        docs.register(MLuaDocBuilder.Registration.property("UDim", "UDim.Scale", "number", "The size or position component relative to the parent.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.property("UDim", "UDim.Offset", "number", "The size or position component in pixels.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.method("UDim", "UDim.new(scale, offset)", "Creates a dimension from a parent-relative scale and pixel offset.", "a scale number and pixel offset", "UDim", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("UDim", "UDim.Scale", "finite number", "The size or position component relative to the parent.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("UDim", "UDim.Offset", "whole number", "The size or position component in integer pixels.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.method("UDim", "UDim.new(scale: finite number, offset: whole number)", "Creates a dimension from a parent-relative scale and integer pixel offset.", "a finite scale number and whole-number pixel offset", "UDim", "shared:Shared", null));
 
         docs.register(MLuaDocBuilder.Registration.property("UDim2", "UDim2.X", "UDim", "The horizontal dimension.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("UDim2", "UDim2.Y", "UDim", "The vertical dimension.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.method("UDim2", "UDim2.new(xScale, xOffset, yScale, yOffset)", "Creates a two-axis dimension from scale and pixel offsets.", "X scale and offset followed by Y scale and offset", "UDim2", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("UDim2", "UDim2.fromScale(xScale, yScale)", "Creates a size or position from parent-relative scale values.", "X and Y scale values", "UDim2", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("UDim2", "UDim2.fromOffset(xPixels, yPixels)", "Creates a size or position from pixel offsets.", "X and Y pixel values", "UDim2", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("UDim2", "UDim2.new(xScale: finite number, xOffset: whole number, yScale: finite number, yOffset: whole number)", "Creates a two-axis dimension from finite parent-relative scales and integer pixel offsets. It also accepts two UDim values.", "X scale and offset followed by Y scale and offset, or X and Y UDim values", "UDim2", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("UDim2", "UDim2.fromScale(xScale: finite number, yScale: finite number)", "Creates a size or position from finite parent-relative scale values.", "X and Y finite scale values", "UDim2", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("UDim2", "UDim2.fromOffset(xPixels: whole number, yPixels: whole number)", "Creates a size or position from integer pixel offsets.", "X and Y whole-number pixel values", "UDim2", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.guideStep("UDim2", "Size a panel proportionally",
             "Use scale for a responsive fraction of the parent and offset for a fixed pixel margin.",
             "local panel = UIObject.new(\"Frame\", \"Panel\")\npanel.Size = UDim2.new(1, -32, 0, 120)\npanel.Position = UDim2.new(0, 16, 0, 16)"));

@@ -165,14 +165,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
    }
 
    protected int serviceArgIndex(Varargs args, LuaValue serviceTable) {
-      if (args.arg1() == serviceTable) return 1;
-      LuaValue receiver = args.arg1();
-      if (receiver.istable()) {
-         LuaValue metatable = receiver.getmetatable();
-         if (metatable != null && metatable.istable()
-            && metatable.rawget("__mlua_service_name").optjstring("").equals(this.name())) return 1;
-      }
-      return 0;
+      return this.serviceArgumentIndex(args, serviceTable.checktable(), 1) - 1;
    }
 
    protected Object toJavaValue(LuaValue value, Type targetType) {

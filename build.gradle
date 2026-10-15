@@ -73,6 +73,21 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
             }
             def entries = classEntries(artifact)
             if (!entries.contains('icon.png')) throw new GradleException("${artifact.name} is missing icon.png")
+            def entrypointClass
+            if (loaderProject.loader == 'fabric') {
+                entrypointClass = 'dev/mlua/loader/impl/fabric/MLuaFabricMod.class'
+            } else if (loaderProject.loader == 'forge') {
+                entrypointClass = 'dev/mlua/MLuaMod.class'
+            } else if (loaderProject.loader == 'neoforge' && loaderProject.target == '1.21.1') {
+                entrypointClass = 'dev/mlua/MLuaMod.class'
+            } else if (loaderProject.loader == 'neoforge') {
+                entrypointClass = 'dev/mlua/runtime/neoforge/MLuaNeoForge26Mod.class'
+            } else {
+                throw new GradleException("No packaged entrypoint check for loader '${loaderProject.loader}'")
+            }
+            if (!entries.contains(entrypointClass)) {
+                throw new GradleException("${artifact.name} is missing its ${loaderProject.loader} mod entrypoint ${entrypointClass}")
+            }
             def earlyBootstrapPresent = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
                 zip.getEntry('dev/mlua/common/mixin/MLuaEarlyMixinBootstrap.class') != null
             }

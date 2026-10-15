@@ -17,7 +17,6 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
-import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaMinecraftEnums;
 import dev.mlua.modules.effects.Service.MLuaPotionEffectsService;
 import dev.mlua.minecraft.client.MLuaCameraController;
@@ -28,7 +27,6 @@ import dev.mlua.mcapi.core.MCComponent;
 import dev.mlua.mcapi.core.MCMutableComponent;
 import dev.mlua.mcapi.core.MCResourceLocation;
 import dev.mlua.mcapi.core.MCVec3;
-import dev.mlua.mcapi.entity.MCEntity;
 import dev.mlua.mcapi.entity.MCLocalPlayer;
 import dev.mlua.mcapi.entity.MCPlayer;
 import dev.mlua.mcapi.entity.MCServerPlayer;
@@ -40,7 +38,6 @@ import dev.mlua.mcapi.world.MCGameType;
 import dev.mlua.mc.impl.container.MCAbstractContainerMenuImpl;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.mc.impl.core.MCComponentImpl;
-import dev.mlua.mc.impl.core.MCVec3Impl;
 import dev.mlua.mc.impl.entity.MCEntityImpl;
 import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
 import dev.mlua.mc.impl.entity.MCPlayerImpl;
@@ -150,44 +147,7 @@ public final class MLuaPlayerWrapper {
 
          return LuaValue.NONE;
       }), "Displays a title to this player.");
-      MLuaClassMethods.setInstanceMethod(table, "GetHealth", luaFn(() -> {
-         return LuaValue.valueOf((double)player.getHealth());
-      }), "Returns this player's current health.");
-      MLuaClassMethods.setInstanceMethod(table, "SetHealth", varArg((args) -> {
-         MLuaEntityWrapper.setHealth(player, (float)args.checkdouble(2));
-         return LuaValue.NONE;
-      }), "Sets this player's health to a finite, non-negative value.");
-      MLuaClassMethods.setInstanceMethod(table, "GetMaxHealth", luaFn(() -> {
-         return LuaValue.valueOf((double)player.getMaxHealth());
-      }), "Returns this player's maximum health.");
-      MLuaClassMethods.setInstanceMethod(table, "GetArmor", luaFn(() -> {
-         return LuaValue.valueOf(player.getArmorValue());
-      }), "Returns this player's armor value.");
-      MLuaClassMethods.setInstanceMethod(table, "GetFood", luaFn(() -> {
-         return LuaValue.valueOf(player.getFoodData().getFoodLevel());
-      }), "Returns this player's food level.");
-      MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg((args) -> {
-         setFoodLevel(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Sets this player's food level to a whole number from 0 to 20.");
-      MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", luaFn(() -> {
-         return LuaValue.valueOf(player.getFoodData().getFoodLevel());
-      }), "Returns this player's food level.");
-      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg((args) -> {
-         setFoodLevel(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Sets this player's food level to a whole number from 0 to 20.");
-      MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> {
-         return LuaValue.valueOf((double)player.getFoodData().getSaturationLevel());
-      }), "Returns this player's food saturation.");
-      MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg((args) -> {
-         setSaturation(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Sets this player's saturation to a finite, non-negative value.");
-      MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
-         addFoodExhaustion(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Adds food exhaustion to this player; server-side only for authoritative changes.");
+      bindFoodMethods(table, player);
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.getExperienceLevel());
       }));
@@ -203,7 +163,7 @@ public final class MLuaPlayerWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> {
-         return LuaValue.valueOf(player.getConnection() != null && player.isAlive());
+         return LuaValue.valueOf(player.getConnection() != null);
       }));
       MLuaClassMethods.setInstanceMethod(table, "IsCreative", luaFn(() -> {
          return LuaValue.valueOf(player.isCreative());
@@ -220,62 +180,15 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> {
          return LuaValue.valueOf(player.isSprinting());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> {
-         return LuaValue.valueOf(player.isSwimming());
-      }));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
          return positionTable((double)player.getBlockPosition().getX(), (double)player.getBlockPosition().getY(), (double)player.getBlockPosition().getZ());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
-         MCVec3 look = MLuaEntityWrapper.lookAngle(player);
-         return positionTable(look.x(), look.y(), look.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
-         MCVec3 p = MLuaEntityWrapper.position(player);
-         return positionTable(p.x(), p.y(), p.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetPosition", varArg((args) -> {
-         double[] pos = positionArgs(args, 2);
-         player.teleportTo(pos[0], pos[1], pos[2]);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "Teleport", varArg((args) -> {
-         double[] pos = positionArgs(args, 2);
-         player.teleportTo(pos[0], pos[1], pos[2]);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> {
-         return MLuaVector.vector2((double)player.getXRot(), (double)player.getYRot());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> {
-         return MLuaVector.vector2(Math.toRadians((double)player.getXRot()), Math.toRadians((double)player.getYRot()));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         double[] rotation = MLuaVector.components2(args.arg(2));
-         MLuaEntityWrapper.applyRotation(player, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         MLuaEntityWrapper.applyRotationArguments(player, args, 2);
-         return LuaValue.NONE;
-      }));
-      addCFrameMethods(table, player, registration);
       MLuaClassMethods.setInstanceMethod(table, "GetEyeCFrame", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return MLuaCFrame.fromEntity(player.getX(), raw.getEyeY(), player.getZ(), look.x(), look.y(), look.z()).toLua();
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetCameraCFrame", varArg((args) -> {
          throw new LuaError("[MLua] player:GetCameraCFrame() is client-side only. Use Minecraft:GetService(\"Camera\") in a .client.lua script.");
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
-         MCVec3 v = player.getDeltaMovement();
-         return positionTable(v.x(), v.y(), v.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetVelocity", varArg((args) -> {
-         return MLuaEntityWrapper.setVelocity(player, args.arg(2));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg((args) -> {
-         return MLuaEntityWrapper.distanceTo(player, args.arg(2));
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetGameMode", luaFn(() -> {
          return getGameModeLua(player);
@@ -443,10 +356,12 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "IsCreative", luaFn(() -> LuaValue.valueOf(player.isCreative())));
       MLuaClassMethods.setInstanceMethod(table, "IsSpectator", luaFn(() -> LuaValue.valueOf(player.isSpectator())));
       MLuaClassMethods.setInstanceMethod(table, "GetGameMode", luaFn(() -> clientGameMode(player)));
-      MLuaClassMethods.setInstanceMethod(table, "GetFood", luaFn(() -> LuaValue.NIL));
-      MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", luaFn(() -> LuaValue.NIL));
-      MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg(args -> unavailableRemotePlayerState("food")));
-      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg(args -> unavailableRemotePlayerState("food")));
+      LuaValue unavailableFood = luaFn(() -> LuaValue.NIL);
+      LuaValue unavailableFoodMutation = varArg(args -> unavailableRemotePlayerState("food"));
+      MLuaClassMethods.setInstanceMethod(table, "GetFood", unavailableFood);
+      MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", unavailableFood);
+      MLuaClassMethods.setInstanceMethod(table, "SetFood", unavailableFoodMutation);
+      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", unavailableFoodMutation);
       MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> LuaValue.NIL));
       MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg(args -> unavailableRemotePlayerState("food")));
       MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg(args -> unavailableRemotePlayerState("food")));
@@ -462,14 +377,9 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "IsSleeping", luaFn(() -> LuaValue.valueOf(player.isSleeping())));
       MLuaClassMethods.setInstanceMethod(table, "IsCrouching", luaFn(() -> LuaValue.valueOf(player.isCrouching())));
       MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> LuaValue.valueOf(player.isSprinting())));
-      MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> LuaValue.valueOf(player.isSwimming())));
       MLuaClassMethods.setInstanceMethod(table, "GetEffects", luaFn(() -> MLuaPotionEffectsService.effectsTable(player)));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() ->
          positionTable(player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ())));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
-         MCVec3 look = MLuaEntityWrapper.lookAngle(new MCEntityImpl(player));
-         return positionTable(look.x(), look.y(), look.z());
-      }));
       MLuaClassMethods.setInstanceMethod(table, "GetHeldItem", luaFn(() -> {
          var stack = player.getMainHandItem();
          return stack.isEmpty() ? LuaValue.NIL : MLuaItemWrapper.itemTable(stack, registration);
@@ -547,40 +457,7 @@ public final class MLuaPlayerWrapper {
          }
          return LuaValue.NONE;
       }), "Sends an action bar message to this player.");
-      MLuaClassMethods.setInstanceMethod(table, "GetHealth", luaFn(() -> {
-         return LuaValue.valueOf((double)player.getHealth());
-      }), "Returns this player's current health.");
-      MLuaClassMethods.setInstanceMethod(table, "GetMaxHealth", luaFn(() -> {
-         return LuaValue.valueOf((double)player.getMaxHealth());
-      }), "Returns this player's maximum health.");
-      MLuaClassMethods.setInstanceMethod(table, "GetArmor", luaFn(() -> {
-         return LuaValue.valueOf(player.getArmorValue());
-      }), "Returns this player's armor value.");
-      MLuaClassMethods.setInstanceMethod(table, "GetFood", luaFn(() -> {
-         return LuaValue.valueOf(player.getFoodData().getFoodLevel());
-      }), "Returns this player's food level.");
-      MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", luaFn(() -> {
-         return LuaValue.valueOf(player.getFoodData().getFoodLevel());
-      }), "Returns this player's food level.");
-      MLuaClassMethods.setInstanceMethod(table, "SetFood", varArg((args) -> {
-         setFoodLevel(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Sets this player's food level to a whole number from 0 to 20.");
-      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", varArg((args) -> {
-         setFoodLevel(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Sets this player's food level to a whole number from 0 to 20.");
-      MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() -> {
-         return LuaValue.valueOf((double)player.getFoodData().getSaturationLevel());
-      }), "Returns this player's food saturation.");
-      MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg((args) -> {
-         setSaturation(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Sets this player's saturation to a finite, non-negative value.");
-      MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg((args) -> {
-         addFoodExhaustion(player, args.arg(2));
-         return LuaValue.NONE;
-      }), "Adds food exhaustion to this player.");
+      bindFoodMethods(table, player);
       MLuaClassMethods.setInstanceMethod(table, "GetExperienceLevel", luaFn(() -> {
          return LuaValue.valueOf(player.getExperienceLevel());
       }));
@@ -602,43 +479,12 @@ public final class MLuaPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "IsSprinting", luaFn(() -> {
          return LuaValue.valueOf(player.isSprinting());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "IsSwimming", luaFn(() -> {
-         return LuaValue.valueOf(player.isSwimming());
-      }));
       MLuaClassMethods.setInstanceMethod(table, "IsOnline", luaFn(() -> {
-         return LuaValue.valueOf(player.isAlive());
+         return LuaValue.TRUE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetBlockPosition", luaFn(() -> {
          return positionTable((double)player.getBlockPosition().getX(), (double)player.getBlockPosition().getY(), (double)player.getBlockPosition().getZ());
       }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
-         MCVec3 look = MLuaEntityWrapper.lookAngle(player);
-         return positionTable(look.x(), look.y(), look.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPosition", luaFn(() -> {
-         MCVec3 p = MLuaEntityWrapper.position(player);
-         return positionTable(p.x(), p.y(), p.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotation", luaFn(() -> {
-         return MLuaVector.vector2((double)player.getXRot(), (double)player.getYRot());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetRotationRadians", luaFn(() -> {
-         return MLuaVector.vector2(Math.toRadians((double)player.getXRot()), Math.toRadians((double)player.getYRot()));
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotationRadians", varArg((args) -> {
-         double[] rotation = MLuaVector.components2(args.arg(2));
-         MLuaEntityWrapper.applyRotation(player, MLuaVector.vector2(Math.toDegrees(rotation[0]), Math.toDegrees(rotation[1])));
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         MLuaEntityWrapper.applyRotationArguments(player, args, 2);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetVelocity", luaFn(() -> {
-         MCVec3 v = player.getDeltaMovement();
-         return positionTable(v.x(), v.y(), v.z());
-      }));
-      addCFrameMethods(table, player, registration);
       MLuaClassMethods.setInstanceMethod(table, "GetEyeCFrame", luaFn(() -> {
          MCVec3 look = MLuaEntityWrapper.lookAngle(player);
          return MLuaCFrame.fromEntity(player.getX(), raw.getEyeY(), player.getZ(), look.x(), look.y(), look.z()).toLua();
@@ -701,26 +547,6 @@ public final class MLuaPlayerWrapper {
 
    public static LuaTable positionTable(double x, double y, double z) {
       return MLuaVector.vector3(x, y, z);
-   }
-
-   private static void addCFrameMethods(LuaTable table, MCEntity base, MLuaRegistration registration) {
-      MLuaClassMethods.setInstanceMethod(table, "GetCFrame", luaFn(() -> {
-         return MLuaEntityWrapper.cframe(base).toLua();
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetCFrame", varArg((args) -> {
-         MLuaEntityWrapper.applyCFrame(base, MLuaCFrame.fromLua(args.arg(2)));
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetLookVector", luaFn(() -> {
-         MCVec3 look = MLuaEntityWrapper.lookAngle(base);
-         return positionTable(look.x(), look.y(), look.z());
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
-         double[] target = MLuaEntityWrapper.targetPosition(args.arg(2));
-         MCVec3 p = MLuaEntityWrapper.position(base);
-         MLuaEntityWrapper.applyCFrame(base, MLuaCFrame.lookAt(p.x(), p.y(), p.z(), target[0], target[1], target[2]));
-         return LuaValue.NONE;
-      }));
    }
 
     public static double[] positionArgs(Varargs args, int index) {
@@ -796,9 +622,7 @@ public final class MLuaPlayerWrapper {
    }
 
    private static void bindLevelMethods(LuaTable table, Level level, MLuaRegistration registration) {
-      MLuaClassMethods.setInstanceMethod(table, "GetWorld", luaFn(() -> MLuaLevelWrapper.levelTable(level, registration)));
-      MLuaClassMethods.setInstanceMethod(table, "GetLevel", luaFn(() -> MLuaLevelWrapper.levelTable(level, registration)));
-      MLuaClassMethods.setInstanceMethod(table, "GetDimension", luaFn(() -> LuaValue.valueOf(level.dimension().location().toString())));
+      MLuaEntityWrapper.bindLevelMethods(table, level, registration);
    }
 
    private static LuaTable attachInventoryMethods(LuaTable table, MCPlayer player, boolean writable,
@@ -905,6 +729,33 @@ public final class MLuaPlayerWrapper {
 
    private static String containerTitle(MCAbstractContainerMenu menu) {
       return menu.getType() != null ? menu.getType().toString() : menu.getClass().getSimpleName();
+   }
+
+   private static void bindFoodMethods(LuaTable table, MCPlayer player) {
+      LuaValue getFoodLevel = luaFn(() -> LuaValue.valueOf(player.getFoodData().getFoodLevel()));
+      LuaValue setFoodLevel = varArg(args -> {
+         setFoodLevel(player, args.arg(2));
+         return LuaValue.NONE;
+      });
+      MLuaClassMethods.setInstanceMethod(table, "GetFoodLevel", getFoodLevel,
+         "Returns this player's food level.");
+      MLuaClassMethods.setInstanceMethod(table, "GetFood", getFoodLevel,
+         "Returns this player's food level.");
+      MLuaClassMethods.setInstanceMethod(table, "SetFoodLevel", setFoodLevel,
+         "Sets this player's food level to a whole number from 0 to 20.");
+      MLuaClassMethods.setInstanceMethod(table, "SetFood", setFoodLevel,
+         "Sets this player's food level to a whole number from 0 to 20.");
+      MLuaClassMethods.setInstanceMethod(table, "GetSaturation", luaFn(() ->
+         LuaValue.valueOf((double) player.getFoodData().getSaturationLevel())),
+         "Returns this player's food saturation.");
+      MLuaClassMethods.setInstanceMethod(table, "SetSaturation", varArg(args -> {
+         setSaturation(player, args.arg(2));
+         return LuaValue.NONE;
+      }), "Sets this player's saturation to a finite, non-negative value.");
+      MLuaClassMethods.setInstanceMethod(table, "CauseFoodExhaustion", varArg(args -> {
+         addFoodExhaustion(player, args.arg(2));
+         return LuaValue.NONE;
+      }), "Adds food exhaustion to this player; server-side only for authoritative changes.");
    }
 
    private static void setFoodLevel(MCPlayer player, LuaValue value) {

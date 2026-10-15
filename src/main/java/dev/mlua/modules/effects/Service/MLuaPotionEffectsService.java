@@ -11,6 +11,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import net.minecraft.core.Holder;
 //--endversion
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -84,8 +85,9 @@ public final class MLuaPotionEffectsService extends MLuaReflectiveService {
    //--version 1.21.1,26.1
    public static LuaValue giveEffect(LivingEntity entity, Varargs args) {
       Holder<MobEffect> effect = resolveHolderFromLua(args.arg(2));
-      int duration = args.optint(3, 600);
-      int amplifier = args.optint(4, 0);
+      int duration = MLuaLuaArguments.optionalWholeInt(args, 3, 600, "LivingEntity:GiveEffect", "duration");
+      int amplifier = MLuaLuaArguments.optionalWholeInt(args, 4, 0, "LivingEntity:GiveEffect", "amplifier");
+      if (amplifier < 0) throw new LuaError("[MLua] LivingEntity:GiveEffect amplifier must be at least zero.");
       boolean ambient = args.optboolean(5, false);
       boolean particles = args.optboolean(6, true);
       boolean icon = args.optboolean(7, true);
@@ -96,8 +98,9 @@ public final class MLuaPotionEffectsService extends MLuaReflectiveService {
    //--version 1.20.1
    public static LuaValue giveEffect(LivingEntity entity, Varargs args) {
       MobEffect effect = resolveFromLua(args.arg(2));
-      int duration = args.optint(3, 600);
-      int amplifier = args.optint(4, 0);
+      int duration = MLuaLuaArguments.optionalWholeInt(args, 3, 600, "LivingEntity:GiveEffect", "duration");
+      int amplifier = MLuaLuaArguments.optionalWholeInt(args, 4, 0, "LivingEntity:GiveEffect", "amplifier");
+      if (amplifier < 0) throw new LuaError("[MLua] LivingEntity:GiveEffect amplifier must be at least zero.");
       boolean ambient = args.optboolean(5, false);
       boolean particles = args.optboolean(6, true);
       boolean icon = args.optboolean(7, true);

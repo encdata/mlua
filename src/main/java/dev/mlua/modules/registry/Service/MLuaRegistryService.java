@@ -33,6 +33,7 @@ import dev.mlua.runtime.registry.MLuaNamedItem;
 import dev.mlua.runtime.registry.MLuaRegistryNameHelper;
 import dev.mlua.runtime.registry.MLuaTextureDescriptor;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
@@ -46,6 +47,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
 //--version 26.1
@@ -95,7 +98,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private static Map<String, String> registryMethodDescriptions() {
       Map<String, String> descriptions = new java.util.LinkedHashMap<>();
       descriptions.put("Register", "Routes a named content definition through its typed registry.");
-      descriptions.put("RegisterCategory", "Adds an addon-owned category that uses the shared registry and inherited content type APIs.");
+      descriptions.put("RegisterCategory", "Adds a category under the addon's namespace that uses the shared registry and inherited content type APIs.");
       descriptions.put("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults.");
       descriptions.put("ResolveType", "Returns a definition with its reusable type defaults merged in.");
       descriptions.put("GetKinds", "Lists the registry kinds supported by this loader.");
@@ -246,12 +249,18 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String description = args.checkjstring(3);
             LuaValue register = args.checkfunction(4);
             if (description.isBlank()) throw new LuaError("[MLua] Registry category description must not be empty");
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            String namespace = category.substring(0, category.indexOf(':'));
+            if (!owner.equals(namespace)) {
+               throw new LuaError("[MLua] Registry category '" + category
+                  + "' must use the registering addon's namespace '" + owner + "'");
+            }
             if (MLuaRegistryService.this.registryEndpoints.containsKey(key)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
-            String domain = "addon:" + MLuaRegistryService.this.context.mlua().ownerModId() + ":" + key;
+            String domain = dynamicContentTypeDomain(owner, category);
             DynamicRegistryCategory registered = new DynamicRegistryCategory(category, description, domain,
-               MLuaRegistryService.this.context.mlua().ownerModId(), register);
+               owner, register);
             if (!MLuaRegistryService.this.dynamicRegistry.register(registered)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
@@ -372,7 +381,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             LuaTable definition = args.checktable(3);
-            int rows = definition.get("Rows").optint(3);
+            int rows = MLuaLuaArguments.optionalWholeInt(definition.get("Rows"), 3,
+               "Registry.Containers:Register", "Rows");
             String title = definition.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaBehaviorRegistry.registerContainerType(owner + ":" + name,
@@ -449,7 +459,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                if (!containerValue.isnil()) {
                   if (containerValue.istable()) {
                      LuaTable containerTable = containerValue.checktable();
-                     int rows = containerTable.get("Rows").optint(3);
+                     int rows = MLuaLuaArguments.optionalWholeInt(containerTable.get("Rows"), 3,
+                        "Registry.Blocks:Register", "container.Rows");
                      String title = containerTable.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
                      MLuaBehaviorRegistry.registerBlockContainer(key,
                         new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
@@ -646,7 +657,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String blockName = args.checkjstring(2);
             String normalDrop = args.checkjstring(3);
-            int count = args.narg() >= 4 && !args.arg(4).isnil() ? args.arg(4).checkint() : 1;
+            int count = MLuaLuaArguments.optionalWholeInt(args, 4, 1,
+               "Registry.Loot:RegisterSilkTouchBlock", "count");
+            if (count < 1) {
+               throw new LuaError("[MLua] Registry.Loot:RegisterSilkTouchBlock count must be at least one.");
+            }
             String lootName = blockName.contains(":") ? "blocks/" + blockName.substring(blockName.indexOf(58) + 1) : "blocks/" + blockName;
             MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.silkTouchBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName), normalDrop, count));
             return LuaValue.NONE;
@@ -658,8 +673,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String blockName = args.checkjstring(2);
             String dropId = args.checkjstring(3);
-            int minCount = args.narg() >= 4 && !args.arg(4).isnil() ? args.arg(4).checkint() : 1;
-            int maxCount = args.narg() >= 5 && !args.arg(5).isnil() ? args.arg(5).checkint() : minCount;
+            int minCount = MLuaLuaArguments.optionalWholeInt(args, 4, 1,
+               "Registry.Loot:RegisterOreBlock", "minCount");
+            int maxCount = MLuaLuaArguments.optionalWholeInt(args, 5, minCount,
+               "Registry.Loot:RegisterOreBlock", "maxCount");
+            if (minCount < 1 || maxCount < minCount) {
+               throw new LuaError("[MLua] Registry.Loot:RegisterOreBlock requires minCount >= 1 and maxCount >= minCount.");
+            }
             String lootName = blockName.contains(":") ? "blocks/" + blockName.substring(blockName.indexOf(58) + 1) : "blocks/" + blockName;
             MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.oreBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName), dropId, minCount, maxCount));
             return LuaValue.NONE;
@@ -767,7 +787,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             boolean visibleInInventory = MLuaRegistryService.hasProperty(propsTable, "visibleInInventory", "VisibleInInventory") ? MLuaRegistryService.booleanProperty(propsTable, "visibleInInventory", "VisibleInInventory") : true;
             boolean visibleInGui = MLuaRegistryService.hasProperty(propsTable, "visibleInGui", "VisibleInGui") ? MLuaRegistryService.booleanProperty(propsTable, "visibleInGui", "VisibleInGui") : true;
             boolean instant = MLuaRegistryService.booleanProperty(propsTable, "instant", "Instant");
-            int tickInterval = MLuaRegistryService.intProperty(propsTable, 1, "tickInterval", "TickInterval");
+            int tickInterval = MLuaRegistryService.wholeIntProperty(propsTable, 1, "tickInterval", "TickInterval");
+            if (tickInterval < 1) {
+               throw new LuaError("[MLua] Registry.Effects:Register tickInterval must be at least 1 tick");
+            }
             MLuaLoaderRegistry.register(RegistryKind.MOB_EFFECT, owner, name, () -> {
                return new MLuaScriptedMobEffect(category, color, key, MLuaRegistryService.effectDescriptionId(owner, name, descriptionId), iconValue != null && !iconValue.isBlank() ? MLuaAssetResolver.resolveTexture(owner, iconValue, "mob_effect") : null, visibleInInventory, visibleInGui, instant, tickInterval);
             });
@@ -821,6 +844,21 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
             String className = MLuaRegistryService.requireContentClass(registration, propsTable, "ScriptedEntity");
+            int aiInterval = MLuaLuaArguments.optionalWholeInt(
+                propsTable == null ? LuaValue.NIL : propsTable.get("aiInterval"), 5,
+                "Registry.Entities:Register", "aiInterval");
+            int trackingRange = MLuaLuaArguments.optionalWholeInt(
+                propsTable == null ? LuaValue.NIL : propsTable.get("trackingRange"), 8,
+                "Registry.Entities:Register", "trackingRange");
+            int updateInterval = MLuaLuaArguments.optionalWholeInt(
+                propsTable == null ? LuaValue.NIL : propsTable.get("updateInterval"), 3,
+                "Registry.Entities:Register", "updateInterval");
+            if (trackingRange < 0) {
+                throw new LuaError("[MLua] Registry.Entities:Register trackingRange must be zero or greater.");
+            }
+            if (updateInterval < 1) {
+                throw new LuaError("[MLua] Registry.Entities:Register updateInterval must be greater than zero.");
+            }
              LuaValue onTick = propsTable != null ? propsTable.get("onTick") : LuaValue.NIL;
              LuaValue onHurt = propsTable != null ? propsTable.get("onHurt") : LuaValue.NIL;
              LuaValue onDeath = propsTable != null ? propsTable.get("onDeath") : LuaValue.NIL;
@@ -838,8 +876,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              MLuaBehaviorRegistry.registerBehaviors("entity", key, Map.of(
                 "onTick", onTick, "onHurt", onHurt, "onDeath", onDeath, "AI", onAI,
                 "onSpawn", onSpawn, "onInteract", onInteract, "onRemove", onRemove));
-             MLuaBehaviorRegistry.registerEntityAIInterval(key, Math.max(1, Math.min(120,
-                propsTable != null ? propsTable.get("aiInterval").optint(5) : 5)));
+             MLuaBehaviorRegistry.registerEntityAIInterval(key, Math.max(1, Math.min(120, aiInterval)));
 
              LuaTable attr = propsTable != null ? propsTable.get("attributes").opttable((LuaTable)null) : null;
              double maxHealth = MLuaRegistryService.attrValue(attr, "maxHealth", 20.0);
@@ -852,8 +889,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              double followRange = MLuaRegistryService.attrValue(attr, "followRange", 16.0);
              double width = propsTable != null ? propsTable.get("width").optdouble(0.6) : 0.6;
              double height = propsTable != null ? propsTable.get("height").optdouble(1.8) : 1.8;
-             int trackingRange = propsTable != null ? propsTable.get("trackingRange").optint(8) : 8;
-             int updateInterval = propsTable != null ? propsTable.get("updateInterval").optint(3) : 3;
              MLuaTextureDescriptor entityTexture = MLuaRegistryService.textureDescriptor(propsTable, "texture", "Texture", "entityTexture", "EntityTexture").resolve(owner, "entity");
              String entityModel = MLuaRegistryService.stringProperty(propsTable, "model", "Model", "entityModel", "EntityModel");
              float shadowRadius = propsTable != null ? (float)propsTable.get("shadowRadius").optdouble(0.5) : 0.5F;
@@ -1122,27 +1157,32 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             DynamicRegistryCategory active = MLuaRegistryService.this.dynamicRegistry.category(categoryKey);
             if (active == null) throw new LuaError("[MLua] Registry category '" + category.name() + "' is no longer registered");
             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
-            if (MLuaRegistryService.this.dynamicRegistry.hasDefinition(categoryKey, id)) {
-               throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
-            }
-            LuaTable definition = args.checktable(3);
-            LuaTable resolved = MLuaRegistryService.this.context.mlua().registration()
-               .resolveContentType(active.domain(), MLuaRegistryService.this.context.mlua().ownerModId(), definition);
-            Varargs result = active.register().invoke(LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(id), resolved}));
-            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
-            RegisteredDefinition stored = MLuaRegistryService.this.dynamicRegistry
-               .registerDefinition(categoryKey, id, owner, resolved);
-            if (stored == null) {
+            if (!MLuaRegistryService.this.dynamicRegistry.beginDefinition(categoryKey, id)) {
                throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
             }
             try {
-               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                  MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
-            } catch (RuntimeException failure) {
-               MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored);
-               throw failure;
+               LuaTable definition = args.checktable(3);
+               LuaTable resolved = MLuaRegistryService.this.context.mlua().registration()
+                  .resolveContentType(active.domain(), MLuaRegistryService.this.context.mlua().ownerModId(), definition);
+               Varargs result = active.register().invoke(LuaValue.varargsOf(
+                  new LuaValue[]{LuaValue.valueOf(id), resolved}));
+               String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+               RegisteredDefinition stored = MLuaRegistryService.this.dynamicRegistry
+                  .registerDefinition(categoryKey, id, owner, resolved);
+               if (stored == null) {
+                  throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
+               }
+               try {
+                  MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                     MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
+               } catch (RuntimeException failure) {
+                  MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored);
+                  throw failure;
+               }
+               return result;
+            } finally {
+               MLuaRegistryService.this.dynamicRegistry.cancelPendingDefinition(categoryKey, id);
             }
-            return result;
          }
       });
       this.installContentTypeApi(target, category.domain());
@@ -1154,11 +1194,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private static final class DynamicRegistryState {
       private final Map<String, DynamicRegistryCategory> categories = new java.util.LinkedHashMap<>();
       private final Map<String, Map<String, RegisteredDefinition>> definitions = new java.util.LinkedHashMap<>();
+      private final Map<String, java.util.Set<String>> pendingDefinitions = new java.util.LinkedHashMap<>();
 
       private synchronized boolean register(DynamicRegistryCategory category) {
          String key = category.name().trim().toLowerCase(java.util.Locale.ROOT);
          if (this.categories.putIfAbsent(key, category) != null) return false;
          this.definitions.put(key, new java.util.LinkedHashMap<>());
+         this.pendingDefinitions.put(key, new java.util.HashSet<>());
          return true;
       }
 
@@ -1173,17 +1215,28 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       private synchronized boolean unregister(String key, DynamicRegistryCategory expected) {
          if (!this.categories.remove(key, expected)) return false;
          this.definitions.remove(key);
+         this.pendingDefinitions.remove(key);
          return true;
       }
 
-      private synchronized boolean hasDefinition(String category, String id) {
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         return values != null && values.containsKey(id);
+      private synchronized boolean beginDefinition(String category, String id) {
+         String key = category.trim().toLowerCase(java.util.Locale.ROOT);
+         Map<String, RegisteredDefinition> values = this.definitions.get(key);
+         java.util.Set<String> pending = this.pendingDefinitions.get(key);
+         if (values == null || pending == null || values.containsKey(id) || !pending.add(id)) return false;
+         return true;
+      }
+
+      private synchronized void cancelPendingDefinition(String category, String id) {
+         java.util.Set<String> pending = this.pendingDefinitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         if (pending != null) pending.remove(id);
       }
 
       private synchronized RegisteredDefinition registerDefinition(String category, String id, String owner, LuaTable definition) {
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         if (values == null || values.containsKey(id)) return null;
+         String key = category.trim().toLowerCase(java.util.Locale.ROOT);
+         Map<String, RegisteredDefinition> values = this.definitions.get(key);
+         java.util.Set<String> pending = this.pendingDefinitions.get(key);
+         if (values == null || pending == null || !pending.contains(id) || values.containsKey(id)) return null;
          RegisteredDefinition stored = new RegisteredDefinition(owner,
             copyLuaTable(definition, new java.util.IdentityHashMap<>()));
          values.put(id, stored);
@@ -1240,6 +1293,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          throw new LuaError("[MLua] Registry category must be a valid lowercase namespaced identifier, such as 'addon:weapons'");
       }
       return id.toString();
+   }
+
+   private static String dynamicContentTypeDomain(String owner, String category) {
+      String encodedCategory = HexFormat.of().formatHex(category.getBytes(StandardCharsets.UTF_8));
+      return "addon." + owner + ".category." + encodedCategory;
    }
 
    private static LuaTable copyLuaTable(LuaTable source, Map<LuaTable, LuaTable> copies) {
@@ -1710,7 +1768,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       recipe.add("result", itemStackResult(resultId, 1));
       //--endversion
       double experience = table.get("experience").optdouble(0.0);
-      int cookingTime = table.get("cookingTime").optint(table.get("cookingtime").optint(200));
+      LuaValue cookingTimeValue = table.get("cookingTime");
+      if (cookingTimeValue.isnil()) cookingTimeValue = table.get("cookingtime");
+      int cookingTime = MLuaLuaArguments.optionalWholeInt(cookingTimeValue, 200,
+            "Registry.Recipes:RegisterSmelting", "cookingTime");
       if (!Double.isFinite(experience) || experience < 0) {
          throw new LuaError("[MLua] Cooking experience must be finite and non-negative");
       }
@@ -1727,7 +1788,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       recipe.add("ingredient", singleIngredient(table.get("ingredient"), "ingredient"));
       String resultId = requiredString(table.get("result"), "result");
       MLuaResourceLocations.parse(resultId);
-      int count = table.get("count").optint(1);
+      int count = MLuaLuaArguments.optionalWholeInt(table.get("count"), 1,
+            "Registry.Recipes:RegisterStonecutting", "count");
       if (count < 1) throw new LuaError("[MLua] Stonecutting count must be at least 1");
       //--version 1.20.1
       recipe.addProperty("result", resultId);
@@ -2144,7 +2206,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       }
    }
 
-   private static int intProperty(LuaTable table, int fallback, String... keys) {
+   private static int wholeIntProperty(LuaTable table, int fallback, String... keys) {
       if (table == null) {
          return fallback;
       } else {
@@ -2155,7 +2217,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String key = var3[var5];
             LuaValue value = table.get(key);
             if (!value.isnil()) {
-               return value.optint(fallback);
+               return MLuaLuaArguments.wholeInt(value, "Registry.Effects:Register", key);
             }
          }
 
@@ -2289,8 +2351,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (effect == null) {
          throw new LuaError("[MLua] Unknown potion effect: " + effectId);
       } else {
-         int duration = table.get("duration").optint(600);
-         int amplifier = table.get("amplifier").optint(0);
+         int duration = MLuaLuaArguments.optionalWholeInt(table.get("duration"), 600,
+               "Registry.Potions:Register", "duration");
+         int amplifier = MLuaLuaArguments.optionalWholeInt(table.get("amplifier"), 0,
+               "Registry.Potions:Register", "amplifier");
+         if (amplifier < 0) {
+            throw new LuaError("[MLua] Registry.Potions:Register amplifier must be non-negative");
+         }
          boolean ambient = table.get("ambient").optboolean(false);
          boolean visible = table.get("visible").optboolean(true);
          boolean showIcon = table.get("showIcon").optboolean(true);

@@ -6,6 +6,7 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import dev.mlua.minecraft.binding.MLuaUIBindings;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.engine.MLuaLuauTypes;
 import dev.mlua.math.MLuaVector;
@@ -442,7 +443,8 @@ public abstract class GuiBase {
             if (type == String.class) converted = luaString(value);
             else if (type == boolean.class || type == Boolean.class) converted = value.toboolean();
             else if (type == int.class || type == Integer.class) {
-                converted = property.endsWith("Color3") ? parseColor3Property(value) : value.checkint();
+                converted = property.endsWith("Color3") ? parseColor3Property(value)
+                    : MLuaLuaArguments.wholeInt(value, "UIObject:" + property, "value");
             }
             else if (type == long.class || type == Long.class) converted = value.checklong();
             else if (type == float.class || type == Float.class) converted = (float)value.checkdouble();
@@ -472,7 +474,7 @@ public abstract class GuiBase {
         if (dev.mlua.core.engine.MLuaLuauTypes.isColor3(value)) {
             return dev.mlua.core.engine.MLuaLuauTypes.color3Argb(value);
         }
-        if (value.isnumber()) return value.checkint();
+        if (value.isnumber()) return MLuaLuaArguments.wholeInt32Bits(value, "UIObject", "packed color");
         throw new org.luaj.vm2.LuaError("[MLua] UI color properties require a native Color3 value or packed color integer.");
     }
 

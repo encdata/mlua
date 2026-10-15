@@ -26,6 +26,8 @@ public final class MLuaAnimationTrack {
     private float weight;
     private float targetWeight;
     private float fadeSpeed;
+    private float defaultFadeSpeed;
+    private boolean timedFade;
 
     private final List<AnimationEvent> events;
     private Map<String, MLuaCFrame> computedPose;
@@ -42,6 +44,8 @@ public final class MLuaAnimationTrack {
         this.weight = 1.0f;
         this.targetWeight = 1.0f;
         this.fadeSpeed = 2.0f;
+        this.defaultFadeSpeed = 2.0f;
+        this.timedFade = false;
         this.playing = false;
         this.paused = false;
         this.looped = false;
@@ -74,7 +78,8 @@ public final class MLuaAnimationTrack {
         return this;
     }
     public MLuaAnimationTrack setFadeSpeed(float speed) {
-        this.fadeSpeed = Math.max(0.1f, finiteNonNegative(speed, "Animation fade speed"));
+        this.defaultFadeSpeed = finiteNonNegative(speed, "Animation fade speed");
+        if (!timedFade) this.fadeSpeed = defaultFadeSpeed;
         return this;
     }
 
@@ -86,14 +91,29 @@ public final class MLuaAnimationTrack {
         fadeTo(1.0f);
     }
 
+    public void play(float fadeTime) {
+        fadeTo(0.0f, 0.0f);
+        playing = true;
+        paused = false;
+        time = 0.0f;
+        emitStartEvents = true;
+        fadeTo(1.0f, fadeTime);
+    }
+
     public void stop() {
         fadeTo(0.0f);
+    }
+
+    public void stop(float fadeTime) {
+        fadeTo(0.0f, fadeTime);
     }
 
     public void stopImmediate() {
         playing = false;
         weight = 0.0f;
         targetWeight = 0.0f;
+        timedFade = false;
+        fadeSpeed = defaultFadeSpeed;
         computedPose.clear();
         sampledPose.clear();
     }
@@ -117,10 +137,40 @@ public final class MLuaAnimationTrack {
 
     public void fadeTo(float target) {
         if (!Float.isFinite(target)) throw new IllegalArgumentException("Animation weight must be finite");
+        timedFade = false;
+        fadeSpeed = defaultFadeSpeed;
         targetWeight = Math.max(0.0f, Math.min(1.0f, target));
         if (targetWeight <= 0.001f) {
             playing = false;
         }
+    }
+
+    public void fadeTo(float target, float fadeTime) {
+        if (!Float.isFinite(target)) throw new IllegalArgumentException("Animation weight must be finite");
+        if (!Float.isFinite(fadeTime) || fadeTime < 0.0f) {
+            throw new IllegalArgumentException("Animation fade time must be finite and non-negative");
+        }
+        float clampedTarget = Math.max(0.0f, Math.min(1.0f, target));
+        if (fadeTime == 0.0f) {
+            fadeTo(clampedTarget);
+            weight = clampedTarget;
+            return;
+        }
+        float distance = Math.abs(clampedTarget - weight);
+        if (distance > 0.0f) {
+            float speedForDuration = distance / fadeTime;
+            if (!Float.isFinite(speedForDuration)) {
+                fadeTo(clampedTarget, 0.0f);
+                return;
+            }
+            fadeSpeed = speedForDuration;
+            timedFade = true;
+        } else {
+            fadeSpeed = defaultFadeSpeed;
+            timedFade = false;
+        }
+        targetWeight = clampedTarget;
+        if (targetWeight <= 0.001f) playing = false;
     }
 
     public void adjustSpeed(float newSpeed) {
@@ -217,12 +267,20 @@ public final class MLuaAnimationTrack {
     private void handleFade(float delta) {
         if (Math.abs(weight - targetWeight) < 0.001f) {
             weight = targetWeight;
+            if (timedFade) {
+                timedFade = false;
+                fadeSpeed = defaultFadeSpeed;
+            }
             return;
         }
         float diff = targetWeight - weight;
         float maxDelta = fadeSpeed * delta;
         if (Math.abs(diff) <= maxDelta) {
             weight = targetWeight;
+            if (timedFade) {
+                timedFade = false;
+                fadeSpeed = defaultFadeSpeed;
+            }
         } else {
             weight += Math.signum(diff) * maxDelta;
         }

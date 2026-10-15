@@ -180,24 +180,26 @@ public final class MLuaClientRenderManager {
                                                MultiBufferSource buffers, int light, int overlay) {
         if (model == null || scope == null || pose == null || buffers == null) return;
         for (RenderObject object : OBJECTS.values()) {
-            if (!object.visible || object.target() != RenderTarget.ENTITY_MODEL
-                    || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;
-            pose.pushPose();
-            if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) {
-                pose.popPose();
-                continue;
+            synchronized (object.executionLock()) {
+                if (!object.visible || object.target() != RenderTarget.ENTITY_MODEL
+                        || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;
+                pose.pushPose();
+                try {
+                    if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) continue;
+                    object.applyFollowOffset(pose);
+                    pose.translate(object.worldX, object.worldY, object.worldZ);
+                    if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
+                    if (object.type == RenderType.MESH && object.mesh != null) {
+                        ResourceLocation texture = resolveTexture(object.mesh.texture());
+                        MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
+                            texture == null ? MLuaRenderHelper.fallbackTexture() : texture, light, overlay);
+                    } else if (object.bbmodel != null) {
+                        renderBBModelWorld(pose, buffers, object, light, overlay);
+                    }
+                } finally {
+                    pose.popPose();
+                }
             }
-            object.applyFollowOffset(pose);
-            pose.translate(object.worldX, object.worldY, object.worldZ);
-            if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
-            if (object.type == RenderType.MESH && object.mesh != null) {
-                ResourceLocation texture = resolveTexture(object.mesh.texture());
-                MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
-                    texture == null ? MLuaRenderHelper.fallbackTexture() : texture, light, overlay);
-            } else if (object.bbmodel != null) {
-                renderBBModelWorld(pose, buffers, object, light, overlay);
-            }
-            pose.popPose();
         }
     }
 

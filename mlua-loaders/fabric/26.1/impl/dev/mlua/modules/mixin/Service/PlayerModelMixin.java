@@ -1,8 +1,6 @@
 package dev.mlua.modules.mixin.Service;
 
 import dev.mlua.runtime.client.MLuaHumanoidPoseApplier;
-import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
-import dev.mlua.minecraft.animation.MLuaEntityScope;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
@@ -21,7 +19,6 @@ public abstract class PlayerModelMixin {
         mlua$entityId = MLuaRenderStateEntityResolver.findEntityId(state);
         if (mlua$entityId >= 0) {
             MLuaHumanoidPoseApplier.apply((HumanoidModel<?>) (Object) this, mlua$entityId);
-            MLuaModelAdapterRegistry.apply(this, MLuaEntityScope.legacy(mlua$entityId));
         }
     }
 }

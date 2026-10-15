@@ -61,6 +61,10 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:SetPose(entity: Entity, bone: string, cframe: CFrame)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetPose(entity: Entity)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:ClearPose(entity: Entity)", null));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Play(fadeTime?: number)", "Starts playback and optionally fades from zero to full weight over fadeTime seconds. Calling Play() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Stop(fadeTime?: number)", "Stops playback and optionally fades the pose out over fadeTime seconds. Calling Stop() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "Fades the track toward weight (0 to 1), optionally over fadeTime seconds.", "weight, fadeTime", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "Fades the track toward weight (0 to 1) over the specified duration in seconds. A duration of zero changes the weight immediately.", "weight, fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "Runs callback(track, time) when playback crosses the marker time in seconds. A marker at zero runs as soon as playback starts.", "", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:ClearEvents()", "Removes all marker callbacks from this track.", "", "void", "client:Client", ""));
 
@@ -73,6 +77,28 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("AnimationTrack", "MLuaAnimationBindings",
                 "A live animation playback instance returned by an entity animation controller.",
                 "classes/animation-track.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("Animation", "Animation.Length", "number",
+            "The animation duration in seconds.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Animation", "Animation",
+            "The animation played by this track.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.TrackId", "number",
+            "The track's runtime identifier.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Priority", "AnimationPriority",
+            "The track's animation blend priority.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Length", "number",
+            "The animation duration in seconds.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.TimePosition", "number",
+            "The current playback position in seconds. Readable and writable.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Speed", "number",
+            "Playback speed; zero stops time advancement while retaining the current pose. Readable and writable.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.IsPlaying", "boolean",
+            "Whether this track is currently playing.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.IsPaused", "boolean",
+            "Whether this track is paused.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Looped", "boolean",
+            "Whether playback repeats. Readable and writable.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Weight", "number",
+            "The current blend weight from zero to one. Assigning it fades toward the new weight.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.type("KeyframeDefinition", null, "One time and pose value in an animation keyframe sequence."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "time", "number", "Time position of the keyframe in seconds."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "value", "any", "Pose values to apply at this keyframe."));

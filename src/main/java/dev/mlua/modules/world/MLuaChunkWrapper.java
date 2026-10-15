@@ -8,6 +8,7 @@ import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
+import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
@@ -65,6 +66,9 @@ public final class MLuaChunkWrapper {
         LuaTable chunk = registration.createClassInstance("Chunk", fields);
         bind(chunk, "GetX", args -> LuaValue.valueOf(chunkX(args.arg1())));
         bind(chunk, "GetZ", args -> LuaValue.valueOf(chunkZ(args.arg1())));
+        Body getWorld = args -> MLuaLevelWrapper.levelTable(level(args.arg1()), registration);
+        bind(chunk, "GetWorld", getWorld);
+        bind(chunk, "GetLevel", getWorld);
         bind(chunk, "GetDimension", args -> LuaValue.valueOf(level(args.arg1()).dimension().location().toString()));
         bind(chunk, "GetPosition", args -> {
             ChunkPos pos = chunkPosition(args.arg1());
@@ -86,25 +90,19 @@ public final class MLuaChunkWrapper {
         });
         bind(chunk, "Unload", args -> {
             Level world = level(args.arg1());
-            if (!(world instanceof ServerLevel server)) return LuaValue.FALSE;
             ChunkPos pos = chunkPosition(args.arg1());
-            server.setChunkForced(chunkX(pos), chunkZ(pos), false);
-            return LuaValue.valueOf(!isForced(args.arg1()));
+            return LuaValue.valueOf(setForced(world, pos, false, "Chunk:Unload"));
         });
         bind(chunk, "SetForced", args -> {
             Level world = level(args.arg1());
-            if (!(world instanceof ServerLevel server)) return LuaValue.FALSE;
             ChunkPos pos = chunkPosition(args.arg1());
             boolean forced = args.checkboolean(2);
-            server.setChunkForced(chunkX(pos), chunkZ(pos), forced);
-            return LuaValue.valueOf(isForced(args.arg1()) == forced);
+            return LuaValue.valueOf(setForced(world, pos, forced, "Chunk:SetForced"));
         });
         bind(chunk, "ForceLoad", args -> {
             Level world = level(args.arg1());
-            if (!(world instanceof ServerLevel server)) return LuaValue.FALSE;
             ChunkPos pos = chunkPosition(args.arg1());
-            server.setChunkForced(chunkX(pos), chunkZ(pos), true);
-            return LuaValue.valueOf(isForced(args.arg1()));
+            return LuaValue.valueOf(setForced(world, pos, true, "Chunk:ForceLoad"));
         });
         bind(chunk, "GetBlockAt", args -> {
             Level world = level(args.arg1());
@@ -190,8 +188,8 @@ public final class MLuaChunkWrapper {
                 state = MLuaBlockStateProperties.apply(block.defaultBlockState(), properties.istable() ? properties : LuaValue.NIL);
                 updateFlagsIndex = properties.istable() ? valueIndex + 2 : valueIndex + 1;
             }
-            if (!ensureLoaded(server, args.arg1())) return LuaValue.FALSE;
             int updateFlags = MLuaBlockUpdateFlags.read(args.arg(updateFlagsIndex), "Chunk:SetBlockAt");
+            if (!ensureLoaded(server, args.arg1())) return LuaValue.FALSE;
             return LuaValue.valueOf(server.setBlock(pos, state, updateFlags));
         });
         bind(chunk, "GetEntities", args -> {
@@ -203,6 +201,11 @@ public final class MLuaChunkWrapper {
             LuaTable entities = new LuaTable();
             int index = 1;
             for (Entity entity : world.getEntities((Entity)null, bounds)) {
+                BlockPos entityPosition = entity.blockPosition();
+                if ((entityPosition.getX() >> 4) != chunkX(pos)
+                    || (entityPosition.getZ() >> 4) != chunkZ(pos)) {
+                    continue;
+                }
                 entities.set(index++, MLuaEntityWrapper.entityTable(entity, registration));
             }
             return entities;
@@ -318,29 +321,26 @@ public final class MLuaChunkWrapper {
         bindWorldMethod(world, registration, "GetChunkAt", getChunk);
         bindWorldMethod(world, registration, "LoadChunk", args -> {
             Level level = level(args.arg1());
-            ServerLevel server = requireServerLevel(level, "LoadChunk");
+            ServerLevel server = requireServerLevel(level, "World:LoadChunk");
             ChunkPos position = chunkPosition(args, 2);
             server.getChunk(chunkX(position), chunkZ(position));
             return chunkTable(level, position, registration);
         });
         bindWorldMethod(world, registration, "UnloadChunk", args -> {
-            ServerLevel server = requireServerLevel(level(args.arg1()), "UnloadChunk");
+            Level level = level(args.arg1());
             ChunkPos position = chunkPosition(args, 2);
-            server.setChunkForced(chunkX(position), chunkZ(position), false);
-            return LuaValue.valueOf(!isForced(server, position));
+            return LuaValue.valueOf(setForced(level, position, false, "World:UnloadChunk"));
         });
         bindWorldMethod(world, registration, "SetChunkForced", args -> {
-            ServerLevel server = requireServerLevel(level(args.arg1()), "SetChunkForced");
+            Level level = level(args.arg1());
             ChunkPos position = chunkPosition(args, 2);
             boolean forced = args.checkboolean(3);
-            server.setChunkForced(chunkX(position), chunkZ(position), forced);
-            return LuaValue.valueOf(isForced(server, position) == forced);
+            return LuaValue.valueOf(setForced(level, position, forced, "World:SetChunkForced"));
         });
         bindWorldMethod(world, registration, "ForceLoadChunk", args -> {
-            ServerLevel server = requireServerLevel(level(args.arg1()), "ForceLoadChunk");
+            Level level = level(args.arg1());
             ChunkPos position = chunkPosition(args, 2);
-            server.setChunkForced(chunkX(position), chunkZ(position), true);
-            return LuaValue.valueOf(isForced(server, position));
+            return LuaValue.valueOf(setForced(level, position, true, "World:ForceLoadChunk"));
         });
         bindWorldMethod(world, registration, "IsChunkForced", args -> {
             Level level = level(args.arg1());
@@ -389,7 +389,13 @@ public final class MLuaChunkWrapper {
 
     private static ServerLevel requireServerLevel(Level level, String method) {
         if (level instanceof ServerLevel server) return server;
-        throw new LuaError("[MLua] World:" + method + " is server-side only.");
+        throw new LuaError("[MLua] " + method + " is server-side only.");
+    }
+
+    private static boolean setForced(Level level, ChunkPos position, boolean forced, String method) {
+        ServerLevel server = requireServerLevel(level, method);
+        server.setChunkForced(chunkX(position), chunkZ(position), forced);
+        return isForced(server, position) == forced;
     }
 
     private static void bind(LuaTable chunk, String method, Body body) {

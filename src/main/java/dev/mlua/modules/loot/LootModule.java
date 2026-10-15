@@ -23,19 +23,19 @@ public class LootModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("LootTableBuilder", "MLuaLootTableService",
             "A live builder for composing a loot table from pools, item entries, and roll settings.",
             "classes/loot-table-builder.html", "Instance"));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SelectPool(index: number)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SelectPool(index: whole number >= 1)",
             "Selects the one-based pool that receives subsequent entry and roll changes.", "index: one-based pool index", "LootTableBuilder", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:AddEntry(itemId: string, weight: number, quality: number?)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:AddEntry(itemId: string, weight: whole number >= 1, quality: whole number?)",
             "Adds an item entry to the selected pool.", "itemId: item identifier; weight: positive weight; quality: optional quality", "LootTableBuilder", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:AddTagEntry(tagId: string, weight?: number, quality?: number, expand?: boolean)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:AddTagEntry(tagId: string, weight?: whole number >= 1, quality?: whole number, expand?: boolean)",
             "Adds a weighted entry that expands an item tag into its matching items.", "tagId: item tag identifier; expand controls whether each matching item is considered separately", "LootTableBuilder", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:AddEmptyEntry(weight?: number, quality?: number)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:AddEmptyEntry(weight?: whole number >= 1, quality?: whole number)",
             "Adds a weighted empty outcome to the selected pool.", "weight: optional positive weight; quality: optional quality", "LootTableBuilder", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SetEntryCount(min: number, max?: number)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SetEntryCount(min: whole number >= 0, max?: whole number >= min)",
             "Sets the most recently added item or tag entry's item count or random count range.", "minimum count and optional maximum count", "LootTableBuilder", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SetRolls(min: number, max: number?)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SetRolls(min: whole number >= 0, max?: whole number >= min)",
             "Sets the selected pool's minimum and optional maximum rolls.", "min: minimum rolls; max: optional maximum rolls", "LootTableBuilder", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SetBonusRolls(min: number, max: number?)",
+        docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:SetBonusRolls(min: whole number >= 0, max?: whole number >= min)",
             "Sets the selected pool's minimum and optional maximum bonus rolls.", "min: minimum bonus rolls; max: optional maximum", "LootTableBuilder", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("LootTableBuilder", "LootTableBuilder:Build()",
             "Serializes the current loot table definition as JSON.", null, "string", "shared:Shared", null));

@@ -19,9 +19,13 @@ import dev.mlua.runtime.client.model.MLuaBBModelLoader;
 import dev.mlua.runtime.client.model.MLuaMeshDefinition;
 import dev.mlua.runtime.client.model.MLuaMeshVertex;
 import java.io.IOException;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -35,6 +39,8 @@ import org.luaj.vm2.lib.TwoArgFunction;
 public final class MLuaRenderService extends MLuaReflectiveService {
     private static final String OBJECT_OPERATIONS = "__render_object_operations";
     private static final String OBJECT_ID = "__render_object_id";
+    private final ReferenceQueue<LuaTable> collectedObjectHandles = new ReferenceQueue<>();
+    private final Map<Integer, ObjectHandleReference> objectHandles = new ConcurrentHashMap<>();
     public static void registerRenderObjectClass(MLuaRegistration registration) {
         String description = "A live client render instance with mutable screen-space or world-space properties and rendering methods.";
         registration.registerClass("RenderObject", registration.requireInstanceBaseClassName(), description);
@@ -55,14 +61,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness");
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
-        registerObjectProperty(registration, "Target", "string", "Render stage: HUD, WorldOverlay, WorldModel, or EntityModel for model-part attachments.", "GetTarget", "SetTarget");
+        registerObjectProperty(registration, "Target", "string", "Render stage: Hud, WorldOverlay, WorldModel, or EntityModel. GetTarget returns the same canonical spelling accepted by SetTarget.", "GetTarget", "SetTarget");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
         registerObjectProperty(registration, "ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
         registerObjectProperty(registration, "FollowBone", "string|nil", "A registered model adapter bone to attach this 3D object to on the followed entity.", "GetFollowBone", "SetFollowBone");
         registerObjectProperty(registration, "FollowOffset", "CFrame|function", "A local transform after the followed model bone. A function returning CFrame is sampled once per client tick.", "GetFollowOffset", "SetFollowOffset");
-        registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
-        registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
+        registerObjectProperty(registration, "Resource", "string|nil", "The resource identifier for image, item, or block objects; nil for other render types.", "GetResource", "SetResource");
+        registerObjectProperty(registration, "Text", "string|nil", "The displayed text; available only on text objects.", "GetText", "SetText");
         String[][] methods = {
             {"GetId", "Returns the object's runtime identifier."}, {"GetType", "Returns the object's render type."},
             {"GetIsDestroyed", "Returns whether this object has been removed."},
@@ -80,7 +86,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetThickness", "Returns the line or outline thickness."}, {"SetThickness", "Sets a finite thickness of at least one pixel."},
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
-            {"GetTarget", "Returns the object's render target."}, {"SetTarget", "Selects Hud, WorldOverlay, WorldModel, or EntityModel."},
+            {"GetTarget", "Returns Hud, WorldOverlay, WorldModel, or EntityModel using the canonical spelling accepted by SetTarget."}, {"SetTarget", "Selects Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
             {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Sets a finite uniform model scale of at least 0.001."},
             {"GetFollowEntity", "Returns the followed entity id, or nil."}, {"SetFollowEntity", "Attaches the object to an entity or clears the attachment with nil."},
@@ -89,8 +95,10 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"SetFollowBone", "Attaches a 3D object to a model bone registered by ModelService."},
             {"GetFollowOffset", "Returns the local CFrame or callback used after the followed model bone."},
             {"SetFollowOffset", "Sets a local CFrame or a function returning CFrame, sampled once per client tick."},
-            {"GetResource", "Returns the image or model resource."}, {"SetResource", "Changes the image or model resource."},
-            {"GetText", "Returns the displayed text."}, {"SetText", "Changes the displayed text."},
+            {"GetResource", "Returns the resource identifier for an image, item, or block object; otherwise nil."},
+            {"SetResource", "Changes the resource identifier on image, item, or block objects."},
+            {"GetText", "Returns displayed text on text objects; otherwise nil."},
+            {"SetText", "Changes displayed text on text objects."},
             {"GetAnimations", "Returns animation names available on a Blockbench model."},
             {"PlayAnimation", "Plays a named Blockbench model animation."},
             {"StopAnimation", "Stops the current Blockbench model animation."},
@@ -273,6 +281,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     public void Clear() {
         ensureClient();
         MLuaClientRenderManager.clearOwned(owner());
+        objectHandles.clear();
     }
 
     @MLuaDescription("Returns live render object handles owned by the calling mod.")
@@ -372,7 +381,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return objectTable(id);
     }
 
-    private LuaTable objectTable(int id) {
+    private synchronized LuaTable objectTable(int id) {
+        drainCollectedObjectHandles();
+        ObjectHandleReference reference = objectHandles.get(id);
+        LuaTable cached = reference == null ? null : reference.get();
+        if (cached != null) return cached;
+        if (reference != null) objectHandles.remove(id, reference);
+
         LuaTable operations = new LuaTable();
         operations.set("GetId", fn(args -> LuaValue.valueOf(id)));
         operations.set("GetType", fn(args -> {
@@ -475,7 +490,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             requireObject(id).setWorldSpace(args.checkboolean(2));
             return LuaValue.NONE;
         }));
-        operations.set("GetTarget", fn(args -> LuaValue.valueOf(requireObject(id).target().name())));
+        operations.set("GetTarget", fn(args -> LuaValue.valueOf(renderTargetName(requireObject(id).target()))));
         operations.set("SetTarget", fn(args -> {
             String name = args.checkjstring(2).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
             try {
@@ -532,30 +547,59 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             return LuaValue.NONE;
         }));
         operations.set("GetResource", fn(args -> {
-            String resource = requireObject(id).resource();
+            var object = requireObject(id);
+            if (!supportsResource(object.type())) return LuaValue.NIL;
+            String resource = object.resource();
             return resource != null ? LuaValue.valueOf(resource) : LuaValue.NIL;
         }));
         operations.set("SetResource", fn(args -> {
-            requireObject(id).setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
+            var object = requireObject(id);
+            requireResourceType(object.type(), "SetResource");
+            object.setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
             return LuaValue.NONE;
         }));
         operations.set("GetText", fn(args -> {
-            String resource = requireObject(id).resource();
+            var object = requireObject(id);
+            if (object.type() != MLuaClientRenderManager.RenderType.TEXT) return LuaValue.NIL;
+            String resource = object.resource();
             return resource != null ? LuaValue.valueOf(resource) : LuaValue.NIL;
         }));
         operations.set("SetText", fn(args -> {
-            requireObject(id).setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
+            var object = requireObject(id);
+            if (object.type() != MLuaClientRenderManager.RenderType.TEXT) {
+                throw new LuaError("[MLua] RenderObject:SetText is only available on text render objects.");
+            }
+            object.setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
             return LuaValue.NONE;
         }));
         operations.set("Destroy", fn(args -> {
             MLuaClientRenderManager.remove(id, owner());
+            objectHandles.remove(id);
             return LuaValue.NONE;
         }));
         LuaTable instance = new LuaTable();
         instance.rawset("__mluaOwnerModId", LuaValue.valueOf(owner().ownerModId()));
         instance.rawset(OBJECT_ID, LuaValue.valueOf(id));
         instance.rawset(OBJECT_OPERATIONS, operations);
-        return context.mlua().registration().attachClassInstance(instance, requireObject(id).luaClassName(), null);
+        LuaTable handle = context.mlua().registration().attachClassInstance(instance, requireObject(id).luaClassName(), null);
+        objectHandles.put(id, new ObjectHandleReference(id, handle, collectedObjectHandles));
+        return handle;
+    }
+
+    private void drainCollectedObjectHandles() {
+        ObjectHandleReference reference;
+        while ((reference = (ObjectHandleReference)collectedObjectHandles.poll()) != null) {
+            objectHandles.remove(reference.id, reference);
+        }
+    }
+
+    private static final class ObjectHandleReference extends WeakReference<LuaTable> {
+        private final int id;
+
+        private ObjectHandleReference(int id, LuaTable handle, ReferenceQueue<LuaTable> queue) {
+            super(handle, queue);
+            this.id = id;
+        }
     }
 
     private void applyProps(MLuaClientRenderManager.RenderObject object, LuaTable props, String... extraProperties) {
@@ -572,6 +616,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             applyPropertyValues(object, props, className, extraProperties);
         } catch (RuntimeException | Error failure) {
             MLuaClientRenderManager.remove(object.id(), owner());
+            objectHandles.remove(object.id());
             throw failure;
         }
     }
@@ -746,6 +791,21 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         }
     }
 
+    private static boolean supportsResource(MLuaClientRenderManager.RenderType type) {
+        return type == MLuaClientRenderManager.RenderType.IMAGE
+            || type == MLuaClientRenderManager.RenderType.ITEM
+            || type == MLuaClientRenderManager.RenderType.BLOCK;
+    }
+
+    private static void requireResourceType(MLuaClientRenderManager.RenderType type, String operation) {
+        if (type == MLuaClientRenderManager.RenderType.TEXT) {
+            throw new LuaError("[MLua] RenderObject:" + operation + " is not available on text objects; use SetText.");
+        }
+        if (!supportsResource(type)) {
+            throw new LuaError("[MLua] RenderObject:" + operation + " is only available on image, item, or block objects.");
+        }
+    }
+
     private static LuaValue firstNonNil(LuaValue a, LuaValue b) {
         return !a.isnil() ? a : b;
     }
@@ -805,6 +865,15 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             throw new LuaError("[MLua] RenderObject " + name + " must be a whole number within the 32-bit integer range.");
         }
         return (int)number;
+    }
+
+    private static String renderTargetName(MLuaClientRenderManager.RenderTarget target) {
+        return switch (target) {
+            case HUD -> "Hud";
+            case WORLD_OVERLAY -> "WorldOverlay";
+            case WORLD_MODEL -> "WorldModel";
+            case ENTITY_MODEL -> "EntityModel";
+        };
     }
 
     private static int packedColor(LuaValue value) {

@@ -15,6 +15,7 @@ import dev.mlua.math.MLuaMat4;
 import dev.mlua.math.MLuaVec4;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.math.MLuaNoise;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -272,7 +273,8 @@ public final class MLuaLuauTypes {
       LuaTable table = new LuaTable();
       table.set("new", new TwoArgFunction() {
          public LuaValue call(LuaValue scale, LuaValue offset) {
-            return MLuaLuauTypes.udim(scale.optdouble(0.0), offset.optint(0));
+            return MLuaLuauTypes.udim(scale.checkdouble(),
+               MLuaLuaArguments.wholeInt(offset, "UDim.new", "offset"));
          }
       });
       return table;
@@ -282,20 +284,29 @@ public final class MLuaLuauTypes {
       LuaTable table = new LuaTable();
       table.set("new", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            if (args.arg(1).istable() && args.arg(2).istable()) {
+            if (args.narg() == 2 && args.arg(1).istable() && args.arg(2).istable()) {
                return MLuaLuauTypes.udim2(args.arg(1), args.arg(2));
             }
-            return MLuaLuauTypes.udim2(args.optdouble(1, 0.0), args.optint(2, 0), args.optdouble(3, 0.0), args.optint(4, 0));
+            if (args.narg() != 4) {
+               throw new LuaError("UDim2.new expects two UDim values or four numeric scale and offset values");
+            }
+            return MLuaLuauTypes.udim2(args.arg(1).checkdouble(),
+               MLuaLuaArguments.wholeInt(args, 2, "UDim2.new", "xOffset"),
+               args.arg(3).checkdouble(),
+               MLuaLuaArguments.wholeInt(args, 4, "UDim2.new", "yOffset"));
          }
       });
       table.set("fromScale", new TwoArgFunction() {
          public LuaValue call(LuaValue x, LuaValue y) {
-            return MLuaLuauTypes.udim2(x.optdouble(0.0), 0, y.optdouble(0.0), 0);
+            return MLuaLuauTypes.udim2(x.checkdouble(), 0, y.checkdouble(), 0);
          }
       });
       table.set("fromOffset", new TwoArgFunction() {
          public LuaValue call(LuaValue x, LuaValue y) {
-            return MLuaLuauTypes.udim2(0.0, x.optint(0), 0.0, y.optint(0));
+            return MLuaLuauTypes.udim2(0.0,
+               MLuaLuaArguments.wholeInt(x, "UDim2.fromOffset", "xPixels"),
+               0.0,
+               MLuaLuaArguments.wholeInt(y, "UDim2.fromOffset", "yPixels"));
          }
       });
       return table;
@@ -404,6 +415,9 @@ public final class MLuaLuauTypes {
    }
 
    public static LuaTable udim(double scale, int offset) {
+      if (!Double.isFinite(scale)) {
+         throw new LuaError("[MLua] UDim scale must be a finite number.");
+      }
       LuaTable value = typed("UDim");
       value.set("Scale", scale);
       value.set("Offset", offset);

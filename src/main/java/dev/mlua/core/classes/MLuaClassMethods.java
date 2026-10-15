@@ -177,6 +177,11 @@ public final class MLuaClassMethods {
          throw new IllegalArgumentException("Instance method must be a Lua function");
       }
       if (!instance.get(methodName).isfunction()) {
+         LuaValue properties = instance.rawget("__mlua_doc_properties");
+         if (properties.istable() && properties.checktable().rawget(methodName).isstring()) {
+            throw new IllegalStateException("Cannot bind instance method '" + methodName
+               + "': it conflicts with a registered property on this class or one of its parents");
+         }
          throw new IllegalStateException("Lua instance has no registered class function named '" + methodName + "'");
       }
       LuaValue dispatchers = instance.rawget("__mlua_instance_dispatchers");

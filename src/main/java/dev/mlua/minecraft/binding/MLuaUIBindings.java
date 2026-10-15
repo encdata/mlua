@@ -363,12 +363,13 @@ public final class MLuaUIBindings {
             throw new LuaError("[MLua] Animation Position and Size axes require native UDim values.");
         }
         LuaTable table = value.checktable();
-        return new dev.mlua.minecraft.ui.UDim(table.get("Scale").checkdouble(), table.get("Offset").checkint());
+        return new dev.mlua.minecraft.ui.UDim(table.get("Scale").checkdouble(),
+            MLuaLuaArguments.wholeInt(table.get("Offset"), "UI animation", "UDim offset"));
     }
 
     private static int parseColor3(LuaValue value) {
         if (dev.mlua.core.engine.MLuaLuauTypes.isColor3(value)) return dev.mlua.core.engine.MLuaLuauTypes.color3Argb(value);
-        if (value.isnumber()) return value.checkint();
+        if (value.isnumber()) return MLuaLuaArguments.wholeInt32Bits(value, "UI animation", "packed color");
         throw new LuaError("[MLua] UI color animation targets require a native Color3 value or packed color integer.");
     }
 

@@ -27,17 +27,7 @@ public abstract class MLuaServiceBase implements MLuaService {
     * and Lua argument 1 in {@code service.Call(value)}.
     */
    protected final int serviceArgumentIndex(Varargs args, LuaTable serviceTable, int logicalIndex) {
-      if (logicalIndex < 1) throw new IllegalArgumentException("Logical service argument index must be positive");
-      LuaValue receiver = args.arg1();
-      if (receiver == serviceTable) return logicalIndex + 1;
-      if (receiver.istable()) {
-         LuaValue meta = receiver.getmetatable();
-         if (meta != null && meta.istable()
-            && this.name().equals(meta.checktable().rawget("__mlua_service_name").optjstring(""))) {
-            return logicalIndex + 1;
-         }
-      }
-      return logicalIndex;
+      return serviceArgumentIndex(args, serviceTable, this.name(), logicalIndex);
    }
 
    /**
@@ -47,11 +37,26 @@ public abstract class MLuaServiceBase implements MLuaService {
     */
    protected final LuaTable supportColonAndDotCalls(LuaTable serviceTable) {
       Set<LuaTable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-      normalizeCalls(serviceTable, serviceTable, visited);
+      normalizeCalls(serviceTable, this.name(), serviceTable, visited);
       return serviceTable;
    }
 
-   private void normalizeCalls(LuaTable serviceTable, LuaTable table, Set<LuaTable> visited) {
+   /**
+    * Applies the shared colon and dot calling convention to a hand-built service table.
+    * This is available to services that cannot extend this base class.
+    */
+   public static LuaTable normalizeServiceCalls(LuaTable serviceTable, String serviceName) {
+      Objects.requireNonNull(serviceTable, "serviceTable");
+      if (serviceName == null || serviceName.isBlank()) {
+         throw new IllegalArgumentException("Service name must be non-empty");
+      }
+      Set<LuaTable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+      normalizeCalls(serviceTable, serviceName, serviceTable, visited);
+      return serviceTable;
+   }
+
+   private static void normalizeCalls(LuaTable serviceTable, String serviceName,
+                                      LuaTable table, Set<LuaTable> visited) {
       if (!visited.add(table)) return;
       LuaValue key = LuaValue.NIL;
       while (true) {
@@ -61,13 +66,13 @@ public abstract class MLuaServiceBase implements MLuaService {
          if (key.isstring() && key.tojstring().startsWith("__mlua")) continue;
          LuaValue value = entry.arg(2);
          if (value.istable()) {
-            normalizeCalls(serviceTable, value.checktable(), visited);
+            normalizeCalls(serviceTable, serviceName, value.checktable(), visited);
          } else if (value.isfunction()) {
             LuaTable receiverTable = table;
             LuaValue implementation = value;
             table.rawset(key, new VarArgFunction() {
                @Override public Varargs invoke(Varargs args) {
-                  if (serviceArgumentIndex(args, receiverTable, 1) == 2) {
+                  if (serviceArgumentIndex(args, receiverTable, serviceName, 1) == 2) {
                      return implementation.invoke(args);
                   }
                   LuaValue[] shifted = new LuaValue[args.narg() + 1];
@@ -78,5 +83,20 @@ public abstract class MLuaServiceBase implements MLuaService {
             });
          }
       }
+   }
+
+   private static int serviceArgumentIndex(Varargs args, LuaTable serviceTable,
+                                           String serviceName, int logicalIndex) {
+      if (logicalIndex < 1) throw new IllegalArgumentException("Logical service argument index must be positive");
+      LuaValue receiver = args.arg1();
+      if (receiver == serviceTable) return logicalIndex + 1;
+      if (receiver.istable()) {
+         LuaValue meta = receiver.getmetatable();
+         if (meta != null && meta.istable()
+            && serviceName.equals(meta.checktable().rawget("__mlua_service_name").optjstring(""))) {
+            return logicalIndex + 1;
+         }
+      }
+      return logicalIndex;
    }
 }

@@ -68,7 +68,7 @@ public final class ParticleModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("ParticleSpec", "Blue", "number", "Dust blue component, from 0 through 1."));
         docs.register(MLuaDocBuilder.Registration.field("ParticleSpec", "Size", "number", "Dust particle size."));
         docs.register(MLuaDocBuilder.Registration.type("ParticleBurstProperties", null, "Options for spawning a particle burst."));
-        docs.register(MLuaDocBuilder.Registration.field("ParticleBurstProperties", "Count", "integer", "Number of particles in the burst."));
+        docs.register(MLuaDocBuilder.Registration.field("ParticleBurstProperties", "Count", "whole number >= 0", "Number of particles in the burst (default 12)."));
         docs.register(MLuaDocBuilder.Registration.field("ParticleBurstProperties", "Spread", "number|Vector3", "Scalar spread for every axis or independent spread per axis."));
         docs.register(MLuaDocBuilder.Registration.field("ParticleBurstProperties", "SpreadX", "number", "Optional horizontal spread override."));
         docs.register(MLuaDocBuilder.Registration.field("ParticleBurstProperties", "SpreadY", "number", "Optional vertical spread override."));

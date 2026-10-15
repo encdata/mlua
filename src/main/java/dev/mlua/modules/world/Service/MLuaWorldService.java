@@ -11,7 +11,6 @@ import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.mc.impl.container.MCContainerImpl;
-import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
@@ -45,7 +44,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
@@ -95,7 +93,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("SetWeather", currentWorldMethod(table, "SetWeather"));
       WorldModule.bindWorldServiceMethods(table, methodName -> this.currentWorldMethod(table, methodName));
       MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods());
-      return table;
+      return supportColonAndDotCalls(table);
    }
 
    private LuaValue currentWorldMethod(LuaTable service, String methodName) {
@@ -400,17 +398,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
       }));
       table.set("GetPlayersNearby", table.get("FindPlayersInRadius"));
       table.set("FindNearestPlayer", levelFn(supplier, (level, args) -> {
-         if (!(level instanceof ServerLevel serverLevel)) {
-            return LuaValue.NIL;
-         }
-
          double[] pos = checkedQueryPosition(positionArgs(args, 2));
          double maxDistance = MLuaLuaArguments.optionalFiniteNumber(
             args, 2 + coordinateWidth(args, 2), Double.MAX_VALUE, "World:FindNearestPlayer", "maxDistance");
          maxDistance = checkedQueryRadius(maxDistance);
-         ServerPlayer nearest = null;
+         Player nearest = null;
          double nearestDistance = maxDistance * maxDistance;
-         for (ServerPlayer player : serverLevel.players()) {
+         for (Player player : this.players(level)) {
             double distance = player.distanceToSqr(pos[0], pos[1], pos[2]);
             if (distance <= nearestDistance) {
                nearestDistance = distance;
@@ -418,7 +412,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
             }
          }
 
-         return nearest == null ? LuaValue.NIL : MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(nearest), context.mlua().registration());
+         return nearest == null ? LuaValue.NIL : MLuaPlayerWrapper.playerEntityTable(nearest, context.mlua().registration());
       }));
       table.set("GetNearestPlayer", table.get("FindNearestPlayer"));
       table.set("FindNearestEntity", levelFn(supplier, (level, args) -> {
@@ -490,9 +484,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
          } else {
             throw new LuaError("[MLua] World:SetBlock expects block properties, a loadChunk boolean, or integer update flags after the block.");
          }
-         if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
          int updateFlags = MLuaBlockUpdateFlags.read(updateFlagsValue, "World:SetBlock");
-         return LuaValue.valueOf(level.setBlock(blockPos, MLuaBlockStateProperties.apply(state, properties), updateFlags));
+         net.minecraft.world.level.block.state.BlockState resolvedState = MLuaBlockStateProperties.apply(state, properties);
+         if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
+         return LuaValue.valueOf(level.setBlock(blockPos, resolvedState, updateFlags));
       }));
       table.set("SetBlockState", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
@@ -502,9 +497,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
             MLuaBlockStateWrapper.blockStateFromLua(args.arg(stateIndex), context.mlua().registration());
          LuaValue loadOrFlags = args.arg(stateIndex + 1);
          boolean loadChunk = !loadOrFlags.isboolean() || loadOrFlags.toboolean();
-         if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
          int flagsIndex = loadOrFlags.isboolean() ? stateIndex + 2 : stateIndex + 1;
          int updateFlags = MLuaBlockUpdateFlags.read(args.arg(flagsIndex), "World:SetBlockState");
+         if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
          return LuaValue.valueOf(level.setBlock(blockPos, state, updateFlags));
       }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {
@@ -719,14 +714,10 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaTable playersTable(Level level, AABB box) {
       LuaTable list = new LuaTable();
-      if (!(level instanceof ServerLevel serverLevel)) {
-         return list;
-      }
-
       int index = 1;
-      for (ServerPlayer player : serverLevel.players()) {
+      for (Player player : this.players(level)) {
          if (box == null || box.contains(player.position())) {
-            list.set(index++, MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), context.mlua().registration()));
+            list.set(index++, MLuaPlayerWrapper.playerEntityTable(player, context.mlua().registration()));
          }
       }
       return list;
@@ -772,15 +763,22 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaTable playersInRadius(Level level, double[] center, double radius) {
       LuaTable list = new LuaTable();
-      if (!(level instanceof ServerLevel serverLevel)) return list;
       int index = 1;
       double radiusSquared = radius * radius;
-      for (ServerPlayer player : serverLevel.players()) {
+      for (Player player : this.players(level)) {
          if (player.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
-            list.set(index++, MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), context.mlua().registration()));
+            list.set(index++, MLuaPlayerWrapper.playerEntityTable(player, context.mlua().registration()));
          }
       }
       return list;
+   }
+
+   private List<Player> players(Level level) {
+      List<Player> players = new ArrayList<>();
+      for (Entity entity : this.allEntities(level)) {
+         if (entity instanceof Player player) players.add(player);
+      }
+      return players;
    }
 
    private static AABB entityBounds(LuaValue value) {

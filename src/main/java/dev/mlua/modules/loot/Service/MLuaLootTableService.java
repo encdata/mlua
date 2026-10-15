@@ -6,6 +6,7 @@ import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.module.MLuaRegistration;
 import java.util.Optional;
 import org.luaj.vm2.LuaError;
@@ -30,7 +31,7 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
         registerBuilderFunction(registration, "SelectPool", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
-                int index = args.checkint(2);
+                int index = MLuaLuaArguments.wholeInt(args, 2, "LootTableBuilder:SelectPool", "index");
                 if (index < 1 || index > state.poolCount) {
                     throw new LuaError("[MLua] LootTable pool index must be between 1 and " + state.poolCount);
                 }
@@ -43,8 +44,8 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
                 String itemId = args.checkjstring(2);
-                int weight = args.checkint(3);
-                int quality = args.optint(4, 0);
+                int weight = MLuaLuaArguments.wholeInt(args, 3, "LootTableBuilder:AddEntry", "weight");
+                int quality = MLuaLuaArguments.optionalWholeInt(args, 4, 0, "LootTableBuilder:AddEntry", "quality");
                 MLuaResourceLocations.parse(itemId);
                 if (weight < 1) throw new LuaError("[MLua] LootTable entry weight must be at least 1");
                 JsonObject entry = new JsonObject();
@@ -61,8 +62,8 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
                 String tagId = args.checkjstring(2);
-                int weight = args.arg(3).optint(1);
-                int quality = args.arg(4).optint(0);
+                int weight = MLuaLuaArguments.optionalWholeInt(args, 3, 1, "LootTableBuilder:AddTagEntry", "weight");
+                int quality = MLuaLuaArguments.optionalWholeInt(args, 4, 0, "LootTableBuilder:AddTagEntry", "quality");
                 boolean expand = args.arg(5).optboolean(true);
                 MLuaResourceLocations.parse(tagId);
                 if (weight < 1) throw new LuaError("[MLua] LootTable entry weight must be at least 1");
@@ -80,8 +81,8 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
         registerBuilderFunction(registration, "AddEmptyEntry", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
-                int weight = args.arg(2).optint(1);
-                int quality = args.arg(3).optint(0);
+                int weight = MLuaLuaArguments.optionalWholeInt(args, 2, 1, "LootTableBuilder:AddEmptyEntry", "weight");
+                int quality = MLuaLuaArguments.optionalWholeInt(args, 3, 0, "LootTableBuilder:AddEmptyEntry", "quality");
                 if (weight < 1) throw new LuaError("[MLua] LootTable entry weight must be at least 1");
                 JsonObject entry = new JsonObject();
                 entry.addProperty("type", "minecraft:empty");
@@ -100,8 +101,8 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
                 if ("minecraft:empty".equals(entry.get("type").getAsString())) {
                     throw new LuaError("[MLua] Empty loot entries do not produce item counts");
                 }
-                int minimum = args.checkint(2);
-                int maximum = args.arg(3).isnil() ? minimum : args.checkint(3);
+                int minimum = MLuaLuaArguments.wholeInt(args, 2, "LootTableBuilder:SetEntryCount", "min");
+                int maximum = MLuaLuaArguments.optionalWholeInt(args, 3, minimum, "LootTableBuilder:SetEntryCount", "max");
                 if (minimum < 0 || maximum < minimum) {
                     throw new LuaError("[MLua] LootTable entry count requires 0 <= min <= max");
                 }
@@ -131,14 +132,14 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
         registerBuilderFunction(registration, "SetRolls", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
-                setRollRange(state.currentPool(), "rolls", args, "rolls");
+                setRollRange(state.currentPool(), "rolls", args, "SetRolls", "rolls");
                 return args.arg1();
             }
         }, "Sets the selected pool's minimum rolls and optional maximum rolls.");
         registerBuilderFunction(registration, "SetBonusRolls", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 BuilderState state = state(args.arg1());
-                setRollRange(state.currentPool(), "bonus_rolls", args, "bonus rolls");
+                setRollRange(state.currentPool(), "bonus_rolls", args, "SetBonusRolls", "bonus rolls");
                 return args.arg1();
             }
         }, "Sets the selected pool's minimum bonus rolls and optional maximum bonus rolls.");
@@ -204,11 +205,11 @@ public final class MLuaLootTableService extends MLuaReflectiveService {
         return state;
     }
 
-    private static void setRollRange(JsonObject pool, String key, Varargs args, String label) {
-        int minimum = args.checkint(2);
+    private static void setRollRange(JsonObject pool, String key, Varargs args, String method, String label) {
+        int minimum = MLuaLuaArguments.wholeInt(args, 2, "LootTableBuilder:" + method, label + " minimum");
         if (minimum < 0) throw new LuaError("[MLua] LootTable " + label + " cannot be negative");
         if (args.narg() >= 3 && !args.arg(3).isnil()) {
-            int maximum = args.checkint(3);
+            int maximum = MLuaLuaArguments.wholeInt(args, 3, "LootTableBuilder:" + method, label + " maximum");
             if (maximum < minimum) throw new LuaError("[MLua] LootTable maximum " + label + " must be at least the minimum");
             JsonObject range = new JsonObject();
             range.addProperty("min", minimum);
