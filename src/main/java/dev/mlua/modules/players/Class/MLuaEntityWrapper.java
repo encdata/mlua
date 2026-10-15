@@ -46,6 +46,9 @@ import java.util.function.Supplier;
 import net.minecraft.core.Holder;
 //--endversion
 import net.minecraft.core.registries.BuiltInRegistries;
+//--version 26.1
+import net.minecraft.server.level.ServerLevel;
+//--endversion
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -801,7 +804,15 @@ public final class MLuaEntityWrapper {
    private static void bindCoreEntityMethods(LuaTable table, MCEntity entity) {
       net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
       MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
+         //--version 26.1
+         if (!(raw.level() instanceof ServerLevel serverLevel)) {
+            throw new LuaError("[MLua] Entity:Kill is only available for entities in a server world.");
+         }
+         raw.kill(serverLevel);
+         //--endversion
+         //--version 1.20.1,1.21.1
          raw.kill();
+         //--endversion
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {

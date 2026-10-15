@@ -59,6 +59,18 @@ final class MLuaAnimationBindingsRegistrationTest {
             @Override public LuaTable registerClassTable(String name, LuaTable table, String parentName, String description) {
                 return classes.register(name, table, parentName, description);
             }
+            @Override public LuaTable registerClassProperty(String className, String propertyName,
+                                                            org.luaj.vm2.LuaValue getter,
+                                                            org.luaj.vm2.LuaValue setter,
+                                                            String description) {
+                return classes.registerProperty(className, propertyName, getter, setter, description);
+            }
+            @Override public LuaTable registerClassProperty(String className, String propertyName,
+                                                            org.luaj.vm2.LuaValue getter,
+                                                            org.luaj.vm2.LuaValue setter, String valueType,
+                                                            String side, String description) {
+                return classes.registerProperty(className, propertyName, getter, setter, valueType, side, description);
+            }
             @Override public LuaTable classTable(String name) { return classes.get(name); }
             @Override public java.util.Set<String> classNames() { return classes.names(); }
             @Override public LuaTable attachClassInstance(LuaTable instance, String name, String parentName) {
