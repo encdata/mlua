@@ -96,7 +96,9 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
 
     @MLuaDescription("Clears custom pose overrides for an entity.")
     public void ClearPose(Optional<LuaValue> entity) {
-        if (entity.isEmpty() || entity.get().isnil()) return;
+        if (entity.isEmpty() || entity.get().isnil()) {
+            throw new LuaError("[MLua] AnimationService:ClearPose expects an Entity instance or entity ID.");
+        }
         MLuaBonePose.clearPose(resolveEntityScope(entity.get()), this.context.mlua().registration());
     }
 

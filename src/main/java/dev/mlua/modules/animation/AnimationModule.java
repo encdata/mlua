@@ -60,7 +60,7 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetAnimation(id: string)", "Animation|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:SetPose(entity: Entity|number, bone: string, cframe: CFrame)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetPose(entity: Entity|number)", "table<string, CFrame>"));
-        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:ClearPose(entity?: Entity|number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:ClearPose(entity: Entity|number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetRegisteredAnimations()", "table<string, Animation>"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetAnimationPriority()", "AnimationPriority"));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetLength()", "number"));
