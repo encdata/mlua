@@ -376,6 +376,25 @@ public interface MLuaRegistration {
         throw new UnsupportedOperationException("Class function unregistration is not supported by this runtime");
     }
 
+    /** Updates documentation for an already registered class function without replacing its implementation. */
+    default LuaTable registerClassFunctionDescription(String className, String functionName, String description) {
+        if (description == null || description.isBlank()) throw new IllegalArgumentException("Function description must be non-empty");
+        LuaTable owner = classTable(className);
+        if (owner == null) throw new IllegalStateException("Lua class is not registered: " + className);
+        if (!owner.rawget(functionName).isfunction()) {
+            throw new IllegalStateException("Lua class '" + className + "' has no registered function '" + functionName + "'");
+        }
+        LuaValue docsValue = owner.rawget("__mlua_doc_methods");
+        if (!docsValue.isnil() && !docsValue.istable()) {
+            throw new IllegalStateException("Lua class '" + className + "' method descriptions must be a table");
+        }
+        LuaTable docs = docsValue.istable() ? docsValue.checktable() : new LuaTable();
+        docs.rawset(functionName, LuaValue.valueOf(description));
+        owner.rawset("__mlua_doc_methods", docs);
+        refreshClassMetadata(className);
+        return owner;
+    }
+
     default LuaTable registerClassProperty(String className, String propertyName,
                                            LuaValue getter, LuaValue setter, String description) {
         throw new UnsupportedOperationException("Class property registration is not supported by this runtime");

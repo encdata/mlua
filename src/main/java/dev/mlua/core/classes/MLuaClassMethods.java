@@ -31,7 +31,7 @@ public final class MLuaClassMethods {
       }
       LuaValue existing = classTable.rawget(methodName);
       if (existing.isfunction()) {
-         registration.registerClassFunction(className, methodName, existing, description);
+         registration.registerClassFunctionDescription(className, methodName, description);
          if (dispatchersValue.isnil()) classTable.rawset("__mlua_instance_dispatchers", dispatchers);
          if (existingDispatcher.isnil()) dispatchers.rawset(methodName, LuaValue.FALSE);
          return;

@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleType;
@@ -117,7 +115,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
     private Level currentLevel() {
         if (context.mlua().side() == Side.CLIENT) {
-            return Minecraft.getInstance().level;
+            return clientLevel();
         }
         return context.mlua().server() == null ? null : context.mlua().server().overworld();
     }
@@ -574,8 +572,26 @@ public final class MLuaWorldService extends MLuaServiceBase {
     private static Iterable<Entity> entitiesIn(Level level, AABB bounds) {
         if (bounds != null) return level.getEntities((Entity) null, bounds);
         if (level instanceof ServerLevel serverLevel) return serverLevel.getAllEntities();
-        if (level instanceof ClientLevel clientLevel) return clientLevel.entitiesForRendering();
+        try {
+            Object entities = level.getClass().getMethod("entitiesForRendering").invoke(level);
+            if (entities instanceof Iterable<?> iterable) {
+                List<Entity> result = new ArrayList<>();
+                for (Object entity : iterable) if (entity instanceof Entity value) result.add(value);
+                return result;
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) { }
         return List.of();
+    }
+
+    private static Level clientLevel() {
+        try {
+            Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
+            Object instance = minecraft.getMethod("getInstance").invoke(null);
+            Object level = minecraft.getField("level").get(instance);
+            return level instanceof Level clientLevel ? clientLevel : null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
     }
 
     private static boolean matchesEntityFilter(Entity entity, LuaValue filter) {

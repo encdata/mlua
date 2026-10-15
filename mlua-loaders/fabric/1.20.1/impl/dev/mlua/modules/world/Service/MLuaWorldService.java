@@ -29,8 +29,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleType;
@@ -513,7 +511,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private Level currentLevel() {
       if (this.context.mlua().side() == Side.CLIENT) {
-         return Minecraft.getInstance().level;
+         return clientLevel();
       }
       return this.context.mlua().server() == null ? null : this.context.mlua().server().overworld();
    }
@@ -535,7 +533,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          }
       }
 
-      ClientLevel clientLevel = Minecraft.getInstance().level;
+      Level clientLevel = clientLevel();
       return clientLevel != null && clientLevel.dimension().location().equals(target) ? clientLevel : null;
    }
 
@@ -575,10 +573,26 @@ public final class MLuaWorldService extends MLuaServiceBase {
       if (level instanceof ServerLevel serverLevel) {
          return serverLevel.getAllEntities();
       }
-      if (level instanceof ClientLevel clientLevel) {
-         return clientLevel.entitiesForRendering();
-      }
+      try {
+         Object entities = level.getClass().getMethod("entitiesForRendering").invoke(level);
+         if (entities instanceof Iterable<?> iterable) {
+            List<Entity> result = new ArrayList<>();
+            for (Object entity : iterable) if (entity instanceof Entity value) result.add(value);
+            return result;
+         }
+      } catch (ReflectiveOperationException | RuntimeException ignored) { }
       return List.of();
+   }
+
+   private static Level clientLevel() {
+      try {
+         Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
+         Object instance = minecraft.getMethod("getInstance").invoke(null);
+         Object level = minecraft.getField("level").get(instance);
+         return level instanceof Level clientLevel ? clientLevel : null;
+      } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+         return null;
+      }
    }
 
    private LuaTable listGameRules(Level level) {
