@@ -112,6 +112,12 @@ public class MCItemStackImpl implements MCItemStack {
     }
 
     @Override
+    public boolean canCombine(MCItemStack other) {
+        return other instanceof MCItemStackImpl stack
+            && ItemStack.isSameItemSameTags(inner, stack.inner);
+    }
+
+    @Override
     public MCCompoundTag getOrCreateTagElement(String key) {
         return MCCompoundTagImpl.fromReal(inner.getOrCreateTagElement(key));
     }

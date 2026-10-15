@@ -55,6 +55,7 @@ public final class ItemStackModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:GetDamagePercent()", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:IsEnchantable()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:IsStackable()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:CanStackWith(other: Item)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Grow(amount: whole number >= 0)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Shrink(amount: whole number >= 0)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Item", "Item:Split(amount: whole number >= 0)", "Item"));

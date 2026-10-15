@@ -50,6 +50,9 @@ public interface MCItemStack {
     MCItemStack copy();
     MCCompoundTag getOrCreateTagElement(String key);
 
+    /** Returns whether both stacks contain the same item and item data, ignoring their counts. */
+    boolean canCombine(MCItemStack other);
+
     /** Returns the level of an enchantment on this stack, or zero when it is absent. */
     default int getEnchantmentLevel(MCEnchantment enchantment) {
         throw new UnsupportedOperationException("Enchantment lookup is not implemented by this item stack adapter");

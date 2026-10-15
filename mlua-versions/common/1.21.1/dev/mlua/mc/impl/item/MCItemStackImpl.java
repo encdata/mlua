@@ -120,6 +120,12 @@ public class MCItemStackImpl implements MCItemStack {
     }
 
     @Override
+    public boolean canCombine(MCItemStack other) {
+        return other instanceof MCItemStackImpl stack
+            && ItemStack.isSameItemSameComponents(inner, stack.inner);
+    }
+
+    @Override
     public MCCompoundTag getOrCreateTagElement(String key) {
         net.minecraft.nbt.CompoundTag root = hasTag()
             ? ((MCCompoundTagImpl) getTag()).inner().copy()

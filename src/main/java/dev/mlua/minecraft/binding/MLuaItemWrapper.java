@@ -264,6 +264,13 @@ public final class MLuaItemWrapper {
          }), "Returns durability damage as a fraction from zero to one.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEnchantable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isEnchantable())), "Returns whether this stack can receive enchantments.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsStackable", selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)stack(self)).inner().isStackable())), "Returns whether this stack can be stacked with another matching stack.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "CanStackWith", selfItem((self, args) -> {
+            LuaValue other = args.arg(2);
+            if (!registration.isInstanceOf(other, "Item")) {
+               throw new LuaError("[MLua] Item:CanStackWith expects another Item instance.");
+            }
+            return LuaValue.valueOf(stack(self).canCombine(new MCItemStackImpl(toItemStack(other, registration))));
+         }), "Returns whether another item stack has the same item and data, ignoring stack counts.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", selfItem((self, ignored) -> LuaValue.valueOf(stack(self).getDamageValue())), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", selfItem((self, args) -> {
             int damage = MLuaLuaArguments.wholeInt(args, 2, "Item:SetDamage", "damage");
