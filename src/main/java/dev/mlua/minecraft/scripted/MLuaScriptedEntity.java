@@ -249,18 +249,15 @@ public class MLuaScriptedEntity extends PathfinderMob {
             if (MLuaScriptedEntity.this.level().isClientSide) {
                throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:MoveTo is server-side only.");
             }
-            double[] position = MLuaCFrame.vector(args.arg(2));
-            double speed = args.arg(3).optdouble(1.0);
-            if (!Double.isFinite(speed) || speed <= 0.0) {
-               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:MoveTo speed must be finite and greater than zero.");
-            }
+            double[] position = MLuaLuaArguments.finiteVector3(args.arg(2), "ScriptedEntity:MoveTo position");
+            double speed = positiveSpeed(args, 3, 1.0, "ScriptedEntity:MoveTo");
             return LuaValue.valueOf(MLuaScriptedEntity.this.navigation.moveTo(
                position[0], position[1], position[2], speed));
          }
       });
       methods.set("LookAt", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            double[] position = MLuaCFrame.vector(args.arg(2));
+            double[] position = MLuaLuaArguments.finiteVector3(args.arg(2), "ScriptedEntity:LookAt position");
             MLuaScriptedEntity.this.getLookControl().setLookAt(position[0], position[1], position[2]);
             return LuaValue.NONE;
          }
@@ -471,7 +468,8 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("SetCanOpenDoors", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             if (MLuaScriptedEntity.this.getNavigation() instanceof GroundPathNavigation groundNavigation) {
-               boolean enabled = args.arg(2).optboolean(true);
+                  boolean enabled = MLuaLuaArguments.optionalBoolean(args, 2, true,
+                     "ScriptedEntity:SetCanOpenDoors", "enabled");
                groundNavigation.setCanOpenDoors(enabled);
                return LuaValue.valueOf(true);
             }
@@ -481,7 +479,8 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("SetCanPassDoors", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             if (MLuaScriptedEntity.this.getNavigation() instanceof GroundPathNavigation groundNavigation) {
-               boolean enabled = args.arg(2).optboolean(true);
+                  boolean enabled = MLuaLuaArguments.optionalBoolean(args, 2, true,
+                     "ScriptedEntity:SetCanPassDoors", "enabled");
                groundNavigation.setCanPassDoors(enabled);
                return LuaValue.valueOf(true);
             }
@@ -503,7 +502,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("RandomStroll", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            double speed = args.arg(2).optdouble(1.0);
+            double speed = positiveSpeed(args, 2, 1.0, "ScriptedEntity:RandomStroll");
             Level level = MLuaScriptedEntity.this.level();
             for (int attempt = 0; attempt < 10; attempt++) {
                int dx = MLuaScriptedEntity.this.random.nextInt(10) - 5;
@@ -519,7 +518,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("Panic", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            double speed = args.arg(2).optdouble(1.5);
+            double speed = positiveSpeed(args, 2, 1.5, "ScriptedEntity:Panic");
             DamageSource lastDamage = MLuaScriptedEntity.this.getLastDamageSource();
             if (lastDamage == null) return LuaValue.valueOf(false);
             LivingEntity attacker = MLuaScriptedEntity.this.getLastHurtByMob();
@@ -765,6 +764,14 @@ public class MLuaScriptedEntity extends PathfinderMob {
    private static double boundedSearchDistance(double distance) {
       if (!Double.isFinite(distance)) return 16.0;
       return Math.max(0.0, Math.min(128.0, distance));
+   }
+
+   private static double positiveSpeed(Varargs args, int index, double fallback, String method) {
+      double speed = MLuaLuaArguments.optionalFiniteNumber(args, index, fallback, method, "speed");
+      if (speed <= 0.0) {
+         throw new org.luaj.vm2.LuaError("[MLua] " + method + " speed must be greater than zero.");
+      }
+      return speed;
    }
 
    private void invokeLifecycleSuper(String methodName) {
