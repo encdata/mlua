@@ -45,7 +45,17 @@ public final class SmokeMod {
     }
 
     private void onServerTick(ServerTickEvent.Post event) {
+        runMixinProbe();
         System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");
         event.getServer().halt(false);
+    }
+
+    private static void runMixinProbe() {
+        try {
+            Class.forName("dev.mlua.ci.SmokeTarget", true, SmokeMod.class.getClassLoader())
+                .getMethod("probe").invoke(null);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not invoke the Lua mixin smoke target", exception);
+        }
     }
 }

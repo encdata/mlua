@@ -184,7 +184,18 @@ jobs:
           if ($null -eq $jar) { throw 'Build artifact did not contain an MLua mod JAR.' }
           $template = "client-smoke/${{ matrix.loader }}"
           New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
+          New-Item -ItemType Directory -Force "$template/run/mlua/scripts" | Out-Null
           Copy-Item $jar.FullName "$template/run/mods/mlua.jar"
+          @'
+          local Mixin = Minecraft:GetService("Mixin")
+          Mixin:Target("dev.mlua.ci.SmokeTarget"):Inject("probe", {
+              descriptor = "()V",
+              at = "HEAD",
+              callback = function()
+                  print("MLUA_SCRIPT_MIXIN_HOOK_OK")
+              end
+          })
+          '@ | Set-Content "$template/run/mlua/scripts/ci_smoke.mixin.lua"
           Set-Content "$template/run/eula.txt" 'eula=true'
           Set-Content "$template/run/server.properties" @('online-mode=false', 'server-port=25565', 'enable-query=false', 'enable-rcon=false')
 
@@ -224,6 +235,7 @@ jobs:
             -Task runServer `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_SERVER_BOOT_OK' `
+            -RequiredMarker 'MLUA_SCRIPT_MIXIN_HOOK_OK' `
             -LogFile 'server-smoke.log' `
             -TimeoutSeconds 600
 
