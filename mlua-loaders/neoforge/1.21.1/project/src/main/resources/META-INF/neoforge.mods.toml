@@ -1,7 +1,7 @@
 modLoader="javafml"
 loaderVersion="${neo_loader_version_range}"
 license="${mod_license}"
-mixinConfig="mlua.forge.mixins.json"
+mixinConfig="mlua.firstperson.mixins.json"
 
 [[mods]]
 modId="${mod_id}"

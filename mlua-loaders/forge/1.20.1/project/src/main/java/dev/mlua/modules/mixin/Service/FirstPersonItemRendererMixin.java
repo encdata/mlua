@@ -1,4 +1,4 @@
-package dev.mlua.modules.mixin.Service;
+package dev.mlua.mixin;
 
 import dev.mlua.minecraft.client.MLuaCameraController;
 import net.minecraft.client.player.AbstractClientPlayer;

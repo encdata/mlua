@@ -224,7 +224,7 @@ tasks.named('jar', Jar).configure {
     manifest {
         attributes([
                 'Automatic-Module-Name': 'mlua_loader',
-                'MixinConfigs': 'mlua.forge.mixins.json',
+                'MixinConfigs': 'mlua.forge.mixins.json,mlua.firstperson.mixins.json',
                 'Specification-Title': mod_id,
                 'Specification-Vendor': mod_authors,
                 'Specification-Version': '1',
@@ -247,10 +247,6 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/mcapi/**'
     exclude 'dev/mlua/minecraft/**'
     exclude 'dev/mlua/module/**'
-    exclude { entry ->
-        entry.path.startsWith('dev/mlua/modules/')
-            && !entry.path.startsWith('dev/mlua/modules/mixin/Service/')
-    }
     exclude 'dev/mlua/runtime/**'
     exclude 'dev/mlua/loader/impl/forge/**'
     exclude 'dev/mlua/MLuaMod.java'

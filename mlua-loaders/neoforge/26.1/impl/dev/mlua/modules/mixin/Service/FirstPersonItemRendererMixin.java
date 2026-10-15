@@ -1,4 +1,4 @@
-package dev.mlua.modules.mixin.Service;
+package dev.mlua.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mlua.minecraft.client.MLuaCameraController;
