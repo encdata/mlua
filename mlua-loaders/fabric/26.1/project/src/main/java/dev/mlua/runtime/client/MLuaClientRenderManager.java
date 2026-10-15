@@ -409,6 +409,7 @@ public final class MLuaClientRenderManager {
     public static final class RenderObject {
         private final int id;
         private final RenderType type;
+        private String luaClassName = "RenderObject";
         private String resource;
         private double x = 0.0;
         private double y = 0.0;
@@ -451,6 +452,13 @@ public final class MLuaClientRenderManager {
         }
 
         public int id() { return id; }
+        public String luaClassName() { return luaClassName; }
+        public void setLuaClassName(String luaClassName) {
+            if (luaClassName == null || luaClassName.isBlank()) {
+                throw new IllegalArgumentException("Render object Lua class name cannot be empty");
+            }
+            this.luaClassName = luaClassName;
+        }
         public Object executionLock() { return executionLock; }
         public void setExecutionLock(Object executionLock) {
             this.executionLock = executionLock == null ? this : executionLock;
@@ -590,6 +598,7 @@ public final class MLuaClientRenderManager {
 
         private RenderObject copy() {
             RenderObject copy = new RenderObject(id, type, resource);
+            copy.luaClassName = luaClassName;
             copy.x = x;
             copy.y = y;
             copy.width = width;
