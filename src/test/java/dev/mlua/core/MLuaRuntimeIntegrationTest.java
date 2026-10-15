@@ -20,6 +20,7 @@ import dev.mlua.modules.modal.Service.MLuaModalService;
 import dev.mlua.minecraft.ui.element.ScreenGui;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.JavaClassBridge;
+import dev.mlua.loaderapi.PlatformBridge;
 import dev.mlua.common.mixin.MLuaMappingResolver;
 import java.nio.file.Path;
 import java.lang.reflect.Field;
@@ -48,6 +49,15 @@ final class MLuaRuntimeIntegrationTest {
         LoaderApi.install((LoaderApi.LoaderProvider) Proxy.newProxyInstance(
             LoaderApi.LoaderProvider.class.getClassLoader(), new Class<?>[]{LoaderApi.LoaderProvider.class},
             (proxy, method, args) -> switch (method.getName()) {
+                case "platform" -> new PlatformBridge() {
+                    @Override public Path gameDir() { return Path.of(".").toAbsolutePath().normalize(); }
+                    @Override public Path configDir() { return gameDir().resolve("config"); }
+                    @Override public boolean hasMod(String modId) { return false; }
+                    @Override public boolean isClient() { return false; }
+                    @Override public boolean isProduction() { return false; }
+                    @Override public String loaderName() { return "test"; }
+                    @Override public java.util.Collection<dev.mlua.loaderapi.ScriptRootRef> bundledScriptRoots() { return List.of(); }
+                };
                 case "mappings" -> new MLuaMappingResolver() {
                     @Override public String loaderId() { return "test"; }
                 };
@@ -410,9 +420,9 @@ final class MLuaRuntimeIntegrationTest {
         MLuaScript main = script("mlua", ScriptType.SERVER, "side_service.server.lua", "side_service", "return true");
         MLuaServiceRegistry services = new MLuaServiceRegistry();
         services.register("SideService", Side.SERVER, context -> new NamedService("server"),
-            "Side-specific test service.", java.util.Map.of("Probe", "Returns the fixture probe value."));
+            "Side-specific test service.", java.util.Map.of());
         services.register("SideService", Side.CLIENT, context -> new NamedService("client"),
-            "Side-specific test service.", java.util.Map.of("Probe", "Returns the fixture probe value."));
+            "Side-specific test service.", java.util.Map.of());
 
         assertEquals("server", services.create("SideService", context(main, Side.SERVER, services, new MLuaTaskScheduler())).toLua().get("Value").tojstring());
         assertEquals("client", services.create("SideService", context(main, Side.CLIENT, services, new MLuaTaskScheduler())).toLua().get("Value").tojstring());
