@@ -73,6 +73,7 @@ public final class MLuaHumanoidPoseApplier {
                 || "ears".equals(partName)) {
                 continue;
             }
+            applyReflectivePose(self, pose, partName, partName);
             applyReflectiveState(self, scope, partName);
         }
     }

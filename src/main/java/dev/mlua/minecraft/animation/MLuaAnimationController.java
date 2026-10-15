@@ -22,12 +22,6 @@ public final class MLuaAnimationController {
     private static final Map<Object, Long> OWNER_ORDER = new WeakHashMap<>();
     private static long nextOwnerOrder;
 
-    private static final String[] ALL_BONES = {
-        MLuaBonePose.BONE_HEAD, MLuaBonePose.BONE_BODY,
-        MLuaBonePose.BONE_RIGHT_ARM, MLuaBonePose.BONE_LEFT_ARM,
-        MLuaBonePose.BONE_RIGHT_LEG, MLuaBonePose.BONE_LEFT_LEG
-    };
-
     private MLuaAnimationController() {}
 
     public static MLuaAnimationTrack loadAnimation(int entityId, MLuaAnimation animation, AnimationPriority priority) {
@@ -96,8 +90,12 @@ public final class MLuaAnimationController {
         sorted.sort(Comparator.comparingInt((MLuaAnimationTrack track) -> -track.getPriority().ordinal())
                 .thenComparingInt(MLuaAnimationTrack::trackId));
         Map<String, MLuaCFrame> blended = new HashMap<>();
+        Set<String> bones = new HashSet<>();
+        for (MLuaAnimationTrack track : sorted) {
+            bones.addAll(track.getComputedPose().keySet());
+        }
 
-        for (String bone : ALL_BONES) {
+        for (String bone : bones) {
             for (MLuaAnimationTrack track : sorted) {
                 MLuaCFrame pose = track.getBonePose(bone);
                 if (pose != null) {
