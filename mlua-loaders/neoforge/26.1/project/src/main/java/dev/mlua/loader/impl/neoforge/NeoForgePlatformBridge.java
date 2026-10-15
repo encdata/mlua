@@ -29,12 +29,12 @@ public class NeoForgePlatformBridge implements PlatformBridge {
 
     @Override
     public boolean isClient() {
-        return FMLLoader.getDist().isClient();
+        return FMLLoader.getCurrent().getDist().isClient();
     }
 
     @Override
     public boolean isProduction() {
-        return FMLLoader.isProduction();
+        return FMLLoader.getCurrent().isProduction();
     }
 
     @Override
