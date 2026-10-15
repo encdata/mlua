@@ -270,9 +270,9 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetData", "Returns persistent world data by key."),
             Map.entry("SetData", "Sets persistent world data by key. This method is server-side only."),
             Map.entry("RemoveData", "Removes a persistent world data key. This method is server-side only."),
-            Map.entry("ListGameRules", "Returns the names and current values of this world's gamerules. This method is server-side only."),
-            Map.entry("GetGameRule", "Returns a world gamerule value by name. This method is server-side only."),
-            Map.entry("GetGameRuleEntry", "Returns one typed gamerule entry by name. This method is server-side only."),
+            Map.entry("ListGameRules", "Returns the names and current values of this world's gamerules. Available wherever this dimension is loaded; client reads use the client's local dimension state."),
+            Map.entry("GetGameRule", "Returns a world gamerule value by name. Available wherever this dimension is loaded; client reads use the client's local dimension state."),
+            Map.entry("GetGameRuleEntry", "Returns one typed gamerule entry by name. Available wherever this dimension is loaded; client reads use the client's local dimension state."),
             Map.entry("SetGameRule", "Sets a world gamerule. This method is server-side only.")
         );
     }
@@ -470,17 +470,17 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBlockInventory(position: Vector3|CFrame)", "Container?"));
         docs.register(MLuaDocBuilder.Registration.type("BlockStateProperties", null, "Property names and values supported by the selected Minecraft block. Values are strings, numbers, or booleans and are validated against that block's state definition."));
         docs.register(MLuaDocBuilder.Registration.field("BlockStateProperties", "*", "string|number|boolean", "A block state property, such as facing = \"north\" or waterlogged = false."));
-        docs.register(MLuaDocBuilder.Registration.type("GameRuleList", null, "ListGameRules returns numeric entries containing Name and Value, plus direct lookup by gamerule name. Gamerule changes and reads require a server World."));
+        docs.register(MLuaDocBuilder.Registration.type("GameRuleList", null, "ListGameRules returns numeric entries containing Name and Value, plus direct lookup by gamerule name. Reads work on client and server worlds; client reads use the client's local dimension state. Changes require a server World."));
         docs.register(MLuaDocBuilder.Registration.field("GameRuleList", "*", "GameRuleEntry|boolean|number|string", "An ordered GameRuleEntry at a numeric index, or the current value when indexed by gamerule name."));
         docs.register(MLuaDocBuilder.Registration.clazz("GameRuleEntry", "WorldModule", "A live typed view of one registered Minecraft gamerule.", "classes/gamerule-entry.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.Name", "string", "The gamerule name accepted by GetGameRule and SetGameRule.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.Value", "boolean|number|string", "The live value; assigning it applies the same validation as World:SetGameRule.", "server:Server"));
         docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.ValueType", "string", "The Lua value type of this gamerule's value.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:GetValueType(): string", "Returns the Lua value type of this gamerule's value.", null, "string", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:GetValueType(): string", "Returns the Lua value type of this gamerule's value.", null, "string", null, null));
         docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:SetValue(value: boolean|number)", "Sets the live value using the same type and range checks as World:SetGameRule.", null, "void", "server:Server", null));
-        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:IsBoolean(): boolean", "Checks whether this gamerule stores a boolean value.", null, "boolean", "server:Server", null));
-        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:IsNumber(): boolean", "Checks whether this gamerule stores a numeric value.", null, "boolean", "server:Server", null));
-        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:IsString(): boolean", "Checks whether this gamerule stores a string value.", null, "boolean", "server:Server", null));
+        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:IsBoolean(): boolean", "Checks whether this gamerule stores a boolean value.", null, "boolean", null, null));
+        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:IsNumber(): boolean", "Checks whether this gamerule stores a numeric value.", null, "boolean", null, null));
+        docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:IsString(): boolean", "Checks whether this gamerule stores a string value.", null, "boolean", null, null));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:BreakBlock(position: Vector3|CFrame, dropItems: boolean?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:PlaySound(position: Vector3|CFrame, sound: string, volume: number?, pitch: number?)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SpawnParticle(position: Vector3|CFrame, particle: string, count: number?)", "void"));
@@ -588,7 +588,7 @@ public class WorldModule implements MLuaModule {
             "SetSpawnPosition takes a native Vector3 or CFrame and an optional yaw in degrees. It is server-side only; SpawnPosition can also be assigned directly.",
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal spawn = Vector3.new(0, 65, 0)\nworld:SetSpawnPosition(spawn, 90)\nworld.SpawnPosition = spawn"));
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Read and change dimension gamerules",
-            "Gamerules belong to a dimension. These methods are server-side only. GetGameRule returns the rule's current value; GetGameRuleEntry returns a live typed entry with its name, value, and value type. SetGameRule and GameRuleEntry:SetValue accept a boolean for boolean rules and a whole 32-bit number for integer rules. Unknown rule names and mismatched values raise an error. ListGameRules can be traversed with ipairs or indexed by the rule name.",
+            "Gamerules belong to a dimension. Reads work on client and server worlds; client reads use the client's local dimension state. GetGameRule returns the rule's current value; GetGameRuleEntry returns a live typed entry with its name, value, and value type. SetGameRule and GameRuleEntry:SetValue are server-side and accept a boolean for boolean rules and a whole 32-bit number for integer rules. Unknown rule names and mismatched values raise an error. ListGameRules can be traversed with ipairs or indexed by the rule name.",
             "local world = Minecraft:GetService(\"World\"):Get(\"minecraft:overworld\")\nlocal oldValue = world:GetGameRule(\"doDaylightCycle\")\nlocal rule = world:GetGameRuleEntry(\"doDaylightCycle\")\nprint(\"Daylight cycle:\", oldValue, rule:IsA(\"GameRuleEntry\"), rule.ValueType)\n\nworld:SetGameRule(\"doDaylightCycle\", false)\nfor _, entry in ipairs(world:ListGameRules()) do\n    print(entry.Name, entry.Value, entry:IsBoolean())\nend\n\nlocal rules = world:ListGameRules()\nprint(\"Mob griefing:\", rules.mobGriefing)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("WorldService", "Select the dimension for world operations",
             "Each World value represents one dimension. Get selects a loaded dimension by identifier. Current returns the active client dimension on the client and the overworld on the server; when acting on a player in another dimension, use the player's dimension identifier with Get. World changes are server-side operations.",
