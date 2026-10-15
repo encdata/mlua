@@ -150,7 +150,6 @@ public final class MLuaAnimationBindings {
 
     public static LuaTable wrapAnimation(MLuaAnimation animation, MLuaRegistration registration) {
         LuaTable fields = new LuaTable();
-        fields.set("Length", LuaValue.valueOf(animation.getLength()));
         LuaTable table = createClassInstance(registration, "Animation", fields);
         MLuaClassMethods.setInstanceMethod(table, "GetLength", new ZeroArgFunction() {
             public LuaValue call() {
