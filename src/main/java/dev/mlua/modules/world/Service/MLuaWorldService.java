@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.modules.world.MLuaBlockUpdateFlags;
 import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
@@ -470,8 +471,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
             ? (!propertiesArg.isboolean() || propertiesArg.toboolean())
             : MLuaLuaArguments.optionalBoolean(args, loadIndex, true, "World:SetBlock", "loadChunk");
          if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
-         int updateFlags = args.arg(flagsIndex).isnil() || args.arg(flagsIndex).isboolean()
-            ? 3 : args.arg(flagsIndex).checkint();
+         int updateFlags = MLuaBlockUpdateFlags.read(args.arg(flagsIndex), "World:SetBlock");
          return LuaValue.valueOf(level.setBlock(blockPos, MLuaBlockStateProperties.apply(state, properties), updateFlags));
       }));
       table.set("SetBlockState", serverLevelFn(supplier, (level, args) -> {
@@ -484,7 +484,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          boolean loadChunk = !loadOrFlags.isboolean() || loadOrFlags.toboolean();
          if (!ensureChunkLoaded(level, blockPos, loadChunk)) return LuaValue.FALSE;
          int flagsIndex = loadOrFlags.isboolean() ? stateIndex + 2 : stateIndex + 1;
-         int updateFlags = args.arg(flagsIndex).isnil() ? 3 : args.arg(flagsIndex).checkint();
+         int updateFlags = MLuaBlockUpdateFlags.read(args.arg(flagsIndex), "World:SetBlockState");
          return LuaValue.valueOf(level.setBlock(blockPos, state, updateFlags));
       }));
       table.set("BreakBlock", serverLevelFn(supplier, (level, args) -> {

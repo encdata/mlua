@@ -191,7 +191,7 @@ public final class MLuaChunkWrapper {
                 updateFlagsIndex = properties.istable() ? valueIndex + 2 : valueIndex + 1;
             }
             if (!ensureLoaded(server, args.arg1())) return LuaValue.FALSE;
-            int updateFlags = args.arg(updateFlagsIndex).isnil() ? 3 : args.arg(updateFlagsIndex).checkint();
+            int updateFlags = MLuaBlockUpdateFlags.read(args.arg(updateFlagsIndex), "Chunk:SetBlockAt");
             return LuaValue.valueOf(server.setBlock(pos, state, updateFlags));
         });
         bind(chunk, "GetEntities", args -> {

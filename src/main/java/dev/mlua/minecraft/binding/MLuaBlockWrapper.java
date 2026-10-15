@@ -8,6 +8,7 @@ import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.modules.world.MLuaBlockUpdateFlags;
 import dev.mlua.mc.impl.block.MCBlockImpl;
 import dev.mlua.mc.impl.block.entity.MCBlockEntityImpl;
 import dev.mlua.mc.impl.container.MCContainerImpl;
@@ -340,7 +341,7 @@ public final class MLuaBlockWrapper {
             net.minecraft.core.BlockPos rawPos = ((MCBlockPosImpl)pos(self)).inner();
             net.minecraft.world.level.block.state.BlockState state =
                MLuaBlockStateProperties.apply(rawLevel.getBlockState(rawPos), args.arg(2));
-            int updateFlags = args.arg(3).isnil() ? 3 : args.arg(3).checkint();
+            int updateFlags = MLuaBlockUpdateFlags.read(args.arg(3), "Block:SetStateProperties");
             return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
          }), "Updates this block's Minecraft state properties while keeping its block type. Optional Minecraft update flags default to 3. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetFluid", selfBlock((self, ignored) -> {
@@ -429,7 +430,7 @@ public final class MLuaBlockWrapper {
                throw new LuaError("[MLua] Block:Set expects a state property table followed by optional update flags.");
             }
             net.minecraft.world.level.block.state.BlockState state = MLuaBlockStateProperties.apply(newBlock.defaultBlockState(), properties.istable() ? properties : LuaValue.NIL);
-            int updateFlags = args.arg(properties.istable() ? 4 : 3).isnil() ? 3 : args.arg(properties.istable() ? 4 : 3).checkint();
+            int updateFlags = MLuaBlockUpdateFlags.read(args.arg(properties.istable() ? 4 : 3), "Block:Set");
             return LuaValue.valueOf(rawLevel.setBlock(rawPos, state, updateFlags));
          }), "Replaces this block with a registered block identifier and optional state properties. Optional Minecraft update flags default to 3. Server-side only.");
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "ScheduleTick", selfBlock((self, args) -> {
