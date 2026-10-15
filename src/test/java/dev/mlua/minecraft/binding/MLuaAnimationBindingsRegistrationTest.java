@@ -63,6 +63,7 @@ final class MLuaAnimationBindingsRegistrationTest {
                 return classes.register(name, table, parentName, description);
             }
             @Override public LuaTable classTable(String name) { return classes.get(name); }
+            @Override public java.util.Set<String> classNames() { return classes.names(); }
             @Override public LuaTable attachClassInstance(LuaTable instance, String name, String parentName) {
                 return classes.attachInstance(instance, name, parentName);
             }

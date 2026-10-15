@@ -77,7 +77,7 @@ final class MLuaModuleLoaderRegistrationTest {
             @Override public String id() { return "broken"; }
             @Override public Side side() { return Side.BOTH; }
             @Override public void registerClasses(MLuaRegistration registration) {
-                registration.registerClass("PartialClass", null);
+                registration.registerClass("PartialClass", null, "A class used by the rollback fixture.");
                 throw new IllegalStateException("registration failed");
             }
             @Override public List<ServiceEntry> services() {
@@ -125,7 +125,7 @@ final class MLuaModuleLoaderRegistrationTest {
             }
             @Override public void registerClasses(MLuaRegistration registration) {
                 phases.add("parent:classes");
-                registration.registerClass("Class_parent", null);
+                registration.registerClass("Class_parent", null, "A class used by the parent fixture.");
             }
             @Override public void registerEvents(EventBridge bridge) { phases.add("parent:events"); }
         };
@@ -144,7 +144,7 @@ final class MLuaModuleLoaderRegistrationTest {
             @Override public int priority() { return priority; }
             @Override public void registerClasses(MLuaRegistration registration) {
                 phases.add(id + ":classes");
-                registration.registerClass("Class_" + id, null);
+                registration.registerClass("Class_" + id, null, "A class used by the " + id + " fixture.");
             }
             @Override public List<ServiceEntry> services() {
                 return List.of(new ServiceEntry("service_" + id, context -> null,
@@ -161,7 +161,7 @@ final class MLuaModuleLoaderRegistrationTest {
             @Override public Side side() { return Side.BOTH; }
             @Override public void registerClasses(MLuaRegistration registration) {
                 phases.add(id + ":classes");
-                registration.registerClass(className, null);
+                registration.registerClass(className, null, "A class used by the registration fixture.");
             }
             @Override public List<ServiceEntry> services() {
                 return List.of(new ServiceEntry(service, className, context -> null,

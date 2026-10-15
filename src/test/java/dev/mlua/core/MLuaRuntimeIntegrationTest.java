@@ -44,39 +44,30 @@ final class MLuaRuntimeIntegrationTest {
     @Test
     void baseRegistersServicesAndClassesForLuaJLookup() {
         MLuaRuntime base = new MLuaRuntime();
+        base.registerClass("Object", null, "Root class for test fixtures.");
+        base.registerInstanceBaseClass("Instance", "Object", "Base class for live test instances.");
+        base.registerServiceBaseClass("Service", "Instance", "Base class for live test services.");
         base.registerService("BaseProbe", Side.BOTH, BaseProbeService::new,
-            "Base service registration fixture.", java.util.Map.of());
+            "Base service registration fixture.", java.util.Map.of("GetValue", "Returns the fixture value."));
 
         MLuaScript main = script("mlua", ScriptType.SERVER, "base_registration.server.lua", "base_registration", """
                 local service = Minecraft:GetService("BaseProbe")
                 assert(service.Value == "registered")
-                return service.Value
+                return { service:GetValue(), BasePlayer.ClassName }
                 """);
-        MLuaContext context = new MLuaContext(
-                main,
-                Side.SERVER,
-                RegistrationPhase.RUNTIME,
-                base.services(),
-                new MLuaTaskScheduler(),
-                new MLuaModuleCache(),
-                null,
-                temp.resolve("data")
-        );
+        MLuaContext context = context(base, main, Side.SERVER);
 
-        Globals globals = JsePlatform.standardGlobals();
-        base.registerClass("BaseEntity", null);
-        base.registerClass("BaseMarker", null);
-        LuaTable playerClass = base.registerClass("BasePlayer", new LuaTable(), "BaseEntity", "BaseMarker");
-        globals.set("BaseEntity", base.classTable("BaseEntity"));
-        globals.set("BaseMarker", base.classTable("BaseMarker"));
-        globals.set("BasePlayer", playerClass);
+        base.registerClass("BaseEntity", "Instance", "Base class for player fixture classes.");
+        LuaTable playerClass = base.registerClass("BasePlayer", new LuaTable(), "BaseEntity");
         LuaTable instance = new LuaTable();
         base.attachClassInstance(instance, "BasePlayer", null);
-        globals.set("instance", instance);
-        assertEquals("BaseEntity", globals.load("assert(instance:IsA('BaseEntity')); assert(instance:IsA('BaseMarker')); return BaseEntity.ClassName").call().tojstring());
+        assertTrue(base.isInstanceOf(instance, "BaseEntity"));
+        assertEquals("BasePlayer", playerClass.get("ClassName").tojstring());
 
         LuaJEngineBackend engine = new LuaJEngineBackend(List.of(main));
-        assertEquals("registered", ((LuaValue) engine.execute(main, context).raw()).tojstring());
+        LuaValue result = (LuaValue) engine.execute(main, context).raw();
+        assertEquals("registered", result.get(1).tojstring());
+        assertEquals("BasePlayer", result.get(2).tojstring());
     }
 
     @Test
@@ -379,7 +370,7 @@ final class MLuaRuntimeIntegrationTest {
         MLuaScript main = script("mlua", ScriptType.SERVER, "side_service.server.lua", "side_service", "return true");
         MLuaServiceRegistry services = new MLuaServiceRegistry();
         services.register("ClientOnly", Side.CLIENT, BaseProbeService::new,
-            "Client-only test service.", java.util.Map.of());
+            "Client-only test service.", java.util.Map.of("GetValue", "Returns the fixture value."));
         MLuaContext context = context(main, Side.SERVER, services, new MLuaTaskScheduler());
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
@@ -392,9 +383,9 @@ final class MLuaRuntimeIntegrationTest {
         MLuaScript main = script("mlua", ScriptType.SERVER, "side_service.server.lua", "side_service", "return true");
         MLuaServiceRegistry services = new MLuaServiceRegistry();
         services.register("SideService", Side.SERVER, context -> new NamedService("server"),
-            "Side-specific test service.", java.util.Map.of());
+            "Side-specific test service.", java.util.Map.of("Probe", "Returns the fixture probe value."));
         services.register("SideService", Side.CLIENT, context -> new NamedService("client"),
-            "Side-specific test service.", java.util.Map.of());
+            "Side-specific test service.", java.util.Map.of("Probe", "Returns the fixture probe value."));
 
         assertEquals("server", services.create("SideService", context(main, Side.SERVER, services, new MLuaTaskScheduler())).name());
         assertEquals("client", services.create("SideService", context(main, Side.CLIENT, services, new MLuaTaskScheduler())).name());
@@ -601,13 +592,14 @@ final class MLuaRuntimeIntegrationTest {
 
         // First execute the script to get the state object and define entrypoints
         LuaValue state = (LuaValue) engine.execute(main, serverContext).raw();
+        LuaValue clientState = (LuaValue) engine.execute(main, clientContext).raw();
 
-        // Then run entrypoints which should modify that same state object
+        // Entrypoints share state within each side, while client and server have separate script environments.
         assertTrue(engine.executeEntrypoint(main, serverContext, "run_server"));
         assertTrue(engine.executeEntrypoint(main, clientContext, "run_client"));
 
         assertEquals(1, state.get("server").toint());
-        assertEquals(1, state.get("client").toint());
+        assertEquals(1, clientState.get("client").toint());
         assertEquals("SERVER", state.get("lastServerSide").tojstring());
         assertEquals("CLIENT", state.get("lastClientSide").tojstring());
     }
@@ -1030,20 +1022,14 @@ final class MLuaRuntimeIntegrationTest {
     }
 
     private MLuaContext contextWithJava(MLuaScript script) {
-        MLuaServiceRegistry services = new MLuaServiceRegistry();
+        MLuaRuntime runtime = new MLuaRuntime();
+        runtime.registerClass("Object", null, "Root class for test fixtures.");
+        runtime.registerInstanceBaseClass("Instance", "Object", "Base class for live test instances.");
+        runtime.registerServiceBaseClass("Service", "Instance", "Base class for test services.");
         MLuaModule.ServiceEntry javaService = new JavaModule().services().get(0);
-        services.register("Java", Side.BOTH, javaService.factory(), javaService.description(),
+        runtime.registerService("Java", Side.BOTH, javaService.factory(), javaService.description(),
             javaService.functionDescriptions());
-        return new MLuaContext(
-                script,
-                Side.SERVER,
-                RegistrationPhase.RUNTIME,
-                services,
-                new MLuaTaskScheduler(),
-                new MLuaModuleCache(),
-                null,
-                temp.resolve("data")
-        );
+        return context(runtime, script, Side.SERVER);
     }
 
     private MLuaScript script(String owner, ScriptType type, String relativePath, String moduleId, String source) {
@@ -1064,6 +1050,11 @@ final class MLuaRuntimeIntegrationTest {
         @Override public LuaTable toLua() {
             LuaTable table = new LuaTable();
             table.set("Value", "registered");
+            table.set("GetValue", new org.luaj.vm2.lib.VarArgFunction() {
+                @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
+                    return LuaValue.valueOf("registered");
+                }
+            });
             return table;
         }
     }

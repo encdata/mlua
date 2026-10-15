@@ -48,38 +48,46 @@ final class MLuaModuleClassRegistrationTest {
         return new MLuaModule() {
             @Override public String id() { return id; }
             @Override public Side side() { return side; }
-            @Override public void registerClasses(MLuaRegistration registration) { registration.registerClass(className, null); }
+            @Override public void registerClasses(MLuaRegistration registration) {
+                registration.registerClass(className, null, "A class used by the module class fixture.");
+            }
         };
     }
 
     private static final class RecordingRegistration implements MLuaRegistration {
         private final Set<String> names = new HashSet<>();
+        private final dev.mlua.core.classes.MLuaClassRegistry classes = new dev.mlua.core.classes.MLuaClassRegistry();
 
         @Override
         public LuaTable registerClass(String name, String parentName) {
             names.add(name);
-            return new LuaTable();
+            return classes.register(name, parentName, "A test class.");
         }
 
         @Override
         public LuaTable registerClass(String name, String parentName, String description) {
-            return registerClass(name, parentName);
+            names.add(name);
+            return classes.register(name, parentName, description);
         }
 
         @Override
         public LuaTable registerClassTable(String name, LuaTable classTable, String parentName) {
             names.add(name);
-            return classTable;
+            return classes.register(name, classTable, parentName);
         }
 
         @Override
         public LuaTable registerClassTable(String name, LuaTable classTable, String parentName, String description) {
-            return registerClassTable(name, classTable, parentName);
+            names.add(name);
+            return classes.register(name, classTable, parentName, description);
         }
 
         @Override
         public LuaTable classTable(String name) {
-            return null;
+            return classes.get(name);
         }
+
+        @Override public Set<String> classNames() { return classes.names(); }
+        @Override public boolean unregisterClass(String name) { names.remove(name); return classes.unregister(name); }
     }
 }

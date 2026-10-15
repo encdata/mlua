@@ -2,6 +2,7 @@ package dev.mlua.runtime.client;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.math.MLuaVector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.luaj.vm2.LuaTable;
@@ -24,10 +25,8 @@ final class MLuaClientModelManagerScopeTest {
         UUID uuid = UUID.randomUUID();
         MLuaEntityScope clientOverworld = new MLuaEntityScope(Side.CLIENT, "minecraft:overworld", uuid, 9);
         MLuaEntityScope clientNether = new MLuaEntityScope(Side.CLIENT, "minecraft:the_nether", uuid, 9);
-        LuaTable overworldOffset = new LuaTable();
-        overworldOffset.set("X", LuaValue.valueOf(1));
-        LuaTable netherOffset = new LuaTable();
-        netherOffset.set("X", LuaValue.valueOf(2));
+        LuaTable overworldOffset = MLuaVector.vector3(1, 0, 0);
+        LuaTable netherOffset = MLuaVector.vector3(2, 0, 0);
         MLuaClientModelManager.setOffset(clientOverworld, "head", overworldOffset);
         MLuaClientModelManager.setOffset(clientNether, "head", netherOffset);
 
@@ -43,10 +42,8 @@ final class MLuaClientModelManagerScopeTest {
         MLuaEntityScope scope = new MLuaEntityScope(Side.CLIENT, "minecraft:overworld", uuid, 9);
         var first = new MLuaClientModelManager.Owner(new Object(), "first");
         var second = new MLuaClientModelManager.Owner(new Object(), "second");
-        LuaTable firstOffset = new LuaTable();
-        firstOffset.set("X", 1);
-        LuaTable secondOffset = new LuaTable();
-        secondOffset.set("X", 2);
+        LuaTable firstOffset = MLuaVector.vector3(1, 0, 0);
+        LuaTable secondOffset = MLuaVector.vector3(2, 0, 0);
 
         MLuaClientModelManager.setOffset(scope, "head", firstOffset, first);
         MLuaClientModelManager.setOffset(scope, "head", secondOffset, second);

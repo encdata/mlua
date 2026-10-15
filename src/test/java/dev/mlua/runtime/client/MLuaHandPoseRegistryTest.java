@@ -33,6 +33,7 @@ final class MLuaHandPoseRegistryTest {
 
     @Test
     void interpolatesCallbacksAndKeepsTheLastPoseAfterCallbackFailure() {
+        net.minecraft.server.Bootstrap.bootStrap();
         MLuaHandPoseRegistry registry = new MLuaHandPoseRegistry();
         var owner = new MLuaHandPoseRegistry.Owner(new Object(), "animated-addon");
         LuaValue callback = JsePlatform.standardGlobals().load("return function() end").call();

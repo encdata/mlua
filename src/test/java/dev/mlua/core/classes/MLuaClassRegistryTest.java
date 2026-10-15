@@ -30,7 +30,9 @@ final class MLuaClassRegistryTest {
         child.set("Shared", LuaValue.NIL);
         assertEquals("first", child.get("Shared").tojstring());
         assertEquals("first-only", child.get("FirstOnly").tojstring());
-        assertTrue(child.get("IsA").call(child, LuaValue.valueOf("First")).toboolean());
+        LuaTable instance = new LuaTable();
+        registry.attachInstance(instance, "Child", null);
+        assertTrue(registry.isA(instance, "First"));
         assertThrows(IllegalArgumentException.class,
             () -> registry.register("Invalid", new LuaTable(), "First", "Second"));
     }
@@ -45,17 +47,20 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
-    void unregisteringAParentRefreshesExistingChildLookup() {
+    void parentClassCannotBeRemovedWhileAChildDependsOnIt() {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         LuaTable parent = registry.register("Parent", (String) null);
         parent.set("Inherited", "value");
         LuaTable child = registry.register("Child", "Parent");
 
         assertEquals("value", child.get("Inherited").tojstring());
-        registry.unregister("Parent");
+        LuaTable instance = new LuaTable();
+        registry.attachInstance(instance, "Child", null);
+        assertTrue(registry.isA(instance, "Parent"));
+        assertFalse(registry.unregister("Parent"));
 
-        assertTrue(child.get("Inherited").isnil());
-        assertFalse(child.get("IsA").call(child, LuaValue.valueOf("Parent")).toboolean());
+        assertEquals("value", child.get("Inherited").tojstring());
+        assertTrue(registry.isA(instance, "Parent"));
     }
 
     @Test

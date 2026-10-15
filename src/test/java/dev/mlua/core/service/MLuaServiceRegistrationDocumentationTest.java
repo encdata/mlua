@@ -34,9 +34,13 @@ final class MLuaServiceRegistrationDocumentationTest {
                 table.set("DoThing", new VarArgFunction() {
                     @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
                 });
+                table.set("Probe", new VarArgFunction() {
+                    @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
+                });
                 return table;
             }
-        }, "Example service used to verify function documentation.", java.util.Map.of());
+        }, "Example service used to verify function documentation.",
+            java.util.Map.of("Probe", "Returns the documented fixture probe value."));
         MLuaContext context = new MLuaContext(script, Side.SERVER, RegistrationPhase.RUNTIME,
             services, new MLuaTaskScheduler(), new MLuaModuleCache(), null, root.resolve("data"));
 
