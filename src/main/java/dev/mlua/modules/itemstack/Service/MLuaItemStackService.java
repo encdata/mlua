@@ -74,8 +74,9 @@ public final class MLuaItemStackService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Sets the stack count to a whole number of zero or greater.")
-    public void SetCount(LuaValue item, int count) {
-        MLuaItemWrapper.setCount(item, count, context.mlua().registration());
+    public void SetCount(LuaValue item, LuaValue count) {
+        int wholeCount = MLuaLuaArguments.wholeInt(count, "ItemStackService:SetCount", "count");
+        MLuaItemWrapper.setCount(item, wholeCount, context.mlua().registration());
     }
 
     @MLuaDescription("Returns an item stack's NBT data or one value by key.")
