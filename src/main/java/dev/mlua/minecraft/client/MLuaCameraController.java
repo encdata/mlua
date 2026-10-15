@@ -96,8 +96,9 @@ public final class MLuaCameraController {
     }
     public static void tickHandOffsets() {
        Minecraft minecraft = MLuaMinecraftClient.instance();
-       AbstractClientPlayer player = minecraft != null && minecraft.player instanceof AbstractClientPlayer clientPlayer
-          ? clientPlayer : null;
+       Object clientPlayer = minecraft == null ? null : minecraft.player;
+       AbstractClientPlayer player = clientPlayer instanceof AbstractClientPlayer abstractClientPlayer
+          ? abstractClientPlayer : null;
        sampleHandOffset(false, player);
        sampleHandOffset(true, player);
     }
