@@ -24,17 +24,29 @@ dependencies {
     minecraft "net.minecraftforge:forge:${providers.gradleProperty('minecraftVersion').get()}-${providers.gradleProperty('forgeVersion').get()}"
 }
 
+sourceSets {
+    smoke {
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+def smokeModJar = tasks.register('smokeModJar', Jar) {
+    archiveClassifier = 'smoke'
+    from sourceSets.smoke.output
+}
+
 tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
-    dependsOn tasks.named('jar')
+    dependsOn smokeModJar
     doFirst {
         copy {
-            from tasks.named('jar').get().archiveFile
+            from smokeModJar.get().archiveFile
             into project.file('run/mods')
         }
     }
 }
 
-processResources {
+tasks.named('processSmokeResources').configure {
     inputs.properties([
         minecraftVersion: providers.gradleProperty('minecraftVersion').get(),
         forgeVersion: providers.gradleProperty('forgeVersion').get(),
