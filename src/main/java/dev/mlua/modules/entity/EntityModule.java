@@ -29,7 +29,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:SetCFrame(value: CFrame)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:LookAt(target: Vector3|CFrame|Entity)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:DistanceTo(target: Vector3|CFrame|Entity)", "number"));
-        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetNearbyEntities(radius: number)", "Entity[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetNearbyEntities(radius: number, filters: string|EntityQuery?)", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetLevel()", "World"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetDimension()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetLookVector()", "Vector3"));
@@ -129,7 +129,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:GetByUUID(uuid: string)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:FindByUUID(uuid: string)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:GetAll()", "Entity[]"));
-        docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:GetNearby(center: Entity|Vector3|CFrame, radius: number)", "Entity[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:GetNearby(center: Entity|Vector3|CFrame, radius: number, filters: string|EntityQuery?)", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Spawn(typeId: string, position: Entity|Vector3|CFrame, world: World|string?)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:Teleport(entity: Entity, position: Vector3|CFrame)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:SetVelocity(entity: Entity, velocity: Vector3)", "void"));

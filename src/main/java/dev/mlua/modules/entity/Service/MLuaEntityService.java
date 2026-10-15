@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
+import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
@@ -61,8 +62,8 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return allEntities();
     }
 
-    @MLuaDescription("Returns entities in the same world within a spherical radius of a Vector3, CFrame, or entity.")
-    public LuaTable GetNearby(LuaValue centerValue, double radius) {
+    @MLuaDescription("Returns entities in the same world within a spherical radius, optionally matching an EntityQuery filter.")
+    public LuaTable GetNearby(LuaValue centerValue, double radius, Optional<LuaValue> requestedFilter) {
         radius = MLuaLuaArguments.finiteNonNegativeNumber(radius, "EntityService:GetNearby", "radius");
         Entity centerEntity = entityValue(centerValue);
         double[] center = centerEntity == null
@@ -76,7 +77,8 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         int index = 1;
         double radiusSquared = radius * radius;
         for (Entity entity : level.getEntities((Entity) null, box, entity -> entity != centerEntity)) {
-            if (entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared) {
+            if (entity.distanceToSqr(center[0], center[1], center[2]) <= radiusSquared
+                && MLuaEntityQuery.matches(entity, requestedFilter.orElse(LuaValue.NIL), context.mlua().registration())) {
                 out.set(index++, wrap(entity));
             }
         }

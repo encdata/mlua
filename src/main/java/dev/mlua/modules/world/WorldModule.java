@@ -455,15 +455,15 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:DropItem(position: Vector3|CFrame, itemId: string, count: number?)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:Explode(position: Vector3|CFrame, power: number?, fire: boolean?)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SpawnLightning(position: Vector3|CFrame)", "Entity?"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindEntitiesInRadius(center: Vector3|CFrame, radius: number, filters: EntityQuery?)", "Entity[]"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindEntitiesInBox(minimum: Vector3|CFrame, maximum: Vector3|CFrame, filters: EntityQuery?)", "Entity[]"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindEntitiesInBounds(bounds: EntityBounds, filters: EntityQuery?)", "Entity[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindEntitiesInRadius(center: Vector3|CFrame, radius: number, filters: string|EntityQuery?)", "Entity[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindEntitiesInBox(minimum: Vector3|CFrame, maximum: Vector3|CFrame, filters: string|EntityQuery?)", "Entity[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindEntitiesInBounds(bounds: EntityBounds, filters: string|EntityQuery?)", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindPlayersInBounds(bounds: EntityBounds)", "Player[]"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindPlayersInRadius(center: Vector3|CFrame, radius: number)", "Player[]"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindNearestPlayer(position: Vector3|CFrame, maxDistance: number?)", "Player?"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindNearestEntity(position: Vector3|CFrame, maxDistance: number?, filters: EntityQuery?)", "Entity?"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindNearestEntity(position: Vector3|CFrame, maxDistance: number?, filters: string|EntityQuery?)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?): BlockRaycastResult?", null));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:RaycastEntity(origin: Vector3|CFrame, direction: Vector3, distance: number?, filters: EntityQuery?): EntityRaycastResult?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:RaycastEntity(origin: Vector3|CFrame, direction: Vector3, distance: number?, filters: string|EntityQuery?): EntityRaycastResult?", null));
         docs.register(MLuaDocBuilder.Registration.clazz("RaycastResult", "WorldModule", "A world ray hit with a typed hit position, surface normal, and distance.", "classes/raycast-result.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("RaycastResult", "RaycastResult.HitType", "string", "The kind of ray hit.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("RaycastResult", "RaycastResult.Position", "Vector3", "The point where the ray intersects the hit bounds.", "read:Read"));
@@ -480,7 +480,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Raycast from the player's view",
             "RaycastEntity finds the closest matching entity along the direction and stops at colliding blocks. Both block and entity results inherit RaycastResult; block hits also return the live block instance.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal entityHit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude = player })\nif entityHit then\n    print(entityHit:IsA(\"RaycastResult\"), entityHit.Entity.Name, entityHit.Distance, entityHit.Normal)\nend\n\nlocal blockHit = world:Raycast(player.EyePosition, player.LookVector, 32)\nif blockHit then\n    print(blockHit:IsA(\"BlockRaycastResult\"), blockHit.Block, blockHit.BlockInstance.Id, blockHit.Face, blockHit.Normal)\nend"));
-        docs.register(MLuaDocBuilder.Registration.type("EntityQuery", null, "Filters accepted by world entity search methods."));
+        docs.register(MLuaDocBuilder.Registration.type("EntityQuery", null, "A table of filters accepted by world, EntityService, and entity instance searches. Pass a string when matching one registered entity type."));
         docs.register(MLuaDocBuilder.Registration.field("EntityQuery", "type", "string", "Match this registered entity type identifier."));
         docs.register(MLuaDocBuilder.Registration.field("EntityQuery", "types", "string[]", "Allow only these registered entity type identifiers; combines with type when both are set."));
         docs.register(MLuaDocBuilder.Registration.field("EntityQuery", "exclude_types", "string[]", "Exclude these registered entity type identifiers."));

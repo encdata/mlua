@@ -96,7 +96,7 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetLookVector", "Returns the direction this entity is facing.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "LookAt", "Turns this entity toward a finite Vector3, CFrame, or live entity position.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "DistanceTo", "Returns the distance from this entity to a finite Vector3, CFrame, or live entity position.");
-        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetNearbyEntities", "Returns all entity types within a box expanded around this entity's bounds by a finite, non-negative radius.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetNearbyEntities", "Returns entities in a box expanded around this entity's bounds, optionally matching an EntityQuery filter.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsAlive", "Returns whether this entity is alive.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsOnGround", "Returns whether this entity is on the ground.");
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "GetIsInWater", "Returns whether this entity is in water.");
