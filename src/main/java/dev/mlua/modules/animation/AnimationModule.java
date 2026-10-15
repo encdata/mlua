@@ -55,12 +55,32 @@ public class AnimationModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
-        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:Create(keyframes: KeyframeDefinition[])", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:RegisterAnimation(id: string, animation: Animation)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetAnimation(id: string)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:SetPose(entity: Entity, bone: string, cframe: CFrame)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetPose(entity: Entity)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:ClearPose(entity: Entity)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:Create(keyframes: KeyframeDefinition[])", "Animation"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:RegisterAnimation(id: string, animation: Animation|KeyframeDefinition[])", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetAnimation(id: string)", "Animation|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:SetPose(entity: Entity|number, bone: string, cframe: CFrame)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetPose(entity: Entity|number)", "table<string, CFrame>"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:ClearPose(entity?: Entity|number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetRegisteredAnimations()", "table<string, Animation>"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetAnimationPriority()", "AnimationPriority"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:Pause()", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:Resume()", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustSpeed(speed: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetTimePosition()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:SetTimePosition(timePosition: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetTrackId()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetPriority()", "AnimationPriority"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetLength()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetSpeed()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:IsPlaying()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:IsPaused()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetLooped()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:SetLooped(looped: boolean)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetWeight()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimation()", "Animation"));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Play(fadeTime?: number)", "Starts playback and optionally fades from zero to full weight over fadeTime seconds. Calling Play() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Stop(fadeTime?: number)", "Stops playback and optionally fades the pose out over fadeTime seconds. Calling Stop() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "Fades the track toward weight (0 to 1), optionally over fadeTime seconds.", "weight, fadeTime", "void", "client:Client", ""));
