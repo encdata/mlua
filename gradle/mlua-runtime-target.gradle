@@ -88,6 +88,14 @@ sourceSets.main.resources.setSrcDirs([
     rootProject.file('src/generated/resources')
 ])
 
+// Shared runtime regression tests live beside the root runtime sources rather
+// than in each generated Minecraft target project. Wire them into one real
+// Gradle test source set so the normal build task actually compiles and runs
+// them instead of reporting test NO-SOURCE for every module.
+if (project.path == ':mlua-runtime-1.20.1') {
+    sourceSets.test.java.setSrcDirs([rootProject.file('src/test/java')])
+}
+
 tasks.named('compileJava').configure {
     dependsOn tasks.prepareRuntimeRootSources, prepareRuntimeMcImplSources, prepareRuntimeForgeBridgeSources, prepareRuntimeForgeAdapterSources
 }
