@@ -348,7 +348,10 @@ public final class MLuaClientRenderManager {
         public void setRotation(double rotation) { this.rotation = rotation; }
         public void setVisible(boolean visible) { this.visible = visible; }
         public void setZIndex(int zIndex) { this.zIndex = zIndex; }
-        public void setWorldSpace(boolean worldSpace) { this.worldSpace = worldSpace; }
+        public void setWorldSpace(boolean worldSpace) {
+            if (!worldSpace) setFollowEntityScope(null);
+            this.worldSpace = worldSpace;
+        }
         public void setTarget(RenderTarget target) {
             if (target == null) throw new IllegalArgumentException("Render target must be provided");
             if (target == RenderTarget.WORLD_MODEL && type != RenderType.MESH && type != RenderType.BBMODEL) {
