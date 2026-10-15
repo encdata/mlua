@@ -634,14 +634,18 @@ public final class MLuaEntityWrapper {
          }
          LuaValue priorityVal = args.arg(3);
          dev.mlua.common.enums.AnimationPriority priority = dev.mlua.common.enums.AnimationPriority.Idle;
-         if (priorityVal.isstring()) {
+         if (!priorityVal.isnil()) {
+            if (!priorityVal.isstring()) {
+               throw new LuaError("[MLua] LoadAnimation priority must be an AnimationPriority value or string.");
+            }
             try {
                priority = dev.mlua.common.enums.AnimationPriority.valueOf(priorityVal.tojstring());
             } catch (IllegalArgumentException e) {
                throw new LuaError("[MLua] Unknown AnimationPriority: " + priorityVal.tojstring());
             }
          }
-         float fadeTime = (float) args.arg(4).optdouble(0.0);
+         float fadeTime = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
+               args, 4, 0.0f, "Entity:LoadAnimation", "fadeTime");
          MLuaAnimationTrack track = MLuaAnimationController.loadAnimation(entity, anim, priority, registration);
          if (fadeTime > 0.001f) {
             track.setFadeSpeed(1.0f / fadeTime);
