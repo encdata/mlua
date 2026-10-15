@@ -85,7 +85,8 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
         descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
         descriptions.put("TypeOf", "Returns the runtime Java class name of a Java value, object proxy, or class proxy. Returns nil for nil.");
-        descriptions.put("GetMethods", "Lists Java methods with structured parameter and return types, signatures, declaring classes, and abstract, default, varargs, and static status.");
+        descriptions.put("GetMethods", "Lists Java methods with structured parameter and return types, readable signatures, JVM descriptors, declaring classes, and abstract, default, varargs, and static status.");
+        descriptions.put("Invoke", "Calls an exact Java method using its JVM descriptor. Use a Java class proxy or class name for static calls, and a Java object proxy for instance calls.");
         descriptions.put("GetFields", "Lists Java fields with raw and generic types, declaring classes, and whether they are static or final.");
         descriptions.put("GetField", "Reads a Java instance or static field by its exact Java name, including inherited superclass and interface fields.");
         descriptions.put("SetField", "Writes a non-final Java instance or static field and returns its new value.");
@@ -238,6 +239,8 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     entry.set("ReturnType", method.getReturnType().getName());
                     entry.set("GenericReturnType", method.getGenericReturnType().getTypeName());
                     entry.set("Descriptor", methodSignature(method));
+                    entry.set("Signature", methodSignature(method));
+                    entry.set("JvmDescriptor", MLuaClassViewer.descriptor(method));
                     methods.set(index++, entry);
                 }
                 return methods;
@@ -260,6 +263,49 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     fields.set(index++, entry);
                 }
                 return fields;
+            }
+        });
+        table.set("Invoke", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                int targetIndex = serviceArgumentIndex(args, table, 1);
+                LuaValue targetValue = args.arg(targetIndex);
+                String methodName = args.checkjstring(targetIndex + 1);
+                String descriptor = args.checkjstring(targetIndex + 2);
+                Object target;
+                boolean staticCall;
+                if (targetValue.isstring() || isJavaClassProxy(targetValue)) {
+                    target = resolveClassArg(targetValue);
+                    staticCall = true;
+                } else {
+                    target = unwrapJavaValue(targetValue);
+                    if (target == null) throw new LuaError("[MLua] Java:Invoke target must be a Java class or object");
+                    staticCall = false;
+                }
+                Class<?> clazz = target instanceof Class<?> javaClass ? javaClass : target.getClass();
+                List<Method> candidates = collectMethods(clazz).stream()
+                    .filter(method -> method.getName().equals(methodName))
+                    .filter(method -> Modifier.isStatic(method.getModifiers()) == staticCall)
+                    .filter(method -> MLuaClassViewer.descriptor(method).equals(descriptor))
+                    .toList();
+                if (candidates.isEmpty()) {
+                    throw new LuaError("[MLua] No exact " + (staticCall ? "static " : "instance ") + "method "
+                        + clazz.getName() + "." + methodName + descriptor);
+                }
+                Method method = candidates.get(0);
+                Object[] rawArgs = extractInvocationArgs(args, targetIndex + 3);
+                if (rawArgs.length != method.getParameterCount()) {
+                    throw new LuaError("[MLua] Java:Invoke expected " + method.getParameterCount()
+                        + " arguments for " + clazz.getName() + "." + methodName + descriptor
+                        + " but received " + rawArgs.length);
+                }
+                try {
+                    Object result = method.invoke(staticCall ? null : target, convertArguments(rawArgs, method));
+                    return wrapJavaValue(result, method.getGenericReturnType());
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException error) {
+                    throw new LuaError("[MLua] Failed to invoke " + clazz.getName() + "." + methodName
+                        + descriptor + ": " + rootMessage(error));
+                }
             }
         });
         table.set("GetField", new VarArgFunction() {
@@ -730,6 +776,11 @@ public final class MLuaJavaService extends MLuaServiceBase {
         if (meta == null || !meta.istable()) return false;
         LuaValue marker = meta.checktable().rawget("__mlua_java_proxy");
         return marker.isuserdata() && marker.touserdata() == this.javaProxyMarker;
+    }
+
+    private boolean isJavaClassProxy(LuaValue value) {
+        return isJavaProxy(value) && !javaProxyField(value, "__javaClass").isnil()
+            && javaProxyField(value, "__javaObject").isnil();
     }
 
     private LuaValue javaProxyField(LuaValue value, String name) {

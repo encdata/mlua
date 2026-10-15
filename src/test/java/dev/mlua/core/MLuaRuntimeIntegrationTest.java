@@ -701,6 +701,16 @@ final class MLuaRuntimeIntegrationTest {
                 local methods = Java:GetMethods(Fixture)
                 local fields = Java:GetFields(Fixture)
                 local enumValues = Java:GetEnumConstants(EnumType)
+                local exactStaticDescriptor
+                local exactInstanceDescriptor
+                for i = 1, #methods do
+                    local method = methods[i]
+                    if method.Name == "choose" and method.Static and method.Parameters[1].Type == "java.lang.String" then
+                        exactStaticDescriptor = method.JvmDescriptor
+                    elseif method.Name == "pick" and not method.Static and method.Parameters[1].Type == "java.lang.Double" then
+                        exactInstanceDescriptor = method.JvmDescriptor
+                    end
+                end
 
                 local list = Java:New("java.util.ArrayList")
                 list:add("one")
@@ -737,7 +747,10 @@ final class MLuaRuntimeIntegrationTest {
                     arrayAfter,
                     #array,
                     methods[1].Name ~= nil,
-                    fields[1].Name ~= nil
+                    fields[1].Name ~= nil,
+                    Java:Invoke("dev.mlua.core.MLuaRuntimeIntegrationTest$JavaBridgeFixture", "choose", exactStaticDescriptor, "hello"),
+                    Java:Invoke(instance, "pick", exactInstanceDescriptor, 5),
+                    exactStaticDescriptor ~= nil and exactInstanceDescriptor ~= nil
                 }
                 """);
 
@@ -762,6 +775,9 @@ final class MLuaRuntimeIntegrationTest {
         assertEquals(3, result.get(16).toint());
         assertTrue(result.get(17).toboolean());
         assertTrue(result.get(18).toboolean());
+        assertEquals("string", result.get(19).tojstring());
+        assertEquals("number", result.get(20).tojstring());
+        assertTrue(result.get(21).toboolean());
     }
 
     @Test
