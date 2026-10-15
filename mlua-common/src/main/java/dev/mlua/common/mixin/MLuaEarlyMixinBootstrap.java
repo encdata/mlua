@@ -39,18 +39,18 @@ public final class MLuaEarlyMixinBootstrap {
          Globals globals = JsePlatform.standardGlobals();
          setupEarlyEnvironment(globals);
 
-         int total = 0;
+         int executedScripts = 0;
          Set<String> seen = new HashSet<>();
          Path scriptsDir = gameDir.resolve("mlua").resolve("scripts");
          if (Files.isDirectory(scriptsDir)) {
-            total += executeMixinScriptsFromDir(scriptsDir, globals, "game directory " + scriptsDir, seen);
+            executedScripts += executeMixinScriptsFromDir(scriptsDir, globals, "game directory " + scriptsDir, seen);
          }
 
-         total += executeMixinScriptsFromClasspath(globals, seen);
-         if (total > 0) {
+         executedScripts += executeMixinScriptsFromClasspath(globals, seen);
+         if (executedScripts > 0) {
             MixinRuleEngine.markEarlyBootstrapDone();
             LOGGER.info("[MLua] Early bootstrap complete - {} scripts executed, {} mixin rules registered",
-               total, MixinRuleEngine.get().getRules().size());
+               executedScripts, MixinRuleEngine.get().getRules().size());
          } else {
             LOGGER.info("[MLua] Early bootstrap found no mixin scripts in {}", gameDir);
          }
@@ -148,16 +148,19 @@ public final class MLuaEarlyMixinBootstrap {
       }
 
       LOGGER.info("[MLua] Early bootstrapping {} mixin scripts from {}", scripts.size(), sourceLabel);
+      int executed = 0;
       for (Path script : scripts) {
          try {
             String source = Files.readString(script, StandardCharsets.UTF_8);
-            executeScript(script.getFileName().toString(), sourceLabel, script.toAbsolutePath().normalize().toString(),
-               () -> globals.load(source, script.toString()).call());
+            if (executeScript(script.getFileName().toString(), sourceLabel, script.toAbsolutePath().normalize().toString(),
+                  () -> globals.load(source, script.toString()).call())) {
+               executed++;
+            }
          } catch (Exception e) {
             LOGGER.error("[MLua] Failed to read mixin script '" + script + "'", e);
          }
       }
-      return scripts.size();
+      return executed;
    }
 
    private static int executeMixinScriptsFromClasspath(Globals globals, Set<String> seen) {
@@ -312,10 +315,11 @@ public final class MLuaEarlyMixinBootstrap {
          if (entry != null) {
             try {
                String source = new String(jar.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
-               executeScript(scriptName, "JAR " + jarPath,
-                  jarPath + "!/mlua/scripts/" + scriptName,
-                  () -> globals.load(source, scriptName).call());
-               count++;
+               if (executeScript(scriptName, "JAR " + jarPath,
+                     jarPath + "!/mlua/scripts/" + scriptName,
+                     () -> globals.load(source, scriptName).call())) {
+                  count++;
+               }
             } catch (Exception e) {
                LOGGER.error("[MLua] Failed to read script '" + scriptName + "'", e);
             }
@@ -325,14 +329,19 @@ public final class MLuaEarlyMixinBootstrap {
       return count;
    }
 
-   private static void executeScript(String name, String sourceLabel, String scriptPath, Runnable task) {
+   private static boolean executeScript(String name, String sourceLabel, String scriptPath, Runnable task) {
       String previousScope = ACTIVE_SCRIPT_SCOPE.get();
-      ACTIVE_SCRIPT_SCOPE.set(MLuaMixinCallbackRegistry.scriptScope(scriptPath));
+      String scope = MLuaMixinCallbackRegistry.scriptScope(scriptPath);
+      ACTIVE_SCRIPT_SCOPE.set(scope);
       try {
          task.run();
          LOGGER.info("[MLua] Early-executed mixin script: {} from {}", name, sourceLabel);
-      } catch (Exception e) {
+         return true;
+      } catch (Throwable e) {
+         MixinRuleEngine.get().unregisterScope(scope);
          LOGGER.error("[MLua] Early mixin script '" + name + "' from " + sourceLabel + " failed", e);
+         if (e instanceof Error error) throw error;
+         return false;
       } finally {
          if (previousScope == null) ACTIVE_SCRIPT_SCOPE.remove();
          else ACTIVE_SCRIPT_SCOPE.set(previousScope);
