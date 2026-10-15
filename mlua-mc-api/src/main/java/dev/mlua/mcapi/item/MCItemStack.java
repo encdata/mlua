@@ -28,6 +28,7 @@ public interface MCItemStack {
         @Override public MCComponent getDisplayName() { return MCComponent.literal(""); }
         @Override public MCItemStack copy() { return EMPTY; }
         @Override public MCCompoundTag getOrCreateTagElement(String key) { throw immutable(); }
+        @Override public boolean canCombine(MCItemStack other) { return false; }
         @Override public int getEnchantmentLevel(MCEnchantment enchantment) { return 0; }
     };
 
