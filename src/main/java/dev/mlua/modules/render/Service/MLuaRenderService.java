@@ -55,6 +55,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness");
         registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
         registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
+        registerObjectProperty(registration, "Target", "string", "Render stage: HUD, WorldOverlay, or WorldModel for mesh/model objects.", "GetTarget", "SetTarget");
         registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
         registerObjectProperty(registration, "ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
         registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
@@ -77,6 +78,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetThickness", "Returns the line or outline thickness."}, {"SetThickness", "Sets a finite thickness of at least one pixel."},
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
+            {"GetTarget", "Returns the object's render target."}, {"SetTarget", "Selects Hud, WorldOverlay, or WorldModel."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
             {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Sets a finite uniform model scale of at least 0.001."},
             {"GetFollowEntity", "Returns the followed entity id, or nil."}, {"SetFollowEntity", "Attaches the object to an entity or clears the attachment with nil."},
@@ -467,6 +469,16 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             requireObject(id).setWorldSpace(args.checkboolean(2));
             return LuaValue.NONE;
         }));
+        operations.set("GetTarget", fn(args -> LuaValue.valueOf(requireObject(id).target().name())));
+        operations.set("SetTarget", fn(args -> {
+            String name = args.checkjstring(2).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
+            try {
+                requireObject(id).setTarget(MLuaClientRenderManager.RenderTarget.valueOf(name));
+            } catch (IllegalArgumentException invalid) {
+                throw new LuaError("[MLua] Invalid render target '" + name + "'. Use Hud, WorldOverlay, or WorldModel.");
+            }
+            return LuaValue.NONE;
+        }));
         operations.set("GetScaleWithDistance", fn(args -> LuaValue.valueOf(requireObject(id).scaleWithDistance())));
         operations.set("SetScaleWithDistance", fn(args -> {
             requireObject(id).setScaleWithDistance(args.checkboolean(2));
@@ -561,6 +573,9 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 throw new LuaError("[MLua] RenderObject property '" + propertyName + "' is read-only.");
             }
         }
+        if (provided.contains("Target") && provided.contains("WorldSpace")) {
+            throw new LuaError("[MLua] Set Target or WorldSpace in one RenderObject definition, not both.");
+        }
     }
 
     private void applyPropertyValues(MLuaClientRenderManager.RenderObject object, LuaTable props,
@@ -600,7 +615,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             setter.invoke(LuaValue.varargsOf(new LuaValue[]{instance, entry.getValue()}));
         }
         if ((values.containsKey("WorldPosition") || values.containsKey("EndWorldPosition"))
-            && !values.containsKey("WorldSpace")) {
+            && !values.containsKey("WorldSpace") && !values.containsKey("Target")) {
             LuaValue descriptor = descriptors.rawget("WorldSpace");
             LuaValue setter = descriptor.istable() ? descriptor.checktable().rawget("set") : LuaValue.NIL;
             if (setter.isfunction()) {

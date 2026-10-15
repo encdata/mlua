@@ -61,8 +61,7 @@ public final class MLuaClientRenderManager {
             var lookVector = rawCamera instanceof Camera ? ((Camera) rawCamera).getLookVector() : Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
             Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
             for (RenderObject object : OBJECTS.values()) {
-                if (!object.visible() || (object.type() != RenderType.MESH && object.type() != RenderType.BBMODEL)) continue;
-                if (!object.worldSpace() && object.followEntityScope() == null) continue;
+                if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL) continue;
                 renderWorldModel(pose, buffers, object, camera, look);
             }
         } catch (ReflectiveOperationException | RuntimeException ignored) {
@@ -387,8 +386,7 @@ public final class MLuaClientRenderManager {
             if (!object.visible) {
                 continue;
             }
-            if ((object.type == RenderType.MESH || object.type == RenderType.BBMODEL)
-                    && (object.worldSpace || object.followEntityScope != null)) {
+            if (object.target() == RenderTarget.WORLD_MODEL) {
                 continue;
             }
             render(graphics, object);
@@ -396,7 +394,7 @@ public final class MLuaClientRenderManager {
     }
 
     private static void render(GuiGraphics graphics, RenderObject object) {
-        if (object.worldSpace) {
+        if (object.target() == RenderTarget.WORLD_OVERLAY) {
             renderWorld(graphics, object);
             return;
         }
@@ -752,6 +750,12 @@ public final class MLuaClientRenderManager {
         BBMODEL
     }
 
+    public enum RenderTarget {
+        HUD,
+        WORLD_OVERLAY,
+        WORLD_MODEL
+    }
+
     public static final class RenderObject {
         private final int id;
         private final RenderType type;
@@ -803,6 +807,11 @@ public final class MLuaClientRenderManager {
         public boolean visible() { return visible; }
         public int zIndex() { return zIndex; }
         public boolean worldSpace() { return worldSpace; }
+        public RenderTarget target() {
+            if (!worldSpace) return RenderTarget.HUD;
+            return type == RenderType.MESH || type == RenderType.BBMODEL
+                ? RenderTarget.WORLD_MODEL : RenderTarget.WORLD_OVERLAY;
+        }
         public double worldX() { return worldX; }
         public double worldY() { return worldY; }
         public double worldZ() { return worldZ; }
@@ -829,6 +838,17 @@ public final class MLuaClientRenderManager {
         public void setVisible(boolean visible) { this.visible = visible; }
         public void setZIndex(int zIndex) { this.zIndex = zIndex; }
         public void setWorldSpace(boolean worldSpace) { this.worldSpace = worldSpace; }
+        public void setTarget(RenderTarget target) {
+            if (target == null) throw new IllegalArgumentException("Render target cannot be null");
+            if (target == RenderTarget.WORLD_MODEL && type != RenderType.MESH && type != RenderType.BBMODEL) {
+                throw new IllegalArgumentException("WorldModel target requires a Mesh or BBModel object");
+            }
+            if (target == RenderTarget.WORLD_OVERLAY && (type == RenderType.MESH || type == RenderType.BBMODEL)) {
+                throw new IllegalArgumentException("Mesh and BBModel objects use the WorldModel target");
+            }
+            if (target == RenderTarget.HUD) setFollowEntityScope(null);
+            this.worldSpace = target != RenderTarget.HUD;
+        }
         public void setWorldPosition(double x, double y, double z) { this.worldX = x; this.worldY = y; this.worldZ = z; }
         public void setEndPosition(double x, double y) { this.endX = x; this.endY = y; }
         public void setEndWorldPosition(double x, double y, double z) { this.endWorldX = x; this.endWorldY = y; this.endWorldZ = z; }
