@@ -802,9 +802,7 @@ public final class MLuaEntityWrapper {
    private static void bindCoreEntityMethods(LuaTable table, MCEntity entity) {
       net.minecraft.world.entity.Entity raw = ((MCEntityImpl)entity).inner();
       MLuaClassMethods.setInstanceMethod(table, "Kill", luaFn(() -> {
-         if (!(raw.level() instanceof ServerLevel serverLevel)) {
-            throw new LuaError("[MLua] Entity:Kill is only available for entities in a server world.");
-         }
+         ServerLevel serverLevel = requireServerEntityWorld(raw, "Kill");
          //--version 26.1
          raw.kill(serverLevel);
          //--endversion
@@ -814,10 +812,16 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "Remove", luaFn(() -> {
+         requireServerEntityWorld(raw, "Remove");
          raw.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "DistanceTo", varArg(args -> distanceTo(entity, args.arg(2))));
+   }
+
+   private static ServerLevel requireServerEntityWorld(net.minecraft.world.entity.Entity entity, String operation) {
+      if (entity.level() instanceof ServerLevel serverLevel) return serverLevel;
+      throw new LuaError("[MLua] Entity:" + operation + " is only available for entities in a server world.");
    }
 
    private static void bindEntityDataMethods(LuaTable table, net.minecraft.world.entity.Entity entity) {

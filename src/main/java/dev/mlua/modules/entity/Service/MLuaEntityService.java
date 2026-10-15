@@ -126,7 +126,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return wrap(entity);
     }
 
-    @MLuaDescription("Removes an entity from its world.")
+    @MLuaDescription("Removes an entity from its world. Server-side only.")
     public void Remove(LuaValue value) {
         invokeEntityMethod(requireEntity(value), "Remove");
     }
