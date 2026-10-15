@@ -349,6 +349,7 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/common/mixin/**'
     // The loader artifact owns shared enum classes used by the early mixin bootstrap.
     exclude 'dev/mlua/common/enums/**'
+    exclude 'dev/mlua/common/service/**'
     exclude 'dev/mlua/transformer/**'
     exclude 'org/luaj/**'
     exclude 'org/apache/bcel/**'

@@ -277,7 +277,6 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/mlua/runtime/**'
     exclude 'dev/mlua/loader/impl/forge/**'
     exclude 'dev/mlua/MLuaMod.java'
-    exclude 'dev/mlua/common/service/**'
 }
 
 tasks.register('generateMethodMapping') {

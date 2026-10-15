@@ -55,7 +55,7 @@ public final class MLuaEarlyMixinBootstrap {
             LOGGER.info("[MLua] Early bootstrap found no mixin scripts in {}", gameDir);
          }
       } catch (Throwable e) {
-         LOGGER.error("[MLua] Early bootstrap failed: {}", e.getMessage());
+         LOGGER.error("[MLua] Early bootstrap failed", e);
       }
    }
 
@@ -139,7 +139,7 @@ public final class MLuaEarlyMixinBootstrap {
             .sorted()
             .collect(Collectors.toList());
       } catch (Exception e) {
-         LOGGER.error("[MLua] Failed to scan directory {}: {}", dir, e.getMessage());
+         LOGGER.error("[MLua] Failed to scan directory " + dir, e);
          return 0;
       }
 
@@ -154,7 +154,7 @@ public final class MLuaEarlyMixinBootstrap {
             executeScript(script.getFileName().toString(), sourceLabel, script.toAbsolutePath().normalize().toString(),
                () -> globals.load(source, script.toString()).call());
          } catch (Exception e) {
-            LOGGER.error("[MLua] Failed to read mixin script '{}': {}", script, e.getMessage());
+            LOGGER.error("[MLua] Failed to read mixin script '" + script + "'", e);
          }
       }
       return scripts.size();
@@ -178,7 +178,7 @@ public final class MLuaEarlyMixinBootstrap {
          count += executeMixinScriptsFromCodeSource(globals, seen);
          count += executeMixinScriptsFromJavaClassPath(globals, seen);
       } catch (Exception e) {
-         LOGGER.error("[MLua] Failed to scan classpath for mixin scripts: {}", e.getMessage());
+         LOGGER.error("[MLua] Failed to scan classpath for mixin scripts", e);
       }
 
       return count;
@@ -206,7 +206,7 @@ public final class MLuaEarlyMixinBootstrap {
 
          return executeMixinScriptsFromJarPath(external, globals, seen);
       } catch (Exception e) {
-         LOGGER.error("[MLua] Failed to scan code source for mixin scripts: {}", e.getMessage());
+         LOGGER.error("[MLua] Failed to scan code source for mixin scripts", e);
       }
 
       return 0;
@@ -317,7 +317,7 @@ public final class MLuaEarlyMixinBootstrap {
                   () -> globals.load(source, scriptName).call());
                count++;
             } catch (Exception e) {
-               LOGGER.error("[MLua] Failed to read script '{}': {}", scriptName, e.getMessage());
+               LOGGER.error("[MLua] Failed to read script '" + scriptName + "'", e);
             }
          }
       }
@@ -332,7 +332,7 @@ public final class MLuaEarlyMixinBootstrap {
          task.run();
          LOGGER.info("[MLua] Early-executed mixin script: {} from {}", name, sourceLabel);
       } catch (Exception e) {
-         LOGGER.error("[MLua] Early mixin script '{}' from {} failed: {}", name, sourceLabel, e.toString());
+         LOGGER.error("[MLua] Early mixin script '" + name + "' from " + sourceLabel + " failed", e);
       } finally {
          if (previousScope == null) ACTIVE_SCRIPT_SCOPE.remove();
          else ACTIVE_SCRIPT_SCOPE.set(previousScope);

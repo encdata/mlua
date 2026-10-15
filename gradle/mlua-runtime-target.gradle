@@ -170,6 +170,7 @@ tasks.named('jar', Jar).configure {
     // Common enums are shared with the loader artifact. Keep one runtime copy
     // so early ModLauncher transforms and Lua registrations use identical types.
     exclude 'dev/mlua/common/enums/**'
+    exclude 'dev/mlua/common/service/**'
     exclude 'dev/mlua/transformer/**'
     exclude 'org/luaj/**'
     exclude 'org/apache/bcel/**'
