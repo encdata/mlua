@@ -157,9 +157,9 @@ public class PlayersModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Entity", "setNbt",
             "Compatibility alias for SetNbt.");
         String[][] entityAnimationMethods = {
-            {"LoadAnimation", "Loads and starts an animation on this entity."},
+            {"LoadAnimation", "Creates an animation track for this entity. Call AnimationTrack:Play() to start it."},
             {"ResetAnimation", "Stops animations and resets this entity's model pose."},
-            {"LoadModel", "Loads and starts a model animation."},
+            {"LoadModel", "Attaches a Blockbench model or creates an animation track for this entity."},
             {"ResetModel", "Stops animations and resets this entity's model pose."},
             {"PlayAnimation", "Plays a named animation track."},
             {"StopAnimation", "Stops a named animation track."},
