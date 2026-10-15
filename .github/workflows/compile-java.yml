@@ -77,6 +77,15 @@ jobs:
           -PmluaLoader=${{ matrix.loader }}
           build
 
+      - name: Upload Java regression test reports
+        if: failure() && matrix.target == '1.20.1' && matrix.loader == 'forge'
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-regression-test-reports
+          path: mlua-runtime/1.20.1/build/reports/tests/test/
+          if-no-files-found: ignore
+          retention-days: 5
+
       - name: Upload packaged mod JAR
         uses: actions/upload-artifact@v4
         with:

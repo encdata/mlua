@@ -131,6 +131,13 @@ jarJar.enable()
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+        showCauses true
+        showExceptions true
+        showStackTraces true
+    }
 }
 
 tasks.named('processResources', ProcessResources).configure {
