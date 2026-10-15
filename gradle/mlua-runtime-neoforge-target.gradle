@@ -108,6 +108,9 @@ if (is26Family) {
     runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java'
     runtimeRootExcludes += 'dev/mlua/minecraft/binding/MLuaEnchantmentWrapper.java'
     runtimeRootExcludes += 'dev/mlua/runtime/registry/MLuaItemFactory.java'
+    // The 26.1 NeoForge project provides its Item.Properties.spawnEgg-based
+    // replacement for the shared named spawn egg implementation.
+    runtimeRootExcludes += 'dev/mlua/runtime/registry/MLuaNamedSpawnEggItem.java'
     runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaClientRenderManager.java'
     runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaClientSoundManager.java'
     runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaGuiRenderer.java'
