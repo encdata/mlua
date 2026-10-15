@@ -3,6 +3,8 @@ package dev.mlua.ci;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -13,6 +15,18 @@ public final class SmokeMod {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by NeoForge");
         }
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            registerClientProbe();
+        }
+    }
+
+    private void registerClientProbe() {
+        try {
+            Class<?> probe = Class.forName("dev.mlua.ci.SmokeClient", true, getClass().getClassLoader());
+            probe.getMethod("register").invoke(null);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not register the client smoke probe", exception);
+        }
     }
 
     private void onServerTick(ServerTickEvent.Post event) {
