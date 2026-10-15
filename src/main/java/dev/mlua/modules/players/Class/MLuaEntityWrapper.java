@@ -189,8 +189,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         if (args.arg(3).isnumber()) setRotation(wrapped, args.checkdouble(2), args.checkdouble(3));
-         else applyRotation(wrapped, args.arg(2));
+         applyRotationArguments(wrapped, args, 2);
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
@@ -426,8 +425,7 @@ public final class MLuaEntityWrapper {
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetRotation", varArg((args) -> {
-         if (args.arg(3).isnumber()) setRotation(wrapped, args.checkdouble(2), args.checkdouble(3));
-         else applyRotation(wrapped, args.arg(2));
+         applyRotationArguments(wrapped, args, 2);
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "LookAt", varArg((args) -> {
@@ -1055,6 +1053,14 @@ public final class MLuaEntityWrapper {
       raw.setYHeadRot((float)yaw);
       raw.setYBodyRot((float)yaw);
       raw.hurtMarked = true;
+   }
+
+   public static void applyRotationArguments(MCEntity entity, Varargs args, int valueIndex) {
+      if (args.arg(valueIndex + 1).isnumber()) {
+         setRotation(entity, args.checkdouble(valueIndex), args.checkdouble(valueIndex + 1));
+      } else {
+         applyRotation(entity, args.arg(valueIndex));
+      }
    }
 
    public static void applyRotation(MCEntity entity, LuaValue value) {
