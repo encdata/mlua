@@ -47,12 +47,20 @@ public final class MLuaEntityQuery {
         double radiusSquared = radius * radius;
         List<Entity> matches = new ArrayList<>();
         for (Entity entity : candidates) {
-            if (entity == excluded
-                || entity.distanceToSqr(x, y, z) > radiusSquared
+            if (entity == excluded || !withinRadius(entity, x, y, z, radius, radiusSquared)
                 || !matches(entity, filter, registration)) continue;
             matches.add(entity);
         }
         return matches;
+    }
+
+    private static boolean withinRadius(Entity entity, double x, double y, double z,
+            double radius, double radiusSquared) {
+        double distanceSquared = entity.distanceToSqr(x, y, z);
+        if (Double.isFinite(distanceSquared) && Double.isFinite(radiusSquared)) {
+            return distanceSquared <= radiusSquared;
+        }
+        return Math.hypot(Math.hypot(entity.getX() - x, entity.getY() - y), entity.getZ() - z) <= radius;
     }
 
     /** Returns the entities visible to this level's current side. */
@@ -82,22 +90,22 @@ public final class MLuaEntityQuery {
 
         LuaTable table = filter.checktable();
         String entityType = entityTypeId(entity);
-        LuaValue type = table.get("type");
-        if (!type.isnil() && !entityType.equals(type.tojstring())) return false;
+        String type = optionalString(table, "type");
+        if (type != null && !entityType.equals(type)) return false;
         LuaValue types = table.get("types");
-        if (types.istable() && !containsString(types.checktable(), entityType)) return false;
+        if (!types.isnil() && !containsStringList(types, "EntityQuery.types", entityType)) return false;
         LuaValue excludedTypes = table.get("exclude_types");
-        if (excludedTypes.istable() && containsString(excludedTypes.checktable(), entityType)) return false;
-        LuaValue playersOnly = table.get("players_only");
-        if (!playersOnly.isnil() && playersOnly.toboolean() && !(entity instanceof Player)) return false;
-        LuaValue excludePlayers = table.get("exclude_players");
-        if (!excludePlayers.isnil() && excludePlayers.toboolean() && entity instanceof Player) return false;
-        LuaValue alive = table.get("alive");
-        if (!alive.isnil() && alive.toboolean() != entity.isAlive()) return false;
-        LuaValue name = table.get("name");
-        if (!name.isnil() && !entity.getName().getString().equals(name.tojstring())) return false;
-        LuaValue nameContains = table.get("name_contains");
-        if (!nameContains.isnil() && !entity.getName().getString().contains(nameContains.tojstring())) return false;
+        if (!excludedTypes.isnil() && containsStringList(excludedTypes, "EntityQuery.exclude_types", entityType)) return false;
+        Boolean playersOnly = optionalBoolean(table, "players_only");
+        if (Boolean.TRUE.equals(playersOnly) && !(entity instanceof Player)) return false;
+        Boolean excludePlayers = optionalBoolean(table, "exclude_players");
+        if (Boolean.TRUE.equals(excludePlayers) && entity instanceof Player) return false;
+        Boolean alive = optionalBoolean(table, "alive");
+        if (alive != null && alive != entity.isAlive()) return false;
+        String name = optionalString(table, "name");
+        if (name != null && !entity.getName().getString().equals(name)) return false;
+        String nameContains = optionalString(table, "name_contains");
+        if (nameContains != null && !entity.getName().getString().contains(nameContains)) return false;
         LuaValue excludedEntity = table.get("exclude");
         if (!excludedEntity.isnil() && entityReference(excludedEntity, registration, "EntityQuery.exclude") == entity) return false;
         LuaValue excludedEntities = table.get("exclude_entities");
@@ -110,23 +118,65 @@ public final class MLuaEntityQuery {
                 if (entityReference(entities.get(index), registration, "EntityQuery.exclude_entities") == entity) return false;
             }
         }
-        LuaValue tag = table.get("tag");
-        if (!tag.isnil() && !MLuaDataManager.hasEntityTag(entity, tag.tojstring())) return false;
+        String tag = optionalString(table, "tag");
+        if (tag != null && !MLuaDataManager.hasEntityTag(entity, tag)) return false;
         LuaValue requiredTags = table.get("tags");
-        if (requiredTags.istable()) {
-            LuaTable tags = requiredTags.checktable();
-            for (int index = 1; !tags.get(index).isnil(); index++) {
-                if (!MLuaDataManager.hasEntityTag(entity, tags.get(index).checkjstring())) return false;
-            }
-        }
+        if (!requiredTags.isnil() && !hasAllTags(entity, requiredTags, "EntityQuery.tags")) return false;
         LuaValue excludedTags = table.get("exclude_tags");
-        if (excludedTags.istable()) {
-            LuaTable tags = excludedTags.checktable();
-            for (int index = 1; !tags.get(index).isnil(); index++) {
-                if (MLuaDataManager.hasEntityTag(entity, tags.get(index).checkjstring())) return false;
-            }
+        if (!excludedTags.isnil() && hasAnyTag(entity, excludedTags, "EntityQuery.exclude_tags")) return false;
+        return true;
+    }
+
+    private static String optionalString(LuaTable table, String key) {
+        LuaValue value = table.get(key);
+        if (value.isnil()) return null;
+        if (!value.isstring()) throw new LuaError("[MLua] EntityQuery." + key + " must be a string.");
+        return value.tojstring();
+    }
+
+    private static Boolean optionalBoolean(LuaTable table, String key) {
+        LuaValue value = table.get(key);
+        if (value.isnil()) return null;
+        if (!value.isboolean()) throw new LuaError("[MLua] EntityQuery." + key + " must be a boolean.");
+        return value.toboolean();
+    }
+
+    private static boolean containsStringList(LuaValue value, String field, String expected) {
+        if (!value.istable()) throw new LuaError("[MLua] " + field + " must be an array of strings.");
+        LuaTable values = value.checktable();
+        boolean found = false;
+        for (int index = 1; !values.get(index).isnil(); index++) {
+            LuaValue item = values.get(index);
+            if (!item.isstring()) throw new LuaError("[MLua] " + field + " must contain only strings.");
+            if (expected.equals(item.tojstring())) found = true;
+        }
+        return found;
+    }
+
+    private static boolean hasAllTags(Entity entity, LuaValue value, String field) {
+        for (String tag : stringList(value, field)) {
+            if (!MLuaDataManager.hasEntityTag(entity, tag)) return false;
         }
         return true;
+    }
+
+    private static boolean hasAnyTag(Entity entity, LuaValue value, String field) {
+        for (String tag : stringList(value, field)) {
+            if (MLuaDataManager.hasEntityTag(entity, tag)) return true;
+        }
+        return false;
+    }
+
+    private static List<String> stringList(LuaValue value, String field) {
+        if (!value.istable()) throw new LuaError("[MLua] " + field + " must be an array of strings.");
+        LuaTable values = value.checktable();
+        List<String> strings = new ArrayList<>();
+        for (int index = 1; !values.get(index).isnil(); index++) {
+            LuaValue item = values.get(index);
+            if (!item.isstring()) throw new LuaError("[MLua] " + field + " must contain only strings.");
+            strings.add(item.tojstring());
+        }
+        return strings;
     }
 
     private static Entity entityReference(LuaValue value, MLuaRegistration registration, String field) {
@@ -139,14 +189,4 @@ public final class MLuaEntityQuery {
         return id == null ? "unknown" : id.toString();
     }
 
-    private static boolean containsString(LuaTable values, String expected) {
-        for (int index = 1; !values.get(index).isnil(); index++) {
-            LuaValue value = values.get(index);
-            if (!value.isstring()) {
-                throw new LuaError("[MLua] EntityQuery type lists must contain only entity type identifiers.");
-            }
-            if (expected.equals(value.tojstring())) return true;
-        }
-        return false;
-    }
 }
