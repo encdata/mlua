@@ -33,6 +33,7 @@ final class MLuaHandPoseRegistryTest {
 
     @Test
     void interpolatesCallbacksAndKeepsTheLastPoseAfterCallbackFailure() {
+        net.minecraft.SharedConstants.tryDetectVersion();
         net.minecraft.server.Bootstrap.bootStrap();
         MLuaHandPoseRegistry registry = new MLuaHandPoseRegistry();
         var owner = new MLuaHandPoseRegistry.Owner(new Object(), "animated-addon");

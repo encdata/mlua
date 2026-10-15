@@ -54,6 +54,17 @@ def prepareRuntimeNeoForgeAdapterSources = registerMergedTree(project, 'prepareR
     ])
 def prepareRuntimeNeoForgeResources = registerMergedTree(project, 'prepareRuntimeNeoForgeResources',
     targetPathChain('mlua-loaders/neoforge/%s/project/src/main/resources', targetVersion))
+def prepareRuntimeMixinTransformerSources = null
+if (is26Family) {
+    prepareRuntimeMixinTransformerSources = tasks.register('prepareRuntimeMixinTransformerSources', Sync) {
+        from(rootProject.file('mlua-transformer/src/main/java')) {
+            include 'dev/mlua/transformer/MLuaMixinTransformer.java'
+            include 'dev/mlua/transformer/MLuaMixinClassWriter.java'
+            include 'dev/mlua/transformer/MLuaInstrumentationBridge.java'
+        }
+        into file("${buildDir}/generated/runtime-mixin-transformer-java")
+    }
+}
 
 base {
     archivesName = "${mod_id}-runtime-neoforge-${minecraft_version}"
@@ -132,6 +143,7 @@ sourceSets.main.java.setSrcDirs([
     file("${buildDir}/generated/prepareRuntimeNeoForgeOverrideSources"),
     file("${buildDir}/generated/prepareRuntimeNeoForgeAdapterSources")
 ])
+if (is26Family) sourceSets.main.java.srcDir(file("${buildDir}/generated/runtime-mixin-transformer-java"))
 sourceSets.main.resources.setSrcDirs([
     rootProject.file('src/main/resources'),
     rootProject.file('src/generated/resources'),
@@ -142,6 +154,7 @@ sourceSets.main.resources.exclude('META-INF/services/net.neoforged.neoforgespi.l
 
 tasks.named('compileJava').configure {
     dependsOn tasks.prepareRuntimeRootSources, prepareRuntimeMcImplSources, prepareRuntimeNeoForgeOverrideSources, prepareRuntimeNeoForgeAdapterSources, prepareRuntimeNeoForgeResources
+    if (is26Family) dependsOn prepareRuntimeMixinTransformerSources
 }
 if (is26Family) {
     tasks.named('compileJava').configure {
@@ -350,7 +363,7 @@ tasks.named('jar', Jar).configure {
     // The loader artifact owns shared enum classes used by the early mixin bootstrap.
     exclude 'dev/mlua/common/enums/**'
     exclude 'dev/mlua/common/service/**'
-    exclude 'dev/mlua/transformer/**'
+    if (!is26Family) exclude 'dev/mlua/transformer/**'
     exclude 'org/luaj/**'
     exclude 'org/apache/bcel/**'
 }

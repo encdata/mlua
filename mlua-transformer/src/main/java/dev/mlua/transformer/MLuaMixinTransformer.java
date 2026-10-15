@@ -1,6 +1,7 @@
 package dev.mlua.transformer;
 
 import dev.mlua.common.mixin.MLuaMixinRule;
+import dev.mlua.common.mixin.MLuaMixinMapping;
 import dev.mlua.common.mixin.MixinRuleEngine;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
@@ -13,7 +14,8 @@ public final class MLuaMixinTransformer implements ClassFileTransformer {
    private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
    private static final MLuaMixinTransformer INSTANCE = new MLuaMixinTransformer();
    private static volatile boolean installedIntoInstrumentation = false;
-   private final java.util.Map<String, java.util.Map<String, String>> nameMapping = MLuaTransformer.loadNameMapping();
+   private final java.util.Map<String, java.util.Map<String, String>> nameMapping =
+      MLuaMixinMapping.load(MLuaMixinTransformer.class.getClassLoader());
    private final java.util.Set<String> transformedTargets = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
    private MLuaMixinTransformer() {

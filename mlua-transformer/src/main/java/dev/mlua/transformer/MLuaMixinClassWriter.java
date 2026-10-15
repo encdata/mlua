@@ -3,6 +3,7 @@ package dev.mlua.transformer;
 import dev.mlua.common.enums.InjectionPoint;
 import dev.mlua.common.mixin.MLuaMixinRule;
 import dev.mlua.common.mixin.MLuaMixinCallbackRegistry;
+import dev.mlua.common.mixin.MLuaMixinMapping;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +82,7 @@ public final class MLuaMixinClassWriter {
       String targetDesc = rule.methodDescriptor();
       String mappedMethod = targetMethod;
       if (!nameMapping.isEmpty()) {
-         String srg = MLuaTransformer.resolveMethodName(
+         String srg = MLuaMixinMapping.resolveMethodName(
             rule.targetClassName(), targetMethod, targetDesc, nameMapping);
          if (srg != null) {
             mappedMethod = srg;

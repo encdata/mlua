@@ -420,7 +420,8 @@ final class MLuaRuntimeIntegrationTest {
                 null,
                 temp.resolve("data"),
                 runtime::reportRuntimeFailure,
-                runtime.session()
+                runtime.session(),
+                runtime
         );
     }
 
@@ -578,17 +579,9 @@ final class MLuaRuntimeIntegrationTest {
                 """);
 
         LuaJEngineBackend engine = new LuaJEngineBackend(List.of(main));
-        MLuaContext serverContext = context(main);
-        MLuaContext clientContext = new MLuaContext(
-                main,
-                Side.CLIENT,
-                RegistrationPhase.RUNTIME,
-                new MLuaServiceRegistry(),
-                new MLuaTaskScheduler(),
-                new MLuaModuleCache(),
-                null,
-                temp.resolve("data")
-        );
+        MLuaRuntime runtime = new MLuaRuntime();
+        MLuaContext serverContext = context(runtime, main, Side.SERVER);
+        MLuaContext clientContext = context(runtime, main, Side.CLIENT);
 
         // First execute the script to get the state object and define entrypoints
         LuaValue state = (LuaValue) engine.execute(main, serverContext).raw();

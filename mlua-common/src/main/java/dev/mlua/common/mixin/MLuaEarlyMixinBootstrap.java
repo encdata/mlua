@@ -34,6 +34,7 @@ public final class MLuaEarlyMixinBootstrap {
    }
 
    public static void bootstrap() {
+      if (MixinRuleEngine.isEarlyBootstrapDone()) return;
       try {
          Path gameDir = resolveGameDir();
          Globals globals = JsePlatform.standardGlobals();

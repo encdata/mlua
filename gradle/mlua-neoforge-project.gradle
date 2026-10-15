@@ -131,6 +131,7 @@ sourceSets.main.java.setSrcDirs([
 ])
 sourceSets.main.resources.setSrcDirs([rootProject.file('mlua-transformer/src/main/resources'), rootProject.file('src/main/resources'), file("${buildDir}/generated/prepareNeoForgeProjectResources")])
 sourceSets.main.resources.exclude('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')
+if (is26Family) sourceSets.main.resources.exclude('META-INF/services/cpw.mods.modlauncher.api.ITransformationService')
 sourceSets.test.java.setSrcDirs([])
 sourceSets.test.resources.setSrcDirs([])
 

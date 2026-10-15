@@ -48,8 +48,7 @@ final class MLuaAnimationBindingsRegistrationTest {
 
     private static MLuaRegistration registration() {
         MLuaClassRegistry classes = new MLuaClassRegistry();
-        classes.register("Instance", null);
-        return new MLuaRegistration() {
+        MLuaRegistration registration = new MLuaRegistration() {
             @Override public LuaTable registerClass(String name, String parentName) {
                 return classes.register(name, parentName);
             }
@@ -68,5 +67,8 @@ final class MLuaAnimationBindingsRegistrationTest {
                 return classes.attachInstance(instance, name, parentName);
             }
         };
+        registration.registerInstanceBaseClass("Instance", null,
+            "Base class for animation binding test instances.");
+        return registration;
     }
 }

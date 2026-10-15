@@ -23,7 +23,7 @@ final class MLuaModuleLoaderRegistrationTest {
             EventBridge.class.getClassLoader(), new Class<?>[]{EventBridge.class},
             (proxy, method, args) -> null
         );
-        MLuaRuntime runtime = new MLuaRuntime();
+        MLuaRuntime runtime = runtimeWithCoreClasses();
         MLuaModuleLoader loader = new MLuaModuleLoader(runtime, events, true, true);
 
         loader.register(recordingModule("core", List.of(), 0, phases));
@@ -38,7 +38,7 @@ final class MLuaModuleLoaderRegistrationTest {
 
     @Test
     void missingDependencyLeavesLiveRegistrationUntouched() {
-        MLuaRuntime runtime = new MLuaRuntime();
+        MLuaRuntime runtime = runtimeWithCoreClasses();
         EventBridge events = (EventBridge) Proxy.newProxyInstance(
             EventBridge.class.getClassLoader(), new Class<?>[]{EventBridge.class}, (proxy, method, args) -> null
         );
@@ -51,7 +51,7 @@ final class MLuaModuleLoaderRegistrationTest {
 
     @Test
     void conflictingServiceDoesNotRegisterTheNewModuleOrItsClass() {
-        MLuaRuntime runtime = new MLuaRuntime();
+        MLuaRuntime runtime = runtimeWithCoreClasses();
         EventBridge events = (EventBridge) Proxy.newProxyInstance(
             EventBridge.class.getClassLoader(), new Class<?>[]{EventBridge.class}, (proxy, method, args) -> null
         );
@@ -68,7 +68,7 @@ final class MLuaModuleLoaderRegistrationTest {
 
     @Test
     void failedClassHookRollsBackClassesAndRejectsModule() {
-        MLuaRuntime runtime = new MLuaRuntime();
+        MLuaRuntime runtime = runtimeWithCoreClasses();
         EventBridge events = (EventBridge) Proxy.newProxyInstance(
             EventBridge.class.getClassLoader(), new Class<?>[]{EventBridge.class}, (proxy, method, args) -> null
         );
@@ -95,7 +95,7 @@ final class MLuaModuleLoaderRegistrationTest {
 
     @Test
     void bootstrapServiceConflictRemovesOnlyTheFailingModuleAndItsClasses() {
-        MLuaRuntime runtime = new MLuaRuntime();
+        MLuaRuntime runtime = runtimeWithCoreClasses();
         MLuaModuleLoader loader = new MLuaModuleLoader();
         loader.register(serviceModule("first", "shared_service", "FirstClass", new ArrayList<>()));
         loader.register(serviceModule("second", "shared_service", "SecondClass", new ArrayList<>()));
@@ -114,7 +114,7 @@ final class MLuaModuleLoaderRegistrationTest {
         EventBridge events = (EventBridge) Proxy.newProxyInstance(
             EventBridge.class.getClassLoader(), new Class<?>[]{EventBridge.class}, (proxy, method, args) -> null
         );
-        MLuaModuleLoader loader = new MLuaModuleLoader(new MLuaRuntime(), events, true, true);
+        MLuaModuleLoader loader = new MLuaModuleLoader(runtimeWithCoreClasses(), events, true, true);
         MLuaModule child = recordingModule("child", List.of("parent"), 0, phases);
         MLuaModule parent = new MLuaModule() {
             @Override public String id() { return "parent"; }
@@ -168,5 +168,15 @@ final class MLuaModuleLoaderRegistrationTest {
                     "Service used by the registration fixture.", java.util.Map.of("Probe", "Returns the fixture probe value.")));
             }
         };
+    }
+
+    private static MLuaRuntime runtimeWithCoreClasses() {
+        MLuaRuntime runtime = new MLuaRuntime();
+        runtime.registerClass("Object", null, "Root class used by module registration tests.");
+        runtime.registerInstanceBaseClass("Instance", "Object",
+            "Base class for live module registration test instances.");
+        runtime.registerServiceBaseClass("Service", "Instance",
+            "Base class for module registration test services.");
+        return runtime;
     }
 }

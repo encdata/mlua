@@ -33,7 +33,7 @@ final class MLuaClientModelManagerScopeTest {
         MLuaClientModelManager.clearEntity(clientOverworld);
 
         assertNull(MLuaClientModelManager.getPartState(clientOverworld, "head"));
-        assertSame(netherOffset, MLuaClientModelManager.getPartState(clientNether, "head").offset());
+        assertEquals(2.0, MLuaClientModelManager.getPartState(clientNether, "head").offset().get("X").todouble());
     }
 
     @Test
@@ -47,11 +47,10 @@ final class MLuaClientModelManagerScopeTest {
 
         MLuaClientModelManager.setOffset(scope, "head", firstOffset, first);
         MLuaClientModelManager.setOffset(scope, "head", secondOffset, second);
-        assertSame(secondOffset, MLuaClientModelManager.getPartState(scope, "head").offset());
-        assertSame(firstOffset, MLuaClientModelManager.getState(scope, first).get("head").offset());
+        assertEquals(2.0, MLuaClientModelManager.getPartState(scope, "head").offset().get("X").todouble());
+        assertEquals(1.0, MLuaClientModelManager.getState(scope, first).get("head").offset().get("X").todouble());
 
         MLuaClientModelManager.clearOwned(second);
-        assertSame(firstOffset, MLuaClientModelManager.getPartState(scope, "head").offset());
         assertEquals(1.0, MLuaClientModelManager.getPartState(scope, "head").offset().get("X").todouble());
     }
 

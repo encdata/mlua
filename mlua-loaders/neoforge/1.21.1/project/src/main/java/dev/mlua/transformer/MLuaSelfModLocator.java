@@ -1,5 +1,6 @@
 package dev.mlua.transformer;
 
+import dev.mlua.common.mixin.MLuaEarlyMixinBootstrap;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
@@ -50,6 +51,10 @@ public final class MLuaSelfModLocator implements IModFileCandidateLocator {
 
    @Override
    public void findCandidates(ILaunchContext context, IDiscoveryPipeline pipeline) {
+      // NeoForge 26.1 no longer loads mod jars as ModLauncher transformation
+      // services. Discover Lua mixin rules during FML's early candidate scan,
+      // before Minecraft target classes are transformed.
+      MLuaEarlyMixinBootstrap.bootstrap();
       ensureInitialized();
       LOGGER.info("[MLua] Self locator scanMods: runtimeJar={} exists={}",
          runtimeJar, runtimeJar != null && Files.exists(runtimeJar));

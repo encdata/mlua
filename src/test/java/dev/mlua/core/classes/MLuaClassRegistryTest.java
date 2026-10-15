@@ -33,8 +33,11 @@ final class MLuaClassRegistryTest {
         LuaTable instance = new LuaTable();
         registry.attachInstance(instance, "Child", null);
         assertTrue(registry.isA(instance, "First"));
-        assertThrows(IllegalArgumentException.class,
-            () -> registry.register("Invalid", new LuaTable(), "First", "Second"));
+        LuaTable describedChild = registry.register("DescribedChild", new LuaTable(), "First",
+            "A child class with one superclass.");
+        assertEquals("First", describedChild.rawget("__mlua_doc_parents").get(1).tojstring());
+        assertEquals("A child class with one superclass.",
+            describedChild.rawget("__mlua_doc_description").tojstring());
     }
 
     @Test
