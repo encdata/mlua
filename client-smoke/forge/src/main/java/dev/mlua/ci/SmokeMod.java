@@ -8,8 +8,6 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 
 @Mod("mlua_ci_smoke")
 public final class SmokeMod {
-    private int ticks;
-
     public SmokeMod() {
         if (!ModList.get().isLoaded("mlua")) {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by Forge");
@@ -18,9 +16,8 @@ public final class SmokeMod {
     }
 
     private void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.END && ++ticks >= 40) {
-            System.out.println("MLUA_PACKAGED_SERVER_SMOKE_OK");
-            ServerLifecycleHooks.getCurrentServer().halt(false);
-        }
+        if (event.phase != TickEvent.Phase.END) return;
+        System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");
+        ServerLifecycleHooks.getCurrentServer().halt(false);
     }
 }

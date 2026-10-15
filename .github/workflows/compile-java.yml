@@ -1,4 +1,4 @@
-name: Build and run packaged clients
+name: Build and boot packaged Minecraft
 
 on:
   push:
@@ -86,7 +86,7 @@ jobs:
           retention-days: 2
 
   run-client:
-    name: Run packaged ${{ matrix.target }} / ${{ matrix.loader }} client (Windows)
+    name: Boot packaged ${{ matrix.target }} / ${{ matrix.loader }} client and server (Windows)
     needs: build
     if: ${{ !cancelled() }}
     runs-on: windows-latest
@@ -187,7 +187,7 @@ jobs:
           Set-Content "$template/run/eula.txt" 'eula=true'
           Set-Content "$template/run/server.properties" @('online-mode=false', 'server-port=25565', 'enable-query=false', 'enable-rcon=false')
 
-      - name: Run packaged JAR in a clean Minecraft client
+      - name: Boot Minecraft client with the packaged MLua JAR
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |
@@ -202,11 +202,11 @@ jobs:
           gradle @gradleArgs runClient 2>&1 | Tee-Object -FilePath client-smoke.log
           $clientExitCode = $LASTEXITCODE
           if ($clientExitCode -ne 0) { throw "runClient failed with exit code $clientExitCode" }
-          if (-not (Select-String -Path client-smoke.log -Pattern 'MLUA_PACKAGED_CLIENT_SMOKE_OK' -Quiet)) {
-            throw 'The test mod did not reach its clean client shutdown marker.'
+          if (-not (Select-String -Path client-smoke.log -Pattern 'MLUA_PACKAGED_CLIENT_BOOT_OK' -Quiet)) {
+            throw 'The client did not finish booting with MLua loaded.'
           }
 
-      - name: Run packaged JAR on a dedicated Minecraft server
+      - name: Boot dedicated server with the packaged MLua JAR
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
         run: |
@@ -221,8 +221,8 @@ jobs:
           gradle @gradleArgs runServer 2>&1 | Tee-Object -FilePath server-smoke.log
           $serverExitCode = $LASTEXITCODE
           if ($serverExitCode -ne 0) { throw "runServer failed with exit code $serverExitCode" }
-          if (-not (Select-String -Path server-smoke.log -Pattern 'MLUA_PACKAGED_SERVER_SMOKE_OK' -Quiet)) {
-            throw 'The test mod did not reach its clean dedicated server shutdown marker.'
+          if (-not (Select-String -Path server-smoke.log -Pattern 'MLUA_PACKAGED_SERVER_BOOT_OK' -Quiet)) {
+            throw 'The dedicated server did not finish booting with MLua loaded.'
           }
 
       - name: Upload client logs on failure
