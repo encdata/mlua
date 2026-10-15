@@ -69,6 +69,7 @@ public final class MLuaModuleLoader {
         Iterable<MLuaModule> providers = LoaderApi.platform().isClient()
             ? ServiceLoader.load(MLuaModule.class)
             : serverProviders();
+        Set<String> providerTypes = new HashSet<>();
         // Iterate defensively. A client-only module can fail class resolution on a
         // dedicated server before ServiceLoader.Provider#get returns. The failure
         // must isolate that module instead of aborting the entire server launch.
@@ -77,6 +78,10 @@ public final class MLuaModuleLoader {
             try {
                 if (!iterator.hasNext()) break;
                 MLuaModule module = iterator.next();
+                if (!providerTypes.add(module.getClass().getName())) {
+                    MLuaLogger.LOGGER.debug("Ignored duplicate MLua module provider: {}", module.getClass().getName());
+                    continue;
+                }
                 if (module.side() == Side.CLIENT && !LoaderApi.platform().isClient()) {
                     MLuaLogger.LOGGER.debug("Skipped client-only MLua module on dedicated server: {}", module.id());
                     continue;

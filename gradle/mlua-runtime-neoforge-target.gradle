@@ -36,6 +36,12 @@ if (is26Family) {
         }
     }
 }
+prepareRuntimeNeoForgeOverrideSources.configure {
+    from(rootProject.file('src/main/java')) {
+        include 'dev/mlua/modules/mixin/MixinModule.java'
+        include 'dev/mlua/modules/mixin/runtime/MLuaMixinService.java'
+    }
+}
 def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',
     targetPathChain('mlua-versions/common/%s', targetVersion), is26Family ? [] : [
         'dev/mlua/modules/world/Service/MLuaWorldService.java'
@@ -319,9 +325,6 @@ tasks.named('test', Test).configure {
 
 tasks.named('processResources', ProcessResources).configure {
     dependsOn prepareRuntimeNeoForgeResources
-    filesMatching('META-INF/services/dev.mlua.module.MLuaModule') {
-        filter { line -> line == 'dev.mlua.modules.mixin.MixinModule' ? '' : line }
-    }
     from(rootProject.file('src/main/resources/Icon.png')) {
         into ''
         rename { 'icon.png' }
