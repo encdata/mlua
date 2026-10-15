@@ -1008,10 +1008,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static double checkedQueryRadius(double radius) {
-      if (!Double.isFinite(radius) || radius < 0) {
-         throw new LuaError("[MLua] Entity query radius must be finite and non-negative.");
-      }
-      return radius;
+      return MLuaLuaArguments.finiteNonNegativeNumber(radius, "Entity query", "radius");
    }
 
    private static double[] checkedQueryPosition(double[] position) {

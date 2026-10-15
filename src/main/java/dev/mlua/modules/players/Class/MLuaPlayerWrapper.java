@@ -352,7 +352,7 @@ public final class MLuaPlayerWrapper {
       }));
       bindLevelMethods(table, ((MCLevelImpl) player.getLevel()).inner(), registration);
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {
-         double radius = args.checkdouble(2);
+         double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Player:GetNearbyEntities", "radius");
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
          int i = 1;
@@ -364,7 +364,7 @@ public final class MLuaPlayerWrapper {
          return list;
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyPlayers", varArg((args) -> {
-         double radius = args.checkdouble(2);
+         double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Player:GetNearbyPlayers", "radius");
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
          int i = 1;
@@ -721,7 +721,7 @@ public final class MLuaPlayerWrapper {
          return MLuaPotionEffectsService.effectsTable((net.minecraft.world.entity.LivingEntity)((MCEntityImpl) player).inner());
       }));
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", varArg((args) -> {
-         double radius = args.checkdouble(2);
+         double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Player:GetNearbyEntities", "radius");
          MCAABB box = player.getBoundingBox().inflate(radius);
          LuaTable list = new LuaTable();
          int i = 1;

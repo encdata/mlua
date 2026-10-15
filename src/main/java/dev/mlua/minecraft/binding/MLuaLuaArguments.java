@@ -44,6 +44,25 @@ public final class MLuaLuaArguments {
         return number;
     }
 
+    public static double finiteNonNegativeNumber(Varargs args, int index,
+                                                  String method, String parameter) {
+        return finiteNonNegativeNumber(args.arg(index), method, parameter);
+    }
+
+    public static double finiteNonNegativeNumber(LuaValue value, String method, String parameter) {
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a number.");
+        }
+        return finiteNonNegativeNumber(value.todouble(), method, parameter);
+    }
+
+    public static double finiteNonNegativeNumber(double number, String method, String parameter) {
+        if (!Double.isFinite(number) || number < 0.0) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be finite and non-negative.");
+        }
+        return number;
+    }
+
     public static float optionalFiniteFloat(Varargs args, int index, float fallback,
                                             String method, String parameter) {
         if (args.arg(index).isnil()) return fallback;

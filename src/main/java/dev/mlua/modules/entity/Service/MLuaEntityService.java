@@ -62,9 +62,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns entities in the same world within a spherical radius of a Vector3, CFrame, or entity.")
     public LuaTable GetNearby(LuaValue centerValue, double radius) {
-        if (!Double.isFinite(radius) || radius < 0.0) {
-            throw new LuaError("[MLua] EntityService:GetNearby radius must be a finite, non-negative number.");
-        }
+        radius = MLuaLuaArguments.finiteNonNegativeNumber(radius, "EntityService:GetNearby", "radius");
         Entity centerEntity = entityValue(centerValue);
         double[] center = centerEntity == null
             ? MLuaLuaArguments.finiteVector3(centerValue, "EntityService:GetNearby center")
