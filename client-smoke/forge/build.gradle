@@ -12,22 +12,36 @@ minecraft {
     runs {
         client {
             workingDirectory project.file('run')
-            mods {
-                mlua_ci_smoke { source sourceSets.main }
-            }
         }
         server {
             workingDirectory project.file('run')
             args '--nogui'
-            mods {
-                mlua_ci_smoke { source sourceSets.main }
-            }
         }
     }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${providers.gradleProperty('minecraftVersion').get()}-${providers.gradleProperty('forgeVersion').get()}"
+}
+
+tasks.named('runClient').configure {
+    dependsOn tasks.named('jar')
+    doFirst {
+        copy {
+            from tasks.named('jar').get().archiveFile
+            into project.file('run/mods')
+        }
+    }
+}
+
+tasks.named('runServer').configure {
+    dependsOn tasks.named('jar')
+    doFirst {
+        copy {
+            from tasks.named('jar').get().archiveFile
+            into project.file('run/mods')
+        }
+    }
 }
 
 processResources {
