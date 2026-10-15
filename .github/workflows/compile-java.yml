@@ -208,11 +208,24 @@ jobs:
           $template = "client-smoke/${{ matrix.loader }}"
           New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
           New-Item -ItemType Directory -Force "$template/run/mlua/scripts" | Out-Null
+          New-Item -ItemType Directory -Force "$template/compile-libs" | Out-Null
           if ('${{ matrix.loader }}' -eq 'neoforge' -and '${{ matrix.target }}' -eq '1.21.1') {
             New-Item -ItemType Directory -Force "$template/run/config" | Out-Null
             'earlyWindowControl = false' | Set-Content "$template/run/config/fml.toml"
           }
           Copy-Item $jar.FullName "$template/run/mods/mlua.jar"
+          Copy-Item $jar.FullName "$template/compile-libs/mlua.jar"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+          try {
+            $runtimeEntry = $archive.GetEntry('embedded/mlua/mlua-runtime.jar')
+            if ($null -ne $runtimeEntry) {
+              [System.IO.Compression.ZipFileExtensions]::ExtractToFile(
+                $runtimeEntry, "$template/compile-libs/mlua-runtime.jar", $true)
+            }
+          } finally {
+            $archive.Dispose()
+          }
           @'
           local Mixin = Minecraft:GetService("Mixin")
           Mixin:Target("dev.mlua.ci.SmokeTarget"):Inject("probe", {
@@ -239,6 +252,18 @@ jobs:
           assert(first:GetNbt(key) == "changed", "empty stack clone shares its NBT with the source")
           print("MLUA_EMPTY_STACK_ISOLATION_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_empty_stack.server.lua"
+          @'
+          local service = Minecraft:GetService("CiSmokeService")
+          assert(service.__type == "CiSmokeService", "Java registered service class was not attached")
+          assert(service:GetSide() == "SERVER", "Java service returned the wrong side")
+          print("MLUA_CI_SERVER_SERVICE_SCRIPT_OK")
+          '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.server.lua"
+          @'
+          local service = Minecraft:GetService("CiSmokeService")
+          assert(service.__type == "CiSmokeService", "Java registered service class was not attached")
+          assert(service:GetSide() == "CLIENT", "Java service returned the wrong side")
+          print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")
+          '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.client.lua"
           Set-Content "$template/run/eula.txt" 'eula=true'
           Set-Content "$template/run/server.properties" @('online-mode=false', 'server-port=25565', 'enable-query=false', 'enable-rcon=false')
 
@@ -258,7 +283,7 @@ jobs:
             -Task runClient `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK') `
             -LogFile 'client-smoke.log' `
             -TimeoutSeconds 480
 
@@ -278,7 +303,7 @@ jobs:
             -Task runServer `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_SERVER_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK', 'MLUA_CI_SERVER_SERVICE_SCRIPT_OK') `
             -LogFile 'server-smoke.log' `
             -TimeoutSeconds 600
 

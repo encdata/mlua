@@ -28,7 +28,11 @@ neoForge {
 
 dependencies {
     implementation "net.neoforged:neoforge:${providers.gradleProperty('neoForgeVersion').get()}"
+    compileOnly files('compile-libs/mlua.jar', 'compile-libs/mlua-runtime.jar')
 }
+
+sourceSets.main.java.srcDir '../common/src/main/java'
+sourceSets.main.resources.srcDir '../common/src/main/resources'
 
 processResources {
     inputs.property 'neoForgeVersion', providers.gradleProperty('neoForgeVersion').get()

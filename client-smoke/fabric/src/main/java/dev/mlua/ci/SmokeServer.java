@@ -11,6 +11,9 @@ public final class SmokeServer implements ModInitializer {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by Fabric Loader");
         }
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (!"called".equals(System.getProperty("mlua.ci.service.SERVER"))) {
+                throw new IllegalStateException("MLua server script did not call the Java contributed service");
+            }
             runMixinProbe();
             System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");
             server.halt(false);

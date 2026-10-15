@@ -33,6 +33,9 @@ sourceSets {
     smoke {
         compileClasspath += sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.runtimeClasspath
+        java.srcDir '../common/src/main/java'
+        resources.srcDir '../common/src/main/resources'
+        compileClasspath += files('compile-libs/mlua.jar', 'compile-libs/mlua-runtime.jar')
     }
 }
 

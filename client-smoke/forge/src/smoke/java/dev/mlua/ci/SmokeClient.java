@@ -9,6 +9,8 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = "mlua_ci_smoke", value = Dist.CLIENT)
 public final class SmokeClient {
+    private static int ticks;
+
     private SmokeClient() {}
 
     @SubscribeEvent
@@ -16,6 +18,12 @@ public final class SmokeClient {
         if (event.phase != TickEvent.Phase.END) return;
         if (!ModList.get().isLoaded("mlua")) {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by Forge");
+        }
+        if (!"called".equals(System.getProperty("mlua.ci.service.CLIENT"))) {
+            if (++ticks >= 200) {
+                throw new IllegalStateException("MLua client script did not call the Java contributed service");
+            }
+            return;
         }
         System.out.println("MLUA_PACKAGED_CLIENT_BOOT_OK");
         Minecraft.getInstance().stop();

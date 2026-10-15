@@ -17,6 +17,9 @@ public final class SmokeMod {
 
     private void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        if (!"called".equals(System.getProperty("mlua.ci.service.SERVER"))) {
+            throw new IllegalStateException("MLua server script did not call the Java contributed service");
+        }
         runMixinProbe();
         System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");
         ServerLifecycleHooks.getCurrentServer().halt(false);
