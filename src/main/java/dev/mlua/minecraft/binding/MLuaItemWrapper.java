@@ -331,7 +331,7 @@ public final class MLuaItemWrapper {
             return keys;
          }), "Returns the keys in this item's NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetTag", selfItem((self, args) -> {
-            MLuaNbtWrapper.set(((MCCompoundTagImpl)stack(self).getOrCreateTag()).inner(), args.checkjstring(2), args.arg(3));
+            setNbtValue(self, args.checkjstring(2), args.arg(3));
             return LuaValue.NONE;
          }), "Sets one value in this item's NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetNbtTable", selfItem((self, ignored) -> MLuaNbtWrapper.table(
@@ -354,7 +354,7 @@ public final class MLuaItemWrapper {
                stack(self).setTag(MCCompoundTagImpl.fromReal(MLuaNbtWrapper.toCompound(args.arg(2))));
                return LuaValue.NONE;
             }
-            MLuaNbtWrapper.set(((MCCompoundTagImpl)stack(self).getOrCreateTag()).inner(), args.checkjstring(2), args.arg(3));
+            setNbtValue(self, args.checkjstring(2), args.arg(3));
             return LuaValue.NONE;
          }), "Sets one NBT value or replaces this item's NBT data.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "setNbt", classTable.rawget("SetNbt"), "Sets one NBT value or replaces this item's NBT data.");
@@ -470,6 +470,13 @@ public final class MLuaItemWrapper {
          throw new LuaError("[MLua] Item instance lost its stack reference");
       }
       return new MCItemStackImpl(raw);
+   }
+
+   private static void setNbtValue(LuaValue self, String key, LuaValue value) {
+      MCItemStack item = stack(self);
+      MCCompoundTag tag = item.getOrCreateTag();
+      MLuaNbtWrapper.set(((MCCompoundTagImpl)tag).inner(), key, value);
+      item.setTag(tag);
    }
 
    private static int nonNegativeCount(int count, String method) {
