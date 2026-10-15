@@ -80,6 +80,10 @@ public final class MLuaHumanoidPoseApplier {
 
     private static void applyPose(ModelPart part, MLuaCFrame cframe) {
         if (part == null || cframe == null) return;
+        // CFrame positions use Minecraft blocks; model part pivots use pixels.
+        part.x += (float) (cframe.x() * 16.0);
+        part.y += (float) (cframe.y() * 16.0);
+        part.z += (float) (cframe.z() * 16.0);
         double[] euler = cframe.toEulerAnglesXYZ();
         part.xRot = (float) euler[0];
         part.yRot = (float) euler[1];
