@@ -41,7 +41,11 @@ public final class MLuaItemWrapper {
    }
 
    public static LuaTable itemTable(net.minecraft.world.item.ItemStack stack, MLuaRegistration registration) {
-      if (stack == null) stack = net.minecraft.world.item.ItemStack.EMPTY;
+      if (stack == null || stack == net.minecraft.world.item.ItemStack.EMPTY) {
+         // EMPTY is a shared Minecraft sentinel, but Lua Item instances expose mutators.
+         // Give each wrapped empty value its own harmless zero-count backing stack.
+         stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.AIR, 0);
+      }
       String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
       String className = MLuaBehaviorRegistry.getContentClass("item", itemId);
       if (className == null && stack.getItem() instanceof net.minecraft.world.item.BlockItem) {
