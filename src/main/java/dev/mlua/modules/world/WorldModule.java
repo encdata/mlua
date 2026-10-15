@@ -349,6 +349,9 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetProperties()", "BlockStateProperties"));
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:SetStateProperties(properties: BlockStateProperties, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Set(blockId: string, properties: BlockStateProperties?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Set(blockId: string, updateFlags: number)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Break(dropItems: boolean?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:ScheduleTick(delay: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:GetProperty(name: string)", "string|number|boolean|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:WithProperty(name: string, value: string|number|boolean)", "BlockState"));
         docs.register(MLuaDocBuilder.Registration.signature("BlockState", "BlockState:WithProperties(properties: BlockStateProperties)", "BlockState"));
@@ -410,6 +413,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetHeightAt(position: Vector3|CFrame, heightmap: string?)", "number?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetTopBlockAt(position: Vector3|CFrame, heightmap: string?)", "Block?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string, properties: BlockStateProperties?, updateFlags: number?)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, blockId: string, updateFlags: number)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:SetBlockAt(position: Vector3|CFrame, state: BlockState, updateFlags: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetEntities()", "Entity[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBlockEntities()", "BlockEntity[]"));
