@@ -39,6 +39,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         String description = "A live client render instance with mutable screen-space or world-space properties and rendering methods.";
         registration.registerClass("RenderObject", registration.requireInstanceBaseClassName(), description);
         registerObjectProperty(registration, "Id", "number", "The render object's runtime identifier.", "", null);
+        registerObjectProperty(registration, "ClassName", "string", "The registered Lua class used by this render instance.", "GetClassName", null);
         registerObjectProperty(registration, "Type", "string", "The render object's type.", "GetType", null);
         registerObjectProperty(registration, "IsDestroyed", "boolean", "Whether this render object has been removed.", "GetIsDestroyed", null);
         registerObjectProperty(registration, "Position", "Vector2", "The render object's screen position.", "GetPosition", "SetPosition");
@@ -64,7 +65,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         registerObjectProperty(registration, "Resource", "string|nil", "The image or model resource used by this object.", "GetResource", "SetResource");
         registerObjectProperty(registration, "Text", "string|nil", "The text displayed by a text object.", "GetText", "SetText");
         String[][] methods = {
-            {"GetId", "Returns the object's runtime identifier."}, {"GetType", "Returns the object's render type."},
+            {"GetId", "Returns the object's runtime identifier."}, {"GetClassName", "Returns the registered Lua class used by this instance."}, {"GetType", "Returns the object's render type."},
             {"GetIsDestroyed", "Returns whether this object has been removed."},
             {"GetPosition", "Returns the object's screen position."}, {"SetPosition", "Changes the object's screen position."},
             {"GetEndPosition", "Returns the second screen position."}, {"SetEndPosition", "Changes the second screen position."},
@@ -379,6 +380,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             var object = requireObject(id);
             return LuaValue.valueOf(object.type().name().toLowerCase());
         }));
+        operations.set("GetClassName", fn(args -> LuaValue.valueOf(requireObject(id).luaClassName())));
         operations.set("GetIsDestroyed", fn(args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, owner()) == null)));
         operations.set("GetPosition", fn(args -> {
             var object = requireObject(id);
@@ -555,23 +557,62 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         instance.rawset("__mluaOwnerModId", LuaValue.valueOf(owner().ownerModId()));
         instance.rawset(OBJECT_ID, LuaValue.valueOf(id));
         instance.rawset(OBJECT_OPERATIONS, operations);
-        return context.mlua().registration().attachClassInstance(instance, "RenderObject", null);
+        return context.mlua().registration().attachClassInstance(instance, requireObject(id).luaClassName(), null);
     }
 
     private void applyProps(MLuaClientRenderManager.RenderObject object, LuaTable props, String... extraProperties) {
         try {
-            validateProperties(props, extraProperties);
-            applyPropertyValues(object, props, extraProperties);
+            String className = renderClassName(props);
+            if (context.mlua().registration().classTable(className) == null) {
+                throw new LuaError("[MLua] Unknown RenderObject class: " + className);
+            }
+            if (!context.mlua().registration().isSubclassOf(className, "RenderObject")) {
+                throw new LuaError("[MLua] RenderObject ClassName must name a registered subclass of RenderObject.");
+            }
+            object.setLuaClassName(className);
+            validateProperties(props, className, extraProperties);
+            applyPropertyValues(object, props, className, extraProperties);
         } catch (RuntimeException | Error failure) {
             MLuaClientRenderManager.remove(object.id(), owner());
             throw failure;
         }
     }
 
-    private void validateProperties(LuaTable props, String... extraProperties) {
-        LuaTable classTable = context.mlua().registration().classTable("RenderObject");
-        LuaValue descriptorsValue = classTable == null ? LuaValue.NIL : classTable.rawget("__mlua_properties");
-        LuaTable descriptors = descriptorsValue.istable() ? descriptorsValue.checktable() : new LuaTable();
+    private String renderClassName(LuaTable props) {
+        LuaValue value = property(props, "ClassName");
+        if (value.isnil()) return "RenderObject";
+        String className = value.checkjstring();
+        if (className.isBlank()) throw new LuaError("[MLua] RenderObject ClassName cannot be empty.");
+        return className;
+    }
+
+    private LuaTable propertyDescriptors(String className) {
+        var registration = context.mlua().registration();
+        List<String> hierarchy = new ArrayList<>();
+        String current = className;
+        while (current != null) {
+            hierarchy.add(current);
+            current = registration.superclassName(current);
+        }
+        java.util.Collections.reverse(hierarchy);
+        LuaTable merged = new LuaTable();
+        for (String typeName : hierarchy) {
+            LuaTable type = registration.classTable(typeName);
+            LuaValue descriptors = type == null ? LuaValue.NIL : type.rawget("__mlua_properties");
+            if (!descriptors.istable()) continue;
+            LuaValue key = LuaValue.NIL;
+            while (true) {
+                Varargs entry = descriptors.checktable().next(key);
+                key = entry.arg1();
+                if (key.isnil()) break;
+                merged.set(key, entry.arg(2));
+            }
+        }
+        return merged;
+    }
+
+    private void validateProperties(LuaTable props, String className, String... extraProperties) {
+        LuaTable descriptors = propertyDescriptors(className);
         java.util.Set<String> extras = java.util.Set.of(extraProperties);
         java.util.Set<String> provided = new java.util.HashSet<>();
         LuaValue key = LuaValue.NIL;
@@ -583,6 +624,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 throw new LuaError("[MLua] RenderObject properties must use registered string names.");
             }
             String suppliedName = key.tojstring();
+            if (upperCamel(suppliedName).equals("ClassName")) continue;
             String propertyName = registeredPropertyName(descriptors, suppliedName);
             String canonicalName = upperCamel(suppliedName);
             if (extras.contains(canonicalName)) continue;
@@ -609,10 +651,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private void applyPropertyValues(MLuaClientRenderManager.RenderObject object, LuaTable props,
-                                     String... extraProperties) {
-        LuaTable classTable = context.mlua().registration().classTable("RenderObject");
-        LuaValue descriptorValue = classTable == null ? LuaValue.NIL : classTable.rawget("__mlua_properties");
-        LuaTable descriptors = descriptorValue.istable() ? descriptorValue.checktable() : new LuaTable();
+                                     String className, String... extraProperties) {
+        LuaTable descriptors = propertyDescriptors(className);
         java.util.Set<String> extras = java.util.Set.of(extraProperties);
         java.util.Map<String, LuaValue> values = new java.util.TreeMap<>();
         LuaValue key = LuaValue.NIL;
@@ -621,6 +661,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             key = entry.arg1();
             if (key.isnil()) break;
             String suppliedName = key.checkjstring();
+            if (upperCamel(suppliedName).equals("ClassName")) continue;
             String canonicalName = upperCamel(suppliedName);
             if (extras.contains(canonicalName)) continue;
             String propertyName = registeredPropertyName(descriptors, suppliedName);
