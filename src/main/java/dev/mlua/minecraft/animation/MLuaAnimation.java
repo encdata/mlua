@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.Objects;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -22,13 +23,21 @@ public final class MLuaAnimation {
         if (keyframes == null || keyframes.isEmpty()) {
             throw new IllegalArgumentException("Animation must have at least one keyframe");
         }
-        this.keyframes = new ArrayList<>(keyframes);
-        this.keyframes.sort((a, b) -> Double.compare(a.time, b.time));
-        for (int index = 1; index < this.keyframes.size(); index++) {
-            if (this.keyframes.get(index - 1).time == this.keyframes.get(index).time) {
+        List<Keyframe> ordered = new ArrayList<>(keyframes.size());
+        for (Keyframe keyframe : keyframes) {
+            Objects.requireNonNull(keyframe, "keyframe");
+            if (!Double.isFinite(keyframe.time) || keyframe.time < 0.0 || keyframe.time > Float.MAX_VALUE) {
+                throw new IllegalArgumentException("Keyframe time must be finite, non-negative, and representable by the animation runtime");
+            }
+            ordered.add(keyframe);
+        }
+        ordered.sort((a, b) -> Double.compare(a.time, b.time));
+        for (int index = 1; index < ordered.size(); index++) {
+            if (ordered.get(index - 1).time == ordered.get(index).time) {
                 throw new IllegalArgumentException("Animation keyframe times must be unique");
             }
         }
+        this.keyframes = List.copyOf(ordered);
         this.length = this.keyframes.get(this.keyframes.size() - 1).time;
     }
 
@@ -196,9 +205,14 @@ public final class MLuaAnimation {
 
         public Keyframe(double time, Map<String, MLuaCFrame> data, EasingStyle easingStyle, EasingDirection easingDirection) {
             this.time = time;
-            this.data = Collections.unmodifiableMap(new HashMap<>(data));
-            this.easingStyle = easingStyle;
-            this.easingDirection = easingDirection;
+            Map<String, MLuaCFrame> snapshot = new HashMap<>(Objects.requireNonNull(data, "data"));
+            if (snapshot.entrySet().stream().anyMatch(entry -> entry.getKey() == null
+                    || entry.getKey().isBlank() || entry.getValue() == null)) {
+                throw new IllegalArgumentException("Animation keyframes need non-empty bone names and transforms");
+            }
+            this.data = Collections.unmodifiableMap(snapshot);
+            this.easingStyle = Objects.requireNonNull(easingStyle, "easingStyle");
+            this.easingDirection = Objects.requireNonNull(easingDirection, "easingDirection");
         }
 
         public Keyframe(double time, Map<String, MLuaCFrame> data) {

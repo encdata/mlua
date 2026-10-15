@@ -86,23 +86,37 @@ public final class MLuaAnimationController {
 
     private static void blendPose(MLuaEntityScope scope, List<MLuaAnimationTrack> tracks, Object runtimeOwner) {
         MLuaBonePose.clearAnimatedPose(scope, runtimeOwner);
-        List<MLuaAnimationTrack> sorted = new ArrayList<>(tracks);
-        sorted.sort(Comparator.comparingInt((MLuaAnimationTrack track) -> -track.getPriority().ordinal())
-                .thenComparingInt(MLuaAnimationTrack::trackId));
+        List<MLuaAnimationTrack> sorted = tracks.stream()
+                .filter(track -> track.getWeight() > 0.001f)
+                .sorted(Comparator.comparingInt((MLuaAnimationTrack track) -> track.getPriority().ordinal())
+                .thenComparingInt(MLuaAnimationTrack::trackId))
+                .toList();
         Map<String, MLuaCFrame> blended = new HashMap<>();
         Set<String> bones = new HashSet<>();
         for (MLuaAnimationTrack track : sorted) {
-            bones.addAll(track.getComputedPose().keySet());
+            bones.addAll(track.sampledPoseView().keySet());
         }
 
         for (String bone : bones) {
-            for (MLuaAnimationTrack track : sorted) {
-                MLuaCFrame pose = track.getBonePose(bone);
-                if (pose != null) {
-                    blended.put(bone, pose);
-                    break;
+            MLuaCFrame pose = MLuaCFrame.IDENTITY;
+            // Apply lower priorities first. Each higher layer blends over it by its total
+            // weight, so fading a track reveals the lower-priority pose smoothly.
+            for (AnimationPriority priority : AnimationPriority.values()) {
+                MLuaCFrame layerPose = null;
+                double totalWeight = 0.0;
+                for (MLuaAnimationTrack track : sorted) {
+                    if (track.getPriority() != priority) continue;
+                    MLuaCFrame trackPose = track.sampledPoseView().get(bone);
+                    double trackWeight = track.getWeight();
+                    if (trackPose == null || trackWeight <= 0.0) continue;
+                    double nextWeight = totalWeight + trackWeight;
+                    layerPose = layerPose == null ? trackPose
+                            : layerPose.lerp(trackPose, trackWeight / nextWeight);
+                    totalWeight = nextWeight;
                 }
+                if (layerPose != null) pose = pose.lerp(layerPose, Math.min(1.0, totalWeight));
             }
+            blended.put(bone, pose);
         }
         blended.forEach((bone, pose) -> MLuaBonePose.setAnimatedPose(scope, bone, pose, runtimeOwner));
     }

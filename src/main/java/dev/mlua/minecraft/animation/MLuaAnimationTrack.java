@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.luaj.vm2.LuaValue;
 
 public final class MLuaAnimationTrack {
@@ -25,17 +27,16 @@ public final class MLuaAnimationTrack {
     private float fadeSpeed;
 
     private final List<AnimationEvent> events;
-    private float lastEventCheckTime;
-
     private Map<String, MLuaCFrame> computedPose;
+    private Map<String, MLuaCFrame> sampledPose;
 
-    private static int NEXT_TRACK_ID = 1;
+    private static final AtomicInteger NEXT_TRACK_ID = new AtomicInteger(1);
 
     public MLuaAnimationTrack(int entityId, MLuaAnimation animation, AnimationPriority priority) {
-        this.trackId = NEXT_TRACK_ID++;
+        this.trackId = NEXT_TRACK_ID.getAndIncrement();
         this.entityId = entityId;
-        this.animation = animation;
-        this.priority = priority;
+        this.animation = Objects.requireNonNull(animation, "animation");
+        this.priority = Objects.requireNonNull(priority, "priority");
         this.speed = 1.0f;
         this.weight = 1.0f;
         this.targetWeight = 1.0f;
@@ -45,8 +46,8 @@ public final class MLuaAnimationTrack {
         this.looped = false;
         this.time = 0.0f;
         this.computedPose = new HashMap<>();
+        this.sampledPose = new HashMap<>();
         this.events = new ArrayList<>();
-        this.lastEventCheckTime = 0.0f;
     }
 
     public int trackId() { return trackId; }
@@ -61,18 +62,24 @@ public final class MLuaAnimationTrack {
     public boolean isPaused() { return paused; }
     public boolean isLooped() { return looped; }
     public boolean isAlive() { return playing || weight > 0.001f; }
-    public Map<String, MLuaCFrame> getComputedPose() { return computedPose; }
+    public Map<String, MLuaCFrame> getComputedPose() { return Map.copyOf(computedPose); }
+    Map<String, MLuaCFrame> sampledPoseView() { return sampledPose; }
     public MLuaCFrame getBonePose(String bone) { return computedPose.get(bone); }
 
     public MLuaAnimationTrack setLooped(boolean looped) { this.looped = looped; return this; }
-    public MLuaAnimationTrack setSpeed(float speed) { this.speed = Math.max(0.0f, speed); return this; }
-    public MLuaAnimationTrack setFadeSpeed(float speed) { this.fadeSpeed = Math.max(0.1f, speed); return this; }
+    public MLuaAnimationTrack setSpeed(float speed) {
+        this.speed = finiteNonNegative(speed, "Animation speed");
+        return this;
+    }
+    public MLuaAnimationTrack setFadeSpeed(float speed) {
+        this.fadeSpeed = Math.max(0.1f, finiteNonNegative(speed, "Animation fade speed"));
+        return this;
+    }
 
     public void play() {
         playing = true;
         paused = false;
         time = 0.0f;
-        lastEventCheckTime = 0.0f;
         fadeTo(1.0f);
     }
 
@@ -85,6 +92,7 @@ public final class MLuaAnimationTrack {
         weight = 0.0f;
         targetWeight = 0.0f;
         computedPose.clear();
+        sampledPose.clear();
     }
 
     public void pause() {
@@ -105,6 +113,7 @@ public final class MLuaAnimationTrack {
     }
 
     public void fadeTo(float target) {
+        if (!Float.isFinite(target)) throw new IllegalArgumentException("Animation weight must be finite");
         targetWeight = Math.max(0.0f, Math.min(1.0f, target));
         if (targetWeight <= 0.001f) {
             playing = false;
@@ -112,20 +121,35 @@ public final class MLuaAnimationTrack {
     }
 
     public void adjustSpeed(float newSpeed) {
-        speed = Math.max(0.0f, newSpeed);
+        setSpeed(newSpeed);
     }
 
     public void setTimePosition(float t) {
+        if (!Float.isFinite(t)) throw new IllegalArgumentException("Animation time position must be finite");
         time = Math.max(0.0f, Math.min(t, (float) animation.getLength()));
-        lastEventCheckTime = time;
     }
 
     public void addEvent(float triggerTime, LuaValue callback) {
+        if (!Float.isFinite(triggerTime) || triggerTime < 0.0f || triggerTime > animation.getLength()) {
+            throw new IllegalArgumentException("Animation event time must be finite and within the animation length");
+        }
+        if (callback == null || !callback.isfunction()) {
+            throw new IllegalArgumentException("Animation event callback must be a function");
+        }
         events.add(new AnimationEvent(triggerTime, callback));
         events.sort((a, b) -> Float.compare(a.triggerTime, b.triggerTime));
     }
 
     public void tick(float delta) {
+        if (!Float.isFinite(delta) || delta < 0.0f) return;
+        if (animation.getLength() <= 0.0) {
+            playing = false;
+            weight = 0.0f;
+            targetWeight = 0.0f;
+            computedPose.clear();
+            sampledPose.clear();
+            return;
+        }
         if (!playing || paused) {
             handleFade(delta);
             updateComputedPose();
@@ -138,16 +162,16 @@ public final class MLuaAnimationTrack {
 
         if (weight <= 0.001f) {
             computedPose.clear();
+            sampledPose.clear();
             return;
         }
 
-        time += delta * speed;
+        double nextTime = time + (double) delta * speed;
 
-        if (looped && time > animation.getLength()) {
-            time = (float) (time % animation.getLength());
-            if (time < 0.01f && previousTime < animation.getLength()) {
-                lastEventCheckTime = 0.0f;
-            }
+        if (looped && nextTime >= animation.getLength()) {
+            time = (float) (nextTime % animation.getLength());
+        } else {
+            time = (float) Math.min(nextTime, animation.getLength());
         }
 
         if (!looped && time >= animation.getLength()) {
@@ -163,18 +187,17 @@ public final class MLuaAnimationTrack {
     private void updateComputedPose() {
         if (weight <= 0.001f || animation.getLength() <= 0) {
             computedPose.clear();
+            sampledPose.clear();
             return;
         }
 
-        Map<String, MLuaCFrame> rawPose = animation.sample(time);
-
+        sampledPose = animation.sample(time);
         computedPose.clear();
         if (weight >= 0.999f) {
-            computedPose.putAll(rawPose);
+            computedPose.putAll(sampledPose);
         } else {
-            MLuaCFrame identity = MLuaCFrame.angles(0, 0, 0);
-            for (Map.Entry<String, MLuaCFrame> entry : rawPose.entrySet()) {
-                computedPose.put(entry.getKey(), identity.lerp(entry.getValue(), weight));
+            for (Map.Entry<String, MLuaCFrame> entry : sampledPose.entrySet()) {
+                computedPose.put(entry.getKey(), MLuaCFrame.IDENTITY.lerp(entry.getValue(), weight));
             }
         }
     }
@@ -207,6 +230,13 @@ public final class MLuaAnimationTrack {
                 }
             }
         }
+    }
+
+    private static float finiteNonNegative(float value, String name) {
+        if (!Float.isFinite(value) || value < 0.0f) {
+            throw new IllegalArgumentException(name + " must be finite and non-negative");
+        }
+        return value;
     }
 
     public static final class AnimationEvent {

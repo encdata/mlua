@@ -75,6 +75,10 @@ public final class MLuaAnimationBindings {
             "Sets this animation track's finite, non-negative playback speed.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetTimePosition",
             "Returns this animation track's current playback position.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetTimePosition",
+            "Moves playback to a finite, non-negative position, clamped to the animation length.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetTrackId",
+            "Returns this animation track's runtime identifier.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetPriority",
             "Returns this animation track's playback priority.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetLength",
@@ -186,6 +190,18 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.setInstanceMethod(table, "GetTimePosition", new ZeroArgFunction() {
             public LuaValue call() {
                 return LuaValue.valueOf(track.getTime());
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "SetTimePosition", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                track.setTimePosition(MLuaLuaArguments.finiteNonNegativeFloat(
+                    args.arg(2), "AnimationTrack:SetTimePosition", "timePosition"));
+                return LuaValue.NONE;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "GetTrackId", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(track.trackId());
             }
         });
         MLuaClassMethods.setInstanceMethod(table, "GetPriority", new ZeroArgFunction() {
