@@ -6,6 +6,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaAnimation;
 import dev.mlua.minecraft.animation.MLuaAnimationController;
+import dev.mlua.minecraft.animation.MLuaAnimationOptions;
 import dev.mlua.minecraft.animation.MLuaAnimationTrack;
 import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
@@ -662,10 +663,8 @@ public final class MLuaEntityWrapper {
       MLuaClassMethods.setInstanceMethod(table, "ResetModel", table.get("ResetAnimation"));
       MLuaClassMethods.setInstanceMethod(table, "PlayAnimation", varArg((args) -> {
          String name = args.checkjstring(2);
-         LuaTable options = args.arg(3).opttable(new LuaTable());
-         boolean loop = options.get("Loop").optboolean(true);
-         float speed = (float) options.get("Speed").optdouble(1.0);
-         MLuaClientRenderManager.playEntityAnimation(entity, name, loop, speed);
+         MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "Entity:PlayAnimation");
+         MLuaClientRenderManager.playEntityAnimation(entity, name, options.loop(), options.speed());
          return LuaValue.NONE;
       }));
       MLuaClassMethods.setInstanceMethod(table, "StopAnimation", luaFn(() -> {

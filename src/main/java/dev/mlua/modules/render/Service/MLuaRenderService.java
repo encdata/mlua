@@ -9,6 +9,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.minecraft.animation.MLuaAnimationOptions;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
@@ -338,7 +339,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             }));
             operations.set("PlayAnimation", fn(args -> {
                 String name = args.checkjstring(2);
-                object.animationPlayer().play(name, asset, args.arg(3).opttable(new LuaTable()).get("Loop").optboolean(true), (float)args.arg(3).opttable(new LuaTable()).get("Speed").optdouble(1.0));
+                MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "RenderObject:PlayAnimation");
+                object.animationPlayer().play(name, asset, options.loop(), options.speed());
                 return LuaValue.NONE;
             }));
             operations.set("StopAnimation", fn(args -> { object.animationPlayer().stop(); return LuaValue.NONE; }));

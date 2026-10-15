@@ -11,6 +11,9 @@ public final class MLuaAnimationPlayer {
 
    public void play(String name, MLuaBBModelAsset asset, boolean loop, float speed) {
       if (!asset.animations().containsKey(name)) throw new IllegalArgumentException("Unknown BBModel animation: " + name);
+      if (!Float.isFinite(speed) || speed < 0.0F) {
+         throw new IllegalArgumentException("BBModel animation speed must be finite and non-negative");
+      }
       this.active = name;
       this.time = 0.0F;
       this.speed = speed;

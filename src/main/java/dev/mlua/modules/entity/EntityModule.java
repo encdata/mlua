@@ -120,7 +120,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetBonePose(bone: string)", "CFrame?"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:ClearBonePose(bone: string)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetBonePoses()", "table"));
-        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:PlayAnimation(name: string, options: table?)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:PlayAnimation(name: string, options: ModelAnimationOptions?)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:StopAnimation()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:StopAllAnimations()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetPlayingAnimationTracks()", "AnimationTrack[]"));
