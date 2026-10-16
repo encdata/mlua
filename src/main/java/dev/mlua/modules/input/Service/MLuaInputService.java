@@ -13,6 +13,7 @@ import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.minecraft.client.MLuaKeybindController;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import net.minecraft.client.KeyMapping;
 
 @MLuaDescription("Provides client input state and input change events.")
@@ -34,29 +35,44 @@ public final class MLuaInputService extends MLuaReflectiveService {
    @MLuaDescription("Registers one keybind for the calling mod.")
    public LuaTable RegisterKeybind(String name, Optional<LuaValue> properties) {
       this.requireClientSide(this.name());
-      LuaTable props = properties.isPresent() ? properties.get().checktable() : null;
-      return this.registerKeybind(this.context.mlua().ownerModId(), name, props);
+      String checkedName = requireName(name, "RegisterKeybind");
+      LuaTable props = null;
+      if (properties.isPresent()) {
+         if (!properties.get().istable()) {
+            throw new LuaError("[MLua] RegisterKeybind properties must be a definition table.");
+         }
+         props = properties.get().checktable();
+      }
+      return this.registerKeybind(this.context.mlua().ownerModId(), checkedName, props);
    }
 
-   @MLuaDescription("Registers several keybinds from a keyed definition table.")
+   @MLuaDescription("Validates and registers every keybind in a keyed definition table, returning instances in sorted name order.")
    public LuaTable RegisterKeybinds(LuaTable definitions) {
       this.requireClientSide(this.name());
-      LuaTable result = new LuaTable();
-      int index = 1;
+      Map<String, KeybindDefinition> pending = new TreeMap<>();
       LuaValue key = LuaValue.NIL;
       while (true) {
          Varargs next = definitions.next(key);
          key = next.arg1();
-         if (key.isnil()) return result;
+         if (key.isnil()) break;
          LuaValue value = next.arg(2);
-         if (!value.istable()) continue;
          if (!key.isstring()) {
             throw new LuaError("[MLua] RegisterKeybinds requires string keys for keybind definitions, got " + key.typename());
          }
-         String name = key.tojstring();
-         if (name.isBlank()) throw new LuaError("[MLua] RegisterKeybinds entries need a non-blank name");
-         result.set(index++, this.registerKeybind(this.context.mlua().ownerModId(), name, value.checktable()));
+         String name = requireName(key.tojstring(), "RegisterKeybinds");
+         if (!value.istable()) {
+            throw new LuaError("[MLua] RegisterKeybinds entry '" + name + "' must contain a keybind definition table.");
+         }
+         pending.put(name, keybindDefinition(name, value.checktable(), "RegisterKeybinds"));
       }
+
+      LuaTable result = new LuaTable();
+      int index = 1;
+      String owner = this.context.mlua().ownerModId();
+      for (KeybindDefinition definition : pending.values()) {
+         result.set(index++, this.registerKeybind(owner, definition));
+      }
+      return result;
    }
 
    @MLuaDescription("Returns the change signal for a keybind registered by this mod.")
@@ -101,11 +117,13 @@ public final class MLuaInputService extends MLuaReflectiveService {
       this.requireClientSide(this.name());
       LuaTable result = new LuaTable();
       int index = 1;
-      for (Map.Entry<String, String> entry : MLuaKeybindController.allKeys(this.context.mlua().ownerModId()).entrySet()) {
-         result.set(index++, keybindTable(this.context.mlua().ownerModId(), entry.getKey(),
+      String owner = this.context.mlua().ownerModId();
+      for (Map.Entry<String, String> entry : new TreeMap<>(MLuaKeybindController.allKeys(owner)).entrySet()) {
+         result.set(index++, keybindTable(owner, entry.getKey(),
             this.context.mlua().scheduler(), this.context.mlua().side()));
       }
-      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
+      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds().stream()
+            .sorted(java.util.Comparator.comparing(MLuaKeybindController::name)).toList()) {
          result.set(index++, mcKeybindTable(mapping));
       }
       return result;
@@ -125,7 +143,8 @@ public final class MLuaInputService extends MLuaReflectiveService {
       this.requireClientSide(this.name());
       LuaTable result = new LuaTable();
       int index = 1;
-      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
+      for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds().stream()
+            .sorted(java.util.Comparator.comparing(MLuaKeybindController::name)).toList()) {
          result.set(index++, mcKeybindTable(mapping));
       }
       return result;
@@ -141,21 +160,66 @@ public final class MLuaInputService extends MLuaReflectiveService {
    }
 
    private LuaTable registerKeybind(String ownerModId, String name, LuaTable props) {
-      String label = props != null ? props.get("label").optjstring(name) : name;
-      String category = props != null ? props.get("category").optjstring("key.categories.mlua") : "key.categories.mlua";
-      LuaValue defaultKey = props != null ? firstNonNil(props.get("defaultKey"), props.get("key")) : LuaValue.NIL;
-      MLuaKeybindController.register(ownerModId, name, label, category, defaultKey);
-      return keybindTable(ownerModId, name, this.context.mlua().scheduler(), this.context.mlua().side());
+      return this.registerKeybind(ownerModId, keybindDefinition(name, props, "RegisterKeybind"));
    }
+
+   private LuaTable registerKeybind(String ownerModId, KeybindDefinition definition) {
+      MLuaKeybindController.register(ownerModId, definition.name(), definition.label(), definition.category(), definition.defaultKey());
+      return keybindTable(ownerModId, definition.name(), this.context.mlua().scheduler(), this.context.mlua().side());
+   }
+
+   private static KeybindDefinition keybindDefinition(String name, LuaTable props, String operation) {
+      if (props == null) props = new LuaTable();
+      String label = optionalString(props, "label", "Label", name, operation);
+      String category = optionalString(props, "category", "Category", "key.categories.mlua", operation);
+      LuaValue defaultKey = aliasedValue(props, "defaultKey", "DefaultKey", operation);
+      LuaValue keyAlias = aliasedValue(props, "key", "Key", operation);
+      if (!defaultKey.isnil() && !keyAlias.isnil()) {
+         throw new LuaError("[MLua] " + operation + " options 'defaultKey' and 'key' are aliases; provide only one.");
+      }
+      LuaValue selectedKey = defaultKey.isnil() ? keyAlias : defaultKey;
+      if (!selectedKey.isnil() && !selectedKey.isstring() && !selectedKey.isnumber() && !selectedKey.istable()) {
+         throw new LuaError("[MLua] " + operation + " defaultKey must be a key name, key code, key table, or nil.");
+      }
+      return new KeybindDefinition(name, label, category, selectedKey);
+   }
+
+   private static String optionalString(LuaTable props, String lowerName, String upperName,
+                                        String defaultValue, String operation) {
+      LuaValue value = aliasedValue(props, lowerName, upperName, operation);
+      if (value.isnil()) return defaultValue;
+      if (!value.isstring()) {
+         throw new LuaError("[MLua] " + operation + " option '" + lowerName + "' must be a string.");
+      }
+      String text = value.checkjstring().trim();
+      if (text.isEmpty()) throw new LuaError("[MLua] " + operation + " option '" + lowerName + "' cannot be blank.");
+      return text;
+   }
+
+   private static LuaValue aliasedValue(LuaTable props, String lowerName, String upperName, String operation) {
+      LuaValue lower = props.rawget(lowerName);
+      LuaValue upper = props.rawget(upperName);
+      if (!lower.isnil() && !upper.isnil()) {
+         throw new LuaError("[MLua] " + operation + " options '" + lowerName + "' and '" + upperName
+            + "' are aliases; provide only one.");
+      }
+      return lower.isnil() ? upper : lower;
+   }
+
+   private static String requireName(String value, String operation) {
+      String name = value == null ? "" : value.trim();
+      if (name.isEmpty() || !name.equals(value)) {
+         throw new LuaError("[MLua] " + operation + " requires a non-blank name without surrounding whitespace.");
+      }
+      return name;
+   }
+
+   private record KeybindDefinition(String name, String label, String category, LuaValue defaultKey) { }
 
    private LuaTable mcKeybindTable(KeyMapping mapping) {
       LuaTable table = new LuaTable();
       table.rawset("__key_mapping", LuaValue.userdataOf(mapping));
       return this.context.mlua().registration().attachClassInstance(table, "MinecraftKeybind", null);
-   }
-
-   private static LuaValue firstNonNil(LuaValue a, LuaValue b) {
-      return !a.isnil() ? a : b;
    }
 
 }

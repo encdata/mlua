@@ -128,25 +128,28 @@ public class InputModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.Key", "string", "The assigned key; only addon-owned keybinds can be changed.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.Category", "string", "The Controls category containing this key mapping.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("Keybind", "Keybind.Signal", "Signal", "Fires when this keybind is pressed.", "client:Client"));
-        docs.register(MLuaDocBuilder.Registration.method("Keybind", "Keybind:SetKey(key: string)", "Changes the key assigned to this addon keybind.", "key name", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Keybind", "Keybind:SetKey(key: string|number|KeyDefinition)", "Changes the key assigned to this addon keybind.", "key name, numeric code, or key definition", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("Keybind", "Keybind:Listen()", "Returns this keybind's change signal.", null, "Signal", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:RegisterKeybind(name: string, props: KeybindDefinition)", "Keybind"));
-        docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:RegisterKeybinds(definitions: KeybindDefinition[])", "Keybind[]"));
-        docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:SetKeybind(name: string, key: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:RegisterKeybinds(definitions: { [name: string]: KeybindDefinition })", "Keybind[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:SetKeybind(name: string, key: string|number|KeyDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:GetKeybind(name: string)", "Keybind|MinecraftKeybind|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:GetKeybinds()", "(Keybind|MinecraftKeybind)[]"));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:GetMinecraftKeybind(name: string)", "MinecraftKeybind|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:GetMinecraftKeybinds()", "MinecraftKeybind[]"));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:IsKeyDown(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("InputService", "InputService:ListenForKeybind(name: string)", "Signal"));
-        docs.register(MLuaDocBuilder.Registration.signature("Keybind", "Keybind:SetKey(key: string)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Keybind", "Keybind:SetKey(key: string|number|KeyDefinition)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Keybind", "Keybind:Listen()", "Signal"));
 
         docs.register(MLuaDocBuilder.Registration.service("InputService", "MLuaInputService",
             "Provides client input state and input change events.", "services/input.html"));
-        docs.register(MLuaDocBuilder.Registration.type("KeybindDefinition", null, "Options for registering one keybind."));
+        docs.register(MLuaDocBuilder.Registration.type("KeybindDefinition", null, "Options for registering one keybind. Use one casing per option. Batch registration validates every named definition before creating any keybinds."));
         docs.register(MLuaDocBuilder.Registration.field("KeybindDefinition", "label", "string", "Visible name shown in Minecraft's Controls screen."));
         docs.register(MLuaDocBuilder.Registration.field("KeybindDefinition", "category?", "string", "Optional Controls screen category."));
-        docs.register(MLuaDocBuilder.Registration.field("KeybindDefinition", "defaultKey?", "string", "Optional default key name, such as KEY_R."));
+        docs.register(MLuaDocBuilder.Registration.field("KeybindDefinition", "defaultKey?", "string|number|KeyDefinition", "Optional key name, numeric key code, or a table with Name or Value."));
+        docs.register(MLuaDocBuilder.Registration.type("KeyDefinition", null, "A key description table with a Name or Value field."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyDefinition", "Name?", "string", "Key name, such as KEY_R."));
+        docs.register(MLuaDocBuilder.Registration.field("KeyDefinition", "Value?", "string|number", "Key name or numeric key code."));
     }
 }

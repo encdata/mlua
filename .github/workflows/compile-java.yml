@@ -497,6 +497,19 @@ jobs:
           assert(type(Animation.AnimationTrack.IsAlive) == "function", "AnimationTrack liveness query was not registered")
           assert(type(Animation.AnimationTrack.IsFading) == "function", "AnimationTrack fade-state query was not registered")
           assert(type(Animation.AnimationTrack.GetTargetWeight) == "function", "AnimationTrack target-weight query was not registered")
+          local input = Minecraft:GetService("InputService")
+          local keybinds = input:RegisterKeybinds({
+              mlua_ci_keybind_z = {},
+              mlua_ci_keybind_a = { Label = "MLua CI keybind" },
+          })
+          assert(#keybinds == 2 and keybinds[1].Name == "mlua_ci_keybind_a"
+              and keybinds[2].Name == "mlua_ci_keybind_z",
+              "InputService:RegisterKeybinds did not return stable, sorted keybind instances")
+          local partialKeybindsRegistered = pcall(function()
+              input:RegisterKeybinds({ mlua_ci_atomic_a = {}, mlua_ci_atomic_z = false })
+          end)
+          assert(not partialKeybindsRegistered and input:GetKeybind("mlua_ci_atomic_a") == nil,
+              "InputService:RegisterKeybinds partially registered a malformed batch")
           local attributes = Minecraft:GetService("Attribute")
           assert(type(attributes.GetAttributeInstance) == "function", "Attribute service did not expose AttributeInstance")
           assert(type(attributes.ResetBaseValue) == "function", "Attribute reset method was not registered")
