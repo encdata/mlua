@@ -166,10 +166,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     private static void registerObjectProperty(MLuaRegistration registration, String name, String type,
                                                String description, String getter, String setter) {
+        String propertyName = name;
         LuaValue get = new OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
-                if ("Id".equals(name)) return self.checktable().rawget(OBJECT_ID);
-                if ("Type".equals(name)) return self.checktable().rawget("__mluaRenderType");
+                if ("Id".equals(propertyName)) return self.checktable().rawget(OBJECT_ID);
+                if ("Type".equals(propertyName)) return self.checktable().rawget("__mluaRenderType");
                 return invokeObjectOperation(self, getter).arg1();
             }
         };
@@ -183,8 +184,9 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private static void registerObjectMethod(MLuaRegistration registration, String name, String description) {
+        String methodName = name;
         registration.registerClassFunction("RenderObject", name, new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) { return invokeObjectOperation(args.arg1(), name, args.subargs(2)); }
+            @Override public Varargs invoke(Varargs args) { return invokeObjectOperation(args.arg1(), methodName, args.subargs(2)); }
         }, description);
     }
 
