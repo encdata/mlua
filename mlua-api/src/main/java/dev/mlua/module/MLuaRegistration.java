@@ -16,6 +16,24 @@ public interface MLuaRegistration {
         throw new UnsupportedOperationException("Registration rollback callbacks are not supported by this runtime");
     }
 
+    /**
+     * Tracks cleanup for the active registration transaction and immediately
+     * runs it if the runtime cannot accept the rollback action.
+     */
+    default void trackRollback(Runnable cleanup) {
+        java.util.Objects.requireNonNull(cleanup, "cleanup");
+        try {
+            onRegistrationRollback(cleanup);
+        } catch (RuntimeException | Error failure) {
+            try {
+                cleanup.run();
+            } catch (RuntimeException | Error cleanupFailure) {
+                if (cleanupFailure != failure) failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+    }
+
     default void registerDocumentation(MLuaDocBuilder.Contribution contribution) {
         throw new UnsupportedOperationException("Addon documentation registration is not supported by this runtime");
     }

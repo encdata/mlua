@@ -26,6 +26,7 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.runtime.registry.MLuaAssetResolver;
 import dev.mlua.runtime.registry.MLuaBlockFactory;
 import dev.mlua.runtime.registry.MLuaCreativeTabFactory;
+import dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog;
 import dev.mlua.runtime.registry.MLuaEntityVisualDescriptor;
 import dev.mlua.runtime.config.MLuaConfigRegistry;
 import dev.mlua.runtime.registry.MLuaItemFactory;
@@ -82,8 +83,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       "GetCategory", "Get", "GetAll", "GetIds", "GetTypes", "GetRegistered", "GetEntries", "GetId", "GetEntry", "Exists");
    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
    private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
-   private final DynamicRegistryState dynamicRegistry = this.sharedState(
-      "dynamic-categories", DynamicRegistryState.class, DynamicRegistryState::new);
+   private final MLuaDynamicRegistryCatalog dynamicRegistry = this.sharedState(
+      "dynamic-categories", MLuaDynamicRegistryCatalog.class, MLuaDynamicRegistryCatalog::new);
    private final MLuaItemFactory itemFactory = new MLuaItemFactory();
    private final MLuaBlockFactory blockFactory = new MLuaBlockFactory();
    private final MLuaCreativeTabFactory tabFactory = new MLuaCreativeTabFactory();
@@ -168,12 +169,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       String owner = this.context.mlua().ownerModId();
       MLuaConfigRegistry.ConfigSectionHandle handle = MLuaConfigRegistry.get().register(owner, scope, name, values);
       Runnable rollback = () -> MLuaConfigRegistry.get().unregister(handle);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private record RegistryEndpoint(String table, String registerMethod, String typeDomain,
@@ -211,24 +207,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, contribution);
       Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedDataResource(
          owner, resourceType, id, contribution);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private void registerGeneratedAssetResource(String owner, String path, JsonObject definition) {
       JsonObject contribution = definition.deepCopy();
       MLuaLoaderRegistry.registerGeneratedAssetResource(owner, path, contribution);
       Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedAssetResource(owner, path, contribution);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private void registerGeneratedAsset(GeneratedAssetKind kind, String owner, String name, JsonObject definition) {
@@ -236,12 +222,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       JsonObject snapshot = definition.deepCopy();
       MLuaLoaderRegistry.registerGeneratedAsset(kind, owner, name, snapshot);
       Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedAsset(kind, owner, name, snapshot);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private void validateGeneratedResourceName(String owner, String name, String resourceKind) {
@@ -265,8 +246,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (!(runtimeSession instanceof MLuaRuntimeSession session) || ownerModId == null || ownerModId.isBlank()) return;
       List<Side> sides = side == Side.BOTH ? List.of(Side.SERVER, Side.CLIENT) : List.of(side);
       for (Side currentSide : sides) {
-         DynamicRegistryState state = session.existingSharedServiceState(
-            currentSide, "Registry", "dynamic-categories", DynamicRegistryState.class);
+         MLuaDynamicRegistryCatalog state = session.existingSharedServiceState(
+            currentSide, "Registry", "dynamic-categories", MLuaDynamicRegistryCatalog.class);
          if (state != null) state.unregisterOwner(ownerModId);
       }
    }
@@ -310,7 +291,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       table.set("Assets", assets);
       table.set("WorldGeneration", worldGeneration);
       table.set("ContentTypes", contentTypes);
-      for (DynamicRegistryCategory category : this.dynamicRegistry.categories()) {
+      for (MLuaDynamicRegistryCatalog.Category category : this.dynamicRegistry.categories()) {
          this.installDynamicCategory(table, category);
       }
       table.set("RegisterCategory", new VarArgFunction() {
@@ -331,23 +312,19 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
             String domain = dynamicContentTypeDomain(owner, category);
-            DynamicRegistryCategory registered = new DynamicRegistryCategory(category, description, domain,
+            MLuaDynamicRegistryCatalog.Category registered = new MLuaDynamicRegistryCatalog.Category(category, description, domain,
                owner, register);
             if (!MLuaRegistryService.this.dynamicRegistry.register(registered)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
-            try {
-               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() -> {
-                  if (MLuaRegistryService.this.dynamicRegistry.unregister(key, registered)) {
-                     RegistryEndpoint endpoint = new RegistryEndpoint(category, "Register", domain, category, null, List.of());
-                     MLuaRegistryService.this.registryEndpoints.remove(key, endpoint);
-                     table.set(category, LuaValue.NIL);
-                  }
-               });
-            } catch (RuntimeException | Error failure) {
-               MLuaRegistryService.this.dynamicRegistry.unregister(key, registered);
-               throw failure;
-            }
+            Runnable rollback = () -> {
+               if (MLuaRegistryService.this.dynamicRegistry.unregister(key, registered)) {
+                  RegistryEndpoint endpoint = new RegistryEndpoint(category, "Register", domain, category, null, List.of());
+                  MLuaRegistryService.this.registryEndpoints.remove(key, endpoint);
+                  table.set(category, LuaValue.NIL);
+               }
+            };
+            MLuaRegistryService.this.context.mlua().registration().trackRollback(rollback);
             MLuaRegistryService.this.installDynamicCategory(table, registered);
             return table.get(category);
          }
@@ -466,13 +443,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             } catch (IllegalArgumentException | IllegalStateException invalid) {
                throw new LuaError(invalid.getMessage());
             }
-            try {
-               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                  MLuaBehaviorRegistry.unregisterContainerType(key, container));
-            } catch (RuntimeException | Error failure) {
-               MLuaBehaviorRegistry.unregisterContainerType(key, container);
-               throw failure;
-            }
+            MLuaRegistryService.this.context.mlua().registration().trackRollback(() ->
+               MLuaBehaviorRegistry.unregisterContainerType(key, container));
             return LuaValue.NONE;
          }
       });
@@ -958,13 +930,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             } catch (IllegalArgumentException | IllegalStateException invalid) {
                throw new LuaError("[MLua] " + invalid.getMessage());
             }
-            try {
-               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                  MLuaDamageSourceRegistry.unregister(runtimeOwner, owner, name, definition));
-            } catch (RuntimeException | Error failure) {
-               MLuaDamageSourceRegistry.unregister(runtimeOwner, owner, name, definition);
-               throw failure;
-            }
+            MLuaRegistryService.this.context.mlua().registration().trackRollback(() ->
+               MLuaDamageSourceRegistry.unregister(runtimeOwner, owner, name, definition));
             return LuaValue.NONE;
          }
       });
@@ -1119,13 +1086,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              String ownerModId = MLuaRegistryService.this.context.mlua().ownerModId();
              MLuaProjectileDefinition.ProjectileDef definition = MLuaProjectileDefinition.register(runtimeOwner, ownerModId, name, props,
                    MLuaLuaBindings.boundContext(MLuaRegistryService.this.context.mlua().globals()));
-             try {
-                MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                   MLuaProjectileDefinition.unregister(runtimeOwner, ownerModId, name, definition));
-             } catch (RuntimeException | Error failure) {
-                MLuaProjectileDefinition.unregister(runtimeOwner, ownerModId, name, definition);
-                throw failure;
-             }
+             MLuaRegistryService.this.context.mlua().registration().trackRollback(() ->
+                MLuaProjectileDefinition.unregister(runtimeOwner, ownerModId, name, definition));
              return MLuaProjectileDefinition.createTypeLuaTable(runtimeOwner, ownerModId, name,
                 MLuaRegistryService.this.context.mlua().registration());
           }
@@ -1324,7 +1286,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return table;
    }
 
-   private void installDynamicCategory(LuaTable registry, DynamicRegistryCategory category) {
+   private void installDynamicCategory(LuaTable registry, MLuaDynamicRegistryCatalog.Category category) {
       String key = category.name().trim().toLowerCase(java.util.Locale.ROOT);
       RegistryEndpoint endpoint = new RegistryEndpoint(category.name(), "Register", category.domain(),
          category.name(), null, List.of());
@@ -1335,10 +1297,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
             String categoryKey = category.name().trim().toLowerCase(java.util.Locale.ROOT);
-            DynamicRegistryCategory active = MLuaRegistryService.this.dynamicRegistry.category(categoryKey);
+            MLuaDynamicRegistryCatalog.Category active = MLuaRegistryService.this.dynamicRegistry.category(categoryKey);
             if (active == null) throw new LuaError("[MLua] Registry category '" + category.name() + "' is no longer registered");
             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
-            if (!MLuaRegistryService.this.dynamicRegistry.beginDefinition(categoryKey, id)) {
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            if (!MLuaRegistryService.this.dynamicRegistry.beginDefinition(categoryKey, id, owner)) {
                throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
             }
             try {
@@ -1346,20 +1309,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                LuaTable resolved = MLuaRegistryService.this.context.mlua().registration()
                   .resolveContentType(active.domain(), MLuaRegistryService.this.context.mlua().ownerModId(), definition);
                Varargs result = active.register().invoke(LuaValue.varargsOf(
-                  new LuaValue[]{LuaValue.valueOf(id), copyLuaTable(resolved, new java.util.IdentityHashMap<>())}));
-               String owner = MLuaRegistryService.this.context.mlua().ownerModId();
-               RegisteredDefinition stored = MLuaRegistryService.this.dynamicRegistry
+                  new LuaValue[]{LuaValue.valueOf(id), MLuaDynamicRegistryCatalog.copyTable(resolved)}));
+               MLuaDynamicRegistryCatalog.DefinitionHandle stored = MLuaRegistryService.this.dynamicRegistry
                   .registerDefinition(categoryKey, id, owner, resolved);
                if (stored == null) {
                   throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
                }
-               try {
-                  MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                     MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
-               } catch (RuntimeException | Error failure) {
-                  MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored);
-                  throw failure;
-               }
+               MLuaRegistryService.this.context.mlua().registration().trackRollback(() ->
+                  MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
                return result;
             } finally {
                MLuaRegistryService.this.dynamicRegistry.cancelPendingDefinition(categoryKey, id);
@@ -1399,111 +1356,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       registry.set(category.name(), target);
    }
 
-   private static final class DynamicRegistryState {
-      private final Map<String, DynamicRegistryCategory> categories = new java.util.LinkedHashMap<>();
-      private final Map<String, Map<String, RegisteredDefinition>> definitions = new java.util.LinkedHashMap<>();
-      private final Map<String, java.util.Set<String>> pendingDefinitions = new java.util.LinkedHashMap<>();
-
-      private synchronized boolean register(DynamicRegistryCategory category) {
-         String key = category.name().trim().toLowerCase(java.util.Locale.ROOT);
-         if (this.categories.putIfAbsent(key, category) != null) return false;
-         this.definitions.put(key, new java.util.LinkedHashMap<>());
-         this.pendingDefinitions.put(key, new java.util.HashSet<>());
-         return true;
-      }
-
-      private synchronized List<DynamicRegistryCategory> categories() {
-         return List.copyOf(this.categories.values());
-      }
-
-      private synchronized DynamicRegistryCategory category(String name) {
-         return this.categories.get(name.trim().toLowerCase(java.util.Locale.ROOT));
-      }
-
-      private synchronized boolean unregister(String key, DynamicRegistryCategory expected) {
-         if (!this.categories.remove(key, expected)) return false;
-         this.definitions.remove(key);
-         this.pendingDefinitions.remove(key);
-         return true;
-      }
-
-      private synchronized boolean beginDefinition(String category, String id) {
-         String key = category.trim().toLowerCase(java.util.Locale.ROOT);
-         Map<String, RegisteredDefinition> values = this.definitions.get(key);
-         java.util.Set<String> pending = this.pendingDefinitions.get(key);
-         if (values == null || pending == null || values.containsKey(id) || !pending.add(id)) return false;
-         return true;
-      }
-
-      private synchronized void cancelPendingDefinition(String category, String id) {
-         java.util.Set<String> pending = this.pendingDefinitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         if (pending != null) pending.remove(id);
-      }
-
-      private synchronized RegisteredDefinition registerDefinition(String category, String id, String owner, LuaTable definition) {
-         String key = category.trim().toLowerCase(java.util.Locale.ROOT);
-         Map<String, RegisteredDefinition> values = this.definitions.get(key);
-         java.util.Set<String> pending = this.pendingDefinitions.get(key);
-         if (values == null || pending == null || !pending.contains(id) || values.containsKey(id)) return null;
-         RegisteredDefinition stored = new RegisteredDefinition(owner,
-            copyLuaTable(definition, new java.util.IdentityHashMap<>()));
-         values.put(id, stored);
-         return stored;
-      }
-
-      private synchronized void unregisterDefinition(String category, String id, RegisteredDefinition expected) {
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         if (values != null) values.remove(id, expected);
-      }
-
-      private synchronized void unregisterOwner(String ownerModId) {
-         List<String> removed = this.categories.entrySet().stream()
-            .filter(entry -> ownerModId.equals(entry.getValue().owner()))
-            .map(Map.Entry::getKey).toList();
-         for (String key : removed) {
-            this.categories.remove(key);
-            this.definitions.remove(key);
-            this.pendingDefinitions.remove(key);
-         }
-         this.definitions.values().forEach(values -> values.entrySet()
-            .removeIf(entry -> ownerModId.equals(entry.getValue().owner())));
-      }
-
-      private synchronized LuaTable definition(String category, String id) {
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         RegisteredDefinition definition = values == null ? null : values.get(id);
-         return definition == null ? null : copyLuaTable(definition.value(), new java.util.IdentityHashMap<>());
-      }
-
-      private synchronized boolean containsDefinition(String category, String id) {
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         return values != null && values.containsKey(id);
-      }
-
-      private synchronized List<String> ids(String category, String namespace) {
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         if (values == null) return List.of();
-         return values.keySet().stream().filter(id -> namespace == null || id.startsWith(namespace + ":"))
-            .sorted().toList();
-      }
-
-      private synchronized LuaTable definitions(String category, String namespace) {
-         LuaTable result = new LuaTable();
-         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         if (values != null) values.entrySet().stream()
-            .filter(entry -> namespace == null || entry.getKey().startsWith(namespace + ":"))
-            .sorted(Map.Entry.comparingByKey())
-            .forEach(entry -> result.set(entry.getKey(), copyLuaTable(entry.getValue().value(), new java.util.IdentityHashMap<>())));
-         return result;
-      }
-   }
-
-   private record DynamicRegistryCategory(String name, String description, String domain, String owner,
-                                          LuaValue register) { }
-   private record RegisteredDefinition(String owner, LuaTable value) { }
-
-   private DynamicRegistryCategory requireDynamicCategory(String category) {
-      DynamicRegistryCategory registered = this.dynamicRegistry.category(category);
+   private MLuaDynamicRegistryCatalog.Category requireDynamicCategory(String category) {
+      MLuaDynamicRegistryCatalog.Category registered = this.dynamicRegistry.category(category);
       if (registered == null) throw new LuaError("[MLua] Registry category '" + category + "' is not addon-owned");
       return registered;
    }
@@ -1521,23 +1375,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private static String dynamicContentTypeDomain(String owner, String category) {
       String encodedCategory = HexFormat.of().formatHex(category.getBytes(StandardCharsets.UTF_8));
       return "addon." + owner + ".category." + encodedCategory;
-   }
-
-   private static LuaTable copyLuaTable(LuaTable source, Map<LuaTable, LuaTable> copies) {
-      LuaTable existing = copies.get(source);
-      if (existing != null) return existing;
-      LuaTable copy = new LuaTable();
-      copies.put(source, copy);
-      LuaValue key = LuaValue.NIL;
-      while (true) {
-         Varargs entry = source.next(key);
-         key = entry.arg1();
-         if (key.isnil()) return copy;
-         LuaValue value = entry.arg(2);
-         LuaValue copiedKey = key.istable() ? copyLuaTable(key.checktable(), copies) : key;
-         LuaValue copiedValue = value.istable() ? copyLuaTable(value.checktable(), copies) : value;
-         copy.rawset(copiedKey, copiedValue);
-      }
    }
 
    private static void documentRegistryTable(LuaTable target, String category) {
@@ -1670,7 +1507,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    private RegistryEndpoint resolveEndpoint(String category, String purpose, LuaTable registry) {
       String key = category.trim().toLowerCase(java.util.Locale.ROOT);
-      DynamicRegistryCategory dynamicCategory = this.dynamicRegistry.category(key);
+      MLuaDynamicRegistryCatalog.Category dynamicCategory = this.dynamicRegistry.category(key);
       RegistryEndpoint endpoint;
       if (dynamicCategory != null) {
          endpoint = new RegistryEndpoint(dynamicCategory.name(), "Register", dynamicCategory.domain(),
@@ -1748,12 +1585,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (expected == null) throw new LuaError("[MLua] Tag registration did not produce '" + id + "'");
       Runnable rollback = () -> MLuaLoaderRegistry.restoreGeneratedAsset(
          assetKind, owner, name, expected, previous);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private static MiningProperties prepareMiningProperties(LuaTable propsTable, Map<String, Object> props) {
@@ -1879,26 +1711,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       });
       Map<String, LuaValue> previous = MLuaBehaviorRegistry.getBehaviors(domain, key);
       MLuaBehaviorRegistry.registerBehaviors(domain, key, callbacks);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(() ->
-            MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous));
-      } catch (RuntimeException | Error failure) {
-         MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous);
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(() ->
+         MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous));
    }
 
    private void setEntityAIInterval(String key, int interval) {
       Integer previous = MLuaBehaviorRegistry.getRegisteredEntityAIInterval(key);
       MLuaBehaviorRegistry.registerEntityAIInterval(key, interval);
       int expected = Math.max(1, Math.min(120, interval));
-      try {
-         this.context.mlua().registration().onRegistrationRollback(() ->
-            MLuaBehaviorRegistry.restoreEntityAIInterval(key, expected, previous));
-      } catch (RuntimeException | Error failure) {
-         MLuaBehaviorRegistry.restoreEntityAIInterval(key, expected, previous);
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(() ->
+         MLuaBehaviorRegistry.restoreEntityAIInterval(key, expected, previous));
    }
 
    private void registerBlockContainer(dev.mlua.module.MLuaRegistration registration, String key,
@@ -1915,24 +1737,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaBehaviorRegistry.registerBlockContainer(key, previous);
          }
       };
-      try {
-         registration.onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      registration.trackRollback(rollback);
    }
 
    private void registerContentClass(String domain, String key, String className) {
       String previous = MLuaBehaviorRegistry.getContentClass(domain, key);
       MLuaBehaviorRegistry.registerContentClass(domain, key, className);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(() ->
-            MLuaBehaviorRegistry.restoreContentClass(domain, key, className, previous));
-      } catch (RuntimeException | Error failure) {
-         MLuaBehaviorRegistry.restoreContentClass(domain, key, className, previous);
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(() ->
+         MLuaBehaviorRegistry.restoreContentClass(domain, key, className, previous));
    }
 
    private void updateVisualMetadata(RegistryKind kind, String owner, String name,
@@ -1951,12 +1763,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             this.writeVisualMetadata(kind, owner, name, previous);
          }
       };
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private RegistryVisualMetadata readVisualMetadata(RegistryKind kind, String owner, String name) {
@@ -1981,12 +1788,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       dev.mlua.loaderapi.EntityVisualInfo before = previous == null ? null
          : new dev.mlua.loaderapi.EntityVisualInfo(previous.texture(), previous.model(), previous.shadowRadius());
       Runnable rollback = () -> MLuaLoaderRegistry.restoreEntityVisual(owner, name, expected, before);
-      try {
-         this.context.mlua().registration().onRegistrationRollback(rollback);
-      } catch (RuntimeException | Error failure) {
-         rollback.run();
-         throw failure;
-      }
+      this.context.mlua().registration().trackRollback(rollback);
    }
 
    private void writeVisualMetadata(RegistryKind kind, String owner, String name, RegistryVisualMetadata metadata) {
