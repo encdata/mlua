@@ -185,6 +185,18 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       }
    }
 
+   private void registerGeneratedAsset(GeneratedAssetKind kind, String owner, String name, JsonObject definition) {
+      JsonObject snapshot = definition.deepCopy();
+      MLuaLoaderRegistry.registerGeneratedAsset(kind, owner, name, snapshot);
+      Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedAsset(kind, owner, name, snapshot);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
+      }
+   }
+
    public String name() {
       return "Registry";
    }
@@ -501,7 +513,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             JsonObject blockState = MLuaRegistryService.optionalJsonObject(propsTable, "blockState", "blockstate", "BlockState");
             MiningProperties mining = MLuaRegistryService.prepareMiningProperties(propsTable, props);
             if (blockState != null) {
-               MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, blockState);
+               MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, blockState);
             }
             if (propsTable != null) {
                if (!propsTable.get("onRandomTick").isnil()) ((Map)props).put("randomTicks", true);
@@ -595,7 +607,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.jsonObjectArg(args.arg(3), "recipe"));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.jsonObjectArg(args.arg(3), "recipe"));
             return LuaValue.NONE;
          }
       });
@@ -604,7 +616,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.shapedRecipe(args.arg(3)));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.shapedRecipe(args.arg(3)));
             return LuaValue.NONE;
          }
       });
@@ -613,7 +625,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.shapelessRecipe(args.arg(3)));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.shapelessRecipe(args.arg(3)));
             return LuaValue.NONE;
          }
       });
@@ -622,7 +634,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.cookingRecipe("minecraft:smelting", args.arg(3)));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.cookingRecipe("minecraft:smelting", args.arg(3)));
             return LuaValue.NONE;
          }
       });
@@ -631,7 +643,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.stonecuttingRecipe(args.arg(3)));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.RECIPE, owner, name, MLuaRegistryService.stonecuttingRecipe(args.arg(3)));
             return LuaValue.NONE;
          }
       });
@@ -640,7 +652,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, name, MLuaRegistryService.jsonObjectArg(args.arg(3), "loot table"));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, name, MLuaRegistryService.jsonObjectArg(args.arg(3), "loot table"));
             return LuaValue.NONE;
          }
       });
@@ -650,7 +662,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String entityName = args.checkjstring(2);
             String lootName = "entities/" + entityName;
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.jsonObjectArg(args.arg(3), "entity loot table"));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.jsonObjectArg(args.arg(3), "entity loot table"));
             return LuaValue.NONE;
          }
       });
@@ -659,7 +671,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, MLuaRegistryService.jsonObjectArg(args.arg(3), "blockstate"));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, MLuaRegistryService.jsonObjectArg(args.arg(3), "blockstate"));
             return LuaValue.NONE;
          }
       });
@@ -670,7 +682,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String blockName = args.checkjstring(2);
             String dropId = args.narg() >= 3 && !args.arg(3).isnil() ? args.arg(3).checkjstring() : MLuaRegistryService.this.qualifyOwnBlock(blockName);
             String lootName = blockName.contains(":") ? "blocks/" + blockName.substring(blockName.indexOf(58) + 1) : "blocks/" + blockName;
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.simpleBlockLoot(dropId));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.simpleBlockLoot(dropId));
             return LuaValue.NONE;
          }
       });
@@ -680,7 +692,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String blockName = args.checkjstring(2);
             String lootName = blockName.contains(":") ? "blocks/" + blockName.substring(blockName.indexOf(58) + 1) : "blocks/" + blockName;
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.simpleBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName)));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.simpleBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName)));
             return LuaValue.NONE;
          }
       });
@@ -696,7 +708,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                throw new LuaError("[MLua] Registry.Loot:RegisterSilkTouchBlock count must be at least one.");
             }
             String lootName = blockName.contains(":") ? "blocks/" + blockName.substring(blockName.indexOf(58) + 1) : "blocks/" + blockName;
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.silkTouchBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName), normalDrop, count));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.silkTouchBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName), normalDrop, count));
             return LuaValue.NONE;
          }
       });
@@ -714,7 +726,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                throw new LuaError("[MLua] Registry.Loot:RegisterOreBlock requires minCount >= 1 and maxCount >= minCount.");
             }
             String lootName = blockName.contains(":") ? "blocks/" + blockName.substring(blockName.indexOf(58) + 1) : "blocks/" + blockName;
-            MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.oreBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName), dropId, minCount, maxCount));
+            MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.oreBlockLoot(MLuaRegistryService.this.qualifyOwnBlock(blockName), dropId, minCount, maxCount));
             return LuaValue.NONE;
          }
       });

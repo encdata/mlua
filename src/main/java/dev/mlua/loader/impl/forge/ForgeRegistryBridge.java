@@ -219,6 +219,15 @@ public class ForgeRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject expectedDefinition) {
+        if (kind == GeneratedAssetKind.ITEM_TAG || kind == GeneratedAssetKind.BLOCK_TAG
+            || kind == GeneratedAssetKind.ENTITY_TYPE_TAG) {
+            throw new IllegalArgumentException("Use tag rollback for tag assets.");
+        }
+        return forgeRegistry.unregisterGeneratedAsset(kind, modId, name, expectedDefinition);
+    }
+
+    @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         Map<String, JsonObject> assets = switch (kind) {
             case RECIPE -> forgeRegistry.getRecipes();

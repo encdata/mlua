@@ -139,6 +139,10 @@ public final class MLuaLoaderRegistry {
         LoaderApi.registry().registerGeneratedAsset(kind, modId, name, definition);
     }
 
+    public static boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject expectedDefinition) {
+        return LoaderApi.registry().unregisterGeneratedAsset(kind, modId, name, expectedDefinition);
+    }
+
     public static Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         return LoaderApi.registry().getGeneratedAssets(kind);
     }

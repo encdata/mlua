@@ -223,6 +223,19 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject expectedDefinition) {
+        if (kind == GeneratedAssetKind.ITEM_TAG || kind == GeneratedAssetKind.BLOCK_TAG
+            || kind == GeneratedAssetKind.ENTITY_TYPE_TAG) {
+            throw new IllegalArgumentException("Use tag rollback for tag assets.");
+        }
+        String key = assetKey(modId, name);
+        Map<String, JsonObject> assets = generatedAssets.get(kind);
+        if (assets == null) return false;
+        JsonObject current = assets.get(key);
+        return current != null && current.equals(expectedDefinition) && assets.remove(key, current);
+    }
+
+    @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         return RegistryBridge.snapshotGeneratedAssets(generatedAssets.getOrDefault(kind, Map.of()));
     }

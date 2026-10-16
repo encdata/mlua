@@ -3,6 +3,7 @@ package dev.mlua.runtime.neoforge;
 import com.mojang.datafixers.types.Type;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mlua.loaderapi.GeneratedAssetKind;
 import dev.mlua.runtime.client.MLuaVisualBlockEntity;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.runtime.registry.*;
@@ -365,6 +366,18 @@ public final class MLuaNeoForgeRegistry {
       this.ensureOpen(modId, "blockstate", name);
       String id = this.contentId(modId, name).toString();
       this.putUnique(this.blockStates, "blockstate", id, definition.deepCopy());
+   }
+
+   public boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject expectedDefinition) {
+      String id = this.contentId(modId, name).toString();
+      Map<String, JsonObject> assets = switch (kind) {
+         case RECIPE -> this.recipes;
+         case LOOT_TABLE -> this.lootTables;
+         case BLOCKSTATE -> this.blockStates;
+         case ITEM_TAG, BLOCK_TAG, ENTITY_TYPE_TAG -> throw new IllegalArgumentException("Use tag rollback for tag assets.");
+      };
+      JsonObject current = assets.get(id);
+      return current != null && current.equals(expectedDefinition) && assets.remove(id, current);
    }
 
    public void registerItemTag(String modId, String name, boolean replace, JsonArray values) {
