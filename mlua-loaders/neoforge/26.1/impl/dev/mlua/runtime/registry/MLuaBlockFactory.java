@@ -55,22 +55,51 @@ public final class MLuaBlockFactory {
         if (name != null && !"default".equals(name) && !REGISTERED_TYPES.containsKey(name))
             throw new IllegalArgumentException("[MLua] Unknown block type: " + name);
         if (properties == null) return;
-        validateNumber(properties, "strength", -1.0, Float.MAX_VALUE);
-        validateNumber(properties, "hardness", -1.0, Float.MAX_VALUE);
-        validateNumber(properties, "resistance", 0.0, Float.MAX_VALUE);
-        validateNumber(properties, "explosionResistance", 0.0, Float.MAX_VALUE);
-        validateNumber(properties, "lightLevel", 0.0, 15.0);
+        Object strength = aliased(properties, "hardness", "strength");
+        Object resistance = aliased(properties, "resistance", "explosionResistance");
+        validateNumber(strength, "hardness", -1.0, Float.MAX_VALUE);
+        validateNumber(resistance, "resistance", 0.0, Float.MAX_VALUE);
+        if (resistance != null && strength == null)
+            throw new IllegalArgumentException("[MLua] Block resistance requires a hardness value");
+        validateNumber(properties.get("lightLevel"), "lightLevel", 0.0, 15.0);
+        validateNumber(properties.get("friction"), "friction", 0.0, Float.MAX_VALUE);
+        validateNumber(properties.get("speedFactor"), "speedFactor", 0.0, Float.MAX_VALUE);
+        validateNumber(properties.get("jumpFactor"), "jumpFactor", 0.0, Float.MAX_VALUE);
         for (String property : new String[]{"requiresCorrectTool", "collision", "noCollision", "noOcclusion", "randomTicks"}) {
             Object value = properties.get(property);
             if (value != null && !(value instanceof Boolean))
                 throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a boolean");
         }
-        if (properties.get("sound") instanceof String value) sound(value);
-        if (properties.get("mapColor") instanceof String value) color(value);
+        if (Boolean.TRUE.equals(properties.get("collision")) && Boolean.TRUE.equals(properties.get("noCollision")))
+            throw new IllegalArgumentException("[MLua] Block properties 'collision' and 'noCollision' conflict");
+        Object sound = properties.get("sound");
+        if (sound != null && !(sound instanceof String))
+            throw new IllegalArgumentException("[MLua] Block property 'sound' must be a string");
+        Object mapColor = properties.get("mapColor");
+        if (mapColor != null && !(mapColor instanceof String))
+            throw new IllegalArgumentException("[MLua] Block property 'mapColor' must be a string");
+        if (sound instanceof String value) sound(value);
+        if (mapColor instanceof String value) color(value);
+        Object copy = properties.get("copy");
+        if (copy != null && (!(copy instanceof String id) || id.isBlank()))
+            throw new IllegalArgumentException("[MLua] Block copy must be a non-empty block identifier");
+        if (copy instanceof String id) {
+            var location = MLuaResourceLocations.tryParseOrNull(id);
+            if (location == null) throw new IllegalArgumentException("[MLua] Invalid block copy identifier '" + id + "'");
+            if (BuiltInRegistries.BLOCK.getOptional(location).isEmpty())
+                throw new IllegalArgumentException("[MLua] Unknown block in copy property: " + id);
+        }
     }
 
-    private static void validateNumber(Map<String, Object> properties, String name, double minimum, double maximum) {
-        Object raw = properties.get(name);
+    private static Object aliased(Map<String, Object> properties, String canonical, String alternate) {
+        Object primary = properties.get(canonical);
+        Object alias = properties.get(alternate);
+        if (primary != null && alias != null)
+            throw new IllegalArgumentException("[MLua] Provide only one of block properties '" + canonical + "' and '" + alternate + "'");
+        return primary != null ? primary : alias;
+    }
+
+    private static void validateNumber(Object raw, String name, double minimum, double maximum) {
         if (raw == null) return;
         if (!(raw instanceof Number number) || !Double.isFinite(number.doubleValue())
             || number.doubleValue() < minimum || number.doubleValue() > maximum) {
@@ -172,7 +201,8 @@ public final class MLuaBlockFactory {
         Object copy = properties.get("copy");
         if (copy instanceof String id) {
             Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
-            if (block != null) return BlockBehaviour.Properties.ofFullCopy(block);
+            if (block == null) throw new IllegalArgumentException("[MLua] Unknown block in copy property: " + id);
+            return BlockBehaviour.Properties.ofFullCopy(block);
         }
         return BlockBehaviour.Properties.ofFullCopy(Blocks.STONE);
     }
