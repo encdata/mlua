@@ -367,8 +367,8 @@ public class RegistryModule implements MLuaModule {
             "replaceable?", "boolean", "Set true to allow replacement by placement or fluid updates.",
             "pushReaction?", "string", "Piston reaction enum name; call Registry.Blocks:GetPushReactions() for values supported by the running Minecraft version.",
             "instrument?", "string", "Note block instrument enum name; call Registry.Blocks:GetInstruments() for values supported by the running Minecraft version.",
-            "sound?", "string", "Minecraft block sound family.",
-            "mapColor?", "string", "Minecraft map color.",
+            "sound?", "string", "Minecraft block sound family; call Registry.Blocks:GetSounds() for values supported by the running version.",
+            "mapColor?", "string", "Minecraft map color; call Registry.Blocks:GetMapColors() for values supported by the running version.",
             "mineableWith?", "string", "Required tool group.",
             "requiredToolTier?", "number", "Minimum tool tier.",
             "className?", "string", "Registered Lua class inheriting from Block.",
@@ -471,6 +471,8 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterState(id: string, blockState: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetPushReactions()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetInstruments()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetSounds()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetMapColors()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetId(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Register(id: string, props: EntityDefinition)", null));

@@ -123,6 +123,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
       descriptions.put("GetPushReactions", "Lists the piston reactions supported by this Minecraft version.");
       descriptions.put("GetInstruments", "Lists the note block instruments supported by this Minecraft version.");
+      descriptions.put("GetSounds", "Lists block sound families available in this Minecraft version.");
+      descriptions.put("GetMapColors", "Lists block map colors available in this Minecraft version.");
       descriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       descriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       descriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
@@ -599,6 +601,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       blocks.set("GetInstruments", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             return enumNames(net.minecraft.world.level.block.state.properties.NoteBlockInstrument.values());
+         }
+      });
+      blocks.set("GetSounds", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return stringArray(MLuaBlockFactory.soundNames());
+         }
+      });
+      blocks.set("GetMapColors", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return stringArray(MLuaBlockFactory.mapColorNames());
          }
       });
       tabs.set("Register", new VarArgFunction() {
