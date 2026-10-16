@@ -351,6 +351,8 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("ContainerType", "MLuaContainerType",
                 "A registered, reusable container layout with a namespaced id, title, row count, and item rules.",
                 "classes/container-type.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("ContainerType", "ContainerType.AcceptsAllItems", "boolean",
+            "Whether this container accepts every item.", "shared:Shared"));
     }
 
     private static void contributeDefinitionSchemas(MLuaDocBuilder docs) {

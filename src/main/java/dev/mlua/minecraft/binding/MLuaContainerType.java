@@ -61,7 +61,7 @@ public final class MLuaContainerType {
          "string", "shared:Shared", "The title used when this container type is opened.");
       MLuaClassMethods.registerInstanceProperty(registration, "ContainerType", "AllowedItems", "GetAllowedItems", null,
          "string[]", "shared:Shared", "Allowed item ids; an empty list allows every item.");
-      MLuaClassMethods.registerInstanceProperty(registration, "ContainerType", "AllowsAllItems", "AllowsAllItems", null,
+      MLuaClassMethods.registerInstanceProperty(registration, "ContainerType", "AcceptsAllItems", "AllowsAllItems", null,
          "boolean", "shared:Shared", "Whether this container accepts every item.");
    }
 
