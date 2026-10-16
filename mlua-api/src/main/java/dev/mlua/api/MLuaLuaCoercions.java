@@ -26,6 +26,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 public final class MLuaLuaCoercions {
+   private static final int MAX_LUA_TABLE_DEPTH = 64;
    private static final Map<Class<?>, Adapter<?>> ADAPTERS = new ConcurrentHashMap<>();
 
    private MLuaLuaCoercions() {
@@ -63,21 +64,38 @@ public final class MLuaLuaCoercions {
    }
 
    public static Map<String, Object> mapFromLua(LuaTable table) {
-      Map<String, Object> values = new LinkedHashMap();
-      LuaValue key = LuaValue.NIL;
-
-      while(true) {
-         Varargs next = table.next(key);
-         key = next.arg1();
-         if (key.isnil()) {
-            return values;
-         }
-
-         values.put(key.tojstring(), javaValue(next.arg(2)));
-      }
+      if (table == null) throw new NullPointerException("table");
+      return mapFromLua(table, new IdentityHashMap<>(), 0);
    }
 
    public static Object javaValue(LuaValue value) {
+      return javaValue(value, new IdentityHashMap<>(), 0);
+   }
+
+   /** Rejects cyclic or excessively nested tables before reflective argument conversion begins. */
+   public static void validateLuaValue(LuaValue value) {
+      validateLuaValue(value, new IdentityHashMap<>(), 0);
+   }
+
+   private static void validateLuaValue(LuaValue value, IdentityHashMap<LuaTable, Boolean> active, int depth) {
+      if (value == null || !value.istable()) return;
+      LuaTable table = value.checktable();
+      enterTable(table, active, depth);
+      try {
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = table.next(key);
+            key = next.arg1();
+            if (key.isnil()) return;
+            validateLuaValue(key, active, depth + 1);
+            validateLuaValue(next.arg(2), active, depth + 1);
+         }
+      } finally {
+         active.remove(table);
+      }
+   }
+
+   private static Object javaValue(LuaValue value, IdentityHashMap<LuaTable, Boolean> active, int depth) {
       if (!value.istable()) {
          if (value.isboolean()) {
             return value.toboolean();
@@ -88,20 +106,50 @@ public final class MLuaLuaCoercions {
          }
       } else {
          LuaTable table = value.checktable();
-         if (isDenseArray(table)) {
-            ArrayList<Object> list = new ArrayList();
-            int i = 1;
-
-            while (true) {
-               LuaValue item = table.rawget(i);
-               if (item.isnil()) break;
-               list.add(javaValue(item));
-               i++;
+         enterTable(table, active, depth);
+         try {
+            if (isDenseArray(table)) {
+               ArrayList<Object> list = new ArrayList<>();
+               for (int i = 1; ; i++) {
+                  LuaValue item = table.rawget(i);
+                  if (item.isnil()) break;
+                  list.add(javaValue(item, active, depth + 1));
+               }
+               return list;
             }
-
-            return list;
+            return mapValuesFromLua(table, active, depth + 1);
+         } finally {
+            active.remove(table);
          }
-         return mapValuesFromLua(table);
+      }
+   }
+
+   private static Map<String, Object> mapFromLua(LuaTable table,
+         IdentityHashMap<LuaTable, Boolean> active, int depth) {
+      enterTable(table, active, depth);
+      try {
+         Map<String, Object> values = new LinkedHashMap<>();
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = table.next(key);
+            key = next.arg1();
+            if (key.isnil()) return values;
+            if (!key.isstring()) {
+               throw new IllegalArgumentException("Lua table for a Java map must use string keys; got " + key.typename());
+            }
+            values.put(key.tojstring(), javaValue(next.arg(2), active, depth + 1));
+         }
+      } finally {
+         active.remove(table);
+      }
+   }
+
+   private static void enterTable(LuaTable table, IdentityHashMap<LuaTable, Boolean> active, int depth) {
+      if (depth >= MAX_LUA_TABLE_DEPTH) {
+         throw new IllegalArgumentException("Lua table nesting exceeds the maximum depth of " + MAX_LUA_TABLE_DEPTH);
+      }
+      if (active.put(table, Boolean.TRUE) != null) {
+         throw new IllegalArgumentException("Cyclic Lua table cannot be converted to a Java value");
       }
    }
 
@@ -113,7 +161,10 @@ public final class MLuaLuaCoercions {
          Varargs entry = table.next(key);
          key = entry.arg1();
          if (key.isnil()) break;
-         if (!key.isnumber() || key.todouble() < 1 || key.todouble() != key.toint()) return false;
+         if (!key.isnumber()) return false;
+         double numericKey = key.todouble();
+         if (!Double.isFinite(numericKey) || numericKey < 1 || numericKey > Integer.MAX_VALUE
+            || numericKey != Math.rint(numericKey)) return false;
          int index = key.toint();
          entryCount++;
          largestIndex = Math.max(largestIndex, index);
@@ -498,7 +549,8 @@ public final class MLuaLuaCoercions {
          Varargs next = table.next(key);
          key = next.arg1();
          if (key.isnil()) break;
-         if (!key.isnumber() || key.toint() < 1 || key.todouble() != key.toint()) {
+         if (!key.isnumber() || !Double.isFinite(key.todouble()) || key.todouble() < 1
+            || key.todouble() > Integer.MAX_VALUE || key.todouble() != Math.rint(key.todouble())) {
             throw new IllegalArgumentException("Lua table for a Java list must use consecutive positive integer keys");
          }
          entryCount++;
@@ -520,14 +572,15 @@ public final class MLuaLuaCoercions {
       }
    }
 
-   private static Map<Object, Object> mapValuesFromLua(LuaTable table) {
+   private static Map<Object, Object> mapValuesFromLua(LuaTable table,
+         IdentityHashMap<LuaTable, Boolean> active, int depth) {
       Map<Object, Object> values = new LinkedHashMap<>();
       LuaValue key = LuaValue.NIL;
       while (true) {
          Varargs next = table.next(key);
          key = next.arg1();
          if (key.isnil()) return values;
-         values.put(javaValue(key), javaValue(next.arg(2)));
+         values.put(javaValue(key, active, depth), javaValue(next.arg(2), active, depth));
       }
    }
 

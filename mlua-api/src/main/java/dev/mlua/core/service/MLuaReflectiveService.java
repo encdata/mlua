@@ -183,6 +183,9 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
    }
 
    protected Object toJavaValue(LuaValue value, Type targetType) {
+      if (!(targetType instanceof Class<?> typeClass && LuaValue.class.isAssignableFrom(typeClass))) {
+         MLuaLuaCoercions.validateLuaValue(value);
+      }
       return MLuaLuaCoercions.javaValue(value, targetType);
    }
 

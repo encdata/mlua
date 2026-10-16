@@ -112,6 +112,11 @@ public final class MLuaBehaviorRegistry {
       return invokeCallback(definition == null ? null : definition.context(), callback, args);
    }
 
+   /** Invokes a callback with the owner context captured alongside its behavior definition. */
+   public static Varargs invokeCallback(Snapshot owner, LuaValue callback, Varargs args) {
+      return invokeCallback(owner == null ? null : owner.context(), callback, args);
+   }
+
    private static Varargs invokeCallback(MLuaContext context, LuaValue callback, Varargs args) {
       if (callback == null || callback.isnil() || !callback.isfunction()) return LuaValue.NONE;
       Varargs invocationArgs = args == null ? LuaValue.NONE : args;

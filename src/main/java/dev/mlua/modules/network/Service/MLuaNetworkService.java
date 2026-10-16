@@ -1,7 +1,10 @@
 package dev.mlua.modules.network.Service;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.core.MLuaRuntime;
@@ -13,7 +16,6 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.minecraft.network.MLuaRemoteEvent;
-import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -110,15 +112,16 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
 
    @MLuaDescription("Encodes a Lua value as JSON.")
    public String JSONEncode(LuaValue value) {
-      Map<String, Object> map = MLuaLuaBindings.mapFromLua(value.checktable());
-      return new Gson().toJson(map);
+      return new Gson().toJson(MLuaLuaBindings.javaValue(value));
    }
 
    @MLuaDescription("Decodes a JSON string into Lua values.")
    public LuaValue JSONDecode(String text) {
-      Type type = new TypeToken<Map<String, Object>>() { }.getType();
-      Map<String, Object> map = new Gson().fromJson(text, type);
-      return map == null ? LuaValue.NIL : this.jsonToLua(map);
+      try {
+         return this.jsonToLua(com.google.gson.JsonParser.parseString(text));
+      } catch (JsonParseException | IllegalStateException failure) {
+         throw new LuaError("[MLua] Network JSONDecode received invalid JSON: " + failure.getMessage());
+      }
    }
 
    private long lifecycleEpoch() {
@@ -167,19 +170,32 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
       }
    }
 
-   private LuaTable jsonToLua(Map<String, Object> map) {
-      LuaTable result = new LuaTable();
-      map.forEach((key, value) -> {
-         if (value instanceof Map<?, ?> nested) {
-            result.set(key, this.jsonToLua((Map<String, Object>) nested));
-         } else if (value instanceof Number n) {
-            result.set(key, n.doubleValue());
-         } else if (value instanceof Boolean b) {
-            result.set(key, b ? LuaValue.TRUE : LuaValue.FALSE);
-         } else {
-            result.set(key, String.valueOf(value));
+   private LuaValue jsonToLua(JsonElement value) {
+      return jsonToLua(value, 0);
+   }
+
+   private LuaValue jsonToLua(JsonElement value, int depth) {
+      if (depth > 64) throw new LuaError("[MLua] Network JSONDecode table nesting exceeds 64 levels");
+      if (value == null || value.isJsonNull()) return LuaValue.NIL;
+      if (value.isJsonPrimitive()) {
+         var primitive = value.getAsJsonPrimitive();
+         if (primitive.isBoolean()) return LuaValue.valueOf(primitive.getAsBoolean());
+         if (primitive.isNumber()) return LuaValue.valueOf(primitive.getAsDouble());
+         return LuaValue.valueOf(primitive.getAsString());
+      }
+      if (value.isJsonArray()) {
+         JsonArray array = value.getAsJsonArray();
+         LuaTable result = new LuaTable(array.size(), 0);
+         for (int index = 0; index < array.size(); index++) {
+            result.set(index + 1, jsonToLua(array.get(index), depth + 1));
          }
-      });
+         return result;
+      }
+      JsonObject object = value.getAsJsonObject();
+      LuaTable result = new LuaTable(0, object.size());
+      for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+         result.set(entry.getKey(), jsonToLua(entry.getValue(), depth + 1));
+      }
       return result;
    }
 

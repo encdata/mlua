@@ -1021,7 +1021,11 @@ public final class MLuaLuaBindings {
    }
 
    public static Map<String, Object> mapFromLua(LuaTable table) {
-      return MLuaLuaCoercions.mapFromLua(table);
+      try {
+         return MLuaLuaCoercions.mapFromLua(table);
+      } catch (IllegalArgumentException failure) {
+         throw new LuaError("[MLua] " + failure.getMessage());
+      }
    }
 
    public static Object javaValue(LuaValue value) {
