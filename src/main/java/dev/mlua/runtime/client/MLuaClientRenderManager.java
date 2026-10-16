@@ -41,6 +41,8 @@ public final class MLuaClientRenderManager {
     private static final MLuaEmbeddedTextureRegistry EMBEDDED_TEXTURES = new MLuaEmbeddedTextureRegistry();
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
     private static final AtomicBoolean WORLD_RENDER_FAILURE_REPORTED = new AtomicBoolean();
+    private static volatile RenderObject[] drawOrderSnapshot = new RenderObject[0];
+    private static volatile boolean drawOrderDirty = true;
     private static boolean animationClockRegistered;
 
     private MLuaClientRenderManager() {
@@ -69,6 +71,24 @@ public final class MLuaClientRenderManager {
                 if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
                 object.sampleFollowOffset();
             }
+        }
+    }
+
+    private static void invalidateDrawOrder() {
+        synchronized (MLuaClientRenderManager.class) {
+            drawOrderDirty = true;
+        }
+    }
+
+    private static RenderObject[] orderedRenderObjects() {
+        if (!drawOrderDirty) return drawOrderSnapshot;
+        synchronized (MLuaClientRenderManager.class) {
+            if (!drawOrderDirty) return drawOrderSnapshot;
+            List<RenderObject> ordered = new ArrayList<>(OBJECTS.values());
+            ordered.sort(Comparator.comparingInt(RenderObject::zIndex).thenComparingInt(RenderObject::id));
+            drawOrderSnapshot = ordered.toArray(RenderObject[]::new);
+            drawOrderDirty = false;
+            return drawOrderSnapshot;
         }
     }
 
@@ -235,6 +255,7 @@ public final class MLuaClientRenderManager {
     public static int create(RenderType type, String resource, MLuaRenderOwnershipRegistry.Owner owner) {
         int id = NEXT_ID.getAndIncrement();
         OBJECTS.put(id, new RenderObject(id, type, resource));
+        invalidateDrawOrder();
         OWNERS.register(id, owner);
         return id;
     }
@@ -318,7 +339,10 @@ public final class MLuaClientRenderManager {
 
     public static void remove(int id) {
         RenderObject removed = OBJECTS.remove(id);
-        if (removed != null) releaseEmbeddedTextures(removed);
+        if (removed != null) {
+            invalidateDrawOrder();
+            releaseEmbeddedTextures(removed);
+        }
         OWNERS.remove(id);
         ENTITY_MODELS.forEach((scope, ids) -> {
             ids.remove(id);
@@ -341,6 +365,7 @@ public final class MLuaClientRenderManager {
     public static void clearAll() {
         OBJECTS.values().forEach(MLuaClientRenderManager::releaseEmbeddedTextures);
         OBJECTS.clear();
+        invalidateDrawOrder();
         ENTITY_MODELS.clear();
         OWNERS.clear();
         EMBEDDED_TEXTURES.drain().forEach(location -> Minecraft.getInstance().getTextureManager().release(location));
@@ -457,9 +482,7 @@ public final class MLuaClientRenderManager {
 
     public static void renderAll(GuiGraphics graphics) {
         MLuaRenderCallbacks.renderHud(graphics, graphics.guiWidth(), graphics.guiHeight());
-        List<RenderObject> objects = new ArrayList<>(OBJECTS.values());
-        objects.sort(Comparator.comparingInt(RenderObject::zIndex));
-        for (RenderObject object : objects) {
+        for (RenderObject object : orderedRenderObjects()) {
             synchronized (object.executionLock()) {
                 if (!object.visible) continue;
                 if (object.target() == RenderTarget.WORLD_MODEL || object.target() == RenderTarget.ENTITY_MODEL) continue;
@@ -935,7 +958,11 @@ public final class MLuaClientRenderManager {
         public void setTransparency(double transparency) { this.transparency = Math.max(0.0, Math.min(1.0, transparency)); }
         public void setRotation(double rotation) { this.rotation = rotation; }
         public void setVisible(boolean visible) { this.visible = visible; }
-        public void setZIndex(int zIndex) { this.zIndex = zIndex; }
+        public void setZIndex(int zIndex) {
+            if (this.zIndex == zIndex) return;
+            this.zIndex = zIndex;
+            invalidateDrawOrder();
+        }
         public void setWorldSpace(boolean worldSpace) {
             if (!worldSpace) {
                 setFollowEntityScope(null);

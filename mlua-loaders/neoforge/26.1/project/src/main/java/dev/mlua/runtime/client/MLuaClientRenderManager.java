@@ -30,6 +30,8 @@ public final class MLuaClientRenderManager {
     private static final ConcurrentHashMap<Integer, RenderObject> OBJECTS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<MLuaEntityScope, java.util.Set<Integer>> ENTITY_MODELS = new ConcurrentHashMap<>();
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
+    private static volatile RenderObject[] drawOrderSnapshot = new RenderObject[0];
+    private static volatile boolean drawOrderDirty = true;
     private static final Identifier ATTACHMENT_TEXTURE = Identifier.fromNamespaceAndPath(
         "minecraft", "textures/block/stone.png");
     private static boolean animationClockRegistered;
@@ -59,6 +61,24 @@ public final class MLuaClientRenderManager {
         for (RenderObject object : OBJECTS.values()) {
             if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
             object.sampleFollowOffset();
+        }
+    }
+
+    private static void invalidateDrawOrder() {
+        synchronized (MLuaClientRenderManager.class) {
+            drawOrderDirty = true;
+        }
+    }
+
+    private static RenderObject[] orderedRenderObjects() {
+        if (!drawOrderDirty) return drawOrderSnapshot;
+        synchronized (MLuaClientRenderManager.class) {
+            if (!drawOrderDirty) return drawOrderSnapshot;
+            List<RenderObject> ordered = new ArrayList<>(OBJECTS.values());
+            ordered.sort(Comparator.comparingInt(RenderObject::zIndex).thenComparingInt(RenderObject::id));
+            drawOrderSnapshot = ordered.toArray(RenderObject[]::new);
+            drawOrderDirty = false;
+            return drawOrderSnapshot;
         }
     }
 
@@ -188,9 +208,7 @@ public final class MLuaClientRenderManager {
     }
 
     private static void renderOverlayObjects(GuiGraphicsExtractor graphics) {
-        List<RenderObject> objects = new ArrayList<>(OBJECTS.values());
-        objects.sort(Comparator.comparingInt(RenderObject::zIndex));
-        for (RenderObject object : objects) {
+        for (RenderObject object : orderedRenderObjects()) {
             if (!object.visible() || object.worldSpace()) continue;
             int alpha = (int) ((1.0 - object.transparency()) * 255.0);
             int color = ((alpha & 0xff) << 24) | (object.color() & 0x00ffffff);
@@ -226,6 +244,7 @@ public final class MLuaClientRenderManager {
     public static int create(RenderType type, String resource, MLuaRenderOwnershipRegistry.Owner owner) {
         int id = NEXT_ID.getAndIncrement();
         OBJECTS.put(id, new RenderObject(id, type, resource));
+        invalidateDrawOrder();
         OWNERS.register(id, owner);
         return id;
     }
@@ -276,6 +295,7 @@ public final class MLuaClientRenderManager {
 
     public static void remove(int id) {
         RenderObject removed = OBJECTS.remove(id);
+        if (removed != null) invalidateDrawOrder();
         if (removed != null)
         OWNERS.remove(id);
         ENTITY_MODELS.forEach((scope, ids) -> {
@@ -298,6 +318,7 @@ public final class MLuaClientRenderManager {
 
     public static void clearAll() {
         OBJECTS.clear();
+        invalidateDrawOrder();
         ENTITY_MODELS.clear();
         OWNERS.clear();
     }
@@ -527,7 +548,11 @@ public final class MLuaClientRenderManager {
         public void setTransparency(double transparency) { this.transparency = Math.max(0.0, Math.min(1.0, transparency)); }
         public void setRotation(double rotation) { this.rotation = rotation; }
         public void setVisible(boolean visible) { this.visible = visible; }
-        public void setZIndex(int zIndex) { this.zIndex = zIndex; }
+        public void setZIndex(int zIndex) {
+            if (this.zIndex == zIndex) return;
+            this.zIndex = zIndex;
+            invalidateDrawOrder();
+        }
         public void setWorldSpace(boolean worldSpace) {
             if (!worldSpace) {
                 setFollowEntityScope(null);
