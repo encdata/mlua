@@ -209,6 +209,12 @@ public class ForgeRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean restoreEntityVisual(String modId, String name, EntityVisualInfo expectedCurrent,
+                                       EntityVisualInfo previousVisual) {
+        return forgeRegistry.restoreEntityVisual(modId, name, expectedCurrent, previousVisual);
+    }
+
+    @Override
     public void registerGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject definition) {
         switch (kind) {
             case RECIPE -> forgeRegistry.registerRecipe(modId, name, definition);

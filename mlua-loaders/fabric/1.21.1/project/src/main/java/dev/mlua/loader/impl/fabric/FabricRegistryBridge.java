@@ -208,6 +208,17 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean restoreEntityVisual(String modId, String name, EntityVisualInfo expectedCurrent,
+                                       EntityVisualInfo previousVisual) {
+        String key = resourceId(modId, name);
+        EntityVisualInfo current = entityVisuals.get(key);
+        if (current == null || !current.equals(expectedCurrent)) return false;
+        if (previousVisual == null) return entityVisuals.remove(key, current);
+        entityVisuals.put(key, previousVisual);
+        return true;
+    }
+
+    @Override
     public void registerGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject definition) {
         Objects.requireNonNull(kind, "kind");
         if (kind == GeneratedAssetKind.ITEM_TAG || kind == GeneratedAssetKind.BLOCK_TAG

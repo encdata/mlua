@@ -135,6 +135,11 @@ public final class MLuaLoaderRegistry {
         return info == null ? null : new MLuaEntityVisualDescriptor(info.texture(), info.model(), info.shadowRadius());
     }
 
+    public static boolean restoreEntityVisual(String modId, String name, EntityVisualInfo expectedCurrent,
+                                              EntityVisualInfo previousVisual) {
+        return LoaderApi.registry().restoreEntityVisual(modId, name, expectedCurrent, previousVisual);
+    }
+
     public static void registerGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject definition) {
         LoaderApi.registry().registerGeneratedAsset(kind, modId, name, definition);
     }

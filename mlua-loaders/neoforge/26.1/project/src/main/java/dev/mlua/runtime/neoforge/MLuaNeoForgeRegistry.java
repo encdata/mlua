@@ -3,6 +3,7 @@ package dev.mlua.runtime.neoforge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.mlua.loaderapi.GeneratedAssetKind;
+import dev.mlua.loaderapi.EntityVisualInfo;
 import dev.mlua.runtime.client.MLuaVisualBlockEntity;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.runtime.registry.*;
@@ -686,6 +687,20 @@ public final class MLuaNeoForgeRegistry {
 
    public MLuaEntityVisualDescriptor getEntityVisual(String key) {
       return (MLuaEntityVisualDescriptor)this.entityVisuals.get(key);
+   }
+
+   public boolean restoreEntityVisual(String modId, String name, EntityVisualInfo expectedCurrent,
+                                      EntityVisualInfo previousVisual) {
+      String key = this.key(modId, name);
+      MLuaEntityVisualDescriptor current = this.entityVisuals.get(key);
+      if (current == null || expectedCurrent == null
+          || !java.util.Objects.equals(current.texture(), expectedCurrent.texture())
+          || !java.util.Objects.equals(current.model(), expectedCurrent.model())
+          || Float.compare(current.shadowRadius(), expectedCurrent.shadowRadius()) != 0) return false;
+      if (previousVisual == null) return this.entityVisuals.remove(key, current);
+      this.entityVisuals.put(key, new MLuaEntityVisualDescriptor(
+         previousVisual.texture(), previousVisual.model(), previousVisual.shadowRadius()));
+      return true;
    }
 
    private net.minecraft.resources.ResourceLocation contentId(String modId, String name) {

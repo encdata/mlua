@@ -947,7 +947,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                    .add(Attributes.FOLLOW_RANGE, followRange)
                    .build();
              };
-             MLuaLoaderRegistry.setEntityVisual(owner, name, entityTexture.all() != null ? entityTexture.all() : "minecraft:textures/entity/zombie/zombie.png", entityModel, shadowRadius);
+             MLuaRegistryService.this.registerEntityVisual(owner, name,
+                entityTexture.all() != null ? entityTexture.all() : "minecraft:textures/entity/zombie/zombie.png",
+                entityModel, shadowRadius);
              MLuaLoaderRegistry.registerEntity(owner, name, () -> {
                 //--version 26.1
                 ResourceKey<EntityType<?>> entityKey = ResourceKey.create(
@@ -1748,6 +1750,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaLoaderRegistry.getBlockModel(owner, name));
          default -> throw new IllegalArgumentException("Visual metadata is supported only for items and blocks");
       };
+   }
+
+   private void registerEntityVisual(String owner, String name, String texture, String model, float shadowRadius) {
+      String key = owner + ":" + name;
+      MLuaEntityVisualDescriptor previous = MLuaLoaderRegistry.getEntityVisual(key);
+      MLuaLoaderRegistry.setEntityVisual(owner, name, texture, model, shadowRadius);
+      dev.mlua.loaderapi.EntityVisualInfo expected = new dev.mlua.loaderapi.EntityVisualInfo(texture, model, shadowRadius);
+      dev.mlua.loaderapi.EntityVisualInfo before = previous == null ? null
+         : new dev.mlua.loaderapi.EntityVisualInfo(previous.texture(), previous.model(), previous.shadowRadius());
+      Runnable rollback = () -> MLuaLoaderRegistry.restoreEntityVisual(owner, name, expected, before);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
+      }
    }
 
    private void writeVisualMetadata(RegistryKind kind, String owner, String name, RegistryVisualMetadata metadata) {

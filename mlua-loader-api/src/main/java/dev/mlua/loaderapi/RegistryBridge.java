@@ -50,6 +50,10 @@ public interface RegistryBridge {
     List<String> getDescription(RegistryKind registryKind, String namespace, String path);
     void setEntityVisual(String modId, String name, String texture, String model, float shadowRadius);
     EntityVisualInfo getEntityVisual(String key);
+    default boolean restoreEntityVisual(String modId, String name, EntityVisualInfo expectedCurrent,
+                                       EntityVisualInfo previousVisual) {
+        return false;
+    }
     void registerGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject definition);
     default boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
                                              JsonObject expectedDefinition) {
