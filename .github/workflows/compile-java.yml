@@ -510,6 +510,12 @@ jobs:
           end)
           assert(not partialKeybindsRegistered and input:GetKeybind("mlua_ci_atomic_a") == nil,
               "InputService:RegisterKeybinds partially registered a malformed batch")
+          local camera = Minecraft:GetService("Camera")
+          assert(not pcall(function() camera:SetFOV(math.huge) end), "Camera:SetFOV accepted a non-finite value")
+          local cameraMode = camera:GetMode()
+          assert(not pcall(function() camera:SetMode("invalid_camera_mode") end)
+              and camera:GetMode() == cameraMode,
+              "Camera:SetMode accepted an invalid mode or changed state after rejection")
           local attributes = Minecraft:GetService("Attribute")
           assert(type(attributes.GetAttributeInstance) == "function", "Attribute service did not expose AttributeInstance")
           assert(type(attributes.ResetBaseValue) == "function", "Attribute reset method was not registered")

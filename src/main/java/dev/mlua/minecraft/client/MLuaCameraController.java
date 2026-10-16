@@ -149,29 +149,30 @@ public final class MLuaCameraController {
    }
 
    public static void setMode(String newMode) {
-      mode = newMode;
+      if (newMode == null) throw new IllegalArgumentException("[MLua] CameraMode must be a string.");
       Minecraft mc = MLuaMinecraftClient.instance();
       switch (newMode.toLowerCase(Locale.ROOT)) {
          case "firstperson":
          case "first_person":
          case "first person":
             mc.options.setCameraType(CameraType.FIRST_PERSON);
+            mode = "FirstPerson";
             break;
          case "secondperson":
          case "second_person":
          case "second person":
             mc.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
+            mode = "SecondPerson";
             break;
          case "thirdperson":
          case "third_person":
          case "third person":
             mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+            mode = "ThirdPerson";
             break;
          case "scriptable":
          case "custom":
-            if (newMode.equalsIgnoreCase("scriptable")) {
-               mode = "Scriptable";
-            }
+            mode = newMode.equalsIgnoreCase("scriptable") ? "Scriptable" : "Custom";
             break;
          default:
             throw new IllegalArgumentException("[MLua] Unknown CameraMode: " + newMode);
@@ -204,6 +205,7 @@ public final class MLuaCameraController {
    }
 
    public static void setViewMode(String viewMode) {
+      if (viewMode == null) throw new IllegalArgumentException("[MLua] ViewMode must be a string.");
       Minecraft mc = MLuaMinecraftClient.instance();
       switch (viewMode.toLowerCase(Locale.ROOT)) {
          case "firstperson":
