@@ -161,6 +161,18 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       }
    }
 
+   private void registerConfig(String scope, String name, LuaTable values) {
+      String owner = this.context.mlua().ownerModId();
+      MLuaConfigRegistry.ConfigSectionHandle handle = MLuaConfigRegistry.get().register(owner, scope, name, values);
+      Runnable rollback = () -> MLuaConfigRegistry.get().unregister(handle);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
+      }
+   }
+
    private record RegistryEndpoint(String table, String registerMethod, String typeDomain,
                                     String typeTable, RegistryKind registryKind,
                                     List<String> typedDefinitions) { }
@@ -900,28 +912,28 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String scope = MLuaConfigRegistry.scopeFromString(args.checkjstring(2));
             String name = args.checkjstring(3);
-            MLuaConfigRegistry.get().register(MLuaRegistryService.this.context.mlua().ownerModId(), scope, name, args.checktable(4));
+            MLuaRegistryService.this.registerConfig(scope, name, args.checktable(4));
             return LuaValue.NONE;
          }
       });
       config.set("RegisterCommon", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
-            MLuaConfigRegistry.get().register(MLuaRegistryService.this.context.mlua().ownerModId(), "common", args.checkjstring(2), args.checktable(3));
+            MLuaRegistryService.this.registerConfig("common", args.checkjstring(2), args.checktable(3));
             return LuaValue.NONE;
          }
       });
       config.set("RegisterClient", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
-            MLuaConfigRegistry.get().register(MLuaRegistryService.this.context.mlua().ownerModId(), "client", args.checkjstring(2), args.checktable(3));
+            MLuaRegistryService.this.registerConfig("client", args.checkjstring(2), args.checktable(3));
             return LuaValue.NONE;
          }
       });
       config.set("RegisterServer", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
-            MLuaConfigRegistry.get().register(MLuaRegistryService.this.context.mlua().ownerModId(), "server", args.checkjstring(2), args.checktable(3));
+            MLuaRegistryService.this.registerConfig("server", args.checkjstring(2), args.checktable(3));
             return LuaValue.NONE;
          }
       });

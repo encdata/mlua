@@ -35,20 +35,58 @@ public final class MLuaConfigRegistry {
       return INSTANCE;
    }
 
-   public synchronized void register(String ownerModId, String scope, String sectionName, LuaTable values) {
+   public synchronized ConfigSectionHandle register(String ownerModId, String scope, String sectionName, LuaTable values) {
       if (this.installed) {
          throw new IllegalStateException("[MLua] Cannot register config '" + sectionName + "': configs are already installed.");
       } else if (sectionName != null && !sectionName.isBlank()) {
          Map<String, PendingConfigSet> byScope = this.pending.computeIfAbsent(ownerModId, ignored -> new LinkedHashMap());
-         PendingConfigSet set = byScope.computeIfAbsent(scopeFromString(scope), ignored -> new PendingConfigSet(ownerModId, scopeFromString(scope)));
-         set.registerSection(sectionName, values);
+         String normalizedScope = scopeFromString(scope);
+         PendingConfigSet set = byScope.computeIfAbsent(normalizedScope,
+            ignored -> new PendingConfigSet(ownerModId, normalizedScope));
+         try {
+            Map<String, ConfigValue> sectionValues = set.registerSection(sectionName, values);
+            return new ConfigSectionHandle(ownerModId, normalizedScope, sectionName, sectionValues);
+         } catch (RuntimeException | Error failure) {
+            if (set.isEmpty()) byScope.remove(normalizedScope, set);
+            if (byScope.isEmpty()) this.pending.remove(ownerModId, byScope);
+            throw failure;
+         }
       } else {
          throw new LuaError("[MLua] Config section name must not be blank.");
       }
    }
 
-   public synchronized void register(String ownerModId, ModConfig.Type type, String sectionName, LuaTable values) {
-      this.register(ownerModId, scopeName(type), sectionName, values);
+   public synchronized ConfigSectionHandle register(String ownerModId, ModConfig.Type type, String sectionName, LuaTable values) {
+      return this.register(ownerModId, scopeName(type), sectionName, values);
+   }
+
+   public synchronized boolean unregister(ConfigSectionHandle handle) {
+      if (handle == null) return false;
+      boolean removed = false;
+      Map<String, PendingConfigSet> byScope = this.pending.get(handle.ownerModId());
+      PendingConfigSet pendingSet = byScope == null ? null : byScope.get(handle.scope());
+      if (pendingSet != null) {
+         removed |= pendingSet.remove(handle);
+         if (pendingSet.values().isEmpty()) byScope.remove(handle.scope());
+         if (byScope.isEmpty()) this.pending.remove(handle.ownerModId());
+      }
+      InstalledConfigSet installedSet = this.installedSet(handle.ownerModId(), handle.scope());
+      if (installedSet != null) {
+         removed |= removeExpectedValues(installedSet.values(), handle.values());
+         if (installedSet.values().isEmpty()) {
+            Map<String, InstalledConfigSet> byInstalledScope = this.installedRegistry.get(handle.ownerModId());
+            if (byInstalledScope != null) {
+               byInstalledScope.remove(handle.scope(), installedSet);
+               if (byInstalledScope.isEmpty()) this.installedRegistry.remove(handle.ownerModId());
+            }
+            List<InstalledConfigSet> attached = this.byAttachedContainer.get(installedSet.attachedModId());
+            if (attached != null) {
+               attached.remove(installedSet);
+               if (attached.isEmpty()) this.byAttachedContainer.remove(installedSet.attachedModId());
+            }
+         }
+      }
+      return removed;
    }
 
    public synchronized void install() {
@@ -150,6 +188,14 @@ public final class MLuaConfigRegistry {
          this.byAttachedContainer.computeIfAbsent(attachedModId, ignored -> new ArrayList()).add(installedSet);
          this.loadOrCreateJson(installedSet);
       }
+   }
+
+   private static boolean removeExpectedValues(Map<String, ConfigValue> target, Map<String, ConfigValue> expected) {
+      boolean removed = false;
+      for (Map.Entry<String, ConfigValue> entry : expected.entrySet()) {
+         removed |= target.remove(entry.getKey(), entry.getValue());
+      }
+      return removed;
    }
 
    private void loadOrCreateJson(InstalledConfigSet set) {
@@ -377,6 +423,28 @@ public final class MLuaConfigRegistry {
       }
    }
 
+   private static void validateConfigTable(LuaTable table,
+                                          java.util.IdentityHashMap<LuaTable, Boolean> active,
+                                          java.util.IdentityHashMap<LuaTable, Boolean> visited,
+                                          int depth) {
+      if (depth > 64) throw new LuaError("[MLua] Config definitions cannot be nested more than 64 tables deep.");
+      if (active.containsKey(table)) throw new LuaError("[MLua] Config definitions cannot contain cyclic tables.");
+      if (visited.containsKey(table)) return;
+      active.put(table, Boolean.TRUE);
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         org.luaj.vm2.Varargs entry = table.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         LuaValue value = entry.arg(2);
+         if (value.istable()) {
+            validateConfigTable(value.checktable(), active, visited, depth + 1);
+         }
+      }
+      active.remove(table);
+      visited.put(table, Boolean.TRUE);
+   }
+
    private static boolean isValueDescriptor(LuaTable table) {
       return !table.get("default").isnil() || !table.get("Default").isnil() || !table.get("value").isnil() || !table.get("Value").isnil();
    }
@@ -575,22 +643,55 @@ public final class MLuaConfigRegistry {
       }
    }
 
+   public static record ConfigSectionHandle(String ownerModId, String scope, String sectionName,
+                                           Map<String, ConfigValue> values) { }
+
    private static final class PendingConfigSet {
       private final String ownerModId;
       private final String scope;
       private final Map<String, ConfigValue> values = new LinkedHashMap();
+      private final Map<String, Map<String, ConfigValue>> sections = new LinkedHashMap();
 
       private PendingConfigSet(String ownerModId, String scope) {
          this.ownerModId = ownerModId;
          this.scope = scope;
       }
 
-      private void registerSection(String sectionName, LuaTable section) {
-         if (this.values.keySet().stream().anyMatch(path -> path.equals(sectionName) || path.startsWith(sectionName + "."))) {
-            throw new LuaError("[MLua] Duplicate config section '" + sectionName + "' for mod '" + this.ownerModId + "' (" + this.scope + ").");
-         } else {
-            MLuaConfigRegistry.defineEntries(this.values, List.of(sectionName), section);
+      private Map<String, ConfigValue> registerSection(String sectionName, LuaTable section) {
+         for (String existing : this.sections.keySet()) {
+            if (pathsOverlap(existing, sectionName)) {
+               throw new LuaError("[MLua] Config section '" + sectionName + "' overlaps section '"
+                  + existing + "' for mod '" + this.ownerModId + "' (" + this.scope + ").");
+            }
          }
+         MLuaConfigRegistry.validateConfigTable(section, new java.util.IdentityHashMap<>(),
+            new java.util.IdentityHashMap<>(), 1);
+         Map<String, ConfigValue> staged = new LinkedHashMap<>();
+         MLuaConfigRegistry.defineEntries(staged, List.of(sectionName), section);
+         for (String candidate : staged.keySet()) {
+            for (String existing : this.values.keySet()) {
+               if (pathsOverlap(existing, candidate)) {
+                  throw new LuaError("[MLua] Config value '" + candidate + "' overlaps existing value '"
+                     + existing + "' for mod '" + this.ownerModId + "' (" + this.scope + ").");
+               }
+            }
+         }
+         Map<String, ConfigValue> sectionValues = java.util.Collections.unmodifiableMap(staged);
+         this.values.putAll(sectionValues);
+         this.sections.put(sectionName, sectionValues);
+         return sectionValues;
+      }
+
+      private boolean remove(ConfigSectionHandle handle) {
+         Map<String, ConfigValue> registered = this.sections.get(handle.sectionName());
+         if (registered != handle.values()) return false;
+         this.sections.remove(handle.sectionName());
+         removeExpectedValues(this.values, handle.values());
+         return true;
+      }
+
+      private boolean isEmpty() {
+         return this.sections.isEmpty() && this.values.isEmpty();
       }
 
       public String ownerModId() {
@@ -604,5 +705,9 @@ public final class MLuaConfigRegistry {
       public Map<String, ConfigValue> values() {
          return this.values;
       }
+   }
+
+   private static boolean pathsOverlap(String first, String second) {
+      return first.equals(second) || first.startsWith(second + ".") || second.startsWith(first + ".");
    }
 }
