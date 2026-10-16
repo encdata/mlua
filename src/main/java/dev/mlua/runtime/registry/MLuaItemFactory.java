@@ -13,6 +13,10 @@ import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Collections;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 //--version 1.21.1
@@ -47,6 +51,7 @@ import org.luaj.vm2.Varargs;
 
 public final class MLuaItemFactory {
    private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
+   private static final Map<String, Tier> TIERS = itemTiers();
 
    /** Registers a Java item type that Lua definitions can select with {@code kind = "typeName"}. */
    public static void registerType(String name, String description, TypeProvider provider) {
@@ -80,6 +85,14 @@ public final class MLuaItemFactory {
       descriptions.put("hoe", "A tiered hoe tool.");
       REGISTERED_TYPES.forEach((name, type) -> descriptions.put(name, type.description()));
       return Map.copyOf(descriptions);
+   }
+
+   public static List<String> tierNames() {
+      return TIERS.keySet().stream().sorted().toList();
+   }
+
+   public static List<String> rarityNames() {
+      return java.util.Arrays.stream(Rarity.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).sorted().toList();
    }
 
    /** Validate a Lua definition while its Register call can still report a useful error. */
@@ -956,25 +969,42 @@ public final class MLuaItemFactory {
          throw new IllegalArgumentException("[MLua] Item property 'tier' must be a non-empty string");
       }
 
-      return switch (tierName.toLowerCase(Locale.ROOT)) {
-         case "wood", "wooden" -> Tiers.WOOD;
-         case "stone" -> Tiers.STONE;
-         case "iron" -> Tiers.IRON;
-         case "gold", "golden" -> Tiers.GOLD;
-         case "diamond" -> Tiers.DIAMOND;
-         case "netherite" -> Tiers.NETHERITE;
-         default -> throw new IllegalArgumentException("[MLua] Unknown item tier: " + tierName);
-      };
+      String normalized = tierName.trim().toLowerCase(Locale.ROOT);
+      Tier value = TIERS.get(normalized);
+      if (value == null) value = TIERS.get(normalized.replace("_", ""));
+      if (value == null) throw new IllegalArgumentException("[MLua] Unknown item tier: " + tierName
+         + ". Use Registry.Items:GetTiers() to list values available in this Minecraft version.");
+      return value;
    }
 
    private static Rarity rarity(String name) {
-      return switch (name.toLowerCase(Locale.ROOT)) {
-         case "common" -> Rarity.COMMON;
-         case "uncommon" -> Rarity.UNCOMMON;
-         case "rare" -> Rarity.RARE;
-         case "epic" -> Rarity.EPIC;
-         default -> throw new IllegalArgumentException("[MLua] Unknown item rarity: " + name);
-      };
+      try {
+         return Rarity.valueOf(name.trim().toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException invalid) {
+         throw new IllegalArgumentException("[MLua] Unknown item rarity: " + name
+            + ". Use Registry.Items:GetRarities() to list values available in this Minecraft version.", invalid);
+      }
+   }
+
+   private static Map<String, Tier> itemTiers() {
+      Map<String, Tier> tiers = new TreeMap<>();
+      for (Field field : Tiers.class.getFields()) {
+         if (!Modifier.isStatic(field.getModifiers()) || !Tier.class.isAssignableFrom(field.getType())) continue;
+         try {
+            Object value = field.get(null);
+            if (value instanceof Tier tier) tiers.put(field.getName().toLowerCase(Locale.ROOT), tier);
+         } catch (IllegalAccessException ignored) {
+            // Public game API fields should be accessible; inaccessible fields are omitted from the runtime choices.
+         }
+      }
+      aliasTier(tiers, "wooden", "wood");
+      aliasTier(tiers, "golden", "gold");
+      return Collections.unmodifiableMap(tiers);
+   }
+
+   private static void aliasTier(Map<String, Tier> tiers, String alias, String canonical) {
+      Tier value = tiers.get(canonical);
+      if (value != null) tiers.putIfAbsent(alias, value);
    }
 
    private FoodProperties food(Map<?, ?> properties) {

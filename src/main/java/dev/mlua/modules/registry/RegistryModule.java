@@ -157,6 +157,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Register a reusable container type",
                 "Set chest rows and a title once, then reference the type from any scripted block. AllowedItems accepts item ids; an empty or omitted list accepts every item.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.Containers:Register(\"supply_crate\", {\n    Rows = 3,\n    Title = \"Supply Crate\",\n    AllowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Blocks", "Register a block and its item",
+                "Register the block first, then register its item form. The block definition accepts Minecraft block properties and scripted block callbacks; the item definition accepts item stack, durability, food, rarity, and item callbacks. Use the discovery methods to check enum values exposed by the current Minecraft version.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.Blocks:Register(\"signal_block\", {\n    strength = 3,\n    resistance = 6,\n    sound = \"stone\",\n    mapColor = \"stone\",\n    requiresCorrectTool = true,\n    onRightClick = function(context)\n        context.Player:SendMessage(\"The block answers with a quiet hum.\")\n        return true\n    end,\n})\n\nRegistry.Blocks:RegisterItem(\"signal_block\", {\n    maxStackSize = 16,\n    rarity = \"uncommon\",\n    description = \"A block that listens for a signal.\",\n})\n\nprint(table.concat(Registry.Blocks:GetSounds(), \", \"))\nprint(table.concat(Registry.Items:GetRarities(), \", \"))"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry", "Use the shared registration entry point",
                 "Registry:Register routes definitions through the typed registries for items, blocks, entities, effects, potions, particles, containers, projectiles, world generation, tabs, recipes, loot, tags, common config, and damage sources. Use block_item after registering its block; register a tag as Registry:Register(\"tag\", kind, name, definition). RegisterType defines reusable addon-scoped defaults for each category. Items select them with kind, blocks with type, and other categories with RegistryType. Use Registry.ContentTypes for reusable defaults in your own data domains. GetRegistered returns IDs visible for a Minecraft registry kind.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:Register(\"item\", \"flare_gun\", {\n    kind = \"firearm\",\n    maxStackSize = 1,\n    onUse = function(context)\n        -- Use the live player and projectile services here.\n    end,\n})\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\")) do\n    print(id)\nend"));
@@ -289,13 +292,13 @@ public class RegistryModule implements MLuaModule {
             "onConsume?", "fun(context: ItemConsumeContext)", "Runs once on the server when eating finishes.",
             "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean?", "Runs from Minecraft's item hit hook after the target has been attacked, so it cannot cancel that hit. Return false to skip item hit handling; true allows native tool handling and requests durability handling for a generic scripted item.",
             "kind?", "string", "Built-in item kind such as item, sword, pickaxe, axe, shovel, hoe, or bow; registered custom kinds are also accepted.",
-            "tier?", "string", "Tool material tier: wood, stone, iron, gold, diamond, or netherite.",
+            "tier?", "string", "Tool material tier; use Registry.Items:GetTiers() for values exposed by the running Minecraft version.",
             "attackDamage?", "number", "Finite attack damage value for a supported tool kind.",
             "attackSpeed?", "number", "Finite attack speed value for a supported tool kind.",
             "durability?", "number", "Positive whole-number durability; requires maxStackSize to be 1 when that property is supplied.",
             "maxStackSize?", "number", "Whole number from 1 to 64; must be 1 for a durable item.",
             "fireResistant?", "boolean", "Whether the item is immune to fire and lava destruction.",
-            "rarity?", "string", "Item rarity: common, uncommon, rare, or epic.",
+            "rarity?", "string", "Item rarity; use Registry.Items:GetRarities() for values exposed by the running Minecraft version.",
             "craftRemainder?", "string", "Item identifier left behind after crafting; it must name a registered item when creation runs.",
             "model?", "string", "Model resource identifier.", "texture?", "string", "Item texture resource identifier.",
             "copy?", "string", "Registered item whose properties are copied; unknown identifiers fail during item creation.",
@@ -464,6 +467,8 @@ public class RegistryModule implements MLuaModule {
 
     private static void contributeSignatures(MLuaDocBuilder docs) {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetTiers()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetRarities()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetId(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Exists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Register(id: string, props: BlockDefinition)", null));

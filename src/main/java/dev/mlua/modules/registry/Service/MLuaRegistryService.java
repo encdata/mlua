@@ -125,6 +125,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("GetInstruments", "Lists the note block instruments supported by this Minecraft version.");
       descriptions.put("GetSounds", "Lists block sound families available in this Minecraft version.");
       descriptions.put("GetMapColors", "Lists block map colors available in this Minecraft version.");
+      descriptions.put("GetTiers", "Lists item tool tiers available in this Minecraft version.");
+      descriptions.put("GetRarities", "Lists item rarities available in this Minecraft version.");
       descriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       descriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       descriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
@@ -445,6 +447,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, "Item".equals(className) ? null : className);
             return LuaValue.NONE;
+         }
+      });
+      items.set("GetTiers", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return stringArray(MLuaItemFactory.tierNames());
+         }
+      });
+      items.set("GetRarities", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return stringArray(MLuaItemFactory.rarityNames());
          }
       });
       blocks.set("Register", new VarArgFunction() {
