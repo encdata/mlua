@@ -420,6 +420,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
+            MLuaRegistryService.requireLocalRegistryName(MLuaRegistryService.this.context.mlua().ownerModId(),
+               name, "Registry.Containers:Register");
             LuaTable definition = args.checktable(3);
             int rows = MLuaLuaArguments.optionalWholeInt(definition.get("Rows"), 3,
                "Registry.Containers:Register", "Rows");
@@ -449,6 +451,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Items:Register");
             LuaTable propsTable = MLuaRegistryService.this.context.mlua().registration().resolveContentType("item", owner,
                args.arg(3).opttable((LuaTable)null));
             Map<String, Object> props = MLuaLuaBindings.mapFromLua(propsTable);
@@ -485,6 +488,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:Register");
             LuaTable propsTable = MLuaRegistryService.this.context.mlua().registration().resolveContentType("block", owner,
                args.arg(3).opttable((LuaTable)null));
             Map<String, Object> props = new HashMap(MLuaLuaBindings.mapFromLua(propsTable));
@@ -585,6 +589,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:RegisterItem");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             Map<String, Object> props = propsTable != null ? MLuaLuaBindings.mapFromLua(propsTable) : Map.of();
             String key = owner + ":" + name;
@@ -810,6 +815,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
+            MLuaRegistryService.requireLocalRegistryName(MLuaRegistryService.this.context.mlua().ownerModId(),
+               name, "Registry.Particles:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             boolean overrideLimiter = propsTable != null && propsTable.get("overrideLimiter").optboolean(false);
             MLuaLoaderRegistry.registerParticle(MLuaRegistryService.this.context.mlua().ownerModId(), name, overrideLimiter);
@@ -820,6 +827,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
+            MLuaRegistryService.requireLocalRegistryName(MLuaRegistryService.this.context.mlua().ownerModId(),
+               name, "Registry.Potions:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             List<MobEffectInstance> effects = MLuaRegistryService.potionEffects(propsTable);
             MLuaLoaderRegistry.register(RegistryKind.POTION, MLuaRegistryService.this.context.mlua().ownerModId(), name, () -> {
@@ -841,6 +850,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Effects:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             String key = owner + ":" + name;
             LuaValue onTick = MLuaRegistryService.callbackProperty(propsTable, "onTick", "OnTick");
@@ -911,6 +921,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Entities:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
@@ -1043,6 +1054,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           public Varargs invoke(Varargs args) {
              MLuaRegistryService.this.ensureRegistryPhase();
              String name = args.checkjstring(2);
+             MLuaRegistryService.requireLocalRegistryName(MLuaRegistryService.this.context.mlua().ownerModId(),
+                name, "Registry.Projectiles:Register");
              LuaTable props = args.arg(3).opttable((LuaTable)null);
              if (props == null) {
                 throw new LuaError("[MLua] Registry.Projectiles:Register requires a properties table");
@@ -1966,6 +1979,15 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (!Double.isFinite(value) || value <= 0.0 || !Float.isFinite(converted) || converted <= 0.0F) {
          throw new LuaError("[MLua] Registry.Entities:Register " + property
             + " must be finite, greater than zero, and representable as a positive float.");
+      }
+   }
+
+   private static void requireLocalRegistryName(String owner, String name, String operation) {
+      var id = MLuaResourceLocations.tryParseOrNull(owner + ":" + name);
+      if (id == null || !owner.equals(MLuaResourceLocations.namespace(id))
+            || !name.equals(MLuaResourceLocations.path(id))) {
+         throw new LuaError("[MLua] " + operation
+            + " name must be a valid lowercase registry path without a namespace.");
       }
    }
 
