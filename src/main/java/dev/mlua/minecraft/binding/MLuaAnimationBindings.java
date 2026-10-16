@@ -248,7 +248,7 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetTracksByPriority",
             "Returns the live tracks running at one animation priority.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "StopAll",
-            "Stops every animation track owned by this entity animator.");
+            "Stops every animation track with its default fade duration, or the supplied fadeTime.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "SetBonePose",
             "Sets a CFrame pose override for one registered model bone.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetBonePose",
@@ -433,11 +433,26 @@ public final class MLuaAnimationBindings {
         bindForwarder(animator, entity, "GetTracksByPriority");
         bindForwarder(animator, entity, "SetBonePose");
         bindForwarder(animator, entity, "GetBonePose");
-        MLuaClassMethods.setInstanceMethod(animator, "StopAll", new ZeroArgFunction() {
-            @Override public LuaValue call() {
-                LuaValue stop = entity.get("StopAllAnimations");
-                if (!stop.isfunction()) throw new LuaError("[MLua] Entity animation methods are unavailable.");
-                stop.invoke(LuaValue.varargsOf(new LuaValue[]{entity}));
+        MLuaClassMethods.setInstanceMethod(animator, "StopAll", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue tracksMethod = entity.get("GetAnimationTracks");
+                if (!tracksMethod.isfunction()) throw new LuaError("[MLua] Entity animation methods are unavailable.");
+                LuaValue tracksValue = tracksMethod.invoke(LuaValue.varargsOf(new LuaValue[]{entity})).arg1();
+                if (!tracksValue.istable()) throw new LuaError("[MLua] Entity:GetAnimationTracks() did not return a track table.");
+                float fadeTime = args.arg(2).isnil() ? -1.0f
+                    : MLuaLuaArguments.finiteNonNegativeFloat(args.arg(2), "Animator:StopAll", "fadeTime");
+                LuaTable tracks = tracksValue.checktable();
+                for (int index = 1; ; index++) {
+                    LuaValue track = tracks.get(index);
+                    if (track.isnil()) break;
+                    LuaValue stop = track.get("Stop");
+                    if (!stop.isfunction()) continue;
+                    if (fadeTime < 0.0f) {
+                        stop.invoke(LuaValue.varargsOf(new LuaValue[]{track}));
+                    } else {
+                        stop.invoke(LuaValue.varargsOf(new LuaValue[]{track, LuaValue.valueOf(fadeTime)}));
+                    }
+                }
                 return LuaValue.NONE;
             }
         });
