@@ -524,7 +524,12 @@ public class MLuaScriptedEntity extends PathfinderMob {
             LuaTable data = args.checktable(2);
             CompoundTag replacement = new CompoundTag();
             Set<LuaTable> activeTables = Collections.newSetFromMap(new IdentityHashMap<>());
-            MLuaScriptedEntity.this.luaToCompound(data, replacement, activeTables, 0);
+            try {
+               MLuaScriptedEntity.this.luaToCompound(data, replacement, activeTables, 0);
+            } catch (IllegalArgumentException invalidData) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetData could not convert this table to NBT: "
+                  + invalidData.getMessage());
+            }
             MLuaScriptedEntity.this.persistentData = replacement;
             return LuaValue.NONE;
          }
@@ -724,7 +729,10 @@ public class MLuaScriptedEntity extends PathfinderMob {
          return ByteTag.valueOf(value.toboolean());
       } else if (value.isnumber()) {
          double d = value.todouble();
-         if (d == Math.floor(d) && !Double.isInfinite(d)) {
+         if (!Double.isFinite(d)) {
+            throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetData cannot save NaN or infinite numbers.");
+         }
+         if (d == Math.rint(d) && d >= Long.MIN_VALUE && d < 0x1.0p63) {
             return LongTag.valueOf((long)d);
          }
          return DoubleTag.valueOf(d);
@@ -748,7 +756,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
             }
             ListTag list = new ListTag();
             for (int i = 1; !tbl.get(i).isnil(); i++) {
-               list.add(this.valueToTag(tbl.get(i), activeTables, depth + 1));
+               if (!list.add(this.valueToTag(tbl.get(i), activeTables, depth + 1))) {
+                  throw new IllegalArgumentException("Lua array values must use one NBT value type");
+               }
             }
             return list;
          } finally {
