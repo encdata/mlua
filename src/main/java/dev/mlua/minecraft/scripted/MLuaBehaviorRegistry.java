@@ -1,13 +1,18 @@
 package dev.mlua.minecraft.scripted;
 
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import dev.mlua.core.MLuaLogger;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.Map;
 
 public final class MLuaBehaviorRegistry {
-   private static final ConcurrentMap<String, ConcurrentMap<String, Map<String, LuaValue>>> SCRIPTED_BEHAVIORS = new ConcurrentHashMap<>();
+   private record BehaviorSet(Map<String, LuaValue> callbacks, MLuaContext context) { }
+   public record Snapshot(Map<String, LuaValue> callbacks, MLuaContext context) { }
+   private static final ConcurrentMap<String, ConcurrentMap<String, BehaviorSet>> SCRIPTED_BEHAVIORS = new ConcurrentHashMap<>();
    private static final ConcurrentMap<String, ConcurrentMap<String, String>> CONTENT_CLASSES = new ConcurrentHashMap<>();
    private static final ConcurrentMap<String, ContainerDefinition> BLOCK_CONTAINERS = new ConcurrentHashMap<>();
    private static final ConcurrentMap<String, ContainerDefinition> CONTAINER_TYPES = new ConcurrentHashMap<>();
@@ -33,21 +38,21 @@ public final class MLuaBehaviorRegistry {
       if (behavior == null || behavior.isnil()) {
          SCRIPTED_BEHAVIORS.computeIfPresent(domain, (ignoredDomain, definitions) -> {
             definitions.computeIfPresent(key, (ignored, current) -> {
-               Map<String, LuaValue> updated = new java.util.HashMap<>(current);
+               Map<String, LuaValue> updated = new java.util.HashMap<>(current.callbacks());
                updated.remove(event);
-               return updated.isEmpty() ? null : Map.copyOf(updated);
+               return updated.isEmpty() ? null : new BehaviorSet(Map.copyOf(updated), current.context());
             });
             return definitions.isEmpty() ? null : definitions;
          });
          return;
       }
       SCRIPTED_BEHAVIORS.compute(domain, (ignoredDomain, definitions) -> {
-         ConcurrentMap<String, Map<String, LuaValue>> result = definitions == null
+         ConcurrentMap<String, BehaviorSet> result = definitions == null
             ? new ConcurrentHashMap<>() : definitions;
          result.compute(key, (ignoredKey, current) -> {
-            Map<String, LuaValue> updated = current == null ? new java.util.HashMap<>() : new java.util.HashMap<>(current);
+            Map<String, LuaValue> updated = current == null ? new java.util.HashMap<>() : new java.util.HashMap<>(current.callbacks());
             updated.put(event, behavior);
-            return Map.copyOf(updated);
+            return new BehaviorSet(Map.copyOf(updated), current == null ? null : current.context());
          });
          return result;
       });
@@ -56,6 +61,11 @@ public final class MLuaBehaviorRegistry {
 
    /** Replaces a content definition's complete behavior set in one visible update. */
    public static void registerBehaviors(String domain, String key, Map<String, LuaValue> behaviors) {
+      registerBehaviors(domain, key, behaviors, null);
+   }
+
+   public static void registerBehaviors(String domain, String key, Map<String, LuaValue> behaviors,
+                                        MLuaContext context) {
       if (domain == null || domain.isBlank() || key == null || key.isBlank()) {
          throw new IllegalArgumentException("Scripted behavior domain and key must be non-empty");
       }
@@ -67,40 +77,79 @@ public final class MLuaBehaviorRegistry {
       }
       SCRIPTED_BEHAVIORS.compute(domain, (ignoredDomain, definitions) -> {
          if (definitions == null && definition.isEmpty()) return null;
-         ConcurrentMap<String, Map<String, LuaValue>> result = definitions == null
+         ConcurrentMap<String, BehaviorSet> result = definitions == null
             ? new ConcurrentHashMap<>() : definitions;
          if (definition.isEmpty()) result.remove(key);
-         else result.put(key, Map.copyOf(definition));
+         else result.put(key, new BehaviorSet(Map.copyOf(definition), context));
          return result.isEmpty() ? null : result;
       });
    }
 
    public static LuaValue getBehavior(String domain, String key, String event) {
-      ConcurrentMap<String, Map<String, LuaValue>> definitions = SCRIPTED_BEHAVIORS.get(domain);
-      if (definitions == null) return LuaValue.NIL;
-      Map<String, LuaValue> behaviors = definitions.get(key);
-      return behaviors == null ? LuaValue.NIL : behaviors.getOrDefault(event, LuaValue.NIL);
+      BehaviorSet definition = definition(domain, key);
+      return definition == null ? LuaValue.NIL : definition.callbacks().getOrDefault(event, LuaValue.NIL);
    }
 
    public static Map<String, LuaValue> getBehaviors(String domain, String key) {
-      ConcurrentMap<String, Map<String, LuaValue>> definitions = SCRIPTED_BEHAVIORS.get(domain);
-      Map<String, LuaValue> behaviors = definitions == null ? null : definitions.get(key);
-      return behaviors == null ? Map.of() : behaviors;
+      BehaviorSet definition = definition(domain, key);
+      return definition == null ? Map.of() : definition.callbacks();
+   }
+
+   public static Snapshot snapshotBehaviors(String domain, String key) {
+      BehaviorSet definition = definition(domain, key);
+      return definition == null ? new Snapshot(Map.of(), null)
+         : new Snapshot(definition.callbacks(), definition.context());
+   }
+
+   public static Varargs invokeBehavior(String domain, String key, String event, Varargs args) {
+      BehaviorSet definition = definition(domain, key);
+      if (definition == null) return LuaValue.NONE;
+      return invokeCallback(definition.context(), definition.callbacks().get(event), args);
+   }
+
+   public static Varargs invokeCallback(String domain, String key, LuaValue callback, Varargs args) {
+      BehaviorSet definition = definition(domain, key);
+      return invokeCallback(definition == null ? null : definition.context(), callback, args);
+   }
+
+   private static Varargs invokeCallback(MLuaContext context, LuaValue callback, Varargs args) {
+      if (callback == null || callback.isnil() || !callback.isfunction()) return LuaValue.NONE;
+      Varargs invocationArgs = args == null ? LuaValue.NONE : args;
+      if (context == null) return callback.invoke(invocationArgs);
+      synchronized (context.executionLock()) {
+         MLuaLuaBindings.bindContext(context.globals(), context);
+         return callback.invoke(invocationArgs);
+      }
+   }
+
+   private static BehaviorSet definition(String domain, String key) {
+      ConcurrentMap<String, BehaviorSet> definitions = SCRIPTED_BEHAVIORS.get(domain);
+      return definitions == null ? null : definitions.get(key);
    }
 
    /** Restores a previous behavior set only while the definition still matches the failed registration. */
    public static boolean restoreBehaviors(String domain, String key, Map<String, LuaValue> expected,
                                           Map<String, LuaValue> previous) {
+      BehaviorSet current = definition(domain, key);
+      MLuaContext expectedContext = current == null ? null : current.context();
+      return restoreBehaviors(domain, key, expected,
+         previous == null ? new Snapshot(Map.of(), null) : new Snapshot(previous, null), expectedContext);
+   }
+
+   public static boolean restoreBehaviors(String domain, String key, Map<String, LuaValue> expected,
+                                          Snapshot previous, MLuaContext expectedContext) {
       if (domain == null || key == null) return false;
       java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
       SCRIPTED_BEHAVIORS.compute(domain, (ignored, definitions) -> {
-         ConcurrentMap<String, Map<String, LuaValue>> values = definitions == null
+         ConcurrentMap<String, BehaviorSet> values = definitions == null
             ? new ConcurrentHashMap<>() : definitions;
          values.compute(key, (ignoredKey, current) -> {
-            Map<String, LuaValue> actual = current == null ? Map.of() : current;
-            if (!sameBehaviors(actual, expected == null ? Map.of() : expected)) return current;
+            Map<String, LuaValue> actual = current == null ? Map.of() : current.callbacks();
+            if (!sameBehaviors(actual, expected == null ? Map.of() : expected)
+                || current != null && current.context() != expectedContext) return current;
             restored.set(true);
-            return previous == null || previous.isEmpty() ? null : Map.copyOf(previous);
+            return previous == null || previous.callbacks().isEmpty() ? null
+               : new BehaviorSet(Map.copyOf(previous.callbacks()), previous.context());
          });
          return values.isEmpty() ? null : values;
       });

@@ -275,14 +275,23 @@ public final class MLuaRenderCallbacks {
 
     public static void render(LivingEntity entity, Object model, Object poseStack, Object bufferSource,
                               float partialTick, int packedLight, int packedOverlay) {
+        render(entity, model, poseStack, bufferSource, partialTick, packedLight, packedOverlay, true);
+    }
+
+    public static void render(LivingEntity entity, Object model, Object poseStack, Object bufferSource,
+                              float partialTick, int packedLight, int packedOverlay, boolean hasPartialTick) {
         if (entity == null) return;
         var typeId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         if (typeId == null) return;
         HookBucket registered = bucket(HookKind.ENTITY_MODEL, typeId.toString());
         if (registered == null || registered.isEmpty()) return;
+        Float validatedPartialTick = finitePartialTick(partialTick);
+        boolean partialTickAvailable = hasPartialTick && validatedPartialTick != null;
         for (Hook hook : registered.snapshot()) {
             LuaValue[] args = {MLuaEntityWrapper.entityTable(entity), renderContext(hook, "EntityModel", poseStack,
-                bufferSource, model, partialTick, packedLight, packedOverlay, null)};
+                bufferSource, model, partialTickAvailable ? validatedPartialTick : 0.0F,
+                packedLight, packedOverlay, null,
+                "HasPartialTick", LuaValue.valueOf(partialTickAvailable))};
             invoke(hook, args, LuaValue.varargsOf(args));
         }
     }

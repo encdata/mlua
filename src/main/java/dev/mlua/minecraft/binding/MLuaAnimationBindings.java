@@ -10,6 +10,8 @@ import dev.mlua.minecraft.animation.MLuaAnimationController;
 import dev.mlua.minecraft.animation.MLuaAnimationOptions;
 import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.modules.enums.MLuaEnumValue;
 import java.util.Map;
@@ -54,7 +56,10 @@ public final class MLuaAnimationBindings {
             AnimationPriority priority = resolvePriority(args.arg(3), "Entity:LoadAnimation", AnimationPriority.Idle);
             float fadeTime = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
                 args, 4, 0.0f, "Entity:LoadAnimation", "fadeTime");
-            MLuaAnimationTrack track = MLuaAnimationController.loadAnimation(entity, animation, priority, registration);
+            MLuaContext caller = MLuaLuaBindings.activeContext(registration);
+            String addonOwner = caller == null ? "" : caller.ownerModId();
+            MLuaAnimationTrack track = MLuaAnimationController.loadAnimation(
+                entity, animation, priority, registration, addonOwner);
             if (fadeTime > 0.001f) {
                 track.setFadeSpeed(1.0f / fadeTime);
                 track.fadeTo(1.0f);

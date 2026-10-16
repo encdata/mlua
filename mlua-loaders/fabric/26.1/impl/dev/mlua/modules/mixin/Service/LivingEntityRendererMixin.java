@@ -41,7 +41,8 @@ public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.en
             if (!(entity instanceof net.minecraft.world.entity.LivingEntity livingEntity)) return;
             MLuaEntityScope scope = MLuaEntityScope.of(livingEntity);
             MLuaModelAdapterRegistry.apply(model, scope);
-            MLuaRenderCallbacks.render(livingEntity, model, poseStack, collector, 0.0F, state.lightCoords, 0);
+            MLuaRenderCallbacks.render(livingEntity, model, poseStack, collector,
+                0.0F, state.lightCoords, 0, false);
             MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, collector, state.lightCoords);
         }
     }

@@ -17,7 +17,12 @@ import java.util.stream.Stream;
 public final class MLuaScriptLoader {
    public List<MLuaScript> discover(List<MLuaScriptRoot> roots) {
       List<MLuaScript> scripts = new ArrayList();
-      Iterator var3 = roots.iterator();
+      List<MLuaScriptRoot> orderedRoots = new ArrayList<>(roots);
+      orderedRoots.sort(Comparator
+         .comparingInt((MLuaScriptRoot root) -> "mlua".equals(root.modId()) ? 0 : 1)
+         .thenComparing(MLuaScriptRoot::modId)
+         .thenComparing(root -> root.path().toString().replace('\\', '/')));
+      Iterator var3 = orderedRoots.iterator();
 
       while(true) {
          while(var3.hasNext()) {

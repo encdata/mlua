@@ -222,10 +222,20 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       Class<?> componentClass = method.getParameterTypes()[fixedCount].getComponentType();
       int remaining = Math.max(0, args.narg() - offset - fixedCount);
       Object packed = Array.newInstance(componentClass, remaining);
+      boolean suppliedPackedArray = false;
       if (remaining == 1 && args.arg(fixedCount + 1 + offset).istable()) {
-         Object suppliedArray = toJavaValue(args.arg(fixedCount + 1 + offset), arrayType);
-         if (suppliedArray != null) packed = suppliedArray;
-      } else {
+         try {
+            Object suppliedArray = toJavaValue(args.arg(fixedCount + 1 + offset), arrayType);
+            if (suppliedArray != null) {
+               packed = suppliedArray;
+               suppliedPackedArray = true;
+            }
+         } catch (IllegalArgumentException notAnArray) {
+            // A single Lua table may be one vararg value. Prefer the Java array
+            // form when it converts cleanly; otherwise try it as one element.
+         }
+      }
+      if (!suppliedPackedArray) {
          for (int index = 0; index < remaining; index++) {
             Array.set(packed, index, toJavaValue(args.arg(fixedCount + index + 1 + offset), componentType));
          }

@@ -96,11 +96,22 @@ public final class MLuaContentTypeRegistry {
         }
         Definition definition = find(scope, domain, owner, selected.tojstring());
         if (definition == null) {
-            if (!"item".equals(domain) && !"block".equals(domain)) {
-                throw new LuaError("[MLua] Content type '" + selected.tojstring()
-                    + "' is not registered for domain '" + domain + "'");
+            if ("item".equals(domain) || "block".equals(domain)) {
+                try {
+                    if ("item".equals(domain)) {
+                        new MLuaItemFactory().validateTypeDefinition(Map.of("kind", selected.tojstring()));
+                    } else {
+                        MLuaBlockFactory.validateTypeDefinition(Map.of("type", selected.tojstring()));
+                    }
+                } catch (IllegalArgumentException failure) {
+                    throw new LuaError("[MLua] Content type '" + selected.tojstring()
+                        + "' is not registered for domain '" + domain
+                        + "' and is not a built-in or Java-registered type: " + failure.getMessage());
+                }
+                return copy(properties);
             }
-            return copy(properties);
+            throw new LuaError("[MLua] Content type '" + selected.tojstring()
+                + "' is not registered for domain '" + domain + "'");
         }
         LuaTable result = new LuaTable();
         String base = apply(definition, result);

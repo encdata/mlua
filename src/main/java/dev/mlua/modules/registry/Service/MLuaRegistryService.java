@@ -2212,10 +2212,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       if (requested != null) requested.forEach((name, callback) -> {
          if (name != null && !name.isBlank() && callback != null && !callback.isnil()) callbacks.put(name, callback);
       });
-      Map<String, LuaValue> previous = MLuaBehaviorRegistry.getBehaviors(domain, key);
-      MLuaBehaviorRegistry.registerBehaviors(domain, key, callbacks);
+      dev.mlua.module.MLuaRegistration registration = this.context.mlua().registration();
+      dev.mlua.core.MLuaContext callbackContext = MLuaLuaBindings.activeContext(registration);
+      if (callbackContext == null) {
+         callbackContext = MLuaLuaBindings.boundContext(this.context.mlua().globals());
+      }
+      final dev.mlua.core.MLuaContext ownerContext = callbackContext;
+      MLuaBehaviorRegistry.Snapshot previous = MLuaBehaviorRegistry.snapshotBehaviors(domain, key);
+      MLuaBehaviorRegistry.registerBehaviors(domain, key, callbacks, ownerContext);
       this.context.mlua().registration().trackRollback(() ->
-         MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous));
+         MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous, ownerContext));
    }
 
    private void setEntityAIInterval(String key, int interval) {

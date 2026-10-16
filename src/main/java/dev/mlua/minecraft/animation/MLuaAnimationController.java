@@ -21,7 +21,7 @@ public final class MLuaAnimationController {
     public static final int MAX_TRACKS_PER_ENTITY_OWNER = 128;
     /** Bounds all retained animation state in the client runtime. */
     public static final int MAX_TRACKS = 8192;
-    private record TrackKey(MLuaEntityScope scope, Object runtimeOwner) { }
+    private record TrackKey(MLuaEntityScope scope, Object runtimeOwner, String addonOwner) { }
 
     private static final ConcurrentHashMap<TrackKey, List<MLuaAnimationTrack>> TRACKS = new ConcurrentHashMap<>();
     private static final AtomicInteger TRACK_COUNT = new AtomicInteger();
@@ -43,23 +43,35 @@ public final class MLuaAnimationController {
         return loadAnimation(MLuaEntityScope.of(entity), animation, priority, runtimeOwner);
     }
 
+    public static MLuaAnimationTrack loadAnimation(Entity entity, MLuaAnimation animation,
+            AnimationPriority priority, Object runtimeOwner, String addonOwner) {
+        return loadAnimation(MLuaEntityScope.of(entity), animation, priority, runtimeOwner, addonOwner);
+    }
+
     public static MLuaAnimationTrack loadAnimation(MLuaEntityScope scope, MLuaAnimation animation, AnimationPriority priority) {
         return loadAnimation(scope, animation, priority, null);
     }
 
     public static MLuaAnimationTrack loadAnimation(MLuaEntityScope scope, MLuaAnimation animation,
             AnimationPriority priority, Object runtimeOwner) {
+        return loadAnimation(scope, animation, priority, runtimeOwner, "");
+    }
+
+    public static MLuaAnimationTrack loadAnimation(MLuaEntityScope scope, MLuaAnimation animation,
+            AnimationPriority priority, Object runtimeOwner, String addonOwner) {
         if (scope == null) throw new IllegalArgumentException("Animation needs an entity scope");
+        String resolvedAddon = addonOwner == null ? "" : addonOwner.trim();
         ownerOrder(runtimeOwner);
         MLuaAnimationTrack track = new MLuaAnimationTrack(scope.entityId(), animation, priority);
-        TrackKey key = new TrackKey(scope, runtimeOwner);
+        TrackKey key = new TrackKey(scope, runtimeOwner, resolvedAddon);
         while (true) {
             List<MLuaAnimationTrack> tracks = TRACKS.computeIfAbsent(key, ignored -> new ArrayList<>());
             synchronized (tracks) {
                 // A tick or cleanup can remove an empty list between lookup and lock acquisition.
                 if (TRACKS.get(key) != tracks) continue;
                 if (tracks.size() >= MAX_TRACKS_PER_ENTITY_OWNER) {
-                    throw new IllegalStateException("Animation track limit reached for this addon and entity ("
+                    throw new IllegalStateException("Animation track limit reached for addon '" + resolvedAddon
+                        + "' and entity ("
                         + MAX_TRACKS_PER_ENTITY_OWNER + ")");
                 }
                 if (!reserveTrack()) {
@@ -94,10 +106,14 @@ public final class MLuaAnimationController {
     public static void tickEntity(MLuaEntityScope scope, float delta) {
         List<Map.Entry<TrackKey, List<MLuaAnimationTrack>>> entries = TRACKS.entrySet().stream()
                 .filter(entry -> entry.getKey().scope().equals(scope))
-                .sorted(Comparator.comparingLong(entry -> ownerOrder(entry.getKey().runtimeOwner())))
+                .sorted(Comparator.comparingLong((Map.Entry<TrackKey, List<MLuaAnimationTrack>> entry) ->
+                    ownerOrder(entry.getKey().runtimeOwner())).thenComparing(entry -> entry.getKey().addonOwner()))
                 .toList();
+        Set<Object> runtimeOwners = new HashSet<>();
+        Map<Object, List<MLuaAnimationTrack>> tracksByRuntime = new HashMap<>();
         for (Map.Entry<TrackKey, List<MLuaAnimationTrack>> entry : entries) {
             TrackKey key = entry.getKey();
+            runtimeOwners.add(key.runtimeOwner());
             List<MLuaAnimationTrack> owned = entry.getValue();
             synchronized (owned) {
                 // Event callbacks can register or stop tracks on this same entity. Tick a
@@ -109,12 +125,18 @@ public final class MLuaAnimationController {
                 releaseTracks(beforeCleanup - owned.size());
                 if (owned.isEmpty()) {
                     TRACKS.remove(key, owned);
-                    MLuaBonePose.clearAnimatedPose(scope, key.runtimeOwner());
                 } else {
-                    blendPose(scope, owned, key.runtimeOwner());
+                    tracksByRuntime.computeIfAbsent(key.runtimeOwner(), ignored -> new ArrayList<>()).addAll(owned);
                 }
             }
         }
+        // Animation pose storage is shared by all addons in one runtime, so mix every
+        // addon's tracks together once after advancing their independent track lists.
+        runtimeOwners.forEach(owner -> {
+            List<MLuaAnimationTrack> tracks = tracksByRuntime.get(owner);
+            if (tracks == null || tracks.isEmpty()) MLuaBonePose.clearAnimatedPose(scope, owner);
+            else blendPose(scope, tracks, owner);
+        });
     }
 
     private static synchronized long ownerOrder(Object owner) {
@@ -176,9 +198,13 @@ public final class MLuaAnimationController {
     }
 
     public static List<MLuaAnimationTrack> getTracks(MLuaEntityScope scope, Object runtimeOwner) {
-        List<MLuaAnimationTrack> tracks = TRACKS.get(new TrackKey(scope, runtimeOwner));
-        if (tracks == null) return List.of();
-        synchronized (tracks) { return new ArrayList<>(tracks); }
+        List<MLuaAnimationTrack> result = new ArrayList<>();
+        TRACKS.forEach((key, tracks) -> {
+            if (!key.scope().equals(scope) || key.runtimeOwner() != runtimeOwner) return;
+            synchronized (tracks) { result.addAll(tracks); }
+        });
+        result.sort(Comparator.comparingInt(MLuaAnimationTrack::trackId));
+        return result;
     }
 
     private static List<MLuaAnimationTrack> tracksForScope(MLuaEntityScope scope) {
@@ -219,13 +245,7 @@ public final class MLuaAnimationController {
     }
 
     public static void stopAll(MLuaEntityScope scope, Object runtimeOwner) {
-        List<MLuaAnimationTrack> removed = TRACKS.remove(new TrackKey(scope, runtimeOwner));
-        if (removed != null) synchronized (removed) {
-            int count = removed.size();
-            removed.forEach(MLuaAnimationTrack::stopImmediate);
-            removed.clear();
-            releaseTracks(count);
-        }
+        clearTracks(key -> key.scope().equals(scope) && key.runtimeOwner() == runtimeOwner);
         MLuaBonePose.clearAnimatedPose(scope, runtimeOwner);
     }
 
@@ -234,6 +254,21 @@ public final class MLuaAnimationController {
         clearTracks(key -> key.runtimeOwner() == runtimeOwner
                 && (side == Side.BOTH || key.scope().side() == Side.BOTH || key.scope().side() == side));
         MLuaBonePose.clearRuntime(runtimeOwner, side);
+    }
+
+    /** Stops one addon's tracks while retaining other addon's animation layers in the runtime. */
+    public static void clearOwned(Object runtimeOwner, String addonOwner, Side side) {
+        if (runtimeOwner == null || addonOwner == null || addonOwner.isBlank() || side == null) return;
+        Set<MLuaEntityScope> changed = new HashSet<>();
+        clearTracks(key -> key.runtimeOwner() == runtimeOwner && key.addonOwner().equals(addonOwner)
+            && (side == Side.BOTH || key.scope().side() == Side.BOTH || key.scope().side() == side), changed);
+        changed.forEach(scope -> reblend(scope, runtimeOwner));
+    }
+
+    private static void reblend(MLuaEntityScope scope, Object runtimeOwner) {
+        List<MLuaAnimationTrack> remaining = getTracks(scope, runtimeOwner);
+        if (remaining.isEmpty()) MLuaBonePose.clearAnimatedPose(scope, runtimeOwner);
+        else blendPose(scope, remaining, runtimeOwner);
     }
 
     private static void clearTracks(java.util.function.Predicate<TrackKey> matches) {

@@ -188,10 +188,12 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    public void registerScriptRoot(String modId, Path path) {
-      this.roots.add(new MLuaScriptRoot(modId, path));
+      MLuaScriptRoot root = new MLuaScriptRoot(modId, path);
+      if (this.roots.contains(root)) return;
+      this.roots.add(root);
       this.scriptsDirty = true;
       if (this.registryScriptsRan) {
-         MLuaLogger.LOGGER.info("Registered runtime script root for '{}': {}. Registry scripts in this root will not run this load cycle.", modId, path);
+         MLuaLogger.LOGGER.info("Registered runtime script root for '{}': {}. Registry scripts in this root will not run this load cycle.", root.modId(), root.path());
       }
 
    }

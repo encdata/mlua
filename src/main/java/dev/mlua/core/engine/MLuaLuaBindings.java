@@ -14,6 +14,7 @@ import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.module.MLuaDocBuilder;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 public final class MLuaLuaBindings {
+   private static final ThreadLocal<WeakReference<MLuaContext>> ACTIVE_CONTEXT = new ThreadLocal<>();
    private static final String API_VERSION = MLuaApiPolicy.VERSION;
    private static final List<String> CAPABILITIES = MLuaApiPolicy.capabilities().stream().sorted().toList();
    private static final LuaValue CONTEXT_KEY = LuaValue.valueOf("__mlua_context");
@@ -751,10 +753,20 @@ public final class MLuaLuaBindings {
    }
 
    public static void bindContext(Globals globals, MLuaContext context) {
+      if (context == null) ACTIVE_CONTEXT.remove();
+      else ACTIVE_CONTEXT.set(new WeakReference<>(context));
       if (globals != null) {
          globals.set(CONTEXT_KEY, context != null ? CoerceJavaToLua.coerce(context) : LuaValue.NIL);
          if (context != null) globals.set("Docs", documentationTable(context));
       }
+   }
+
+   /** Returns the Lua context active on this thread for a Java-backed callback. */
+   public static MLuaContext activeContext(MLuaRegistration registration) {
+      WeakReference<MLuaContext> reference = ACTIVE_CONTEXT.get();
+      MLuaContext context = reference == null ? null : reference.get();
+      if (context == null && reference != null) ACTIVE_CONTEXT.remove();
+      return context != null && context.registration() == registration ? context : null;
    }
 
    private static LuaTable documentationTable(MLuaContext context) {

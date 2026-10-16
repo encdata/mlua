@@ -96,7 +96,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          }
          if (!onTick.isnil() && !this.onTickDisabled) {
             try {
-               onTick.invoke(this.entityTable());
+               this.invokeBehavior(onTick, this.entityTable());
             } catch (Exception var3) {
                this.onTickDisabled = true;
                MLuaLogger.LOGGER.error("MLua entity onTick callback failed for '{}'; disabled for this entity until the callback is replaced: {}",
@@ -127,9 +127,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
          LuaValue onHurt = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onHurt");
          if (!onHurt.isnil()) {
             try {
-               onHurt.invoke(LuaValue.varargsOf(new LuaValue[]{
+               this.invokeBehavior(onHurt,
                   this.entityTable(), LuaValue.valueOf((double)amount), LuaValue.valueOf(source.getMsgId())
-               }));
+               );
             } catch (Exception var6) {
                MLuaLogger.LOGGER.error("MLua entity onHurt callback failed for '{}': {}", this.behaviorKey, var6.getMessage());
             }
@@ -143,9 +143,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
          LuaValue onDeath = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onDeath");
          if (!onDeath.isnil()) {
             try {
-               onDeath.invoke(LuaValue.varargsOf(new LuaValue[]{
+               this.invokeBehavior(onDeath,
                   this.entityTable(), LuaValue.valueOf(source.getMsgId())
-               }));
+               );
             } catch (Exception var4) {
                MLuaLogger.LOGGER.error("MLua entity onDeath callback failed for '{}': {}", this.behaviorKey, var4.getMessage());
             }
@@ -160,7 +160,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          LuaValue onSpawn = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onSpawn");
          if (!onSpawn.isnil()) {
             try {
-               onSpawn.invoke(this.entityTable());
+               this.invokeBehavior(onSpawn, this.entityTable());
             } catch (Exception var3) {
                MLuaLogger.LOGGER.error("MLua entity onSpawn callback failed for '{}': {}", this.behaviorKey, var3.getMessage());
             }
@@ -175,9 +175,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
             try {
                LuaValue playerTable = MLuaEntityWrapper.entityTable(
                   player, MLuaRuntime.registrationForLevel(this.level()));
-               LuaValue handled = onInteract.invoke(LuaValue.varargsOf(new LuaValue[]{
+               LuaValue handled = this.invokeBehavior(onInteract,
                   this.entityTable(), playerTable, LuaValue.valueOf(hand.name())
-               })).arg1();
+               ).arg1();
                if (!handled.isboolean() || handled.toboolean()) return InteractionResult.CONSUME;
             } catch (Exception var4) {
                MLuaLogger.LOGGER.error("MLua entity onInteract callback failed for '{}': {}", this.behaviorKey, var4.getMessage());
@@ -210,7 +210,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          LuaValue onRemove = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onRemove");
          if (!onRemove.isnil()) {
             try {
-               onRemove.invoke(this.entityTable());
+               this.invokeBehavior(onRemove, this.entityTable());
             } catch (Exception var3) {
                MLuaLogger.LOGGER.error("MLua entity onRemove callback failed for '{}': {}", this.behaviorKey, var3.getMessage());
             }
@@ -634,7 +634,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    private void tickScriptedAI(LuaValue definition) {
       if (definition.isfunction()) {
-         definition.invoke(this.entityTable());
+         this.invokeBehavior(definition, this.entityTable());
          return;
       }
       if (!definition.istable()) throw new org.luaj.vm2.LuaError("[MLua] Entity AI must be a function or a state table.");
@@ -647,7 +647,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       LuaValue update = stateValue.isfunction() ? stateValue : stateValue.get("update");
       if (update.isnil()) return;
       LuaTable stateContext = this.aiStateContext();
-      LuaValue result = update.invoke(LuaValue.varargsOf(new LuaValue[]{this.entityTable(), stateContext})).arg1();
+      LuaValue result = this.invokeBehavior(update, this.entityTable(), stateContext).arg1();
       if (this.aiState.equals(stateContext.get("State").optjstring(null)) && result.isstring()
             && !result.tojstring().equals(this.aiState)) {
          this.transitionAIState(config, result.tojstring());
@@ -664,12 +664,12 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (this.aiState != null) {
          LuaValue previous = states.get(this.aiState);
          LuaValue exit = previous.istable() ? previous.get("onExit") : LuaValue.NIL;
-         if (exit.isfunction()) exit.invoke(LuaValue.varargsOf(new LuaValue[]{entity, this.aiStateContext()}));
+         if (exit.isfunction()) this.invokeBehavior(exit, entity, this.aiStateContext());
       }
       this.aiState = nextState;
       this.aiStateTicks = 0;
       LuaValue enter = next.istable() ? next.get("onEnter") : LuaValue.NIL;
-      if (enter.isfunction()) enter.invoke(LuaValue.varargsOf(new LuaValue[]{entity, this.aiStateContext()}));
+      if (enter.isfunction()) this.invokeBehavior(enter, entity, this.aiStateContext());
    }
 
    private LuaTable aiStateContext() {
@@ -839,6 +839,11 @@ public class MLuaScriptedEntity extends PathfinderMob {
       } catch (ReflectiveOperationException exception) {
          MLuaLogger.LOGGER.debug("Failed to invoke {} on scripted entity superclass", methodName, exception);
       }
+   }
+
+   private Varargs invokeBehavior(LuaValue callback, LuaValue... args) {
+      return MLuaBehaviorRegistry.invokeCallback("entity", this.behaviorKey, callback,
+         LuaValue.varargsOf(args));
    }
 
 }

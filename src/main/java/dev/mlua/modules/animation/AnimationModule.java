@@ -26,6 +26,12 @@ public class AnimationModule implements MLuaModule {
     }
 
     @Override
+    public void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession,
+                                Side side, String ownerModId) {
+        MLuaAnimationController.clearOwned(runtime, ownerModId, side);
+    }
+
+    @Override
     public int priority() { return 15; }
 
     @Override
@@ -96,7 +102,7 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetEntity()", "LivingEntity"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimator()", "Animator"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAnimator()", "Animator"));
-        docs.register(MLuaDocBuilder.Registration.method("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "Creates an entity animation track owned by the calling script. Limits are 128 tracks per script and entity, and 8192 tracks across the client runtime. A track keeps its final pose after playback ends; call Stop or Animator:StopAll to release it, or let script unload clear it.", "animation, priority, fadeTime", "AnimationTrack", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "Creates an entity animation track owned by the calling addon's runtime. Each addon may hold 128 tracks per entity and the client runtime allows 8192 total. Addon-scoped cleanup removes that addon's tracks. A track keeps its final pose after playback ends; call Stop or Animator:StopAll to release it early.", "animation, priority, fadeTime", "AnimationTrack", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetPlayingAnimationTracks()", "AnimationTrack[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetAnimationTracks()", "AnimationTrack[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetTracksByPriority(priority: AnimationPriority)", "AnimationTrack[]"));
