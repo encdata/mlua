@@ -147,8 +147,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
       }));
       table.set("SetSpawnPosition", serverLevelFn(supplier, (level, args) -> {
-         double[] position = MLuaChunkWrapper.positionArgs(args, 2);
-         level.setDefaultSpawnPos(BlockPos.containing(position[0], position[1], position[2]), MLuaChunkWrapper.positionYaw(args, 2, 3));
+         double[] position = MLuaPositionArguments.vector3(args, 2);
+         level.setDefaultSpawnPos(BlockPos.containing(position[0], position[1], position[2]), MLuaPositionArguments.yaw(args, 2, 3));
          return LuaValue.TRUE;
       }));
       table.set("IsDay", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isDay())));
@@ -564,8 +564,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          String entityId = args.checkjstring(2);
          double[] pos = positionArgs(args, 3);
          int rotationIndex = 3 + coordinateWidth(args, 3);
-         float yaw = MLuaChunkWrapper.positionYaw(args, 3, rotationIndex);
-         float pitch = MLuaChunkWrapper.positionPitch(args, 3, rotationIndex + 1);
+         float yaw = MLuaPositionArguments.yaw(args, 3, rotationIndex);
+         float pitch = MLuaPositionArguments.pitch(args, 3, rotationIndex + 1);
          EntityType<?> entityType = MLuaEntitySpawner.resolveType(this.context.mlua().ownerModId(), entityId);
          if (entityType == null) throw new LuaError("[MLua] Unknown entity: " + entityId);
          Entity entity = MLuaEntitySpawner.spawn(level, entityType, pos[0], pos[1], pos[2], yaw, pitch);
@@ -959,7 +959,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static double[] positionArgs(Varargs args, int index) {
-      return MLuaChunkWrapper.positionArgs(args, index);
+      return MLuaPositionArguments.vector3(args, index);
    }
 
    private static int coordinateWidth(Varargs args, int index) {

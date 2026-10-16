@@ -9,7 +9,6 @@ import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
-import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
@@ -240,7 +239,7 @@ public final class MLuaChunkWrapper {
                 chunkCoordinate(vector.get("X"), "X"),
                 chunkCoordinate(vector.get("Y"), "Y"));
         }
-        double[] position = MLuaLuaArguments.finiteVector3(value, "Chunk position");
+        double[] position = MLuaPositionArguments.vector3(value, "Chunk position");
         BlockPos blockPosition = BlockPos.containing(position[0], position[1], position[2]);
         return new ChunkPos(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
     }
@@ -253,38 +252,6 @@ public final class MLuaChunkWrapper {
                 + " coordinate must be a whole number within the 32-bit integer range");
         }
         return (int)coordinate;
-    }
-
-    public static double[] positionArgs(Varargs args, int index) {
-        return MLuaLuaArguments.finiteVector3(args.arg(index), "World position");
-    }
-
-    public static float positionYaw(Varargs args, int positionIndex, int yawIndex) {
-        LuaValue yaw = args.arg(yawIndex);
-        if (!yaw.isnil()) {
-            double value = yaw.checkdouble();
-            float converted = (float)value;
-            if (!Double.isFinite(value) || !Float.isFinite(converted)) {
-                throw new LuaError("[MLua] Yaw must be finite and within the supported range.");
-            }
-            return converted;
-        }
-        LuaValue position = args.arg(positionIndex);
-        return MLuaCFrame.isCFrame(position) ? MLuaCFrame.fromLua(position).minecraftYaw() : 0.0f;
-    }
-
-    public static float positionPitch(Varargs args, int positionIndex, int pitchIndex) {
-        LuaValue pitch = args.arg(pitchIndex);
-        if (!pitch.isnil()) {
-            double value = pitch.checkdouble();
-            float converted = (float)value;
-            if (!Double.isFinite(value) || !Float.isFinite(converted)) {
-                throw new LuaError("[MLua] Pitch must be finite and within the supported range.");
-            }
-            return converted;
-        }
-        LuaValue position = args.arg(positionIndex);
-        return MLuaCFrame.isCFrame(position) ? MLuaCFrame.fromLua(position).minecraftPitch() : 0.0f;
     }
 
     public static int chunkX(ChunkPos position) {
@@ -323,7 +290,7 @@ public final class MLuaChunkWrapper {
         });
         bindWorldMethod(world, registration, "IsBlockLoaded", args -> {
             Level level = level(args.arg1());
-            double[] coordinates = MLuaLuaArguments.finiteVector3(args.arg(2), "World position");
+            double[] coordinates = MLuaPositionArguments.vector3(args, 2);
             BlockPos position = BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]);
             return LuaValue.valueOf(level.hasChunkAt(position));
         });
@@ -465,7 +432,7 @@ public final class MLuaChunkWrapper {
     }
 
     private static BlockPos requirePosition(Varargs args, int index, LuaValue self) {
-        double[] coordinates = MLuaLuaArguments.finiteVector3(args.arg(index), "Chunk block position");
+        double[] coordinates = MLuaPositionArguments.vector3(args.arg(index), "Chunk block position");
         ChunkPos chunk = chunkPosition(self);
         BlockPos position = BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]);
         if (position.getX() >> 4 != chunkX(chunk) || position.getZ() >> 4 != chunkZ(chunk)) {
