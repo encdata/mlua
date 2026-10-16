@@ -109,7 +109,7 @@ public class WorldModule implements MLuaModule {
             @Override public LuaValue call(LuaValue self) { return self.checktable().get("Name"); }
         }, "Returns the gamerule name accepted by GetGameRule and SetGameRule.");
         MLuaClassMethods.registerInstanceProperty(registration, "GameRuleEntry", "Name",
-            "GetName", null, "string", "server:Server",
+            "GetName", null, "string", "shared:Shared",
             "The gamerule name accepted by GetGameRule and SetGameRule.");
         registration.registerClassFunction("GameRuleEntry", "GetValue", new org.luaj.vm2.lib.OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
@@ -127,8 +127,8 @@ public class WorldModule implements MLuaModule {
             }
         }, "Sets this gamerule's value using the same type and range checks as World:SetGameRule.");
         MLuaClassMethods.registerInstanceProperty(registration, "GameRuleEntry", "Value",
-            "GetValue", "SetValue", "boolean|number|string", "server:Server",
-            "The current value, represented as a boolean, number, or string according to that rule's type.");
+            "GetValue", "SetValue", "boolean|number|string", "shared:Shared",
+            "The current value, readable on clients and servers. Assigning it is server-side only.");
         registration.registerClassFunction("GameRuleEntry", "GetValueType", new org.luaj.vm2.lib.OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
                 LuaValue value = self.checktable().get("Value");
@@ -136,7 +136,7 @@ public class WorldModule implements MLuaModule {
             }
         }, "Returns whether this gamerule value is boolean, number, or string.");
         MLuaClassMethods.registerInstanceProperty(registration, "GameRuleEntry", "ValueType", "GetValueType", null,
-            "string", "server:Server", "The Lua value type of this gamerule's value.");
+            "string", "shared:Shared", "The Lua value type of this gamerule's value.");
         registration.registerClassFunction("GameRuleEntry", "IsBoolean", new org.luaj.vm2.lib.OneArgFunction() {
             @Override public LuaValue call(LuaValue self) { return LuaValue.valueOf(self.checktable().get("Value").isboolean()); }
         }, "Returns whether this gamerule stores a boolean value.");
@@ -474,7 +474,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("GameRuleList", "*", "GameRuleEntry|boolean|number|string", "An ordered GameRuleEntry at a numeric index, or the current value when indexed by gamerule name."));
         docs.register(MLuaDocBuilder.Registration.clazz("GameRuleEntry", "WorldModule", "A live typed view of one registered Minecraft gamerule.", "classes/gamerule-entry.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.Name", "string", "The gamerule name accepted by GetGameRule and SetGameRule.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.Value", "boolean|number|string", "The live value; assigning it applies the same validation as World:SetGameRule.", "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.Value", "boolean|number|string", "The live value is readable on clients and servers; assignment is server-side and applies the same validation as World:SetGameRule.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("GameRuleEntry", "GameRuleEntry.ValueType", "string", "The Lua value type of this gamerule's value.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:GetValueType(): string", "Returns the Lua value type of this gamerule's value.", null, "string", null, null));
         docs.register(MLuaDocBuilder.Registration.method("GameRuleEntry", "GameRuleEntry:SetValue(value: boolean|number)", "Sets the live value using the same type and range checks as World:SetGameRule.", null, "void", "server:Server", null));
