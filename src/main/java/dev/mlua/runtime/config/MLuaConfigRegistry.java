@@ -135,7 +135,7 @@ public final class MLuaConfigRegistry {
       if (configValue == null) {
          throw new LuaError("[MLua] Unknown " + scope + " config value '" + path + "' for mod '" + ownerModId + "'.");
       } else {
-         configValue.set(coerceValue(path, configValue.defaultValue(), value));
+         configValue.set(coerceValue(path, configValue, value));
       }
    }
 
@@ -350,9 +350,23 @@ public final class MLuaConfigRegistry {
          try {
             return switch (typeName) {
                case "boolean" -> value instanceof Boolean ? value : null;
-               case "int" -> value instanceof Number ? ((Number)value).intValue() : null;
-               case "long" -> value instanceof Number ? ((Number)value).longValue() : null;
-               case "double" -> value instanceof Number ? ((Number)value).doubleValue() : null;
+               case "int" -> {
+                  if (!(value instanceof Number number)) yield null;
+                  double numeric = number.doubleValue();
+                  yield Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                     && numeric >= Integer.MIN_VALUE && numeric <= Integer.MAX_VALUE ? (int)numeric : null;
+               }
+               case "long" -> {
+                  if (!(value instanceof Number number)) yield null;
+                  double numeric = number.doubleValue();
+                  yield Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                     && numeric >= Long.MIN_VALUE && numeric < 0x1.0p63 ? (long)numeric : null;
+               }
+               case "double" -> {
+                  if (!(value instanceof Number number)) yield null;
+                  double numeric = number.doubleValue();
+                  yield Double.isFinite(numeric) ? numeric : null;
+               }
                case "string" -> value instanceof String ? value : null;
                default -> null;
             };
@@ -362,28 +376,44 @@ public final class MLuaConfigRegistry {
       }
    }
 
-   private static Object coerceValue(String path, Object defaultValue, Object value) {
+   private static Object coerceValue(String path, ConfigValue configValue, Object value) {
+      Object defaultValue = configValue.defaultValue();
+      Object converted = null;
       if (defaultValue instanceof Boolean) {
          if (value instanceof Boolean bool) {
-            return bool;
+            converted = bool;
          }
       } else if (defaultValue instanceof Integer) {
          if (value instanceof Number number) {
-            return number.intValue();
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                  && numeric >= Integer.MIN_VALUE && numeric <= Integer.MAX_VALUE) {
+               converted = (int)numeric;
+            }
          }
       } else if (defaultValue instanceof Double) {
          if (value instanceof Number number) {
-            return number.doubleValue();
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric)) converted = numeric;
          }
       } else if (defaultValue instanceof Long) {
          if (value instanceof Number number) {
-            return number.longValue();
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                  && numeric >= Long.MIN_VALUE && numeric < 0x1.0p63) {
+               converted = (long)numeric;
+            }
          }
       } else if (defaultValue instanceof String && value instanceof String string) {
-         return string;
+         converted = string;
       }
-
-      throw new LuaError("[MLua] Config '" + path + "' expects a " + valueTypeName(defaultValue) + ".");
+      if (converted == null) {
+         throw new LuaError("[MLua] Config '" + path + "' expects a " + valueTypeName(defaultValue) + ".");
+      }
+      if (defaultValue instanceof Number && !Double.isFinite(((Number)converted).doubleValue())) {
+         throw new LuaError("[MLua] Config '" + path + "' must be finite.");
+      }
+      return configValue.clampToRange(converted);
    }
 
    private static String valueTypeName(Object defaultValue) {
@@ -418,7 +448,8 @@ public final class MLuaConfigRegistry {
             defineEntries(values, childPath, value.checktable());
          } else {
             ConfigDescriptor descriptor = descriptorFor(value, childPath);
-            values.put(String.join(".", childPath), new ConfigValue(descriptor.typeName(), descriptor.defaultValue()));
+            values.put(String.join(".", childPath), new ConfigValue(descriptor.typeName(), descriptor.defaultValue(),
+               descriptor.minimum(), descriptor.maximum()));
          }
       }
    }
@@ -461,17 +492,34 @@ public final class MLuaConfigRegistry {
             Double min = readOptionalNumber(table, "min", "Min");
             Double max = readOptionalNumber(table, "max", "Max");
             validateRangeUsage(path, typeName, min, max);
-            return new ConfigDescriptor(path, typeName, converted);
+            if (!isWithinRange(converted, min, max)) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path)
+                  + "' default must be " + rangeDescription(min, max) + ".");
+            }
+            return new ConfigDescriptor(path, typeName, converted, min, max);
          }
       } else {
          String typeName = inferTypeName(value, path);
-         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName));
+         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName), null, null);
       }
    }
 
    private static void validateRangeUsage(List<String> path, String typeName, Double min, Double max) {
       if ((min != null || max != null) && ("boolean".equals(typeName) || "string".equals(typeName))) {
          throw new LuaError("[MLua] Config '" + String.join(".", path) + "' only supports Min/Max on numeric types.");
+      }
+      if (min != null && max != null && min > max) {
+         throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Min cannot be greater than Max.");
+      }
+      if ("int".equals(typeName) || "long".equals(typeName)) {
+         if ((min != null && min != Math.rint(min)) || (max != null && max != Math.rint(max))) {
+            throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires whole-number Min/Max bounds.");
+         }
+         double lower = "int".equals(typeName) ? Integer.MIN_VALUE : Long.MIN_VALUE;
+         double upperExclusive = "int".equals(typeName) ? (double)Integer.MAX_VALUE + 1.0 : 0x1.0p63;
+         if ((min != null && min < lower) || (max != null && max >= upperExclusive)) {
+            throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Min/Max exceeds the " + typeName + " range.");
+         }
       }
    }
 
@@ -488,7 +536,24 @@ public final class MLuaConfigRegistry {
 
    private static Double readOptionalNumber(LuaTable table, String... keys) {
       LuaValue value = first(table, keys);
-      return value.isnil() ? null : value.checkdouble();
+      if (value.isnil()) return null;
+      double number = value.checkdouble();
+      if (!Double.isFinite(number)) throw new LuaError("[MLua] Config Min and Max values must be finite numbers.");
+      return number;
+   }
+
+   private static boolean isWithinRange(Object value, Double minimum, Double maximum) {
+      if (!(value instanceof Number number)) return minimum == null && maximum == null;
+      double numeric = number.doubleValue();
+      return Double.isFinite(numeric) && (minimum == null || numeric >= minimum)
+         && (maximum == null || numeric <= maximum);
+   }
+
+   private static String rangeDescription(Double minimum, Double maximum) {
+      if (minimum != null && maximum != null) return "between " + minimum + " and " + maximum;
+      if (minimum != null) return "at least " + minimum;
+      if (maximum != null) return "at most " + maximum;
+      return "within the supported range";
    }
 
    private static Object convertDefault(LuaValue value, List<String> path, String typeName) {
@@ -503,19 +568,33 @@ public final class MLuaConfigRegistry {
             if (!value.isnumber()) {
                throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a numeric default.");
             }
-            yield value.toint();
+            double number = value.todouble();
+            if (!Double.isFinite(number) || number != Math.rint(number)
+                  || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires a finite whole-number default within the integer range.");
+            }
+            yield (int)number;
          }
          case "long" -> {
             if (!value.isnumber()) {
                throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a numeric default.");
             }
-            yield value.tolong();
+            double number = value.todouble();
+            if (!Double.isFinite(number) || number != Math.rint(number)
+                  || number < Long.MIN_VALUE || number >= 0x1.0p63) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires a finite whole-number default within the long range.");
+            }
+            yield (long)number;
          }
          case "double" -> {
             if (!value.isnumber()) {
                throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a numeric default.");
             }
-            yield value.todouble();
+            double number = value.todouble();
+            if (!Double.isFinite(number)) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires a finite numeric default.");
+            }
+            yield number;
          }
          case "string" -> {
             if (!value.isstring()) {
@@ -606,17 +685,22 @@ public final class MLuaConfigRegistry {
       };
    }
 
-   private static record ConfigDescriptor(List<String> path, String typeName, Object defaultValue) {
+   private static record ConfigDescriptor(List<String> path, String typeName, Object defaultValue,
+                                         Double minimum, Double maximum) {
    }
 
    public static final class ConfigValue {
       private final String typeName;
       private final Object defaultValue;
+      private final Double minimum;
+      private final Double maximum;
       private Object value;
 
-      ConfigValue(String typeName, Object defaultValue) {
+      ConfigValue(String typeName, Object defaultValue, Double minimum, Double maximum) {
          this.typeName = typeName;
          this.defaultValue = defaultValue;
+         this.minimum = minimum;
+         this.maximum = maximum;
          this.value = defaultValue;
       }
 
@@ -628,12 +712,38 @@ public final class MLuaConfigRegistry {
          return this.defaultValue;
       }
 
+      public Double minimum() { return this.minimum; }
+
+      public Double maximum() { return this.maximum; }
+
+      public boolean isWithinRange(Object candidate) {
+         return MLuaConfigRegistry.isWithinRange(candidate, this.minimum, this.maximum);
+      }
+
+      public Object clampToRange(Object candidate) {
+         if (!(candidate instanceof Number number)) return candidate;
+         double numeric = number.doubleValue();
+         if (!Double.isFinite(numeric)) throw new LuaError("[MLua] Config numeric values must be finite.");
+         if (this.minimum != null) numeric = Math.max(numeric, this.minimum);
+         if (this.maximum != null) numeric = Math.min(numeric, this.maximum);
+         if (this.defaultValue instanceof Integer) return (int)numeric;
+         if (this.defaultValue instanceof Long) return (long)numeric;
+         return numeric;
+      }
+
+      public String rangeDescription() {
+         if (this.minimum != null && this.maximum != null) return "between " + this.minimum + " and " + this.maximum;
+         if (this.minimum != null) return "at least " + this.minimum;
+         if (this.maximum != null) return "at most " + this.maximum;
+         return "within the supported range";
+      }
+
       public Object get() {
          return this.value;
       }
 
       public void set(Object value) {
-         this.value = value;
+         this.value = this.clampToRange(value);
       }
    }
 

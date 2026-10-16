@@ -35,20 +35,58 @@ public final class MLuaConfigRegistry {
       return INSTANCE;
    }
 
-   public synchronized void register(String ownerModId, String scope, String sectionName, LuaTable values) {
+   public synchronized ConfigSectionHandle register(String ownerModId, String scope, String sectionName, LuaTable values) {
       if (this.installed) {
          throw new IllegalStateException("[MLua] Cannot register config '" + sectionName + "': configs are already installed.");
       } else if (sectionName != null && !sectionName.isBlank()) {
+         String normalizedScope = scopeFromString(scope);
          Map<String, PendingConfigSet> byScope = this.pending.computeIfAbsent(ownerModId, ignored -> new LinkedHashMap());
-         PendingConfigSet set = byScope.computeIfAbsent(scopeFromString(scope), ignored -> new PendingConfigSet(ownerModId, scopeFromString(scope)));
-         set.registerSection(sectionName, values);
+         PendingConfigSet set = byScope.computeIfAbsent(normalizedScope,
+            ignored -> new PendingConfigSet(ownerModId, normalizedScope));
+         try {
+            Map<String, ConfigValue> sectionValues = set.registerSection(sectionName, values);
+            return new ConfigSectionHandle(ownerModId, normalizedScope, sectionName, sectionValues);
+         } catch (RuntimeException | Error failure) {
+            if (set.isEmpty()) byScope.remove(normalizedScope, set);
+            if (byScope.isEmpty()) this.pending.remove(ownerModId, byScope);
+            throw failure;
+         }
       } else {
          throw new LuaError("[MLua] Config section name must not be blank.");
       }
    }
 
-   public synchronized void register(String ownerModId, ModConfig.Type type, String sectionName, LuaTable values) {
-      this.register(ownerModId, scopeName(type), sectionName, values);
+   public synchronized ConfigSectionHandle register(String ownerModId, ModConfig.Type type, String sectionName, LuaTable values) {
+      return this.register(ownerModId, scopeName(type), sectionName, values);
+   }
+
+   public synchronized boolean unregister(ConfigSectionHandle handle) {
+      if (handle == null) return false;
+      boolean removed = false;
+      Map<String, PendingConfigSet> byScope = this.pending.get(handle.ownerModId());
+      PendingConfigSet pendingSet = byScope == null ? null : byScope.get(handle.scope());
+      if (pendingSet != null) {
+         removed |= pendingSet.remove(handle);
+         if (pendingSet.isEmpty()) byScope.remove(handle.scope());
+         if (byScope.isEmpty()) this.pending.remove(handle.ownerModId());
+      }
+      InstalledConfigSet installedSet = this.installedSet(handle.ownerModId(), handle.scope());
+      if (installedSet != null) {
+         removed |= removeExpectedValues(installedSet.values(), handle.values());
+         if (installedSet.values().isEmpty()) {
+            Map<String, InstalledConfigSet> byInstalledScope = this.installedRegistry.get(handle.ownerModId());
+            if (byInstalledScope != null) {
+               byInstalledScope.remove(handle.scope(), installedSet);
+               if (byInstalledScope.isEmpty()) this.installedRegistry.remove(handle.ownerModId());
+            }
+            List<InstalledConfigSet> attached = this.byAttachedContainer.get(installedSet.attachedModId());
+            if (attached != null) {
+               attached.remove(installedSet);
+               if (attached.isEmpty()) this.byAttachedContainer.remove(installedSet.attachedModId());
+            }
+         }
+      }
+      return removed;
    }
 
    public synchronized void install() {
@@ -97,7 +135,7 @@ public final class MLuaConfigRegistry {
       if (configValue == null) {
          throw new LuaError("[MLua] Unknown " + scope + " config value '" + path + "' for mod '" + ownerModId + "'.");
       } else {
-         configValue.set(coerceValue(path, configValue.defaultValue(), value));
+         configValue.set(coerceValue(path, configValue, value));
       }
    }
 
@@ -150,6 +188,14 @@ public final class MLuaConfigRegistry {
          this.byAttachedContainer.computeIfAbsent(attachedModId, ignored -> new ArrayList()).add(installedSet);
          this.loadOrCreateJson(installedSet);
       }
+   }
+
+   private static boolean removeExpectedValues(Map<String, ConfigValue> target, Map<String, ConfigValue> expected) {
+      boolean removed = false;
+      for (Map.Entry<String, ConfigValue> entry : expected.entrySet()) {
+         removed |= target.remove(entry.getKey(), entry.getValue());
+      }
+      return removed;
    }
 
    private void loadOrCreateJson(InstalledConfigSet set) {
@@ -304,9 +350,23 @@ public final class MLuaConfigRegistry {
          try {
             return switch (typeName) {
                case "boolean" -> value instanceof Boolean ? value : null;
-               case "int" -> value instanceof Number ? ((Number)value).intValue() : null;
-               case "long" -> value instanceof Number ? ((Number)value).longValue() : null;
-               case "double" -> value instanceof Number ? ((Number)value).doubleValue() : null;
+               case "int" -> {
+                  if (!(value instanceof Number number)) yield null;
+                  double numeric = number.doubleValue();
+                  yield Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                     && numeric >= Integer.MIN_VALUE && numeric <= Integer.MAX_VALUE ? (int)numeric : null;
+               }
+               case "long" -> {
+                  if (!(value instanceof Number number)) yield null;
+                  double numeric = number.doubleValue();
+                  yield Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                     && numeric >= Long.MIN_VALUE && numeric < 0x1.0p63 ? (long)numeric : null;
+               }
+               case "double" -> {
+                  if (!(value instanceof Number number)) yield null;
+                  double numeric = number.doubleValue();
+                  yield Double.isFinite(numeric) ? numeric : null;
+               }
                case "string" -> value instanceof String ? value : null;
                default -> null;
             };
@@ -316,28 +376,44 @@ public final class MLuaConfigRegistry {
       }
    }
 
-   private static Object coerceValue(String path, Object defaultValue, Object value) {
+   private static Object coerceValue(String path, ConfigValue configValue, Object value) {
+      Object defaultValue = configValue.defaultValue();
+      Object converted = null;
       if (defaultValue instanceof Boolean) {
          if (value instanceof Boolean bool) {
-            return bool;
+            converted = bool;
          }
       } else if (defaultValue instanceof Integer) {
          if (value instanceof Number number) {
-            return number.intValue();
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                  && numeric >= Integer.MIN_VALUE && numeric <= Integer.MAX_VALUE) {
+               converted = (int)numeric;
+            }
          }
       } else if (defaultValue instanceof Double) {
          if (value instanceof Number number) {
-            return number.doubleValue();
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric)) converted = numeric;
          }
       } else if (defaultValue instanceof Long) {
          if (value instanceof Number number) {
-            return number.longValue();
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                  && numeric >= Long.MIN_VALUE && numeric < 0x1.0p63) {
+               converted = (long)numeric;
+            }
          }
       } else if (defaultValue instanceof String && value instanceof String string) {
-         return string;
+         converted = string;
       }
-
-      throw new LuaError("[MLua] Config '" + path + "' expects a " + valueTypeName(defaultValue) + ".");
+      if (converted == null) {
+         throw new LuaError("[MLua] Config '" + path + "' expects a " + valueTypeName(defaultValue) + ".");
+      }
+      if (defaultValue instanceof Number && !Double.isFinite(((Number)converted).doubleValue())) {
+         throw new LuaError("[MLua] Config '" + path + "' must be finite.");
+      }
+      return configValue.clampToRange(converted);
    }
 
    private static String valueTypeName(Object defaultValue) {
@@ -372,9 +448,32 @@ public final class MLuaConfigRegistry {
             defineEntries(values, childPath, value.checktable());
          } else {
             ConfigDescriptor descriptor = descriptorFor(value, childPath);
-            values.put(String.join(".", childPath), new ConfigValue(descriptor.typeName(), descriptor.defaultValue()));
+            values.put(String.join(".", childPath), new ConfigValue(descriptor.typeName(), descriptor.defaultValue(),
+               descriptor.minimum(), descriptor.maximum()));
          }
       }
+   }
+
+   private static void validateConfigTable(LuaTable table,
+                                          java.util.IdentityHashMap<LuaTable, Boolean> active,
+                                          java.util.IdentityHashMap<LuaTable, Boolean> visited,
+                                          int depth) {
+      if (depth > 64) throw new LuaError("[MLua] Config definitions cannot be nested more than 64 tables deep.");
+      if (active.containsKey(table)) throw new LuaError("[MLua] Config definitions cannot contain cyclic tables.");
+      if (visited.containsKey(table)) return;
+      active.put(table, Boolean.TRUE);
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         org.luaj.vm2.Varargs entry = table.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         LuaValue value = entry.arg(2);
+         if (value.istable()) {
+            validateConfigTable(value.checktable(), active, visited, depth + 1);
+         }
+      }
+      active.remove(table);
+      visited.put(table, Boolean.TRUE);
    }
 
    private static boolean isValueDescriptor(LuaTable table) {
@@ -393,17 +492,34 @@ public final class MLuaConfigRegistry {
             Double min = readOptionalNumber(table, "min", "Min");
             Double max = readOptionalNumber(table, "max", "Max");
             validateRangeUsage(path, typeName, min, max);
-            return new ConfigDescriptor(path, typeName, converted);
+            if (!isWithinRange(converted, min, max)) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path)
+                  + "' default must be " + rangeDescription(min, max) + ".");
+            }
+            return new ConfigDescriptor(path, typeName, converted, min, max);
          }
       } else {
          String typeName = inferTypeName(value, path);
-         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName));
+         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName), null, null);
       }
    }
 
    private static void validateRangeUsage(List<String> path, String typeName, Double min, Double max) {
       if ((min != null || max != null) && ("boolean".equals(typeName) || "string".equals(typeName))) {
          throw new LuaError("[MLua] Config '" + String.join(".", path) + "' only supports Min/Max on numeric types.");
+      }
+      if (min != null && max != null && min > max) {
+         throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Min cannot be greater than Max.");
+      }
+      if ("int".equals(typeName) || "long".equals(typeName)) {
+         if ((min != null && min != Math.rint(min)) || (max != null && max != Math.rint(max))) {
+            throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires whole-number Min/Max bounds.");
+         }
+         double lower = "int".equals(typeName) ? Integer.MIN_VALUE : Long.MIN_VALUE;
+         double upperExclusive = "int".equals(typeName) ? (double)Integer.MAX_VALUE + 1.0 : 0x1.0p63;
+         if ((min != null && min < lower) || (max != null && max >= upperExclusive)) {
+            throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Min/Max exceeds the " + typeName + " range.");
+         }
       }
    }
 
@@ -420,7 +536,24 @@ public final class MLuaConfigRegistry {
 
    private static Double readOptionalNumber(LuaTable table, String... keys) {
       LuaValue value = first(table, keys);
-      return value.isnil() ? null : value.checkdouble();
+      if (value.isnil()) return null;
+      double number = value.checkdouble();
+      if (!Double.isFinite(number)) throw new LuaError("[MLua] Config Min and Max values must be finite numbers.");
+      return number;
+   }
+
+   private static boolean isWithinRange(Object value, Double minimum, Double maximum) {
+      if (!(value instanceof Number number)) return minimum == null && maximum == null;
+      double numeric = number.doubleValue();
+      return Double.isFinite(numeric) && (minimum == null || numeric >= minimum)
+         && (maximum == null || numeric <= maximum);
+   }
+
+   private static String rangeDescription(Double minimum, Double maximum) {
+      if (minimum != null && maximum != null) return "between " + minimum + " and " + maximum;
+      if (minimum != null) return "at least " + minimum;
+      if (maximum != null) return "at most " + maximum;
+      return "within the supported range";
    }
 
    private static Object convertDefault(LuaValue value, List<String> path, String typeName) {
@@ -435,19 +568,33 @@ public final class MLuaConfigRegistry {
             if (!value.isnumber()) {
                throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a numeric default.");
             }
-            yield value.toint();
+            double number = value.todouble();
+            if (!Double.isFinite(number) || number != Math.rint(number)
+                  || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires a finite whole-number default within the integer range.");
+            }
+            yield (int)number;
          }
          case "long" -> {
             if (!value.isnumber()) {
                throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a numeric default.");
             }
-            yield value.tolong();
+            double number = value.todouble();
+            if (!Double.isFinite(number) || number != Math.rint(number)
+                  || number < Long.MIN_VALUE || number >= 0x1.0p63) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires a finite whole-number default within the long range.");
+            }
+            yield (long)number;
          }
          case "double" -> {
             if (!value.isnumber()) {
                throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a numeric default.");
             }
-            yield value.todouble();
+            double number = value.todouble();
+            if (!Double.isFinite(number)) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' requires a finite numeric default.");
+            }
+            yield number;
          }
          case "string" -> {
             if (!value.isstring()) {
@@ -535,21 +682,25 @@ public final class MLuaConfigRegistry {
          case CLIENT -> "client";
          case COMMON -> "common";
          case SERVER -> "server";
-         default -> throw new LuaError("[MLua] Unsupported config type '" + type + "'.");
       };
    }
 
-   private static record ConfigDescriptor(List<String> path, String typeName, Object defaultValue) {
+   private static record ConfigDescriptor(List<String> path, String typeName, Object defaultValue,
+                                         Double minimum, Double maximum) {
    }
 
    public static final class ConfigValue {
       private final String typeName;
       private final Object defaultValue;
+      private final Double minimum;
+      private final Double maximum;
       private Object value;
 
-      ConfigValue(String typeName, Object defaultValue) {
+      ConfigValue(String typeName, Object defaultValue, Double minimum, Double maximum) {
          this.typeName = typeName;
          this.defaultValue = defaultValue;
+         this.minimum = minimum;
+         this.maximum = maximum;
          this.value = defaultValue;
       }
 
@@ -561,12 +712,38 @@ public final class MLuaConfigRegistry {
          return this.defaultValue;
       }
 
+      public Double minimum() { return this.minimum; }
+
+      public Double maximum() { return this.maximum; }
+
+      public boolean isWithinRange(Object candidate) {
+         return MLuaConfigRegistry.isWithinRange(candidate, this.minimum, this.maximum);
+      }
+
+      public Object clampToRange(Object candidate) {
+         if (!(candidate instanceof Number number)) return candidate;
+         double numeric = number.doubleValue();
+         if (!Double.isFinite(numeric)) throw new LuaError("[MLua] Config numeric values must be finite.");
+         if (this.minimum != null) numeric = Math.max(numeric, this.minimum);
+         if (this.maximum != null) numeric = Math.min(numeric, this.maximum);
+         if (this.defaultValue instanceof Integer) return (int)numeric;
+         if (this.defaultValue instanceof Long) return (long)numeric;
+         return numeric;
+      }
+
+      public String rangeDescription() {
+         if (this.minimum != null && this.maximum != null) return "between " + this.minimum + " and " + this.maximum;
+         if (this.minimum != null) return "at least " + this.minimum;
+         if (this.maximum != null) return "at most " + this.maximum;
+         return "within the supported range";
+      }
+
       public Object get() {
          return this.value;
       }
 
       public void set(Object value) {
-         this.value = value;
+         this.value = this.clampToRange(value);
       }
    }
 
@@ -576,22 +753,55 @@ public final class MLuaConfigRegistry {
       }
    }
 
+   public static record ConfigSectionHandle(String ownerModId, String scope, String sectionName,
+                                           Map<String, ConfigValue> values) { }
+
    private static final class PendingConfigSet {
       private final String ownerModId;
       private final String scope;
       private final Map<String, ConfigValue> values = new LinkedHashMap();
+      private final Map<String, Map<String, ConfigValue>> sections = new LinkedHashMap();
 
       private PendingConfigSet(String ownerModId, String scope) {
          this.ownerModId = ownerModId;
          this.scope = scope;
       }
 
-      private void registerSection(String sectionName, LuaTable section) {
-         if (this.values.keySet().stream().anyMatch(path -> path.equals(sectionName) || path.startsWith(sectionName + "."))) {
-            throw new LuaError("[MLua] Duplicate config section '" + sectionName + "' for mod '" + this.ownerModId + "' (" + this.scope + ").");
-         } else {
-            MLuaConfigRegistry.defineEntries(this.values, List.of(sectionName), section);
+      private Map<String, ConfigValue> registerSection(String sectionName, LuaTable section) {
+         for (String existing : this.sections.keySet()) {
+            if (pathsOverlap(existing, sectionName)) {
+               throw new LuaError("[MLua] Config section '" + sectionName + "' overlaps section '"
+                  + existing + "' for mod '" + this.ownerModId + "' (" + this.scope + ").");
+            }
          }
+         MLuaConfigRegistry.validateConfigTable(section, new java.util.IdentityHashMap<>(),
+            new java.util.IdentityHashMap<>(), 1);
+         Map<String, ConfigValue> staged = new LinkedHashMap<>();
+         MLuaConfigRegistry.defineEntries(staged, List.of(sectionName), section);
+         for (String candidate : staged.keySet()) {
+            for (String existing : this.values.keySet()) {
+               if (pathsOverlap(existing, candidate)) {
+                  throw new LuaError("[MLua] Config value '" + candidate + "' overlaps existing value '"
+                     + existing + "' for mod '" + this.ownerModId + "' (" + this.scope + ").");
+               }
+            }
+         }
+         Map<String, ConfigValue> sectionValues = java.util.Collections.unmodifiableMap(staged);
+         this.values.putAll(sectionValues);
+         this.sections.put(sectionName, sectionValues);
+         return sectionValues;
+      }
+
+      private boolean remove(ConfigSectionHandle handle) {
+         Map<String, ConfigValue> registered = this.sections.get(handle.sectionName());
+         if (registered != handle.values()) return false;
+         this.sections.remove(handle.sectionName());
+         removeExpectedValues(this.values, handle.values());
+         return true;
+      }
+
+      private boolean isEmpty() {
+         return this.sections.isEmpty() && this.values.isEmpty();
       }
 
       public String ownerModId() {
@@ -605,5 +815,9 @@ public final class MLuaConfigRegistry {
       public Map<String, ConfigValue> values() {
          return this.values;
       }
+   }
+
+   private static boolean pathsOverlap(String first, String second) {
+      return first.equals(second) || first.startsWith(second + ".") || second.startsWith(first + ".");
    }
 }
