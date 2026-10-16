@@ -1,10 +1,8 @@
 package dev.mlua.runtime.registry;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.WeakHashMap;
 import dev.mlua.module.MLuaRegistration;
@@ -15,8 +13,11 @@ import org.luaj.vm2.Varargs;
 
 /** Runtime definitions for reusable Lua-authored content types. */
 public final class MLuaContentTypeRegistry {
-    private static final int MAX_TABLE_DEPTH = 64;
-    private static final Map<MLuaRegistration, Map<String, dev.mlua.api.registry.MLuaRegistry<Definition>>> TYPES = new WeakHashMap<>();
+    public static final int MAX_TABLE_DEPTH = 64;
+    public static final int MAX_TYPES_PER_DOMAIN = 4_096;
+    public static final int MAX_TYPES_PER_SCOPE = 16_384;
+    public static final int MAX_DEFAULT_ENTRIES_PER_TYPE = 16_384;
+    private static final Map<MLuaRegistration, ScopeTypes> TYPES = new WeakHashMap<>();
 
     private MLuaContentTypeRegistry() { }
 
@@ -33,22 +34,49 @@ public final class MLuaContentTypeRegistry {
         if (description == null || description.isBlank()) throw new LuaError("[MLua] Content type Description must be non-empty");
         // Freeze the caller's table at registration time; later addon mutations must not
         // silently change the behavior inherited by already-registered content types.
-        if (defaults != null) validateAcyclic(defaults, "Content type Defaults");
+        if (defaults != null) {
+            validateAcyclic(defaults, "Content type Defaults");
+            validateEntryLimit(defaults, "Content type Defaults");
+        }
         LuaTable defaultProperties = defaults == null ? new LuaTable() : copy(defaults);
         String requestedBase = base.trim();
         String parent = normalizeReference(owner, requestedBase);
-        if (find(scope, domain, owner, parent) == null) {
-            if (requestedBase.contains(":")) {
-                throw new LuaError("[MLua] Content type base '" + requestedBase
-                    + "' is not registered for domain '" + domain + "'");
+        synchronized (TYPES) {
+            ScopeTypes scopeTypes = scopeTypes(scope, true);
+            dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes = scopeTypes.domain(domain, false);
+            if (domainTypes != null && domainTypes.contains(key)) {
+                throw new LuaError("[MLua] Content type '" + key + "' is already registered");
             }
-            validateBase(domain, requestedBase);
-            parent = requestedBase;
-        }
-        Definition definition = new Definition(key, parent, description.trim(), defaultProperties);
-        dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes = domainRegistry(scope, domain, true);
-        if (!domainTypes.register(owner, key, definition)) {
-            throw new LuaError("[MLua] Content type '" + key + "' is already registered");
+            if (domainTypes != null && domainTypes.size() >= MAX_TYPES_PER_DOMAIN) {
+                throw new LuaError("[MLua] Content type limit reached for domain '" + domain + "' ("
+                    + MAX_TYPES_PER_DOMAIN + ")");
+            }
+            if (scopeTypes.count >= MAX_TYPES_PER_SCOPE) {
+                throw new LuaError("[MLua] Content type limit reached for this runtime (" + MAX_TYPES_PER_SCOPE + ")");
+            }
+            Definition parentDefinition = domainTypes == null ? null : domainTypes.get(parent);
+            String resolvedBase;
+            LuaTable inheritedDefaults;
+            if (parentDefinition != null) {
+                resolvedBase = parentDefinition.base();
+                inheritedDefaults = copy(parentDefinition.defaults());
+                merge(inheritedDefaults, defaultProperties);
+                validateEntryLimit(inheritedDefaults, "Inherited content type Defaults");
+            } else {
+                if (requestedBase.contains(":")) {
+                    throw new LuaError("[MLua] Content type base '" + requestedBase
+                        + "' is not registered for domain '" + domain + "'");
+                }
+                validateBase(domain, requestedBase);
+                resolvedBase = requestedBase;
+                inheritedDefaults = defaultProperties;
+            }
+            Definition definition = new Definition(key, resolvedBase, description.trim(), inheritedDefaults);
+            if (domainTypes == null) domainTypes = scopeTypes.domain(domain, true);
+            if (!domainTypes.register(owner, key, definition)) {
+                throw new LuaError("[MLua] Content type '" + key + "' is already registered");
+            }
+            scopeTypes.count++;
         }
     }
 
@@ -57,6 +85,7 @@ public final class MLuaContentTypeRegistry {
         domain = normalizeDomain(domain);
         if (properties == null) return new LuaTable();
         validateAcyclic(properties, "Content definition");
+        validateEntryLimit(properties, "Content definition");
         String field = selectionField(domain);
         LuaValue selected = properties.get(field);
         if (selected.isnil() && !"item".equals(domain) && !"block".equals(domain)) selected = properties.get("registryType");
@@ -74,7 +103,7 @@ public final class MLuaContentTypeRegistry {
             return copy(properties);
         }
         LuaTable result = new LuaTable();
-        String base = apply(scope, domain, owner, definition, result, new HashSet<>());
+        String base = apply(definition, result);
         merge(result, properties);
         if ("item".equals(domain) || "block".equals(domain)) result.set(field, LuaValue.valueOf(base));
         else {
@@ -98,42 +127,50 @@ public final class MLuaContentTypeRegistry {
         return Collections.unmodifiableMap(result);
     }
 
+    public static Limits limits(MLuaRegistration scope, String domain) {
+        java.util.Objects.requireNonNull(scope, "scope");
+        domain = normalizeDomain(domain);
+        synchronized (TYPES) {
+            ScopeTypes scopeTypes = TYPES.get(scope);
+            dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes =
+                scopeTypes == null ? null : scopeTypes.domain(domain, false);
+            return new Limits(domainTypes == null ? 0 : domainTypes.size(),
+                scopeTypes == null ? 0 : scopeTypes.count);
+        }
+    }
+
     public static boolean unregister(MLuaRegistration scope, String domain, String owner, String name) {
         java.util.Objects.requireNonNull(scope, "scope");
         domain = normalizeDomain(domain);
-        dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes = domainRegistry(scope, domain, false);
-        return domainTypes != null && domainTypes.remove(owner, qualify(owner, name));
+        synchronized (TYPES) {
+            ScopeTypes scopeTypes = scopeTypes(scope, false);
+            if (scopeTypes == null) return false;
+            dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes = scopeTypes.domain(domain, false);
+            if (domainTypes == null || !domainTypes.remove(owner, qualify(owner, name))) return false;
+            scopeTypes.count--;
+            if (domainTypes.size() == 0) scopeTypes.domains.remove(domain);
+            if (scopeTypes.domains.isEmpty()) TYPES.remove(scope);
+            return true;
+        }
     }
 
     public static void clearOwner(MLuaRegistration scope, String owner) {
         java.util.Objects.requireNonNull(scope, "scope");
         if (owner == null || owner.isBlank()) return;
         synchronized (TYPES) {
-            Map<String, dev.mlua.api.registry.MLuaRegistry<Definition>> scopedTypes = TYPES.get(scope);
+            ScopeTypes scopedTypes = TYPES.get(scope);
             if (scopedTypes == null) return;
-            scopedTypes.values().forEach(domainTypes -> domainTypes.removeOwner(owner));
-            scopedTypes.entrySet().removeIf(entry -> entry.getValue().size() == 0);
-            if (scopedTypes.isEmpty()) TYPES.remove(scope);
+            for (dev.mlua.api.registry.MLuaRegistry<Definition> domainTypes : scopedTypes.domains.values()) {
+                scopedTypes.count -= domainTypes.removeOwner(owner);
+            }
+            scopedTypes.domains.entrySet().removeIf(entry -> entry.getValue().size() == 0);
+            if (scopedTypes.domains.isEmpty()) TYPES.remove(scope);
         }
     }
 
-    private static String apply(MLuaRegistration scope, String domain, String owner, Definition definition,
-                                LuaTable result, Set<String> visited) {
-        if (!visited.add(definition.key())) throw new LuaError("[MLua] Content type inheritance cycle at '" + definition.key() + "'");
-        Definition parent = find(scope, domain, owner, definition.base());
-        String rootBase;
-        if (parent != null) {
-            rootBase = apply(scope, domain, owner, parent, result, visited);
-        } else {
-            if (definition.base().contains(":")) {
-                throw new LuaError("[MLua] Content type '" + definition.key() + "' extends unavailable type '"
-                    + definition.base() + "'. Its owning addon may have been unloaded.");
-            }
-            rootBase = definition.base();
-        }
+    private static String apply(Definition definition, LuaTable result) {
         merge(result, definition.defaults());
-        visited.remove(definition.key());
-        return rootBase;
+        return definition.base();
     }
 
     private static Definition find(MLuaRegistration scope, String domain, String owner, String name) {
@@ -144,16 +181,51 @@ public final class MLuaContentTypeRegistry {
 
     private static dev.mlua.api.registry.MLuaRegistry<Definition> domainRegistry(MLuaRegistration scope, String domain, boolean create) {
         synchronized (TYPES) {
-            Map<String, dev.mlua.api.registry.MLuaRegistry<Definition>> scopedTypes = TYPES.get(scope);
-            if (scopedTypes == null) {
-                if (!create) return null;
-                scopedTypes = new java.util.HashMap<>();
-                TYPES.put(scope, scopedTypes);
-            }
-            dev.mlua.api.registry.MLuaRegistry<Definition> registry = scopedTypes.get(domain);
+            ScopeTypes scopedTypes = scopeTypes(scope, create);
+            return scopedTypes == null ? null : scopedTypes.domain(domain, create);
+        }
+    }
+
+    private static ScopeTypes scopeTypes(MLuaRegistration scope, boolean create) {
+        ScopeTypes scopedTypes = TYPES.get(scope);
+        if (scopedTypes == null && create) {
+            scopedTypes = new ScopeTypes();
+            TYPES.put(scope, scopedTypes);
+        }
+        return scopedTypes;
+    }
+
+    private static void validateEntryLimit(LuaTable table, String label) {
+        int count = countEntries(table, 0);
+        if (count > MAX_DEFAULT_ENTRIES_PER_TYPE) {
+            throw new LuaError("[MLua] " + label + " exceeds the table entry limit of "
+                + MAX_DEFAULT_ENTRIES_PER_TYPE);
+        }
+    }
+
+    private static int countEntries(LuaTable table, int count) {
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) return count;
+            if (++count > MAX_DEFAULT_ENTRIES_PER_TYPE) return count;
+            if (key.istable()) count = countEntries(key.checktable(), count);
+            LuaValue value = entry.arg(2);
+            if (value.istable()) count = countEntries(value.checktable(), count);
+            if (count > MAX_DEFAULT_ENTRIES_PER_TYPE) return count;
+        }
+    }
+
+    private static final class ScopeTypes {
+        private final Map<String, dev.mlua.api.registry.MLuaRegistry<Definition>> domains = new java.util.HashMap<>();
+        private int count;
+
+        private dev.mlua.api.registry.MLuaRegistry<Definition> domain(String name, boolean create) {
+            dev.mlua.api.registry.MLuaRegistry<Definition> registry = this.domains.get(name);
             if (registry == null && create) {
                 registry = new dev.mlua.api.registry.MLuaRegistry<>();
-                scopedTypes.put(domain, registry);
+                this.domains.put(name, registry);
             }
             return registry;
         }
@@ -271,4 +343,6 @@ public final class MLuaContentTypeRegistry {
     }
 
     private record Definition(String key, String base, String description, LuaTable defaults) { }
+
+    public record Limits(int activeInDomain, int activeTotal) { }
 }

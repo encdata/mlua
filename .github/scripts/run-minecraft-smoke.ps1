@@ -106,9 +106,10 @@ try {
             throw "Minecraft emitted '$BootMarker' but did not emit the required smoke marker '$marker'."
         }
     }
-    if (-not $clientTask -and $process.ExitCode -ne 0) {
-        throw "Dedicated server smoke task exited with code $($process.ExitCode)."
-    }
+    # The smoke runner terminates the Gradle process tree after validating the
+    # boot marker and required runtime markers. That deliberate taskkill makes
+    # Gradle's exit code nonzero even when the dedicated server booted cleanly.
+    # Boot and marker validation above are the success criteria for this check.
     Write-Host "Packaged Minecraft smoke task '$Task' completed successfully."
 }
 finally {

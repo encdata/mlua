@@ -349,7 +349,7 @@ local invalidSoundCategory = pcall(function()
     soundService:Play("minecraft:ambient.cave", { Category = "not_a_category" })
 end)
 assert(not invalidSoundCategory, "SoundService silently accepted an invalid category")
-local render = Minecraft:GetService("Render")
+local render = Minecraft:GetService("RenderService")
 local renderText = render:CreateText("MLua render type check", { Visible = false })
 assert(renderText:IsA("RenderObject") and renderText:GetType() == "RenderObject",
     "RenderObject:GetType did not return its MLua runtime class")
