@@ -6,11 +6,15 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
-@MLuaDescription("Provides file read/write operations in the MLua data directory.")
+@MLuaDescription("Provides owner-scoped file operations in the MLua data directory.")
 public final class MLuaFilesService extends MLuaReflectiveService {
    public MLuaFilesService(Context context) {
       super(context);
@@ -34,7 +38,7 @@ public final class MLuaFilesService extends MLuaReflectiveService {
       try {
          return Files.readString(path, StandardCharsets.UTF_8);
       } catch (IOException failure) {
-         throw new LuaError("[MLua] Failed to read file: " + failure.getMessage());
+         throw fileError("read", relative, failure);
       }
    }
 
@@ -46,7 +50,67 @@ public final class MLuaFilesService extends MLuaReflectiveService {
          Files.writeString(path, content, StandardCharsets.UTF_8);
          return true;
       } catch (IOException failure) {
-         throw new LuaError("[MLua] Failed to write file: " + failure.getMessage());
+         throw fileError("write", relative, failure);
+      }
+   }
+
+   @MLuaDescription("Appends UTF-8 text to a file, creating the file and parent directories when needed.")
+   public boolean AppendText(String relative, String content) {
+      Path path = resolve(relative);
+      try {
+         Files.createDirectories(path.getParent());
+         Files.writeString(path, content, StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+         return true;
+      } catch (IOException failure) {
+         throw fileError("append", relative, failure);
+      }
+   }
+
+   @MLuaDescription("Returns whether a file or directory exists inside the calling mod's data directory.")
+   public boolean Exists(String relative) {
+      return Files.exists(resolve(relative));
+   }
+
+   @MLuaDescription("Returns whether a path inside the calling mod's data directory is a directory.")
+   public boolean IsDirectory(String relative) {
+      return Files.isDirectory(resolve(relative));
+   }
+
+   @MLuaDescription("Creates a directory and any missing parent directories inside the calling mod's data directory.")
+   public boolean CreateDirectory(String relative) {
+      Path path = resolve(relative);
+      try {
+         Files.createDirectories(path);
+         return true;
+      } catch (IOException failure) {
+         throw fileError("create directory", relative, failure);
+      }
+   }
+
+   @MLuaDescription("Returns the names of the direct children of a directory, sorted alphabetically. Omit the path to list the mod data root.")
+   public LuaTable List(Optional<String> relative) {
+      String requested = relative.orElse(".");
+      Path directory = requested.equals(".") ? root() : resolve(requested);
+      if (!Files.isDirectory(directory)) throw new LuaError("[MLua] Files:List path is not a directory: " + requested);
+      LuaTable result = new LuaTable();
+      try (var children = Files.list(directory)) {
+         var names = children.map(path -> path.getFileName().toString()).sorted().toList();
+         for (int index = 0; index < names.size(); index++) result.set(index + 1, LuaValue.valueOf(names.get(index)));
+         return result;
+      } catch (IOException failure) {
+         throw fileError("list", requested, failure);
+      }
+   }
+
+   @MLuaDescription("Deletes a file or an empty directory inside the calling mod's data directory. Returns false when it does not exist.")
+   public boolean Delete(String relative) {
+      Path path = resolve(relative);
+      if (path.equals(root())) throw new LuaError("[MLua] Files:Delete cannot remove the mod data root.");
+      try {
+         return Files.deleteIfExists(path);
+      } catch (IOException failure) {
+         throw fileError("delete", relative, failure);
       }
    }
 
@@ -54,11 +118,35 @@ public final class MLuaFilesService extends MLuaReflectiveService {
       if (!MLuaPathRules.isModDataPath(relative)) {
          throw new LuaError("[MLua] Files path is outside the MLua data folder: " + relative);
       }
-      Path root = this.context.filesRoot().resolve(this.context.ownerModId()).normalize();
-      Path path = root.resolve(relative).normalize();
+      Path root = root();
+      Path relativePath = Path.of(relative).normalize();
+      if (relativePath.toString().isEmpty()) throw new LuaError("[MLua] Files path must name a file or directory.");
+      Path path = root.resolve(relativePath).normalize();
       if (!path.startsWith(root)) {
          throw new LuaError("[MLua] Files path traversal blocked: " + relative);
       }
+      try {
+         Path probe = path;
+         while (probe != null && !Files.exists(probe, LinkOption.NOFOLLOW_LINKS)) probe = probe.getParent();
+         if (probe == null || !probe.toRealPath().startsWith(root)) {
+            throw new LuaError("[MLua] Files path resolves outside the calling mod's data directory: " + relative);
+         }
+      } catch (IOException failure) {
+         throw fileError("resolve", relative, failure);
+      }
       return path;
+   }
+
+   private Path root() {
+      Path root = this.context.filesRoot().toAbsolutePath().normalize();
+      try {
+         return Files.createDirectories(root).toRealPath();
+      } catch (IOException failure) {
+         throw fileError("open mod data directory", this.context.ownerModId(), failure);
+      }
+   }
+
+   private static LuaError fileError(String operation, String path, IOException failure) {
+      return new LuaError("[MLua] Failed to " + operation + " file path '" + path + "': " + failure.getMessage());
    }
 }

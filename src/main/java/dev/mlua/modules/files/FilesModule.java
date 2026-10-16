@@ -22,8 +22,14 @@ public class FilesModule implements MLuaModule {
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:ReadText(path: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:WriteText(path: string, content: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:AppendText(path: string, content: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:Exists(path: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:IsDirectory(path: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:CreateDirectory(path: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:List(path?: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Files", "Files:Delete(path: string)", null));
 
-        docs.register(MLuaDocBuilder.Registration.service("Files", "MLuaFilesService", "Provides file read/write operations in the MLua data directory.",
+        docs.register(MLuaDocBuilder.Registration.service("Files", "MLuaFilesService", "Provides owner-scoped file operations in the MLua data directory.",
                 "services/files.html"));
     }
 }
