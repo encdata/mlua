@@ -612,7 +612,7 @@ public class RegistryModule implements MLuaModule {
             docs.register(MLuaDocBuilder.Registration.signature("BlockProperties", "BlockProperties:" + method, "BlockProperties"));
         }
         String[] entityPropertyMethods = {"Category(name: string)", "Size(width: number, height: number)",
-            "TrackingRange(chunks: number)", "UpdateInterval(ticks: number)", "ShadowRadius(radius: number)",
+            "TrackingRange(chunks: number)", "UpdateInterval(ticks: number)", "AIInterval(ticks: number)", "ShadowRadius(radius: number)",
             "Texture(resource: string)", "Model(resource: string)", "Attributes(values: table)",
             "MaxHealth(value: number)", "MovementSpeed(value: number)", "AttackDamage(value: number)",
             "Armor(value: number)", "ArmorToughness(value: number)", "AttackSpeed(value: number)",

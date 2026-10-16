@@ -281,11 +281,13 @@ jobs:
               :Category("monster")
               :Size(0.7, 1.9)
               :TrackingRange(10)
+              :AIInterval(4)
               :MaxHealth(24)
               :MovementSpeed(0.25)
               :OnTick(function(self)
               end)
           assert(entity:Build().attributes.maxHealth == 24, "EntityProperties:Build lost MaxHealth")
+          assert(entity:Build().aiInterval == 4, "EntityProperties:Build lost AIInterval")
           Registry.Entities:Register("ci_property_entity", entity)
           Registry.Entities:RegisterType("ci_property_entity_kind", {
               Base = "entity",

@@ -97,6 +97,7 @@ public final class MLuaRegistryProperties {
       entity(registration, "Category", "category", "Sets the Minecraft mob category.");
       entity(registration, "TrackingRange", "trackingRange", "Sets the entity tracking range in chunks.");
       entity(registration, "UpdateInterval", "updateInterval", "Sets the entity network update interval in ticks.");
+      entity(registration, "AIInterval", "aiInterval", "Sets how often scripted AI decisions are updated in ticks.");
       entity(registration, "ShadowRadius", "shadowRadius", "Sets the entity shadow radius.");
       entity(registration, "Texture", "texture", "Sets the entity texture resource.");
       entity(registration, "Model", "model", "Sets the entity model resource.");
