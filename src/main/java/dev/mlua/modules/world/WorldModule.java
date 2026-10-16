@@ -527,8 +527,8 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.WaterFogColor", "Color3", "Biome water fog color.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.FoliageColor", "Color3", "Biome foliage color.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.GrassColor", "Color3", "Biome grass color at the sample X/Z.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.IsCold", "boolean", "Whether Minecraft considers snow possible at the sample position.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.IsHot", "boolean", "Whether base biome temperature is above one.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.method("Biome", "Biome:IsCold(): boolean", "Checks whether snow can form at the sample position.", null, "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Biome", "Biome:IsHot(): boolean", "Checks whether the biome's base temperature is above one.", null, "boolean", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Biome", "Biome:HasTag(tag: string): boolean", "Checks for a biome tag identifier.", null, "boolean", null, null));
         docs.register(MLuaDocBuilder.Registration.clazz("BoundsRaycastResult", "WorldModule", "The nearest custom EntityBounds hit returned by a ray.", "classes/bounds-raycast-result.html", "RaycastResult"));
         docs.register(MLuaDocBuilder.Registration.property("BoundsRaycastResult", "BoundsRaycastResult.Bounds", "EntityBounds", "The custom bounds instance hit by the ray.", "read:Read"));

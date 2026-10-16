@@ -76,8 +76,6 @@ public final class MLuaBiomeWrapper {
         property(registration, "WaterFogColor", "GetWaterFogColor", "Color3", "The biome water fog color.");
         property(registration, "FoliageColor", "GetFoliageColor", "Color3", "The biome foliage color.");
         property(registration, "GrassColor", "GetGrassColor", "Color3", "The biome grass color at the sampled X/Z position.");
-        property(registration, "IsCold", "IsCold", "boolean", "Whether Minecraft considers the biome cold enough to snow here.");
-        property(registration, "IsHot", "IsHot", "boolean", "Whether the biome's base temperature is above one.");
         return type;
     }
 
