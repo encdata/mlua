@@ -224,7 +224,11 @@ public final class MLuaClientRenderManager {
     public static void renderEntityAttachments(Object model, MLuaEntityScope scope, PoseStack pose,
                                                MultiBufferSource buffers, int light, int overlay) {
         if (model == null || scope == null || pose == null || buffers == null) return;
-        for (RenderObject object : OBJECTS.values()) {
+        java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
+        if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
+        for (Integer renderId : attachedRenderIds) {
+            RenderObject object = OBJECTS.get(renderId);
+            if (object == null) continue;
             synchronized (object.executionLock()) {
                 if (!object.visible || object.target() != RenderTarget.ENTITY_MODEL
                         || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;

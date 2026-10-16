@@ -95,9 +95,12 @@ public final class MLuaClientRenderManager {
     public static void renderEntityAttachments(Object model, MLuaEntityScope scope, PoseStack pose,
                                                SubmitNodeCollector collector, int light) {
         if (model == null || scope == null || pose == null || collector == null) return;
-        for (RenderObject object : OBJECTS.values()) {
-            if (!object.visible || object.target() != RenderTarget.ENTITY_MODEL
-                    || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;
+        java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
+        if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
+        for (Integer renderId : attachedRenderIds) {
+            RenderObject object = OBJECTS.get(renderId);
+            if (object == null || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
+                    || object.followBoneName == null) continue;
             pose.pushPose();
             if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) {
                 pose.popPose();
