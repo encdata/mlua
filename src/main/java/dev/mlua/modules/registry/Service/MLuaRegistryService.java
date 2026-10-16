@@ -79,7 +79,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       "attackSpeed", "knockbackResistance", "followRange");
    private static final List<String> SERVICE_METHODS = List.of(
       "Register", "RegisterCategory", "RegisterType", "ResolveType", "GetKinds", "GetCategories",
-      "Get", "GetAll", "GetTypes", "GetRegistered", "GetEntry", "Exists");
+      "Get", "GetAll", "GetTypes", "GetRegistered", "GetEntries", "GetId", "GetEntry", "Exists");
    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
    private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
    private final DynamicRegistryState dynamicRegistry = this.sharedState(
@@ -113,10 +113,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("Get", "Returns one copied definition from an addon-owned category.");
       descriptions.put("GetAll", "Returns definitions keyed by namespaced identifier from an addon-owned category.");
       descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
-      descriptions.put("GetRegistered", "Returns identifiers registered in a supported Minecraft registry.");
+      descriptions.put("GetRegistered", "Returns identifiers registered through MLua for a supported Minecraft registry kind.");
+      descriptions.put("GetEntries", "Returns live RegistryEntry objects for identifiers registered through MLua, optionally filtered by namespace.");
+      descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
       descriptions.put("GetEntry", "Creates a live RegistryEntry view for a registry kind and addon-local or namespaced identifier.");
       descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
-      descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
       descriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       descriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
@@ -1188,13 +1189,17 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        });
        table.set("GetRegistered", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryKind kind = MLuaRegistryEntry.kind(args.checkjstring(2));
-             LuaTable result = new LuaTable();
-             int index = 1;
-             for (String id : MLuaLoaderRegistry.getRegisteredIds(kind).stream().sorted().toList()) {
-                result.set(index++, LuaValue.valueOf(id));
-             }
-             return result;
+             return registeredIds(MLuaRegistryEntry.kind(args.checkjstring(2)), optionalNamespace(args.arg(3)));
+          }
+       });
+       table.set("GetEntries", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             return registeredEntries(MLuaRegistryEntry.kind(args.checkjstring(2)), optionalNamespace(args.arg(3)));
+          }
+       });
+       table.set("GetId", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             return LuaValue.valueOf(MLuaRegistryService.this.registryId(args.checkjstring(2)));
           }
        });
        table.set("GetKinds", new VarArgFunction() {
@@ -1555,6 +1560,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private void installRegistryEntryApi(LuaTable target, RegistryKind kind) {
+      target.set("GetRegistered", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return registeredIds(kind, optionalNamespace(args.arg(2)));
+         }
+      });
+      target.set("GetEntries", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return registeredEntries(kind, optionalNamespace(args.arg(2)));
+         }
+      });
       target.set("GetId", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             return LuaValue.valueOf(MLuaRegistryService.this.registryId(args.checkjstring(2)));
@@ -1573,6 +1588,35 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return entry.get("Exists").invoke(entry).arg1();
          }
       });
+   }
+
+   private LuaTable registeredIds(RegistryKind kind, String namespace) {
+      LuaTable result = new LuaTable();
+      int index = 1;
+      for (String id : MLuaLoaderRegistry.getRegisteredIds(kind).stream().sorted()
+         .filter(value -> namespace == null || value.startsWith(namespace + ":")).toList()) {
+         result.set(index++, LuaValue.valueOf(id));
+      }
+      return result;
+   }
+
+   private LuaTable registeredEntries(RegistryKind kind, String namespace) {
+      LuaTable result = new LuaTable();
+      int index = 1;
+      for (String id : MLuaLoaderRegistry.getRegisteredIds(kind).stream().sorted()
+         .filter(value -> namespace == null || value.startsWith(namespace + ":")).toList()) {
+         result.set(index++, MLuaRegistryEntry.create(this.context.mlua().registration(), kind, id));
+      }
+      return result;
+   }
+
+   private static String optionalNamespace(LuaValue value) {
+      if (value == null || value.isnil()) return null;
+      String namespace = value.checkjstring().trim();
+      if (!namespace.matches("[a-z0-9_.-]+")) {
+         throw new LuaError("[MLua] Registry namespace must contain lowercase letters, digits, '_', '.', or '-'");
+      }
+      return namespace;
    }
 
    private String registryId(String name) {
