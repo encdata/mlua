@@ -293,8 +293,8 @@ def generateNeoForgeMixinConfig = tasks.register('generateNeoForgeMixinConfig') 
             minVersion: '0.8',
             package: 'dev.mlua.mixin',
             compatibilityLevel: 'JAVA_17',
-            client: ['FirstPersonItemRendererMixin', 'EntityRenderDispatcherMixin', 'ThirdPersonItemRendererMixin',
-                     'LivingEntityRendererMixin'],
+            client: ['FirstPersonItemRendererMixin', 'EntityRenderDispatcherMixin', 'ThirdPersonItemRendererMixin']
+                + (is26Family ? ['LivingEntityRendererMixin'] : []),
             injectors: [defaultRequire: 1]
         ])) + System.lineSeparator()
     }

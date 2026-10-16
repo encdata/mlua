@@ -26,6 +26,7 @@ public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.en
 
     @Inject(
         method = "submit",
+        remap = false,
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/client/model/EntityModel;setupAnim(Ljava/lang/Object;)V",

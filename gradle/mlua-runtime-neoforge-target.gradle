@@ -49,9 +49,7 @@ prepareRuntimeNeoForgeOverrideSources.configure {
     }
 }
 def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',
-    targetPathChain('mlua-versions/common/%s', targetVersion), is26Family ? [
-        'dev/mlua/runtime/client/MLuaRenderStateEntityResolver.java'
-    ] : [
+    targetPathChain('mlua-versions/common/%s', targetVersion), is26Family ? [] : [
         'dev/mlua/modules/world/Service/MLuaWorldService.java'
     ])
 def prepareRuntimeNeoForgeAdapterSources = registerMergedTree(project, 'prepareRuntimeNeoForgeAdapterSources',
