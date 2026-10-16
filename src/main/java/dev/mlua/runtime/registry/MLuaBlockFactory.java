@@ -10,8 +10,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Block;
@@ -25,27 +23,22 @@ import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 
 public final class MLuaBlockFactory {
-   private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
+   private static final MLuaRegisteredTypeCatalog<TypeProvider> REGISTERED_TYPES = new MLuaRegisteredTypeCatalog<>();
    private static final Map<String, SoundType> SOUNDS = sounds();
    private static final Map<String, MapColor> MAP_COLORS = mapColors();
 
    /** Registers a Java block implementation selected by {@code type = "typeName"} in Lua. */
    public static void registerType(String name, String description, TypeProvider provider) {
-      String key = normalizeTypeName(name);
+      String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
       if ("default".equals(key)) throw new IllegalArgumentException("[MLua] Block type 'default' is reserved by MLua");
-      if (description == null || description.isBlank()) {
-         throw new IllegalArgumentException("[MLua] Block type description must be non-empty");
-      }
       if (provider == null) throw new IllegalArgumentException("[MLua] Block type provider is required");
-      RegisteredType previous = REGISTERED_TYPES.putIfAbsent(key, new RegisteredType(description.trim(), provider));
-      if (previous != null) throw new IllegalStateException("[MLua] Block type '" + key + "' is already registered");
+      REGISTERED_TYPES.register(key, description, provider, "Block");
    }
 
    public static Map<String, String> registeredTypes() {
       Map<String, String> descriptions = new java.util.TreeMap<>();
       descriptions.put("default", "A standard block with configurable Minecraft properties and scripted callbacks.");
-      REGISTERED_TYPES.forEach((name, type) -> descriptions.put(name, type.description()));
-      return Map.copyOf(descriptions);
+      return REGISTERED_TYPES.descriptions(descriptions);
    }
 
    /** Values accepted by the {@code sound} block property on this Minecraft version. */
@@ -70,35 +63,35 @@ public final class MLuaBlockFactory {
    }
 
    public Block create(Map<String, Object> properties, String registryName, Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
-      RegisteredType extension = registeredType(properties);
+      TypeProvider extension = registeredType(properties);
       validateType(properties, extension);
       validateCopyDefinition(properties);
       if (extension != null) {
-         return extension.provider().createNamed(Map.copyOf(properties), this.makeProperties(properties), registryName, blockEntityType);
+         return extension.createNamed(Map.copyOf(properties), this.makeProperties(properties), registryName, blockEntityType);
       }
       return new MLuaNamedBlock(this.makeProperties(properties), registryName, blockEntityType);
    }
 
    public Block createScripted(Map<String, Object> properties, String behaviorKey, Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
-      RegisteredType extension = registeredType(properties);
+      TypeProvider extension = registeredType(properties);
       validateType(properties, extension);
       validateCopyDefinition(properties);
       if (extension != null) {
-         return extension.provider().createScripted(Map.copyOf(properties), this.makeProperties(properties), behaviorKey, blockEntityType);
+         return extension.createScripted(Map.copyOf(properties), this.makeProperties(properties), behaviorKey, blockEntityType);
       }
       return MLuaScriptedBlock.create(this.makeProperties(properties), behaviorKey, blockEntityType);
    }
 
-   private static RegisteredType registeredType(Map<String, Object> properties) {
+   private static TypeProvider registeredType(Map<String, Object> properties) {
       Object type = properties.containsKey("type") ? properties.get("type") : properties.get("Type");
       if (!(type instanceof String name)) return null;
-      String key = normalizeTypeName(name);
-      return "default".equals(key) ? null : REGISTERED_TYPES.get(key);
+      String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
+      return "default".equals(key) ? null : REGISTERED_TYPES.get(key, "Block");
    }
 
-   private static void validateType(Map<String, Object> properties, RegisteredType registered) {
+   private static void validateType(Map<String, Object> properties, TypeProvider registered) {
       Object rawType = properties.containsKey("type") ? properties.get("type") : properties.get("Type");
-      if (rawType instanceof String name && !name.isBlank() && !"default".equals(normalizeTypeName(name)) && registered == null) {
+      if (rawType instanceof String name && !name.isBlank() && !"default".equals(MLuaRegisteredTypeCatalog.normalizeName(name, "Block")) && registered == null) {
          throw new IllegalArgumentException("[MLua] Unknown block type: " + name);
       }
    }
@@ -174,17 +167,6 @@ public final class MLuaBlockFactory {
       }
       return canonical != null ? canonical : alternate;
    }
-
-   private static String normalizeTypeName(String name) {
-      if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Block type name must be non-empty");
-      String normalized = name.trim().toLowerCase(Locale.ROOT);
-      if (!normalized.matches("[a-z][a-z0-9_]*")) {
-         throw new IllegalArgumentException("[MLua] Invalid block type name: " + name);
-      }
-      return normalized;
-   }
-
-   private record RegisteredType(String description, TypeProvider provider) { }
 
    public interface TypeProvider {
       Block createNamed(Map<String, Object> definition, BlockBehaviour.Properties properties, String registryName,

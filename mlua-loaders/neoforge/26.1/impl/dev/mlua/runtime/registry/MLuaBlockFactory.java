@@ -9,8 +9,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Block;
@@ -22,7 +20,7 @@ import net.minecraft.world.level.material.MapColor;
 
 /** Dedicated 26.1 block-property adapter. */
 public final class MLuaBlockFactory {
-    private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
+    private static final MLuaRegisteredTypeCatalog<TypeProvider> REGISTERED_TYPES = new MLuaRegisteredTypeCatalog<>();
     private static final Map<String, SoundType> SOUNDS = namedValues(SoundType.class, SoundType.class);
     private static final Map<String, MapColor> MAP_COLORS = mapColors();
 
@@ -35,24 +33,21 @@ public final class MLuaBlockFactory {
     }
 
     public static void registerType(String name, String description, TypeProvider provider) {
-        String key = normalizeTypeName(name);
+        String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
         if ("default".equals(key)) throw new IllegalArgumentException("[MLua] Block type 'default' is reserved by MLua");
-        if (description == null || description.isBlank()) throw new IllegalArgumentException("[MLua] Block type description must be non-empty");
         if (provider == null) throw new IllegalArgumentException("[MLua] Block type provider is required");
-        if (REGISTERED_TYPES.putIfAbsent(key, new RegisteredType(description.trim(), provider)) != null)
-            throw new IllegalStateException("[MLua] Block type '" + key + "' is already registered");
+        REGISTERED_TYPES.register(key, description, provider, "Block");
     }
 
     public static Map<String, String> registeredTypes() {
         Map<String, String> types = new TreeMap<>();
         types.put("default", "A standard block with configurable Minecraft properties and scripted callbacks.");
-        REGISTERED_TYPES.forEach((name, type) -> types.put(name, type.description()));
-        return Map.copyOf(types);
+        return REGISTERED_TYPES.descriptions(types);
     }
 
     public static void validateTypeDefinition(Map<String, Object> properties) {
         String name = selectedType(properties);
-        if (name != null && !"default".equals(name) && !REGISTERED_TYPES.containsKey(name))
+        if (name != null && !"default".equals(name) && !REGISTERED_TYPES.contains(name, "Block"))
             throw new IllegalArgumentException("[MLua] Unknown block type: " + name);
         if (properties == null) return;
         Object strength = aliased(properties, "hardness", "strength");
@@ -136,15 +131,15 @@ public final class MLuaBlockFactory {
 
     public Block create(Map<String, Object> properties, String registryName,
                         Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
-        RegisteredType custom = registeredType(properties);
-        if (custom != null) return custom.provider().createNamed(Map.copyOf(properties), makeProperties(properties), registryName, blockEntityType);
+        TypeProvider custom = registeredType(properties);
+        if (custom != null) return custom.createNamed(Map.copyOf(properties), makeProperties(properties), registryName, blockEntityType);
         return new Block(makeProperties(properties));
     }
 
     public Block createScripted(Map<String, Object> properties, String behaviorKey,
                                 Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
-        RegisteredType custom = registeredType(properties);
-        if (custom != null) return custom.provider().createScripted(Map.copyOf(properties), makeProperties(properties), behaviorKey, blockEntityType);
+        TypeProvider custom = registeredType(properties);
+        if (custom != null) return custom.createScripted(Map.copyOf(properties), makeProperties(properties), behaviorKey, blockEntityType);
         return MLuaScriptedBlock.create(makeProperties(properties), behaviorKey, blockEntityType);
     }
 
@@ -168,9 +163,9 @@ public final class MLuaBlockFactory {
         return props;
     }
 
-    private static RegisteredType registeredType(Map<String, Object> properties) {
+    private static TypeProvider registeredType(Map<String, Object> properties) {
         String type = selectedType(properties);
-        return type == null || "default".equals(type) ? null : REGISTERED_TYPES.get(type);
+        return type == null || "default".equals(type) ? null : REGISTERED_TYPES.get(type, "Block");
     }
 
     private static String selectedType(Map<String, Object> properties) {
@@ -178,17 +173,9 @@ public final class MLuaBlockFactory {
         Object value = properties.containsKey("type") ? properties.get("type") : properties.get("Type");
         if (value == null) return null;
         if (!(value instanceof String name) || name.isBlank()) throw new IllegalArgumentException("[MLua] Block type must be a non-empty string");
-        return normalizeTypeName(name);
+        return MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
     }
 
-    private static String normalizeTypeName(String name) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Block type name must be non-empty");
-        String normalized = name.trim().toLowerCase(Locale.ROOT);
-        if (!normalized.matches("[a-z][a-z0-9_]*")) throw new IllegalArgumentException("[MLua] Invalid block type name: " + name);
-        return normalized;
-    }
-
-    private record RegisteredType(String description, TypeProvider provider) { }
 
     public interface TypeProvider {
         Block createNamed(Map<String, Object> definition, BlockBehaviour.Properties properties, String registryName,

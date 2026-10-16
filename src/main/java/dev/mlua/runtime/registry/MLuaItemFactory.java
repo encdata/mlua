@@ -17,8 +17,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 //--version 1.21.1
 import net.minecraft.core.component.DataComponents;
 //--endversion
@@ -50,25 +48,19 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 public final class MLuaItemFactory {
-   private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
+   private static final MLuaRegisteredTypeCatalog<TypeProvider> REGISTERED_TYPES = new MLuaRegisteredTypeCatalog<>();
    private static final Map<String, Tier> TIERS = itemTiers();
 
    /** Registers a Java item type that Lua definitions can select with {@code kind = "typeName"}. */
    public static void registerType(String name, String description, TypeProvider provider) {
-      String key = normalizeTypeName(name);
+      String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Item");
       if (java.util.Set.of("item", "generic", "bow", "sword", "pickaxe", "pick", "axe", "shovel", "spade", "hoe").contains(key)) {
          throw new IllegalArgumentException("[MLua] Item type '" + key + "' is reserved by MLua");
-      }
-      if (description == null || description.isBlank()) {
-         throw new IllegalArgumentException("[MLua] Item type description must be non-empty");
       }
       if (provider == null) {
          throw new IllegalArgumentException("[MLua] Item type provider is required");
       }
-      RegisteredType previous = REGISTERED_TYPES.putIfAbsent(key, new RegisteredType(description.trim(), provider));
-      if (previous != null) {
-         throw new IllegalStateException("[MLua] Item type '" + key + "' is already registered");
-      }
+      REGISTERED_TYPES.register(name, description, provider, "Item");
    }
 
    public static Map<String, String> registeredTypes() {
@@ -83,8 +75,7 @@ public final class MLuaItemFactory {
       descriptions.put("shovel", "A tiered shovel tool.");
       descriptions.put("spade", "Alias for shovel.");
       descriptions.put("hoe", "A tiered hoe tool.");
-      REGISTERED_TYPES.forEach((name, type) -> descriptions.put(name, type.description()));
-      return Map.copyOf(descriptions);
+      return REGISTERED_TYPES.descriptions(descriptions);
    }
 
    public static List<String> tierNames() {
@@ -97,7 +88,7 @@ public final class MLuaItemFactory {
 
    /** Validate a Lua definition while its Register call can still report a useful error. */
    public void validateTypeDefinition(Map<String, Object> properties) {
-      RegisteredType extension = registeredType(properties);
+      TypeProvider extension = registeredType(properties);
       if (extension != null) {
          validateItemProperties(properties);
          return;
@@ -120,8 +111,8 @@ public final class MLuaItemFactory {
 
    public Item createNamed(Map<String, Object> properties, String registryName) {
       validateCopyDefinition(properties);
-      RegisteredType extension = registeredType(properties);
-      if (extension != null) return extension.provider().createNamed(Map.copyOf(properties), registryName);
+      TypeProvider extension = registeredType(properties);
+      if (extension != null) return extension.createNamed(Map.copyOf(properties), registryName);
       ItemDefinition definition = this.definition(properties);
       return switch (definition.kind()) {
          case ITEM -> new MLuaNamedItem(this.makeProperties(properties), registryName);
@@ -275,8 +266,8 @@ public final class MLuaItemFactory {
 
    public Item createScripted(Map<String, Object> properties, String behaviorKey) {
       validateCopyDefinition(properties);
-      RegisteredType extension = registeredType(properties);
-      if (extension != null) return extension.provider().createScripted(Map.copyOf(properties), behaviorKey);
+      TypeProvider extension = registeredType(properties);
+      if (extension != null) return extension.createScripted(Map.copyOf(properties), behaviorKey);
       ItemDefinition definition = this.definition(properties);
       return switch (definition.kind()) {
          case ITEM -> new dev.mlua.minecraft.scripted.MLuaScriptedItem(this.makeProperties(properties), behaviorKey);
@@ -938,22 +929,11 @@ public final class MLuaItemFactory {
       return (float)value;
    }
 
-   private static RegisteredType registeredType(Map<String, Object> properties) {
+   private static TypeProvider registeredType(Map<String, Object> properties) {
       Object kind = properties.get("kind");
       if (!(kind instanceof String name)) return null;
-      return REGISTERED_TYPES.get(normalizeTypeName(name));
+      return REGISTERED_TYPES.get(name, "Item");
    }
-
-   private static String normalizeTypeName(String name) {
-      if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Item type name must be non-empty");
-      String normalized = name.trim().toLowerCase(Locale.ROOT);
-      if (!normalized.matches("[a-z][a-z0-9_]*")) {
-         throw new IllegalArgumentException("[MLua] Invalid item type name: " + name);
-      }
-      return normalized;
-   }
-
-   private record RegisteredType(String description, TypeProvider provider) { }
 
    public interface TypeProvider {
       Item createNamed(Map<String, Object> properties, String registryName);
