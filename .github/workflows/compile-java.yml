@@ -357,6 +357,12 @@ jobs:
           assert(type(quests.QuestStarted.Connect) == "function", "QuestStarted signal was not exposed")
           assert(type(quests.QuestCompleted.Connect) == "function", "QuestCompleted signal was not exposed")
           assert(type(quests.ObjectiveUpdated.Connect) == "function", "ObjectiveUpdated signal was not exposed")
+          local inventories = Minecraft:GetService("InventoryService")
+          local validUuidError, message = pcall(function()
+              inventories:GetPlayerInventory("x" .. string.rep("0", 35))
+          end)
+          assert(not validUuidError and tostring(message):find("valid UUID string", 1, true),
+              "InventoryService did not validate UUID player lookups consistently")
           print("MLUA_CI_SERVER_SERVICE_SCRIPT_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.server.lua"
           @'

@@ -5,6 +5,7 @@ import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.binding.MLuaContainer;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.mc.impl.container.MCContainerImpl;
@@ -94,10 +95,10 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
             String text = value.tojstring();
             ServerPlayer byName = this.context.server().getPlayerList().getPlayerByName(text);
             if (byName != null) return byName;
-            try {
-                ServerPlayer byUuid = this.context.server().getPlayerList().getPlayer(UUID.fromString(text));
+            if (text.length() == 36) {
+                UUID uuid = MLuaLuaArguments.uuid(text, "InventoryService", "player");
+                ServerPlayer byUuid = this.context.server().getPlayerList().getPlayer(uuid);
                 if (byUuid != null) return byUuid;
-            } catch (IllegalArgumentException ignored) {
             }
         }
         if (value.isnil() && this.context.side() == Side.CLIENT) {
