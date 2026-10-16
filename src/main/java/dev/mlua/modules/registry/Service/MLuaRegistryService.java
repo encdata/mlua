@@ -1362,7 +1362,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
-             if ("DataPack".equals(endpoint.table())) {
+             if (isGeneratedDataEndpoint(endpoint.table())) {
                 return MLuaRegistryService.this.generatedDataEntryList(
                    args.checkjstring(3), optionalNamespace(args.arg(4)));
              }

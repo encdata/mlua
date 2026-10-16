@@ -38,12 +38,12 @@ import org.luaj.vm2.lib.TwoArgFunction;
 
 @MLuaDescription("Client-side HUD and projected world-space renderables.")
 public final class MLuaRenderService extends MLuaReflectiveService {
-    private static final String OBJECT_OPERATIONS = "__render_object_operations";
-    private static final String OBJECT_ID = "__render_object_id";
+    private static final String OBJECT_OPERATIONS = "__mlua_render_object_operations";
+    private static final String OBJECT_ID = "__mlua_render_object_id";
     private record ObjectProperty(String name, String type, String description, String getter, String setter) { }
     private static final List<ObjectProperty> OBJECT_PROPERTIES = List.of(
         new ObjectProperty("Id", "number", "The render object's runtime identifier.", "", null),
-        new ObjectProperty("Type", "string", "The render object's type.", "GetType", null),
+        new ObjectProperty("Type", "string", "The Minecraft render primitive used by this object.", "GetRenderType", null),
         new ObjectProperty("IsDestroyed", "boolean", "Whether this render object has been removed.", "GetIsDestroyed", null),
         new ObjectProperty("Position", "Vector2", "The render object's screen position.", "GetPosition", "SetPosition"),
         new ObjectProperty("EndPosition", "Vector2", "The second screen position used by line and beam objects.", "GetEndPosition", "SetEndPosition"),
@@ -85,7 +85,10 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 property.getter(), property.setter());
         }
         String[][] methods = {
-            {"GetId", "Returns the object's runtime identifier."}, {"GetType", "Returns the object's render type."},
+            {"GetId", "Returns the object's runtime identifier."}, {"GetRenderType", "Returns the Minecraft render primitive used by this object."},
+            {"Equals", "Compares this render handle with another handle for the same owned render object."},
+            {"GetHashCode", "Returns a hash derived from this handle's owner and runtime identifier."},
+            {"ToString", "Returns the runtime class, render primitive, owner, and identifier."},
             {"GetIsDestroyed", "Returns whether this object has been removed."},
             {"GetPosition", "Returns the object's screen position."}, {"SetPosition", "Changes the object's screen position."},
             {"GetEndPosition", "Returns the second screen position."}, {"SetEndPosition", "Changes the second screen position."},
@@ -518,13 +521,35 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (cached != null) return cached;
         if (reference != null) objectHandles.remove(id, reference);
 
+        MLuaRenderOwnershipRegistry.Owner renderOwner = owner();
         MLuaClientRenderManager.RenderObject renderObject = requireObject(id);
         String renderType = renderObject.type().name().toLowerCase(java.util.Locale.ROOT);
         LuaTable operations = new LuaTable();
         operations.set("GetId", fn(args -> LuaValue.valueOf(id)));
-        // Type is immutable identity, so keep it readable on a destroyed handle.
-        operations.set("GetType", fn(args -> LuaValue.valueOf(renderType)));
-        operations.set("GetIsDestroyed", fn(args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, owner()) == null)));
+        // The render primitive is immutable, so keep it readable on a destroyed handle.
+        operations.set("GetRenderType", fn(args -> LuaValue.valueOf(renderType)));
+        operations.set("Equals", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue other = args.arg(2);
+                if (!other.istable() || !context.mlua().registration().isInstanceOf(other, "RenderObject")) {
+                    return LuaValue.FALSE;
+                }
+                LuaTable otherHandle = other.checktable();
+                return LuaValue.valueOf(id == otherHandle.rawget(OBJECT_ID).optint(-1)
+                    && renderOwner.ownerModId().equals(otherHandle.rawget("__mluaOwnerModId").optjstring("")));
+            }
+        });
+        operations.set("GetHashCode", fn(args -> LuaValue.valueOf(
+            java.util.Objects.hash(renderOwner.ownerModId(), id))));
+        operations.set("ToString", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaTable self = args.arg1().checktable();
+                String className = context.mlua().registration().classNameOf(self);
+                return LuaValue.valueOf((className == null ? "RenderObject" : className) + "["
+                    + renderType + ", " + renderOwner.ownerModId() + ":" + id + "]");
+            }
+        });
+        operations.set("GetIsDestroyed", fn(args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, renderOwner) == null)));
         operations.set("GetPosition", fn(args -> {
             var object = requireObject(id);
             return MLuaVector.vector2(object.x(), object.y());
@@ -712,12 +737,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             return LuaValue.NONE;
         }));
         operations.set("Destroy", fn(args -> {
-            MLuaClientRenderManager.remove(id, owner());
+            MLuaClientRenderManager.remove(id, renderOwner);
             objectHandles.remove(id);
             return LuaValue.NONE;
         }));
         LuaTable instance = new LuaTable();
-        instance.rawset("__mluaOwnerModId", LuaValue.valueOf(owner().ownerModId()));
+        instance.rawset("__mluaOwnerModId", LuaValue.valueOf(renderOwner.ownerModId()));
         instance.rawset(OBJECT_ID, LuaValue.valueOf(id));
         instance.rawset(OBJECT_OPERATIONS, operations);
         LuaTable handle = context.mlua().registration().attachClassInstance(instance, requireObject(id).luaClassName(), null);

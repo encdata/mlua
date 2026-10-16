@@ -64,11 +64,13 @@ public final class MLuaAnimationTrack {
     public float getSpeed() { return speed; }
     public float getTime() { return time; }
     public float getWeight() { return weight; }
+    public float getTargetWeight() { return targetWeight; }
     public float getLength() { return (float) animation.getLength(); }
     public boolean isPlaying() { return playing; }
     public boolean isPaused() { return paused; }
     public boolean isLooped() { return looped; }
     public boolean isAlive() { return playing || weight > 0.001f; }
+    public boolean isFading() { return Math.abs(weight - targetWeight) > 0.001f; }
     public Map<String, MLuaCFrame> getComputedPose() { return Map.copyOf(computedPose); }
     Map<String, MLuaCFrame> sampledPoseView() { return sampledPose; }
     public MLuaCFrame getBonePose(String bone) { return computedPose.get(bone); }

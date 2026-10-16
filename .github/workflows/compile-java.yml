@@ -494,6 +494,9 @@ jobs:
           assert(type(Animation.Animator.StopAll) == "function", "Animator stop control was not registered")
           assert(type(Animation.AnimationTrack.AddMarker) == "function", "AnimationTrack marker API was not registered")
           assert(type(Animation.AnimationTrack.GetAnimator) == "function", "AnimationTrack owner API was not registered")
+          assert(type(Animation.AnimationTrack.IsAlive) == "function", "AnimationTrack liveness query was not registered")
+          assert(type(Animation.AnimationTrack.IsFading) == "function", "AnimationTrack fade-state query was not registered")
+          assert(type(Animation.AnimationTrack.GetTargetWeight) == "function", "AnimationTrack target-weight query was not registered")
           local attributes = Minecraft:GetService("Attribute")
           assert(type(attributes.GetAttributeInstance) == "function", "Attribute service did not expose AttributeInstance")
           assert(type(attributes.ResetBaseValue) == "function", "Attribute reset method was not registered")
@@ -521,6 +524,22 @@ jobs:
               soundService:Play("minecraft:ambient.cave", { Category = "not_a_category" })
           end)
           assert(not invalidSoundCategory, "SoundService silently accepted an invalid category")
+          local render = Minecraft:GetService("Render")
+          local renderText = render:CreateText("MLua render type check", { Visible = false })
+          assert(renderText:IsA("RenderObject") and renderText:GetType() == "RenderObject",
+              "RenderObject:GetType did not return its MLua runtime class")
+          assert(renderText:GetRenderType() == "text" and renderText.Type == "text",
+              "RenderObject render primitive was not exposed consistently through GetRenderType and Type")
+          local renderTextSnapshot
+          for _, object in ipairs(render:GetAll()) do
+              if object.Id == renderText.Id then renderTextSnapshot = object end
+          end
+          assert(renderTextSnapshot ~= nil and renderText:Equals(renderTextSnapshot)
+              and type(renderText:GetHashCode()) == "number"
+              and renderText:ToString():find("RenderObject", 1, true),
+              "RenderObject identity methods did not produce stable, typed handles")
+          renderText:Destroy()
+          assert(renderText.IsDestroyed, "RenderObject handle did not remain readable after Destroy")
           print("MLUA_CI_ANIMATION_API_OK")
           print("MLUA_CI_SERVICE_PARITY_OK")
           print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")

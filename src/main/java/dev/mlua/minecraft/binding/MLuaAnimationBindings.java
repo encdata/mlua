@@ -303,12 +303,18 @@ public final class MLuaAnimationBindings {
             "Returns whether this animation track is playing.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "IsPaused",
             "Returns whether this animation track is paused.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "IsAlive",
+            "Returns whether this track is playing or still contributing while fading out.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "IsFading",
+            "Returns whether the current blend weight is moving toward its target weight.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetLooped",
             "Returns whether this animation track repeats.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetLooped",
             "Sets whether this animation track repeats; the value must be a boolean.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetWeight",
             "Returns this animation track's current weight.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetTargetWeight",
+            "Returns the blend weight this track is currently moving toward.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "SetWeight",
             "Fades this animation track toward a blend weight from zero to one.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AdjustWeight",
@@ -348,10 +354,16 @@ public final class MLuaAnimationBindings {
             "boolean", "client:Client", "Whether this track is currently playing.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Paused", "IsPaused", null,
             "boolean", "client:Client", "Whether this track is paused.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Alive", "IsAlive", null,
+            "boolean", "client:Client", "Whether this track is playing or still contributing while fading out.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Looped", "GetLooped", "SetLooped",
             "boolean", "client:Client", "Whether playback repeats. Readable and writable.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Weight", "GetWeight", "SetWeight",
             "number", "client:Client", "The current blend weight from zero to one. Assigning it fades toward the new weight.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "TargetWeight", "GetTargetWeight", null,
+            "number", "client:Client", "The target blend weight from zero to one during a fade.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Fading", "IsFading", null,
+            "boolean", "client:Client", "Whether the current blend weight is moving toward its target weight.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Entity", "GetEntity", null,
             "LivingEntity", "client:Client", "The live entity that owns this animation track.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Animator", "GetAnimator", null,
@@ -635,6 +647,16 @@ public final class MLuaAnimationBindings {
                 return LuaValue.valueOf(track.isPaused());
             }
         });
+        MLuaClassMethods.setInstanceMethod(table, "IsAlive", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(track.isAlive());
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "IsFading", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(track.isFading());
+            }
+        });
 
         MLuaClassMethods.setInstanceMethod(table, "GetLooped", new ZeroArgFunction() {
             public LuaValue call() {
@@ -651,6 +673,11 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.setInstanceMethod(table, "GetWeight", new ZeroArgFunction() {
             public LuaValue call() {
                 return LuaValue.valueOf(track.getWeight());
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "GetTargetWeight", new ZeroArgFunction() {
+            public LuaValue call() {
+                return LuaValue.valueOf(track.getTargetWeight());
             }
         });
         MLuaClassMethods.setInstanceMethod(table, "SetWeight", new VarArgFunction() {
