@@ -5,6 +5,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
+import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.signal.MLuaSignal;
+import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.runtime.data.MLuaDataManager;
@@ -21,6 +24,10 @@ import net.minecraft.world.entity.player.Player;
 @MLuaDescription("Service for creating and tracking quests.")
 public final class MLuaQuestService extends MLuaReflectiveService {
     private static final String NBT_KEY = "mlua_quests";
+    public static final MLuaSignal QUEST_STARTED = new MLuaSignal();
+    public static final MLuaSignal QUEST_COMPLETED = new MLuaSignal();
+    public static final MLuaSignal OBJECTIVE_UPDATED = new MLuaSignal();
+
     public MLuaQuestService(MLuaService.Context context) {
         super(context);
     }
@@ -34,10 +41,17 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     public LuaTable toLua() {
         LuaTable table = super.toLua();
         table.set("__side", "Server");
+        String owner = this.context.mlua().ownerModId();
+        table.set("QuestStarted", MLuaLuaBindings.signalInstance(QUEST_STARTED,
+            this.context.mlua().globals(), this.context.mlua().scheduler(), owner, Side.SERVER));
+        table.set("QuestCompleted", MLuaLuaBindings.signalInstance(QUEST_COMPLETED,
+            this.context.mlua().globals(), this.context.mlua().scheduler(), owner, Side.SERVER));
+        table.set("ObjectiveUpdated", MLuaLuaBindings.signalInstance(OBJECTIVE_UPDATED,
+            this.context.mlua().globals(), this.context.mlua().scheduler(), owner, Side.SERVER));
         return table;
     }
 
-    @MLuaDescription("Creates a quest definition for the calling mod.")
+    @MLuaDescription("Creates a quest definition for the calling mod and returns a snapshot of the stored definition.")
     public LuaTable CreateQuest(String questId, String title, String description) {
         this.requireServerSide(this.name());
         LuaTable definition = new LuaTable();
@@ -45,7 +59,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
         definition.set("Title", title);
         definition.set("Description", description);
         MLuaQuestRegistry.put(runtimeOwner(), ownerModId(), questId, definition);
-        return definition;
+        return MLuaQuestRegistry.get(runtimeOwner(), ownerModId(), questId);
     }
 
     @MLuaDescription("Removes a quest definition owned by the calling mod.")
@@ -99,6 +113,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
             quest.putDouble(objectiveKey, progress.checkdouble());
         }
         MLuaDataManager.setPlayerPersistentTag(player, persistentData);
+        fireEvent(OBJECTIVE_UPDATED, player, questId, objectiveKey, progress);
         return true;
     }
 
@@ -137,8 +152,10 @@ public final class MLuaQuestService extends MLuaReflectiveService {
         CompoundTag playerQuests = getCompound(persistentData, NBT_KEY);
         if (!persistentData.contains(NBT_KEY)) persistentData.put(NBT_KEY, playerQuests);
         CompoundTag quest = questData(player, persistentData, playerQuests, questId, true);
+        if (getBoolean(quest, "__started")) return true;
         quest.putBoolean("__started", true);
         MLuaDataManager.setPlayerPersistentTag(player, persistentData);
+        fireEvent(QUEST_STARTED, player, questId, null, LuaValue.NIL);
         return true;
     }
 
@@ -151,8 +168,10 @@ public final class MLuaQuestService extends MLuaReflectiveService {
         CompoundTag playerQuests = getCompound(persistentData, NBT_KEY);
         CompoundTag quest = questData(player, persistentData, playerQuests, questId, false);
         if (!getBoolean(quest, "__started")) return false;
+        if (getBoolean(quest, "__completed")) return true;
         quest.putBoolean("__completed", true);
         MLuaDataManager.setPlayerPersistentTag(player, persistentData);
+        fireEvent(QUEST_COMPLETED, player, questId, null, LuaValue.NIL);
         return true;
     }
 
@@ -197,6 +216,24 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     }
 
     private Object runtimeOwner() { return this.context.mlua().session(); }
+
+    private void fireEvent(MLuaSignal signal, ServerPlayer player, String questId,
+                           String objectiveKey, LuaValue progress) {
+        LuaTable event = new LuaTable();
+        event.set("Player", dev.mlua.modules.players.Service.MLuaPlayersService.playerTable(
+            player, this.context.mlua().registration()));
+        event.set("QuestId", questId);
+        if (objectiveKey != null) {
+            event.set("ObjectiveKey", objectiveKey);
+            event.set("Value", progress);
+        }
+        Object session = this.context.mlua().session();
+        if (session instanceof MLuaRuntimeSession runtimeSession) {
+            signal.fireOnSession(runtimeSession, Side.SERVER, event);
+        } else {
+            signal.fireOnSide(Side.SERVER, event);
+        }
+    }
 
     private String ownerModId() {
         String owner = this.context.mlua().ownerModId();

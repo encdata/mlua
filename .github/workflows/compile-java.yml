@@ -353,6 +353,10 @@ jobs:
           local service = Minecraft:GetService("CiSmokeService")
           assert(service.__type == "CiSmokeService", "Java registered service class was not attached")
           assert(service:GetSide() == "SERVER", "Java service returned the wrong side")
+          local quests = Minecraft:GetService("Quest")
+          assert(type(quests.QuestStarted.Connect) == "function", "QuestStarted signal was not exposed")
+          assert(type(quests.QuestCompleted.Connect) == "function", "QuestCompleted signal was not exposed")
+          assert(type(quests.ObjectiveUpdated.Connect) == "function", "ObjectiveUpdated signal was not exposed")
           print("MLUA_CI_SERVER_SERVICE_SCRIPT_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.server.lua"
           @'
