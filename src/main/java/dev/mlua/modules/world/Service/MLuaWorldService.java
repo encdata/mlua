@@ -564,8 +564,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          String entityId = args.checkjstring(2);
          double[] pos = positionArgs(args, 3);
          int rotationIndex = 3 + coordinateWidth(args, 3);
-         float yaw = MLuaLuaArguments.optionalFiniteFloat(args, rotationIndex, 0.0f, "World:SpawnEntity", "yaw");
-         float pitch = MLuaLuaArguments.optionalFiniteFloat(args, rotationIndex + 1, 0.0f, "World:SpawnEntity", "pitch");
+         float yaw = MLuaChunkWrapper.positionYaw(args, 3, rotationIndex);
+         float pitch = MLuaChunkWrapper.positionPitch(args, 3, rotationIndex + 1);
          EntityType<?> entityType = MLuaEntitySpawner.resolveType(this.context.mlua().ownerModId(), entityId);
          if (entityType == null) throw new LuaError("[MLua] Unknown entity: " + entityId);
          Entity entity = MLuaEntitySpawner.spawn(level, entityType, pos[0], pos[1], pos[2], yaw, pitch);

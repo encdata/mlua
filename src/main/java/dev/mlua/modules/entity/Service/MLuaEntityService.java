@@ -9,6 +9,7 @@ import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.modules.entity.MLuaEntitySpawner;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
+import dev.mlua.math.MLuaCFrame;
 import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
@@ -81,7 +82,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         return out;
     }
 
-    @MLuaDescription("Loads the target chunk and creates an entity in the supplied world, dimension, or the overworld by default.")
+    @MLuaDescription("Loads the target chunk and creates an entity in the supplied world, dimension, or the overworld by default. CFrame positions also set yaw and pitch; an entity anchor copies its rotation.")
     public LuaValue Spawn(String typeId, LuaValue positionValue, Optional<LuaValue> requestedWorld) {
         if (context.mlua().server() == null) {
             throw new LuaError("[MLua] EntityService:Spawn is server-only.");
@@ -102,7 +103,10 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         if (type == null) {
             throw new LuaError("[MLua] Unknown entity type: " + typeId);
         }
-        Entity entity = MLuaEntitySpawner.spawn(level, type, pos[0], pos[1], pos[2], 0.0F, 0.0F);
+        MLuaCFrame frame = MLuaCFrame.isCFrame(positionValue) ? MLuaCFrame.fromLua(positionValue) : null;
+        float yaw = anchor != null ? anchor.getYRot() : frame != null ? frame.minecraftYaw() : 0.0F;
+        float pitch = anchor != null ? anchor.getXRot() : frame != null ? frame.minecraftPitch() : 0.0F;
+        Entity entity = MLuaEntitySpawner.spawn(level, type, pos[0], pos[1], pos[2], yaw, pitch);
         if (entity == null) return LuaValue.NIL;
         return wrap(entity);
     }

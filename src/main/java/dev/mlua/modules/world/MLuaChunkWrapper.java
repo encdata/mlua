@@ -273,6 +273,20 @@ public final class MLuaChunkWrapper {
         return MLuaCFrame.isCFrame(position) ? MLuaCFrame.fromLua(position).minecraftYaw() : 0.0f;
     }
 
+    public static float positionPitch(Varargs args, int positionIndex, int pitchIndex) {
+        LuaValue pitch = args.arg(pitchIndex);
+        if (!pitch.isnil()) {
+            double value = pitch.checkdouble();
+            float converted = (float)value;
+            if (!Double.isFinite(value) || !Float.isFinite(converted)) {
+                throw new LuaError("[MLua] Pitch must be finite and within the supported range.");
+            }
+            return converted;
+        }
+        LuaValue position = args.arg(positionIndex);
+        return MLuaCFrame.isCFrame(position) ? MLuaCFrame.fromLua(position).minecraftPitch() : 0.0f;
+    }
+
     public static int chunkX(ChunkPos position) {
         //--version 26.1
         return position.x();
