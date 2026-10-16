@@ -223,7 +223,7 @@ public final class MLuaRenderCallbacks {
         for (int index = 0; index + 1 < additionalFields.length; index += 2) {
             context.set((String) additionalFields[index], (LuaValue) additionalFields[index + 1]);
         }
-        return hook.context.mlua().registration().attachClassInstance(context, "RenderContext", null);
+        return hook.context.registration().attachClassInstance(context, "RenderContext", null);
     }
 
     private static LuaValue requireCallback(LuaValue callback) {
