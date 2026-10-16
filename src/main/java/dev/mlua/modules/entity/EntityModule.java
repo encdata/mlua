@@ -128,6 +128,7 @@ public final class EntityModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:StopAnimation()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:StopAllAnimations()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetPlayingAnimationTracks()", "AnimationTrack[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetTracksByPriority(priority: AnimationPriority)", "AnimationTrack[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:ResetAnimation()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:GetById(id: number)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("EntityService", "EntityService:GetByUUID(uuid: string)", "Entity?"));

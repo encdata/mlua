@@ -20,7 +20,6 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
@@ -44,44 +43,9 @@ public final class MLuaAnimationBindings {
                 return animValue;
             }
 
-            MLuaAnimation animation;
-            if (animValue.istable()) {
-                LuaTable animationTable = animValue.checktable();
-                if ("Animation".equals(animationTable.get("__class").tojstring())) {
-                    LuaValue getKeyframes = animationTable.get("GetKeyframes");
-                    if (!getKeyframes.isfunction()) {
-                        throw new LuaError("[MLua] Invalid Animation object - missing GetKeyframes");
-                    }
-                    LuaValue keyframes = getKeyframes.call();
-                    if (!keyframes.istable()) {
-                        throw new LuaError("[MLua] Animation:GetKeyframes() must return a keyframe table");
-                    }
-                    animation = MLuaAnimation.fromLuaTable(keyframes.checktable());
-                } else {
-                    animation = MLuaAnimation.fromLuaTable(animationTable);
-                }
-            } else {
-                throw new LuaError("[MLua] LoadAnimation expects an Animation or keyframe table");
-            }
+            MLuaAnimation animation = resolveAnimation(animValue, registration, "Entity:LoadAnimation");
 
-            AnimationPriority priority = AnimationPriority.Idle;
-            LuaValue priorityValue = args.arg(3);
-            if (!priorityValue.isnil()) {
-                if (priorityValue.istable()) {
-                    priority = MLuaEnumValue.toJava(priorityValue, AnimationPriority.class);
-                    if (priority == null) {
-                        throw new LuaError("[MLua] LoadAnimation priority must be an Animation.AnimationPriority value.");
-                    }
-                } else if (priorityValue.isstring()) {
-                    try {
-                        priority = AnimationPriority.valueOf(priorityValue.tojstring());
-                    } catch (IllegalArgumentException error) {
-                        throw new LuaError("[MLua] Unknown AnimationPriority: " + priorityValue.tojstring());
-                    }
-                } else {
-                    throw new LuaError("[MLua] LoadAnimation priority must be an AnimationPriority value or name.");
-                }
-            }
+            AnimationPriority priority = resolvePriority(args.arg(3), "Entity:LoadAnimation", AnimationPriority.Idle);
             float fadeTime = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
                 args, 4, 0.0f, "Entity:LoadAnimation", "fadeTime");
             MLuaAnimationTrack track = MLuaAnimationController.loadAnimation(entity, animation, priority, registration);
@@ -113,6 +77,15 @@ public final class MLuaAnimationBindings {
             int index = 1;
             for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
                 if (track.isPlaying()) tracks.set(index++, wrapTrack(track, registration));
+            }
+            return tracks;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "GetTracksByPriority", varArg(args -> {
+            AnimationPriority priority = resolvePriority(args.arg(2), "Entity:GetTracksByPriority", null);
+            LuaTable tracks = new LuaTable();
+            int index = 1;
+            for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
+                if (track.getPriority() == priority) tracks.set(index++, wrapTrack(track, registration));
             }
             return tracks;
         }));
@@ -157,6 +130,50 @@ public final class MLuaAnimationBindings {
             }
             return LuaValue.NONE;
         }));
+    }
+
+    /** Resolves an Animation instance without round-tripping its immutable asset through Lua tables. */
+    public static MLuaAnimation resolveAnimation(LuaValue value, MLuaRegistration registration, String caller) {
+        if (!value.istable()) {
+            throw new LuaError("[MLua] " + caller + " expects an Animation or keyframe table");
+        }
+        if (registration.isInstanceOf(value, "Animation")) {
+            LuaValue stored = value.get("__mlua_animation");
+            if (stored.isuserdata(MLuaAnimation.class)) {
+                return (MLuaAnimation) stored.checkuserdata(MLuaAnimation.class);
+            }
+            LuaValue getKeyframes = value.get("GetKeyframes");
+            if (!getKeyframes.isfunction()) {
+                throw new LuaError("[MLua] Invalid Animation object - missing GetKeyframes");
+            }
+            LuaValue keyframes = getKeyframes.call();
+            if (!keyframes.istable()) {
+                throw new LuaError("[MLua] Animation:GetKeyframes() must return a keyframe table");
+            }
+            return MLuaAnimation.fromLuaTable(keyframes.checktable());
+        }
+        if (registration.classNameOf(value) != null) {
+            throw new LuaError("[MLua] " + caller + " expects an Animation or keyframe table");
+        }
+        return MLuaAnimation.fromLuaTable(value.checktable());
+    }
+
+    private static AnimationPriority resolvePriority(LuaValue value, String caller, AnimationPriority defaultValue) {
+        if (value == null || value.isnil()) {
+            if (defaultValue != null) return defaultValue;
+            throw new LuaError("[MLua] " + caller + " requires an AnimationPriority value or name.");
+        }
+        if (value.istable()) {
+            AnimationPriority priority = MLuaEnumValue.toJava(value, AnimationPriority.class);
+            if (priority == null) throw new LuaError("[MLua] " + caller + " priority must be an AnimationPriority value.");
+            return priority;
+        }
+        if (!value.isstring()) throw new LuaError("[MLua] " + caller + " priority must be an AnimationPriority value or name.");
+        try {
+            return AnimationPriority.valueOf(value.tojstring());
+        } catch (IllegalArgumentException error) {
+            throw new LuaError("[MLua] Unknown AnimationPriority: " + value.tojstring());
+        }
     }
 
     private static LuaValue luaFn(Supplier<LuaValue> function) {
@@ -228,6 +245,8 @@ public final class MLuaAnimationBindings {
             "Returns tracks whose playback is currently active.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetAnimationTracks",
             "Returns every live track, including tracks fading out after Stop.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetTracksByPriority",
+            "Returns the live tracks running at one animation priority.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "StopAll",
             "Stops every animation track owned by this entity animator.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "SetBonePose",
@@ -347,6 +366,7 @@ public final class MLuaAnimationBindings {
 
     public static LuaTable wrapAnimation(MLuaAnimation animation, MLuaRegistration registration) {
         LuaTable fields = new LuaTable();
+        fields.set("__mlua_animation", LuaValue.userdataOf(animation));
         LuaTable table = createClassInstance(registration, "Animation", fields);
         MLuaClassMethods.setInstanceMethod(table, "GetLength", new ZeroArgFunction() {
             public LuaValue call() {
@@ -409,6 +429,7 @@ public final class MLuaAnimationBindings {
         bindForwarder(animator, entity, "LoadAnimation");
         bindForwarder(animator, entity, "GetPlayingAnimationTracks");
         bindForwarder(animator, entity, "GetAnimationTracks");
+        bindForwarder(animator, entity, "GetTracksByPriority");
         bindForwarder(animator, entity, "SetBonePose");
         bindForwarder(animator, entity, "GetBonePose");
         MLuaClassMethods.setInstanceMethod(animator, "StopAll", new ZeroArgFunction() {

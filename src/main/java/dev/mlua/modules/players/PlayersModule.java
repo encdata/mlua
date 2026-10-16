@@ -169,6 +169,7 @@ public class PlayersModule implements MLuaModule {
             {"StopAnimation", "Stops a named animation track."},
             {"GetPlayingAnimationTracks", "Returns the active animation tracks."},
             {"GetAnimationTracks", "Returns every live animation track, including tracks fading out after Stop."},
+            {"GetTracksByPriority", "Returns this entity's live animation tracks at one AnimationPriority."},
             {"StopAllAnimations", "Stops all animation tracks on this entity."},
             {"SetBonePose", "Sets a named model bone's local offset in blocks and rotation from a CFrame."},
             {"GetBonePose", "Returns the pose of a named model bone."},

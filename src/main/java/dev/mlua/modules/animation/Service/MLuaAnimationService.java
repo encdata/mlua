@@ -46,19 +46,8 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
 
     @MLuaDescription("Stores an animation under an identifier for later retrieval.")
     public void RegisterAnimation(String id, LuaValue animationValue) {
-        MLuaAnimation animation;
-        if (this.context.mlua().registration().isInstanceOf(animationValue, "Animation")) {
-            LuaValue getKeyframes = animationValue.get("GetKeyframes");
-            if (!getKeyframes.isfunction()) throw new LuaError("[MLua] Animation instance does not provide GetKeyframes.");
-            LuaValue keyframes = getKeyframes.call(animationValue);
-            if (!keyframes.istable()) throw new LuaError("[MLua] Animation:GetKeyframes() must return a table.");
-            animation = MLuaAnimation.fromLuaTable(keyframes.checktable());
-        } else {
-            if (animationValue.istable() && this.context.mlua().registration().classNameOf(animationValue) != null) {
-                throw new LuaError("[MLua] RegisterAnimation expects an Animation instance or a keyframe table.");
-            }
-            animation = MLuaAnimation.fromLuaTable(animationValue.checktable());
-        }
+        MLuaAnimation animation = MLuaAnimationBindings.resolveAnimation(
+            animationValue, this.context.mlua().registration(), "AnimationService:RegisterAnimation");
         this.registeredAnimations.put(id, animation);
     }
 
