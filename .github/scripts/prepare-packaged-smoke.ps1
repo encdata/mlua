@@ -353,12 +353,12 @@ local render = Minecraft:GetService("RenderService")
 local renderText = render:CreateText("MLua render type check", { Visible = false })
 assert(renderText:IsA("RenderObject") and renderText:GetType() == "RenderObject",
     "RenderObject:GetType did not return its MLua runtime class")
-local renderType = renderText:GetRenderType()
-print("MLUA_CI_RENDER_METHOD_TYPE=" .. tostring(renderType))
-assert(renderType == "text", "RenderObject:GetRenderType returned the wrong primitive")
-local renderTypeProperty = renderText.Type
-print("MLUA_CI_RENDER_TYPE_PROPERTY=" .. tostring(renderTypeProperty))
-assert(renderTypeProperty == "text",
+local renderMethodOk, renderType = pcall(function() return renderText:GetRenderType() end)
+print("MLUA_CI_RENDER_METHOD_RESULT=" .. tostring(renderMethodOk) .. ":" .. tostring(renderType))
+assert(renderMethodOk and renderType == "text", "RenderObject:GetRenderType failed or returned the wrong primitive")
+local propertyOk, renderTypeProperty = pcall(function() return renderText.Type end)
+print("MLUA_CI_RENDER_PROPERTY_RESULT=" .. tostring(propertyOk) .. ":" .. tostring(renderTypeProperty))
+assert(propertyOk and renderTypeProperty == "text",
     "RenderObject render primitive was not exposed consistently through GetRenderType and Type")
 local renderTextSnapshot
 for _, object in ipairs(render:GetAll()) do
