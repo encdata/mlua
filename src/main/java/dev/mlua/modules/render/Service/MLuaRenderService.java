@@ -60,6 +60,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         new ObjectProperty("ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex"),
         new ObjectProperty("WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace"),
         new ObjectProperty("Target", "string", "Render stage: Hud, WorldOverlay, WorldModel, or EntityModel. GetTarget returns the same canonical spelling accepted by SetTarget.", "GetTarget", "SetTarget"),
+        new ObjectProperty("RenderStage", "string", "The cross-loader world render stage used by WorldModel objects. Defaults to AFTER_ENTITIES.", "GetRenderStage", "SetRenderStage"),
         new ObjectProperty("ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance"),
         new ObjectProperty("ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale"),
         new ObjectProperty("FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity"),
@@ -101,6 +102,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
             {"GetTarget", "Returns Hud, WorldOverlay, WorldModel, or EntityModel using the canonical spelling accepted by SetTarget."}, {"SetTarget", "Selects Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive."},
+            {"GetRenderStage", "Returns the selected world render stage."}, {"SetRenderStage", "Selects a supported world render stage for WorldModel rendering."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
             {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Sets a finite uniform model scale of at least 0.001."},
             {"GetFollowEntity", "Returns the followed entity id, or nil."}, {"SetFollowEntity", "Attaches the object to an entity or clears the attachment with nil."},
@@ -589,6 +591,15 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 requireObject(id).setTarget(MLuaClientRenderManager.RenderTarget.valueOf(name));
             } catch (IllegalArgumentException invalid) {
                 throw new LuaError("[MLua] Invalid render target '" + name + "'. Use Hud, WorldOverlay, WorldModel, or EntityModel.");
+            }
+            return LuaValue.NONE;
+        }));
+        operations.set("GetRenderStage", fn(args -> LuaValue.valueOf(requireObject(id).renderStage())));
+        operations.set("SetRenderStage", fn(args -> {
+            try {
+                requireObject(id).setRenderStage(args.checkjstring(2));
+            } catch (IllegalArgumentException invalid) {
+                throw new LuaError("[MLua] " + invalid.getMessage());
             }
             return LuaValue.NONE;
         }));

@@ -78,7 +78,6 @@ public final class MLuaClientRenderManager {
             Object rawBuffers = invokeOptional(context, "consumers", "getRenderTypeBuffer", "bufferSource");
             Object rawCamera = invokeOptional(context, "camera", "getCamera");
             MLuaRenderCallbacks.renderWorld(stage, context, rawPose, rawBuffers, rawCamera);
-            if (!"AFTER_ENTITIES".equals(stage)) return;
             if (!(rawPose instanceof PoseStack pose) || !(rawBuffers instanceof MultiBufferSource buffers)) return;
             Vec3 camera = rawCamera == null ? Minecraft.getInstance().gameRenderer.getMainCamera().getPosition() :
                 (Vec3) invokeOptional(rawCamera, "getPosition", "position");
@@ -87,7 +86,8 @@ public final class MLuaClientRenderManager {
             Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
             for (RenderObject object : OBJECTS.values()) {
                 synchronized (object.executionLock()) {
-                    if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL) continue;
+                    if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL
+                            || !object.renderStage().equals(stage)) continue;
                     try {
                         renderWorldModel(pose, buffers, object, camera, look);
                     } catch (RuntimeException failure) {
@@ -95,7 +95,7 @@ public final class MLuaClientRenderManager {
                     }
                 }
             }
-        } catch (ReflectiveOperationException | RuntimeException failure) {
+        } catch (RuntimeException failure) {
             reportWorldRenderFailure(failure);
         }
     }
@@ -868,6 +868,7 @@ public final class MLuaClientRenderManager {
         private MLuaBBModelAsset bbmodel;
         private List<ResourceLocation> resolvedTextures = List.of();
         private float modelScale = 1.0F;
+        private String renderStage = "AFTER_ENTITIES";
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
         private volatile Object executionLock = this;
 
@@ -925,6 +926,7 @@ public final class MLuaClientRenderManager {
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
         public float modelScale() { return modelScale; }
+        public String renderStage() { return renderStage; }
 
         public void setResource(String resource) { this.resource = resource; }
         public void setPosition(double x, double y) { this.x = x; this.y = y; }
@@ -967,6 +969,9 @@ public final class MLuaClientRenderManager {
         public void setThickness(double thickness) { this.thickness = Math.max(1.0, thickness); }
         public void setScaleWithDistance(boolean scaleWithDistance) { this.scaleWithDistance = scaleWithDistance; }
         public void setModelScale(float modelScale) { this.modelScale = Math.max(0.001F, modelScale); }
+        public void setRenderStage(String renderStage) {
+            this.renderStage = dev.mlua.loaderapi.ClientBridge.normalizeWorldRenderStage(renderStage);
+        }
         public void setFollowEntityScope(MLuaEntityScope followEntityScope) {
             if (this.followEntityScope != null && !this.followEntityScope.equals(followEntityScope)) {
                 unregisterEntityModel(this.followEntityScope, this.id);
@@ -1063,6 +1068,7 @@ public final class MLuaClientRenderManager {
             copy.bbmodel = bbmodel;
             copy.resolvedTextures = resolvedTextures;
             copy.modelScale = modelScale;
+            copy.renderStage = renderStage;
             copy.animationPlayer.copyStateFrom(animationPlayer);
             return copy;
         }

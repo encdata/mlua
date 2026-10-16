@@ -70,11 +70,21 @@ public class ForgeClientBridge implements ClientBridge {
 
     @Override
     public void registerWorldRenderer(Consumer<Object> renderer) {
+        registerWorldRenderer("AFTER_ENTITIES", renderer);
+    }
+
+    @Override
+    public void registerWorldRenderer(String stage, Consumer<Object> renderer) {
         ClientBridge.validateRenderer(renderer);
+        var selected = switch (ClientBridge.normalizeWorldRenderStage(stage)) {
+            case "BEFORE_ENTITIES" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_SOLID_BLOCKS;
+            case "AFTER_ENTITIES" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_ENTITIES;
+            case "AFTER_TRANSLUCENT" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS;
+            case "AFTER_LEVEL" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_LEVEL;
+            default -> throw new IllegalArgumentException("Unsupported world render stage: " + stage);
+        };
         MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.client.event.RenderLevelStageEvent event) -> {
-            if (event.getStage() == net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
-                renderer.accept(event);
-            }
+            if (event.getStage() == selected) renderer.accept(event);
         });
     }
 
