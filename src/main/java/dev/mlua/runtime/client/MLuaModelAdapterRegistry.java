@@ -117,8 +117,11 @@ public final class MLuaModelAdapterRegistry {
             if (part == null) continue;
             applied.add(entry.getKey());
             MLuaCFrame pose = animation == null ? null : animation.get(entry.getKey());
-            if (pose != null) applyPose(part, pose);
-            MLuaClientModelManager.applyState(part, MLuaClientModelManager.getPartState(scope, entry.getKey()));
+            if (pose != null) {
+                MLuaClientModelManager.rememberOverridePose(model, part);
+                applyPose(part, pose);
+            }
+            MLuaClientModelManager.applyState(model, part, MLuaClientModelManager.getPartState(scope, entry.getKey()));
         }
         return java.util.Set.copyOf(applied);
     }

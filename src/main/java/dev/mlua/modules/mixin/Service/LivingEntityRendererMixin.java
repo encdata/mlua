@@ -3,6 +3,7 @@ package dev.mlua.modules.mixin.Service;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
+import dev.mlua.runtime.client.MLuaClientModelManager;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -19,6 +20,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extends EntityModel<T>> {
     @Shadow protected M model;
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void mlua$restoreRegisteredModelOverrides(T entity, float entityYaw, float partialTick,
+            PoseStack poseStack, MultiBufferSource buffers, int packedLight, CallbackInfo info) {
+        MLuaClientModelManager.restoreOverrides(model);
+    }
 
     @Inject(
         method = "render",

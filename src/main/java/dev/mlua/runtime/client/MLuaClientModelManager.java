@@ -7,9 +7,11 @@ import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.WeakHashMap;
 import net.minecraft.client.model.geom.ModelPart;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -24,6 +26,7 @@ public final class MLuaClientModelManager {
     private static final ConcurrentHashMap<Owner, ConcurrentHashMap<MLuaEntityScope, ConcurrentHashMap<String, PartState>>> STATES = new ConcurrentHashMap<>();
     private static final Owner LEGACY_OWNER = new Owner(null, "");
     private static final java.util.concurrent.atomic.AtomicLong SEQUENCE = new java.util.concurrent.atomic.AtomicLong();
+    private static final Map<Object, IdentityHashMap<ModelPart, PartPose>> OVERRIDE_POSES = new WeakHashMap<>();
     private static final Field MODEL_PART_X_SCALE = resolveField("xScale");
     private static final Field MODEL_PART_Y_SCALE = resolveField("yScale");
     private static final Field MODEL_PART_Z_SCALE = resolveField("zScale");
@@ -212,10 +215,29 @@ public final class MLuaClientModelManager {
         return direct != null ? direct : part;
     }
 
-    public static void applyState(ModelPart part, PartState state) {
+    public static void restoreOverrides(Object model) {
+        if (model == null) return;
+        IdentityHashMap<ModelPart, PartPose> poses;
+        synchronized (OVERRIDE_POSES) {
+            poses = OVERRIDE_POSES.remove(model);
+        }
+        if (poses == null) return;
+        poses.forEach((part, pose) -> pose.restore(part));
+    }
+
+    public static void rememberOverridePose(Object model, ModelPart part) {
+        if (model == null || part == null) return;
+        synchronized (OVERRIDE_POSES) {
+            OVERRIDE_POSES.computeIfAbsent(model, ignored -> new IdentityHashMap<>())
+                .computeIfAbsent(part, PartPose::capture);
+        }
+    }
+
+    public static void applyState(Object model, ModelPart part, PartState state) {
         if (part == null || state == null) {
             return;
         }
+        rememberOverridePose(model, part);
 
         if (state.cframe != null) {
             double[] euler = state.cframe.toEulerAnglesXYZ();
@@ -242,6 +264,36 @@ public final class MLuaClientModelManager {
 
         if (state.scale != null) {
             applyScale(part, (float) component(state.scale, "X"), (float) component(state.scale, "Y"), (float) component(state.scale, "Z"));
+        }
+    }
+
+    private record PartPose(float x, float y, float z, float xRot, float yRot, float zRot,
+                            boolean visible, float xScale, float yScale, float zScale) {
+        private static PartPose capture(ModelPart part) {
+            return new PartPose(part.x, part.y, part.z, part.xRot, part.yRot, part.zRot, part.visible,
+                readScale(MODEL_PART_X_SCALE, part), readScale(MODEL_PART_Y_SCALE, part), readScale(MODEL_PART_Z_SCALE, part));
+        }
+
+        private void restore(ModelPart part) {
+            part.x = x;
+            part.y = y;
+            part.z = z;
+            part.xRot = xRot;
+            part.yRot = yRot;
+            part.zRot = zRot;
+            part.visible = visible;
+            trySet(MODEL_PART_X_SCALE, part, xScale);
+            trySet(MODEL_PART_Y_SCALE, part, yScale);
+            trySet(MODEL_PART_Z_SCALE, part, zScale);
+        }
+    }
+
+    private static float readScale(Field field, ModelPart part) {
+        if (field == null) return 1.0F;
+        try {
+            return field.getFloat(part);
+        } catch (IllegalAccessException ignored) {
+            return 1.0F;
         }
     }
 
