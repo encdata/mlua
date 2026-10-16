@@ -985,7 +985,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              };
              EntityType.Builder<MLuaScriptedEntity> builder = Builder.of(factory, category).sized((float)width, (float)height).clientTrackingRange(trackingRange).updateInterval(updateInterval);
              Supplier<AttributeSupplier> attrSupplier = () -> {
-                AttributeSupplier.Builder builder = Mob.createMobAttributes()
+                AttributeSupplier.Builder attributeBuilder = Mob.createMobAttributes()
                    .add(Attributes.MAX_HEALTH, maxHealth)
                    .add(Attributes.MOVEMENT_SPEED, speed)
                    .add(Attributes.ATTACK_DAMAGE, attack)
@@ -995,8 +995,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                    .add(Attributes.KNOCKBACK_RESISTANCE, knockbackResistance)
                    .add(Attributes.FOLLOW_RANGE, followRange);
                 additionalAttributes.forEach((attributeId, value) ->
-                   MLuaRegistryService.addEntityAttribute(builder, attributeId, value));
-                return builder.build();
+                   MLuaRegistryService.addEntityAttribute(attributeBuilder, attributeId, value));
+                return attributeBuilder.build();
              };
              MLuaRegistryService.this.registerEntityVisual(owner, name,
                 entityTexture.all() != null ? entityTexture.all() : "minecraft:textures/entity/zombie/zombie.png",
