@@ -90,6 +90,8 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimation()", "Animation"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetPose()", "table<string, CFrame>"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetBonePose(bone: string)", "CFrame|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetEntity()", "LivingEntity"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimator()", "Animator"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAnimator()", "Animator"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "AnimationTrack"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetPlayingAnimationTracks()", "AnimationTrack[]"));

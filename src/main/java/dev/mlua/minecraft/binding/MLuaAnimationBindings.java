@@ -59,7 +59,7 @@ public final class MLuaAnimationBindings {
                 track.setFadeSpeed(1.0f / fadeTime);
                 track.fadeTo(1.0f);
             }
-            return wrapTrack(track, registration);
+            return wrapTrack(track, registration, table);
         }));
         MLuaClassMethods.setInstanceMethod(table, "ResetAnimation", luaFn(() -> {
             MLuaClientRenderManager.resetEntityModel(entity);
@@ -82,7 +82,7 @@ public final class MLuaAnimationBindings {
             LuaTable tracks = new LuaTable();
             int index = 1;
             for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
-                if (track.isPlaying()) tracks.set(index++, wrapTrack(track, registration));
+                if (track.isPlaying()) tracks.set(index++, wrapTrack(track, registration, table));
             }
             return tracks;
         }));
@@ -91,7 +91,7 @@ public final class MLuaAnimationBindings {
             LuaTable tracks = new LuaTable();
             int index = 1;
             for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
-                if (track.getPriority() == priority) tracks.set(index++, wrapTrack(track, registration));
+                if (track.getPriority() == priority) tracks.set(index++, wrapTrack(track, registration, table));
             }
             return tracks;
         }));
@@ -99,7 +99,7 @@ public final class MLuaAnimationBindings {
             LuaTable tracks = new LuaTable();
             int index = 1;
             for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
-                tracks.set(index++, wrapTrack(track, registration));
+                tracks.set(index++, wrapTrack(track, registration, table));
             }
             return tracks;
         }));
@@ -325,6 +325,10 @@ public final class MLuaAnimationBindings {
             "Returns the current sampled pose as bone names mapped to CFrame values.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetBonePose",
             "Returns the current sampled CFrame for one bone, or nil when the animation does not pose it.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetEntity",
+            "Returns the live entity that owns this animation track.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetAnimator",
+            "Returns the animation controller that owns this track.");
 
         MLuaClassMethods.registerInstanceProperty(registration, "Animation", "Length", "GetLength", null,
             "number", "client:Client", "The animation duration in seconds.");
@@ -348,6 +352,10 @@ public final class MLuaAnimationBindings {
             "boolean", "client:Client", "Whether playback repeats. Readable and writable.");
         MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Weight", "GetWeight", "SetWeight",
             "number", "client:Client", "The current blend weight from zero to one. Assigning it fades toward the new weight.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Entity", "GetEntity", null,
+            "LivingEntity", "client:Client", "The live entity that owns this animation track.");
+        MLuaClassMethods.registerInstanceProperty(registration, "AnimationTrack", "Animator", "GetAnimator", null,
+            "Animator", "client:Client", "The animation controller that owns this track.");
     }
 
     public static LuaTable createAnimationTable(MLuaRegistration registration) {
@@ -505,17 +513,36 @@ public final class MLuaAnimationBindings {
     }
 
     public static LuaTable wrapTrack(MLuaAnimationTrack track, MLuaRegistration registration) {
+        return wrapTrack(track, registration, null);
+    }
+
+    public static LuaTable wrapTrack(MLuaAnimationTrack track, MLuaRegistration registration, LuaTable entity) {
         synchronized (TRACK_WRAPPERS) {
             Map<Integer, WeakReference<LuaTable>> wrappers = TRACK_WRAPPERS.computeIfAbsent(
                 registration, ignored -> new HashMap<>());
             wrappers.entrySet().removeIf(entry -> entry.getValue().get() == null);
             WeakReference<LuaTable> existingReference = wrappers.get(track.trackId());
             LuaTable existing = existingReference == null ? null : existingReference.get();
-            if (existing != null && registration.isInstanceOf(existing, "AnimationTrack")) return existing;
+            if (existing != null && registration.isInstanceOf(existing, "AnimationTrack")) {
+                bindTrackOwner(existing, entity, registration);
+                return existing;
+            }
             LuaTable created = createTrackInstance(track, registration);
+            bindTrackOwner(created, entity, registration);
             wrappers.put(track.trackId(), new WeakReference<>(created));
             return created;
         }
+    }
+
+    private static void bindTrackOwner(LuaTable track, LuaTable entity, MLuaRegistration registration) {
+        if (entity == null || track.rawget("__mlua_entity_bound").toboolean()) return;
+        track.rawset("__mlua_entity_bound", LuaValue.TRUE);
+        MLuaClassMethods.setInstanceMethod(track, "GetEntity", new ZeroArgFunction() {
+            @Override public LuaValue call() { return entity; }
+        });
+        MLuaClassMethods.setInstanceMethod(track, "GetAnimator", new ZeroArgFunction() {
+            @Override public LuaValue call() { return wrapAnimator(entity, registration); }
+        });
     }
 
     private static LuaTable createTrackInstance(MLuaAnimationTrack track, MLuaRegistration registration) {
