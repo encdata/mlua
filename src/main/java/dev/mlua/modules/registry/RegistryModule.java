@@ -8,6 +8,7 @@ import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaRegistryCatalogs;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
+import dev.mlua.minecraft.binding.MLuaRegistryDefinition;
 import dev.mlua.minecraft.binding.MLuaContainerType;
 import dev.mlua.minecraft.binding.MLuaTextureBindings;
 import dev.mlua.modules.registry.Service.MLuaRegistryService;
@@ -149,6 +150,7 @@ public class RegistryModule implements MLuaModule {
             "The registered content key that selects this scripted mob's behavior definition.");
         MLuaBlockWrapper.classTable(registration);
         MLuaRegistryEntry.registerClass(registration);
+        MLuaRegistryDefinition.registerClass(registration);
         MLuaContainerType.registerClass(registration);
     }
 
@@ -165,6 +167,7 @@ public class RegistryModule implements MLuaModule {
         globals.set("Texture", MLuaTextureBindings.textureGlobal());
         globals.set("ScriptedEntity", registration.classTable("ScriptedEntity"));
         globals.set("RegistryEntry", registration.classTable("RegistryEntry"));
+        globals.set("RegistryDefinition", registration.classTable("RegistryDefinition"));
         globals.set("ContainerType", registration.classTable("ContainerType"));
         globals.set("RegistryCategory", registration.classTable("RegistryCategory"));
         MLuaItemWrapper.attachCatalogs(itemGlobal, items);
@@ -174,6 +177,39 @@ public class RegistryModule implements MLuaModule {
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.register(MLuaDocBuilder.Registration.clazz("RegistryCategory", "MLuaRegistryService",
             "A live category API table exposed by the Registry service.", "classes/registry-category.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("RegistryDefinition", "MLuaRegistryService",
+            "A live handle for an entry in an addon-owned Registry category. Definition tables returned by this class are copies.",
+            "classes/registry-definition.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetId()",
+            "Returns this entry's full namespaced identifier.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.Id", "string",
+            "The full namespaced definition identifier.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetCategory()",
+            "Returns the canonical addon-owned Registry category.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.Category", "string",
+            "The canonical addon-owned registry category.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetOwner()",
+            "Returns the addon that registered this definition.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.Owner", "string",
+            "The addon that registered this definition.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetCategoryDescription()",
+            "Returns the current category description, or nil when the category was removed.", null, "string|nil", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.CategoryDescription", "string|nil",
+            "The current category description, or nil after category removal.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetDefinition()",
+            "Returns a copy of the current definition, or nil when it was removed.", null, "table|nil", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.Definition", "table|nil",
+            "A copy of the current definition, or nil after entry removal.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:Exists()",
+            "Checks whether this entry is still registered.", null, "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.IsRegistered", "boolean",
+            "Whether the entry is still registered.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:Equals(other: RegistryDefinition)",
+            "Compares this entry with another definition handle from the same runtime.", "another RegistryDefinition", "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetHashCode()",
+            "Returns a hash code derived from the runtime catalog, category, owner, and identifier.", null, "number", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:ToString()",
+            "Returns this entry as category#namespace:path.", null, "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.property("RegistryCategory", "RegistryCategory.Name", "string",
             "This category's canonical Registry table name.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("RegistryCategory", "RegistryCategory.Description", "string",
@@ -187,6 +223,8 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetMethodDescription(name: string)",
             "Returns the registered description for one category method, or nil when that method is unavailable.",
             "Method name", "string|nil", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryCategory", "RegistryCategory:GetEntry(id: string): RegistryDefinition?", "live definition handle or nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryCategory", "RegistryCategory:GetEntries(namespace?: string): RegistryDefinition[]", "sorted live definition handles"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:Register(resourceType: string, id: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Assets", "Registry.Assets:Register(path: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Assets", "Registry.Assets:register(path: string, definition: table)", "Alias of Register."));
@@ -253,8 +291,8 @@ public class RegistryModule implements MLuaModule {
                 "Registry:Register routes definitions through the typed registries for items, blocks, entities, effects, potions, particles, containers, projectiles, world generation, tabs, recipes, loot, tags, common config, and damage sources. Use block_item after registering its block; register a tag as Registry:Register(\"tag\", kind, name, definition). RegisterType defines reusable addon-scoped defaults for each category. Items select them with kind, blocks with type, and other categories with RegistryType. Use Registry.ContentTypes for reusable defaults in your own data domains. GetRegistered returns IDs visible for a Minecraft registry kind.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:Register(\"item\", \"flare_gun\", {\n    kind = \"firearm\",\n    maxStackSize = 1,\n    onUse = function(context)\n        -- Use the live player and projectile services here.\n    end,\n})\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\")) do\n    print(id)\nend"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry", "Add an addon-owned registry category",
-                "RegisterCategory adds a category under your addon's namespace (for example, 'horror:weapons'). Its handler receives each namespaced id and resolved definition during the registry phase. GetCategory resolves a name from GetCategories to the live category API, including addon categories. RegisterType and ResolveType use the same inherited defaults as built-in categories. Get and GetAll return copies of registered definitions; GetIds returns sorted keys. These read methods accept an optional namespace filter.",
-                "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:RegisterCategory(\"horror:weapons\", \"Weapon tuning data owned by this addon.\", function(id, definition)\n    if definition.Damage <= 0 then\n        error(\"Weapon damage must be positive\")\n    end\nend)\n\nRegistry:RegisterType(\"horror:weapons\", \"sidearm\", {\n    Base = \"default\",\n    Defaults = { Damage = 8, MagazineSize = 6 },\n})\n\nRegistry:Register(\"horror:weapons\", \"revolver\", {\n    RegistryType = \"sidearm\",\n    Damage = 12,\n})\n\nlocal revolver = Registry:Get(\"horror:weapons\", \"horror:revolver\")\nlocal weapons = Registry:GetCategory(\"horror:weapons\")\nfor _, id in ipairs(weapons:GetIds(\"horror\")) do\n    print(id)\nend\nfor id, weapon in pairs(Registry:GetAll(\"horror:weapons\")) do\n    print(id, weapon.Damage)\nend"));
+                "RegisterCategory adds a category under your addon's namespace (for example, 'horror:weapons'). Its handler receives each namespaced id and resolved definition during the registry phase. GetCategory resolves a name from GetCategories to the live category API, including addon categories. RegisterType and ResolveType use the same inherited defaults as built-in categories. Get and GetAll return copies of registered definitions; GetEntry and GetEntries return live RegistryDefinition handles, and GetIds returns sorted keys. Namespace filters apply to collection lookups.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:RegisterCategory(\"horror:weapons\", \"Weapon tuning data owned by this addon.\", function(id, definition)\n    if definition.Damage <= 0 then\n        error(\"Weapon damage must be positive\")\n    end\nend)\n\nRegistry:RegisterType(\"horror:weapons\", \"sidearm\", {\n    Base = \"default\",\n    Defaults = { Damage = 8, MagazineSize = 6 },\n})\n\nRegistry:Register(\"horror:weapons\", \"revolver\", {\n    RegistryType = \"sidearm\",\n    Damage = 12,\n})\n\nlocal revolver = Registry:Get(\"horror:weapons\", \"horror:revolver\")\nlocal weapons = Registry:GetCategory(\"horror:weapons\")\nfor _, id in ipairs(weapons:GetIds(\"horror\")) do\n    print(id)\nend\nfor id, weapon in pairs(Registry:GetAll(\"horror:weapons\")) do\n    print(id, weapon.Damage)\nend\n\nlocal entry = weapons:GetEntry(\"horror:revolver\")\nif entry and entry.IsRegistered then\n    print(entry.Owner, entry.Definition.Damage)\nend\nfor _, registered in ipairs(weapons:GetEntries(\"horror\")) do\n    print(registered.Id, registered.CategoryDescription)\nend"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.ContentTypes", "Define types for addon data",
                 "ContentTypes lets an addon reuse inherited defaults and descriptions outside Minecraft's built-in categories. Give each domain a stable name, register its types during the registry phase, then resolve definitions with RegistryType. A definition without a selector passes through unchanged; a named type that is missing from that domain raises an error.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.ContentTypes:Register(\"horror.weapon\", \"sidearm\", {\n    Base = \"default\",\n    Description = \"Shared defaults for compact horror weapons.\",\n    Defaults = { Damage = 6, Magazine = { Size = 8, ReloadTicks = 30 } },\n})\n\nRegistry.ContentTypes:Register(\"horror.weapon\", \"revolver\", {\n    Base = \"sidearm\",\n    Description = \"A slow, powerful revolver.\",\n    Defaults = { Damage = 12, Magazine = { Size = 6 } },\n})\n\nlocal weapon = Registry.ContentTypes:Resolve(\"horror.weapon\", {\n    RegistryType = \"revolver\",\n    Damage = 14,\n})\nprint(weapon.Damage, weapon.Magazine.Size, weapon.Magazine.ReloadTicks)"));

@@ -15,6 +15,8 @@ import dev.mlua.minecraft.binding.MLuaAnimationBindings;
 import dev.mlua.modules.enums.MLuaEnumValue;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -46,6 +48,7 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
 
     @MLuaDescription("Stores an animation under an identifier for later retrieval.")
     public void RegisterAnimation(String id, LuaValue animationValue) {
+        id = animationId(id, "AnimationService:RegisterAnimation");
         MLuaAnimation animation = MLuaAnimationBindings.resolveAnimation(
             animationValue, this.context.mlua().registration(), "AnimationService:RegisterAnimation");
         this.registeredAnimations.put(id, animation);
@@ -53,18 +56,47 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns a registered animation by identifier, or nil when missing.")
     public LuaValue GetAnimation(String id) {
+        id = animationId(id, "AnimationService:GetAnimation");
         MLuaAnimation animation = this.registeredAnimations.get(id);
         return animation == null ? LuaValue.NIL
             : MLuaAnimationBindings.wrapAnimation(animation, this.context.mlua().registration());
     }
 
+    @MLuaDescription("Returns whether an animation identifier is registered in this script runtime.")
+    public boolean HasAnimation(String id) {
+        return this.registeredAnimations.containsKey(animationId(id, "AnimationService:HasAnimation"));
+    }
+
+    @MLuaDescription("Removes one registered animation and returns whether it existed.")
+    public boolean RemoveAnimation(String id) {
+        return this.registeredAnimations.remove(animationId(id, "AnimationService:RemoveAnimation")) != null;
+    }
+
+    @MLuaDescription("Removes all animations registered in this script runtime and returns the number removed.")
+    public int ClearAnimations() {
+        int removed = this.registeredAnimations.size();
+        this.registeredAnimations.clear();
+        return removed;
+    }
+
     @MLuaDescription("Returns all animations registered in this service instance.")
     public LuaTable GetRegisteredAnimations() {
         LuaTable result = new LuaTable();
-        for (Map.Entry<String, MLuaAnimation> entry : this.registeredAnimations.entrySet()) {
-            result.set(entry.getKey(), MLuaAnimationBindings.wrapAnimation(entry.getValue(), this.context.mlua().registration()));
+        ArrayList<String> ids = new ArrayList<>(this.registeredAnimations.keySet());
+        Collections.sort(ids);
+        for (String id : ids) {
+            MLuaAnimation animation = this.registeredAnimations.get(id);
+            if (animation == null) continue;
+            result.set(id, MLuaAnimationBindings.wrapAnimation(animation, this.context.mlua().registration()));
         }
         return result;
+    }
+
+    private static String animationId(String id, String operation) {
+        if (id == null || id.isBlank() || !id.equals(id.trim()) || id.chars().anyMatch(Character::isWhitespace)) {
+            throw new LuaError("[MLua] " + operation + " expects a non-empty animation id without whitespace.");
+        }
+        return id;
     }
 
     @MLuaDescription("Returns the current custom pose for an entity.")

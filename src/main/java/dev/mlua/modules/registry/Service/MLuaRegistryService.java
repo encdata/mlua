@@ -37,6 +37,7 @@ import dev.mlua.runtime.registry.MLuaTextureDescriptor;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
+import dev.mlua.minecraft.binding.MLuaRegistryDefinition;
 import dev.mlua.minecraft.binding.MLuaContainerType;
 import dev.mlua.minecraft.binding.MLuaRegistryProperties;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
@@ -118,9 +119,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("GetIds", "Returns sorted identifiers from a built-in registry or addon-owned category, optionally filtered by namespace.");
       descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
       descriptions.put("GetRegistered", "Returns identifiers registered through MLua for a supported Minecraft registry kind.");
-      descriptions.put("GetEntries", "Returns live RegistryEntry objects for identifiers registered through MLua, optionally filtered by namespace.");
+      descriptions.put("GetEntries", "Returns live entry objects for identifiers registered in this category as a sorted array, optionally filtered by namespace.");
       descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
-      descriptions.put("GetEntry", "Creates a live RegistryEntry view for a registry kind and addon-local or namespaced identifier.");
+      descriptions.put("GetEntry", "Returns a live entry object for an addon-local or namespaced identifier, or nil when it is not registered.");
       descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
       descriptions.put("GetPushReactions", "Lists the piston reactions supported by this Minecraft version.");
@@ -1535,6 +1536,29 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
             LuaTable definition = MLuaRegistryService.this.dynamicRegistry.definition(key, id);
             return definition == null ? LuaValue.NIL : definition;
+         }
+      });
+      target.set("GetEntry", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.requireDynamicCategory(category.name());
+            String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
+            LuaTable entry = MLuaRegistryDefinition.create(MLuaRegistryService.this.context.mlua().registration(),
+               MLuaRegistryService.this.dynamicRegistry, key, id);
+            return entry == null ? LuaValue.NIL : entry;
+         }
+      });
+      target.set("GetEntries", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.requireDynamicCategory(category.name());
+            LuaTable result = new LuaTable();
+            int index = 1;
+            for (String id : MLuaRegistryService.this.dynamicRegistry.ids(key, optionalNamespace(args.arg(2)))) {
+               LuaTable entry = MLuaRegistryDefinition.create(
+                  MLuaRegistryService.this.context.mlua().registration(),
+                  MLuaRegistryService.this.dynamicRegistry, key, id);
+               if (entry != null) result.set(index++, entry);
+            }
+            return result;
          }
       });
       target.set("GetId", new VarArgFunction() {

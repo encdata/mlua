@@ -93,6 +93,17 @@ public final class MLuaDynamicRegistryCatalog {
         return definition == null ? null : copyTable(definition.value());
     }
 
+    public synchronized String definitionOwner(String category, String id) {
+        CategoryState state = this.categoryStates.get(key(category));
+        DefinitionHandle definition = state == null ? null : state.definitions.get(id);
+        return definition == null ? null : definition.owner();
+    }
+
+    public synchronized String categoryDescription(String category) {
+        Category value = this.categories.get(key(category));
+        return value == null ? null : value.description();
+    }
+
     public synchronized boolean containsDefinition(String category, String id) {
         CategoryState state = this.categoryStates.get(key(category));
         return state != null && state.definitions.contains(id);

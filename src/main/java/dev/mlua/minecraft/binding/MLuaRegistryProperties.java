@@ -145,15 +145,12 @@ public final class MLuaRegistryProperties {
    public static LuaTable table(MLuaRegistration registration, LuaValue value, String expectedClass, String method) {
       if (value.isnil()) return new LuaTable();
       if (!value.istable()) throw new LuaError("[MLua] " + method + " expects a property table or " + expectedClass + " instance.");
-      // The private state marker is authoritative for our fluent builders. Keep
-      // the class check as a second guard so a BlockProperties value can never
-      // silently become an ItemProperties plain table if class lookup changes.
+      // The private state marker preserves the builder's exact domain even
+      // though Lua class metadata may report a shared inherited base class.
       if (!value.checktable().rawget(STATE).isnil()) {
          State state = state(value);
-         String actualClass = registration.classNameOf(value);
          if (!expectedClass.equals(state.className)
-            || !registration.isInstanceOf(value, expectedClass)
-            || (actualClass != null && !expectedClass.equals(actualClass))) {
+            || !registration.isInstanceOf(value, expectedClass)) {
             throw new LuaError("[MLua] " + method + " received " + state.className + "; expected " + expectedClass + ".");
          }
          return dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog.copyTable(state.values);
