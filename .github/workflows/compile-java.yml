@@ -359,7 +359,16 @@ jobs:
           assert(type(Animation.Animator.StopAll) == "function", "Animator stop control was not registered")
           assert(type(Animation.AnimationTrack.AddMarker) == "function", "AnimationTrack marker API was not registered")
           assert(type(Animation.AnimationTrack.GetAnimator) == "function", "AnimationTrack owner API was not registered")
+          local attributes = Minecraft:GetService("Attribute")
+          assert(type(attributes.GetAttributeInstance) == "function", "Attribute service did not expose AttributeInstance")
+          assert(type(attributes.ResetBaseValue) == "function", "Attribute reset method was not registered")
+          assert(type(attributes.HasModifier) == "function", "Attribute modifier query was not registered")
+          local components = Minecraft:GetService("Components")
+          assert(type(components.Find) == "function", "Components:Find was not registered")
+          assert(type(components.Has) == "function", "Components:Has was not registered")
+          assert(type(components.GetAll) == "function", "Components:GetAll was not registered")
           print("MLUA_CI_ANIMATION_API_OK")
+          print("MLUA_CI_SERVICE_PARITY_OK")
           print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.client.lua"
           Set-Content "$template/run/eula.txt" 'eula=true'
@@ -381,7 +390,7 @@ jobs:
             -Task runClient `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_SERVICE_PARITY_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK') `
             -LogFile 'client-smoke.log' `
             -TimeoutSeconds 480
 

@@ -84,9 +84,8 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     @MLuaDescription("Loads the target chunk and creates an entity in the supplied world, dimension, or the overworld by default. CFrame positions also set yaw and pitch; an entity anchor copies its rotation.")
     public LuaValue Spawn(String typeId, LuaValue positionValue, Optional<LuaValue> requestedWorld) {
-        if (context.mlua().server() == null) {
-            throw new LuaError("[MLua] EntityService:Spawn is server-only.");
-        }
+        this.requireServerSide(this.name() + ":Spawn");
+        if (context.mlua().server() == null) throw new LuaError("[MLua] Server is not available for EntityService:Spawn.");
         Entity anchor = entityValue(positionValue);
         double[] pos = position(positionValue);
         LuaValue worldValue = requestedWorld.orElse(LuaValue.NIL);

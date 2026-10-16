@@ -356,9 +356,11 @@ public final class MLuaEntityComponentManager {
             if (instance.context != null) MLuaLuaBindings.bindContext(instance.context.globals(), instance.context);
             callback.call(payload);
         } catch (LuaError error) {
-            throw error;
+            throw new LuaError(new RuntimeException("[MLua] Component '" + instance.name + "' callback '"
+                + callbackName + "' failed during " + eventName, error));
         } catch (Exception error) {
-            throw new LuaError("[MLua] Component '" + instance.name + "' callback failed: " + error.getMessage());
+            throw new LuaError(new RuntimeException("[MLua] Component '" + instance.name + "' callback '"
+                + callbackName + "' failed during " + eventName, error));
         }
     }
 

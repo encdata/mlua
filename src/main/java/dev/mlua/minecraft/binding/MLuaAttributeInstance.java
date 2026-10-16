@@ -25,9 +25,14 @@ public final class MLuaAttributeInstance {
             attribute(args.arg1().checktable()).setBaseValue(finiteValue(args.arg(2), "base value"));
             return LuaValue.NONE;
         });
+        register(registration, "ResetBaseValue", "Resets this attribute's base value to its registered default.", args -> {
+            resetBaseValue(attribute(args.arg1().checktable()));
+            return LuaValue.NONE;
+        });
         register(registration, "GetDefaultValue", "Returns this attribute's registered default value.", args -> LuaValue.valueOf(defaultValue(args.arg1().checktable())));
         register(registration, "GetModifiers", "Returns the modifiers currently applied to this attribute.", args -> modifiers(args.arg1().checktable()));
         register(registration, "AddModifier", "Adds or replaces a transient modifier with a finite amount and operation 0, 1, or 2.", args -> addModifier(args.arg1().checktable(), args));
+        register(registration, "HasModifier", "Checks whether a named MLua transient modifier is applied.", args -> LuaValue.valueOf(hasTransientModifier(attribute(args.arg1().checktable()), args.checkjstring(2))));
         register(registration, "RemoveModifier", "Removes a transient modifier by its identifier and returns whether it existed.", args -> removeModifier(args.arg1().checktable(), args.checkjstring(2)));
         MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Id", "GetId", null,
             "string", "shared:Shared", "This attribute's namespaced identifier.");
@@ -99,19 +104,31 @@ public final class MLuaAttributeInstance {
     }
 
     private static double defaultValue(LuaTable instance) {
-        AttributeInstance attribute = attribute(instance);
-        //--version 1.20.1
-        return attribute.getAttribute().getDefaultValue();
-        //--endversion
-        //--version 1.21.1,26.1
-        return attribute.getAttribute().value().getDefaultValue();
-        //--endversion
+        return defaultValue(attribute(instance));
+    }
+
+    public static LuaTable snapshot(AttributeInstance attribute) {
+        LuaTable result = new LuaTable();
+        result.set("Base", LuaValue.valueOf(attribute.getBaseValue()));
+        result.set("Value", LuaValue.valueOf(attribute.getValue()));
+        result.set("DefaultValue", LuaValue.valueOf(defaultValue(attribute)));
+        return result;
+    }
+
+    public static void resetBaseValue(AttributeInstance attribute) {
+        attribute.setBaseValue(defaultValue(attribute));
     }
 
     private static LuaTable modifiers(LuaTable instance) {
+        return modifiers(attribute(instance));
+    }
+
+    public static LuaTable modifiers(AttributeInstance attribute) {
         LuaTable result = new LuaTable();
+        java.util.List<net.minecraft.world.entity.ai.attributes.AttributeModifier> modifiers = attribute.getModifiers()
+            .stream().sorted(java.util.Comparator.comparing(MLuaAttributeInstance::modifierId)).toList();
         int index = 1;
-        for (net.minecraft.world.entity.ai.attributes.AttributeModifier modifier : attribute(instance).getModifiers()) {
+        for (net.minecraft.world.entity.ai.attributes.AttributeModifier modifier : modifiers) {
             LuaTable entry = new LuaTable();
             //--version 1.20.1
             entry.set("Id", modifier.getId().toString());
@@ -128,6 +145,15 @@ public final class MLuaAttributeInstance {
             result.set(index++, entry);
         }
         return result;
+    }
+
+    private static double defaultValue(AttributeInstance attribute) {
+//--version 1.20.1
+        return attribute.getAttribute().getDefaultValue();
+//--endversion
+//--version 1.21.1,26.1
+        return attribute.getAttribute().value().getDefaultValue();
+//--endversion
     }
 
     private static LuaValue addModifier(LuaTable instance, Varargs args) {
@@ -165,9 +191,7 @@ public final class MLuaAttributeInstance {
     }
 
     public static boolean removeTransientModifier(AttributeInstance attribute, String name) {
-        String id = modifierIdString(name);
-        boolean present = attribute.getModifiers().stream().anyMatch(modifier -> modifierId(modifier).equals(id));
-        if (!present) return false;
+        if (!hasTransientModifier(attribute, name)) return false;
 //--version 1.20.1
         attribute.removeModifier(MLuaAttributeModifierIds.legacy(name));
 //--endversion
@@ -178,6 +202,11 @@ public final class MLuaAttributeInstance {
         attribute.removeModifier(net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name)));
 //--endversion
         return true;
+    }
+
+    public static boolean hasTransientModifier(AttributeInstance attribute, String name) {
+        String id = modifierIdString(name);
+        return attribute.getModifiers().stream().anyMatch(modifier -> modifierId(modifier).equals(id));
     }
 
     private static String modifierIdString(String name) {
