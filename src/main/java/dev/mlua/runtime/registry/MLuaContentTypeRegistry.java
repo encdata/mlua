@@ -15,6 +15,7 @@ import org.luaj.vm2.Varargs;
 
 /** Runtime definitions for reusable Lua-authored content types. */
 public final class MLuaContentTypeRegistry {
+    private static final int MAX_TABLE_DEPTH = 64;
     private static final Map<MLuaRegistration, Map<String, dev.mlua.api.registry.MLuaRegistry<Definition>>> TYPES = new WeakHashMap<>();
 
     private MLuaContentTypeRegistry() { }
@@ -216,12 +217,15 @@ public final class MLuaContentTypeRegistry {
     }
 
     private static void validateAcyclic(LuaTable table, String label) {
-        validateAcyclic(table, label, new java.util.IdentityHashMap<>(), new java.util.IdentityHashMap<>());
+        validateAcyclic(table, label, new java.util.IdentityHashMap<>(), new java.util.IdentityHashMap<>(), 0);
     }
 
     private static void validateAcyclic(LuaTable table, String label,
                                         java.util.IdentityHashMap<LuaTable, Boolean> active,
-                                        java.util.IdentityHashMap<LuaTable, Boolean> visited) {
+                                        java.util.IdentityHashMap<LuaTable, Boolean> visited, int depth) {
+        if (depth > MAX_TABLE_DEPTH) {
+            throw new LuaError("[MLua] " + label + " cannot be nested more than " + MAX_TABLE_DEPTH + " tables deep");
+        }
         if (active.containsKey(table)) {
             throw new LuaError("[MLua] " + label + " cannot contain cyclic tables");
         }
@@ -233,7 +237,8 @@ public final class MLuaContentTypeRegistry {
             key = entry.arg1();
             if (key.isnil()) break;
             LuaValue value = entry.arg(2);
-            if (value.istable()) validateAcyclic(value.checktable(), label, active, visited);
+            if (key.istable()) validateAcyclic(key.checktable(), label, active, visited, depth + 1);
+            if (value.istable()) validateAcyclic(value.checktable(), label, active, visited, depth + 1);
         }
         active.remove(table);
         visited.put(table, Boolean.TRUE);

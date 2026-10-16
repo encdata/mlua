@@ -16,6 +16,7 @@ import org.luaj.vm2.Varargs;
  * this catalog owns snapshots, duplicate reservations, and lifecycle cleanup.
  */
 public final class MLuaDynamicRegistryCatalog {
+    private static final int MAX_TABLE_DEPTH = 64;
     private final MLuaRegistry<Category> categories = new MLuaRegistry<>();
     private final Map<String, CategoryState> categoryStates = new HashMap<>();
 
@@ -114,10 +115,14 @@ public final class MLuaDynamicRegistryCatalog {
     }
 
     public static LuaTable copyTable(LuaTable source) {
-        return copyTable(source, new java.util.IdentityHashMap<>());
+        return copyTable(source, new java.util.IdentityHashMap<>(), 0);
     }
 
-    private static LuaTable copyTable(LuaTable source, Map<LuaTable, LuaTable> copies) {
+    private static LuaTable copyTable(LuaTable source, Map<LuaTable, LuaTable> copies, int depth) {
+        if (depth > MAX_TABLE_DEPTH) {
+            throw new org.luaj.vm2.LuaError("[MLua] Registry definitions cannot be nested more than "
+                + MAX_TABLE_DEPTH + " tables deep");
+        }
         LuaTable existing = copies.get(source);
         if (existing != null) return existing;
         LuaTable copy = new LuaTable();
@@ -128,8 +133,8 @@ public final class MLuaDynamicRegistryCatalog {
             key = entry.arg1();
             if (key.isnil()) return copy;
             LuaValue value = entry.arg(2);
-            LuaValue copiedKey = key.istable() ? copyTable(key.checktable(), copies) : key;
-            LuaValue copiedValue = value.istable() ? copyTable(value.checktable(), copies) : value;
+            LuaValue copiedKey = key.istable() ? copyTable(key.checktable(), copies, depth + 1) : key;
+            LuaValue copiedValue = value.istable() ? copyTable(value.checktable(), copies, depth + 1) : value;
             copy.rawset(copiedKey, copiedValue);
         }
     }
