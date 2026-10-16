@@ -120,11 +120,36 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         for (ObjectProperty property : OBJECT_PROPERTIES) {
             docs.register(MLuaDocBuilder.Registration.property("RenderObject",
                 "RenderObject." + property.name(), property.type(), property.description(), "client:Client"));
+            String getter = property.getter().isBlank() ? "Get" + property.name() : property.getter();
+            if (!hasMethodRegistration(docs, "RenderObject", getter)) {
+                docs.register(MLuaDocBuilder.Registration.signature("RenderObject",
+                    "RenderObject:" + getter + "()", property.type()));
+            }
             if (property.setter() != null) {
                 docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", property.name(),
                     property.type(), "Initial value. " + property.description()));
+                if (!hasMethodRegistration(docs, "RenderObject", property.setter())) {
+                    docs.register(MLuaDocBuilder.Registration.signature("RenderObject",
+                        "RenderObject:" + property.setter() + "(value: " + property.type() + ")", "void"));
+                }
             }
         }
+    }
+
+    private static boolean hasMethodRegistration(MLuaDocBuilder docs, String receiver, String name) {
+        return docs.signatures().stream().anyMatch(signature -> signature.receiver().equals(receiver)
+                && registeredMethodName(signature.signature()).equals(name))
+            || docs.methods().stream().anyMatch(method -> method.receiver().equals(receiver)
+                && registeredMethodName(method.signature()).equals(name));
+    }
+
+    private static String registeredMethodName(String signature) {
+        if (signature == null) return "";
+        int open = signature.indexOf('(');
+        if (open < 0) return "";
+        String prefix = signature.substring(0, open).trim();
+        int separator = Math.max(prefix.lastIndexOf(':'), prefix.lastIndexOf('.'));
+        return prefix.substring(separator + 1).trim();
     }
 
     private static void registerObjectProperty(MLuaRegistration registration, String name, String type,
