@@ -13,8 +13,11 @@ import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.modules.entity.MLuaEntityQuery;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.ByteTag;
 import net.minecraft.nbt.CompoundTag;
@@ -47,6 +50,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public class MLuaScriptedEntity extends PathfinderMob {
+   private static final int MAX_PERSISTENT_DATA_DEPTH = 64;
    private final String behaviorKey;
    private final String className;
    private LuaTable methodsMT;
@@ -518,8 +522,10 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("SetData", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             LuaTable data = args.checktable(2);
-            MLuaScriptedEntity.this.persistentData = new CompoundTag();
-            MLuaScriptedEntity.this.luaToCompound(data, MLuaScriptedEntity.this.persistentData);
+            CompoundTag replacement = new CompoundTag();
+            Set<LuaTable> activeTables = Collections.newSetFromMap(new IdentityHashMap<>());
+            MLuaScriptedEntity.this.luaToCompound(data, replacement, activeTables, 0);
+            MLuaScriptedEntity.this.persistentData = replacement;
             return LuaValue.NONE;
          }
       });
@@ -697,69 +703,69 @@ public class MLuaScriptedEntity extends PathfinderMob {
       return LuaValue.NIL;
    }
 
-   private void luaToCompound(LuaTable table, CompoundTag tag) {
-      LuaValue key = LuaValue.NIL;
-      while (true) {
-         Varargs next = table.next(key);
-         key = next.arg1();
-         if (key.isnil()) break;
-         this.luaValueToTag(key.tojstring(), next.arg(2), tag);
+   private void luaToCompound(LuaTable table, CompoundTag tag, Set<LuaTable> activeTables, int depth) {
+      this.enterPersistentDataTable(table, activeTables, depth);
+      try {
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = table.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            Tag converted = this.valueToTag(next.arg(2), activeTables, depth + 1);
+            if (converted != null) tag.put(key.tojstring(), converted);
+         }
+      } finally {
+         activeTables.remove(table);
       }
    }
 
-   private void luaValueToTag(String key, LuaValue value, CompoundTag tag) {
+   private Tag valueToTag(LuaValue value, Set<LuaTable> activeTables, int depth) {
       if (value.isboolean()) {
-         tag.putBoolean(key, value.toboolean());
+         return ByteTag.valueOf(value.toboolean());
       } else if (value.isnumber()) {
          double d = value.todouble();
          if (d == Math.floor(d) && !Double.isInfinite(d)) {
-            tag.putLong(key, (long)d);
-         } else {
-            tag.putDouble(key, d);
+            return LongTag.valueOf((long)d);
          }
+         return DoubleTag.valueOf(d);
       } else if (value.isstring()) {
-         tag.putString(key, value.tojstring());
+         return StringTag.valueOf(value.tojstring());
       } else if (value.istable()) {
          LuaTable tbl = value.checktable();
-         if (tbl.get(1).isnil()) {
-            CompoundTag nested = new CompoundTag();
-            this.luaToCompound(tbl, nested);
-            tag.put(key, nested);
-         } else {
+         this.enterPersistentDataTable(tbl, activeTables, depth);
+         try {
+            if (tbl.get(1).isnil()) {
+               CompoundTag nested = new CompoundTag();
+               LuaValue key = LuaValue.NIL;
+               while (true) {
+                  Varargs next = tbl.next(key);
+                  key = next.arg1();
+                  if (key.isnil()) break;
+                  Tag converted = this.valueToTag(next.arg(2), activeTables, depth + 1);
+                  if (converted != null) nested.put(key.tojstring(), converted);
+               }
+               return nested;
+            }
             ListTag list = new ListTag();
             for (int i = 1; !tbl.get(i).isnil(); i++) {
-               list.add(this.valueToTag(tbl.get(i)));
+               list.add(this.valueToTag(tbl.get(i), activeTables, depth + 1));
             }
-            tag.put(key, list);
+            return list;
+         } finally {
+            activeTables.remove(tbl);
          }
       }
+      return ByteTag.valueOf(false);
    }
 
-   private Tag valueToTag(LuaValue value) {
-      if (value.isboolean()) {
-         return net.minecraft.nbt.ByteTag.valueOf(value.toboolean());
-      } else if (value.isnumber()) {
-         double d = value.todouble();
-         if (d == Math.floor(d) && !Double.isInfinite(d)) {
-            return net.minecraft.nbt.LongTag.valueOf((long)d);
-         }
-         return net.minecraft.nbt.DoubleTag.valueOf(d);
-      } else if (value.isstring()) {
-         return net.minecraft.nbt.StringTag.valueOf(value.tojstring());
-      } else if (value.istable()) {
-         LuaTable tbl = value.checktable();
-         if (tbl.get(1).isnil()) {
-            CompoundTag nested = new CompoundTag();
-            this.luaToCompound(tbl, nested);
-            return nested;
-         }
-         ListTag list = new ListTag();
-         for (int i = 1; !tbl.get(i).isnil(); i++) {
-            list.add(this.valueToTag(tbl.get(i)));
-         }
-         return list;
+   private void enterPersistentDataTable(LuaTable table, Set<LuaTable> activeTables, int depth) {
+      if (depth > MAX_PERSISTENT_DATA_DEPTH) {
+         throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetData supports nested tables up to "
+            + MAX_PERSISTENT_DATA_DEPTH + " levels deep.");
       }
-      return net.minecraft.nbt.ByteTag.valueOf(false);
+      if (!activeTables.add(table)) {
+         throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetData cannot save cyclic Lua tables.");
+      }
    }
 
    public static AttributeSupplier.Builder createAttributes() {
