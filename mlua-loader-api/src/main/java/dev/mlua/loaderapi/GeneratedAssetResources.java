@@ -42,6 +42,28 @@ public final class GeneratedAssetResources {
         return owner != null && RESOURCES.remove(owner) != null;
     }
 
+    public static synchronized boolean unregister(String owner, String path, JsonObject contribution) {
+        if (owner == null || !NAMESPACE.matcher(owner).matches() || contribution == null) return false;
+        String normalizedPath = normalizePath(path);
+        Map<String, JsonObject> files = RESOURCES.get(owner);
+        JsonObject current = files == null ? null : files.get(normalizedPath);
+        if (current == null) return false;
+
+        JsonObject restored = current.deepCopy();
+        boolean changed = false;
+        for (Map.Entry<String, com.google.gson.JsonElement> entry : contribution.entrySet()) {
+            if (entry.getValue().equals(restored.get(entry.getKey()))) {
+                restored.remove(entry.getKey());
+                changed = true;
+            }
+        }
+        if (!changed) return false;
+        if (restored.size() == 0) files.remove(normalizedPath);
+        else files.put(normalizedPath, restored);
+        if (files.isEmpty()) RESOURCES.remove(owner);
+        return true;
+    }
+
     private static String normalizePath(String path) {
         if (path == null || path.isBlank() || path.startsWith("/") || path.endsWith("/")
                 || path.contains("\\") || !RESOURCE_PATH.matcher(path).matches()) {

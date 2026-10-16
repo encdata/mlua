@@ -26,6 +26,7 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.runtime.registry.MLuaAssetResolver;
 import dev.mlua.runtime.registry.MLuaBlockFactory;
 import dev.mlua.runtime.registry.MLuaCreativeTabFactory;
+import dev.mlua.runtime.registry.MLuaEntityVisualDescriptor;
 import dev.mlua.runtime.config.MLuaConfigRegistry;
 import dev.mlua.runtime.registry.MLuaItemFactory;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
@@ -177,11 +178,34 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private void registerWorldGenerationResource(String owner, String resourceType, String id, LuaTable definition) {
       JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "world generation resource");
       try {
-         MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
-         this.context.mlua().registration().onRegistrationRollback(() ->
-            MLuaLoaderRegistry.unregisterGeneratedDataResource(owner, resourceType, id));
+         this.registerGeneratedDataResource(owner, resourceType, id, json);
       } catch (IllegalArgumentException | IllegalStateException error) {
          throw new LuaError("[MLua] " + error.getMessage());
+      }
+   }
+
+   private void registerGeneratedDataResource(String owner, String resourceType, String id, JsonObject definition) {
+      JsonObject contribution = definition.deepCopy();
+      MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, contribution);
+      Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedDataResource(
+         owner, resourceType, id, contribution);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
+      }
+   }
+
+   private void registerGeneratedAssetResource(String owner, String path, JsonObject definition) {
+      JsonObject contribution = definition.deepCopy();
+      MLuaLoaderRegistry.registerGeneratedAssetResource(owner, path, contribution);
+      Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedAssetResource(owner, path, contribution);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
       }
    }
 
@@ -302,9 +326,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                "datapack", owner, args.checktable(4));
             JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "data pack resource");
             try {
-               MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, json);
-               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
-                  MLuaLoaderRegistry.unregisterGeneratedDataResource(owner, resourceType, id));
+               MLuaRegistryService.this.registerGeneratedDataResource(owner, resourceType, id, json);
             } catch (IllegalArgumentException | IllegalStateException error) {
                throw new LuaError("[MLua] " + error.getMessage());
             }
@@ -318,7 +340,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String path = args.checkjstring(2);
             JsonObject json = MLuaRegistryService.jsonObjectArg(args.arg(3), "asset resource");
             try {
-               MLuaLoaderRegistry.registerGeneratedAssetResource(owner, path, json);
+               MLuaRegistryService.this.registerGeneratedAssetResource(owner, path, json);
             } catch (IllegalArgumentException | IllegalStateException error) {
                throw new LuaError("[MLua] " + error.getMessage());
             }

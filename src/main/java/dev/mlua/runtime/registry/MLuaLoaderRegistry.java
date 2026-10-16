@@ -165,12 +165,21 @@ public final class MLuaLoaderRegistry {
         return GeneratedDataResources.unregister(owner, resourceType, id);
     }
 
+    public static boolean unregisterGeneratedDataResource(String owner, String resourceType, String id,
+                                                          JsonObject expectedDefinition) {
+        return GeneratedDataResources.unregister(owner, resourceType, id, expectedDefinition);
+    }
+
     public static Map<String, JsonObject> getGeneratedDataResources() {
         return GeneratedDataResources.snapshot();
     }
 
     public static void registerGeneratedAssetResource(String owner, String path, JsonObject definition) {
         GeneratedAssetResources.register(owner, path, definition);
+    }
+
+    public static boolean unregisterGeneratedAssetResource(String owner, String path, JsonObject contribution) {
+        return GeneratedAssetResources.unregister(owner, path, contribution);
     }
 
     public static Map<String, JsonObject> getGeneratedAssetResources() {

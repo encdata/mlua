@@ -47,6 +47,17 @@ public final class GeneratedDataResources {
         return entry != null && owner.equals(entry.owner()) && RESOURCES.remove(key, entry);
     }
 
+    public static boolean unregister(String owner, String resourceType, String id, JsonObject expectedDefinition) {
+        if (owner == null || !NAMESPACE.matcher(owner).matches()) return false;
+        String type = normalizePath(resourceType, "resource type");
+        String[] location = normalizeId(owner, id);
+        String key = location[0] + ":" + type + "/" + location[1];
+        Entry entry = RESOURCES.get(key);
+        return entry != null && owner.equals(entry.owner())
+                && entry.definition().equals(expectedDefinition)
+                && RESOURCES.remove(key, entry);
+    }
+
     private static String normalizePath(String value, String label) {
         if (value == null || value.isBlank() || value.startsWith("/") || value.endsWith("/")
                 || value.contains("\\") || value.endsWith(".json") || !RESOURCE_PATH.matcher(value).matches()) {
