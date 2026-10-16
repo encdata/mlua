@@ -1346,6 +1346,27 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             }
          }
       });
+      target.set("Get", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.requireDynamicCategory(category.name());
+            String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
+            LuaTable definition = MLuaRegistryService.this.dynamicRegistry.definition(key, id);
+            return definition == null ? LuaValue.NIL : definition;
+         }
+      });
+      target.set("GetAll", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.requireDynamicCategory(category.name());
+            return MLuaRegistryService.this.dynamicRegistry.definitions(key);
+         }
+      });
+      target.set("Exists", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.requireDynamicCategory(category.name());
+            String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
+            return LuaValue.valueOf(MLuaRegistryService.this.dynamicRegistry.definition(key, id) != null);
+         }
+      });
       this.installContentTypeApi(target, category.domain());
       this.documentRegistryTable(target, category.name());
       target.rawset("__mlua_doc_description", LuaValue.valueOf(category.description()));
