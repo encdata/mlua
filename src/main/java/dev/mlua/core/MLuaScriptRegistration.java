@@ -269,64 +269,89 @@ final class MLuaScriptRegistration implements MLuaRegistration {
    }
 
    void rollback() {
-      for (int index = rollbackActions.size() - 1; index >= 0; index--) rollbackActions.get(index).run();
+      Throwable failure = null;
+      for (int index = rollbackActions.size() - 1; index >= 0; index--) {
+         Runnable action = rollbackActions.get(index);
+         failure = MLuaRollback.run(failure, action);
+      }
       for (int index = documentation.size() - 1; index >= 0; index--) {
          MLuaDocBuilder.Contribution entry = documentation.get(index);
-         delegate.unregisterDocumentation(entry.id(), entry.owner());
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterDocumentation(entry.id(), entry.owner()));
       }
       for (int index = applications.size() - 1; index >= 0; index--) {
          MixinApplication value = applications.get(index);
-         delegate.removeBehaviorMixin(value.className(), value.mixinName());
+         failure = MLuaRollback.run(failure, () -> delegate.removeBehaviorMixin(value.className(), value.mixinName()));
       }
       for (int index = classFunctions.size() - 1; index >= 0; index--) {
          ClassFunction value = classFunctions.get(index);
-         delegate.unregisterClassFunction(value.className(), value.name(), value.function());
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterClassFunction(value.className(), value.name(), value.function()));
       }
       for (int index = classProperties.size() - 1; index >= 0; index--) {
          ClassProperty value = classProperties.get(index);
-         delegate.unregisterClassProperty(value.className(), value.name(), value.getter());
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterClassProperty(value.className(), value.name(), value.getter()));
       }
       for (int index = mixinFunctions.size() - 1; index >= 0; index--) {
          MixinFunction value = mixinFunctions.get(index);
-         delegate.unregisterBehaviorMixinFunction(value.mixinName(), value.name(), value.function());
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterBehaviorMixinFunction(value.mixinName(), value.name(), value.function()));
       }
-      previousClassDescriptions.forEach((className, description) -> {
-         LuaTable type = delegate.classTable(className);
-         if (type != null) {
-            type.rawset("__mlua_doc_description", description);
-            delegate.refreshClassMetadata(className);
-         }
-      });
+      for (Map.Entry<String, LuaValue> entry : previousClassDescriptions.entrySet()) {
+         String className = entry.getKey();
+         LuaValue description = entry.getValue();
+         failure = MLuaRollback.run(failure, () -> {
+            LuaTable type = delegate.classTable(className);
+            if (type != null) {
+               type.rawset("__mlua_doc_description", description);
+               delegate.refreshClassMetadata(className);
+            }
+         });
+      }
       for (int index = classes.size() - 1; index >= 0; index--) {
-         delegate.unregisterClassIfUnused(classes.get(index));
+         String className = classes.get(index);
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterClassIfUnused(className));
       }
-      previousServiceBaseRoles.forEach((className, role) -> {
-         LuaTable type = delegate.classTable(className);
-         if (type != null && !classes.contains(className)) {
-            type.rawset("__mlua_role_service_base", role);
-            delegate.refreshClassMetadata(className);
-         }
-      });
-      previousInstanceBaseRoles.forEach((className, role) -> {
-         LuaTable type = delegate.classTable(className);
-         if (type != null && !classes.contains(className)) {
-            type.rawset("__mlua_role_instance_base", role);
-            delegate.refreshClassMetadata(className);
-         }
-      });
-      previousServiceClasses.forEach((className, metadata) -> {
-         LuaTable type = delegate.classTable(className);
-         if (type != null && !classes.contains(className)) {
-            type.rawset("__mlua_service_class", metadata.classMarker());
-            type.rawset("__mlua_service_name", metadata.serviceName());
-            delegate.refreshClassMetadata(className);
-         }
-      });
-      for (int index = mixins.size() - 1; index >= 0; index--) delegate.unregisterBehaviorMixin(mixins.get(index));
+      for (Map.Entry<String, LuaValue> entry : previousServiceBaseRoles.entrySet()) {
+         String className = entry.getKey();
+         LuaValue role = entry.getValue();
+         failure = MLuaRollback.run(failure, () -> {
+            LuaTable type = delegate.classTable(className);
+            if (type != null && !classes.contains(className)) {
+               type.rawset("__mlua_role_service_base", role);
+               delegate.refreshClassMetadata(className);
+            }
+         });
+      }
+      for (Map.Entry<String, LuaValue> entry : previousInstanceBaseRoles.entrySet()) {
+         String className = entry.getKey();
+         LuaValue role = entry.getValue();
+         failure = MLuaRollback.run(failure, () -> {
+            LuaTable type = delegate.classTable(className);
+            if (type != null && !classes.contains(className)) {
+               type.rawset("__mlua_role_instance_base", role);
+               delegate.refreshClassMetadata(className);
+            }
+         });
+      }
+      for (Map.Entry<String, ServiceClassMetadata> entry : previousServiceClasses.entrySet()) {
+         String className = entry.getKey();
+         ServiceClassMetadata metadata = entry.getValue();
+         failure = MLuaRollback.run(failure, () -> {
+            LuaTable type = delegate.classTable(className);
+            if (type != null && !classes.contains(className)) {
+               type.rawset("__mlua_service_class", metadata.classMarker());
+               type.rawset("__mlua_service_name", metadata.serviceName());
+               delegate.refreshClassMetadata(className);
+            }
+         });
+      }
+      for (int index = mixins.size() - 1; index >= 0; index--) {
+         String mixinName = mixins.get(index);
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterBehaviorMixin(mixinName));
+      }
       for (int index = contentTypes.size() - 1; index >= 0; index--) {
          ContentType type = contentTypes.get(index);
-         delegate.unregisterContentType(type.domain(), type.owner(), type.name());
+         failure = MLuaRollback.run(failure, () -> delegate.unregisterContentType(type.domain(), type.owner(), type.name()));
       }
+      MLuaRollback.rethrow(failure);
    }
 
    private record ClassFunction(String className, String name, LuaValue function) { }

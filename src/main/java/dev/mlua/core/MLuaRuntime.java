@@ -598,8 +598,11 @@ public final class MLuaRuntime implements MLuaRegistration {
    private void executeRegistryScript(MLuaScript script, boolean entrypoint) {
       Path key = script.path().toAbsolutePath().normalize();
       MLuaScriptRegistration previous = this.registryScriptRegistrations.remove(key);
-      if (previous != null) this.unregisterMixinScope(key);
-      if (previous != null) previous.rollback();
+      if (previous != null) {
+         Throwable rollbackFailure = MLuaRollback.run(null, () -> this.unregisterMixinScope(key));
+         rollbackFailure = MLuaRollback.run(rollbackFailure, previous::rollback);
+         MLuaRollback.rethrow(rollbackFailure);
+      }
       MLuaScriptRegistration registration = new MLuaScriptRegistration(this);
       MLuaContext context = this.contextFor(script, Side.SERVER, RegistrationPhase.REGISTRY, null, registration);
       try {
@@ -610,33 +613,37 @@ public final class MLuaRuntime implements MLuaRegistration {
          }
          this.registryScriptRegistrations.put(key, registration);
       } catch (RuntimeException | Error failure) {
-         this.unregisterMixinScope(key);
-         registration.rollback();
+         MLuaRollback.run(failure, () -> this.unregisterMixinScope(key));
+         MLuaRollback.run(failure, registration::rollback);
          throw failure;
       }
    }
 
    private void clearRegistryScriptRegistrations() {
       List<Map.Entry<Path, MLuaScriptRegistration>> registrations = new ArrayList<>(this.registryScriptRegistrations.entrySet());
+      Throwable failure = null;
       for (int index = registrations.size() - 1; index >= 0; index--) {
          Map.Entry<Path, MLuaScriptRegistration> entry = registrations.get(index);
-         this.unregisterMixinScope(entry.getKey());
-         entry.getValue().rollback();
+         failure = MLuaRollback.run(failure, () -> this.unregisterMixinScope(entry.getKey()));
+         failure = MLuaRollback.run(failure, entry.getValue()::rollback);
       }
       this.registryScriptRegistrations.clear();
+      MLuaRollback.rethrow(failure);
    }
 
    private void clearRegistryScriptRegistrations(Set<Path> scriptPaths) {
       Set<Path> keys = new HashSet<>();
       for (Path path : scriptPaths) keys.add(path.toAbsolutePath().normalize());
       List<Path> paths = new ArrayList<>(this.registryScriptRegistrations.keySet());
+      Throwable failure = null;
       for (int index = paths.size() - 1; index >= 0; index--) {
          Path path = paths.get(index);
          if (!keys.contains(path)) continue;
          MLuaScriptRegistration registration = this.registryScriptRegistrations.remove(path);
-         this.unregisterMixinScope(path);
-         if (registration != null) registration.rollback();
+         failure = MLuaRollback.run(failure, () -> this.unregisterMixinScope(path));
+         if (registration != null) failure = MLuaRollback.run(failure, registration::rollback);
       }
+      MLuaRollback.rethrow(failure);
    }
 
    private void unregisterMixinScope(Path path) {
