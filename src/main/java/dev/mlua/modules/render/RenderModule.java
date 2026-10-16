@@ -17,12 +17,14 @@ public final class RenderModule implements MLuaModule {
     @Override
     public void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
         dev.mlua.runtime.client.MLuaClientRenderManager.clearRuntime(runtimeSession);
+        dev.mlua.runtime.client.MLuaRenderCallbacks.clearRuntime(runtimeSession);
     }
 
     @Override
     public void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, String ownerModId) {
         dev.mlua.runtime.client.MLuaClientRenderManager.clearOwned(
             new dev.mlua.runtime.client.MLuaRenderOwnershipRegistry.Owner(runtimeSession, ownerModId));
+        dev.mlua.runtime.client.MLuaRenderCallbacks.clearOwned(runtimeSession, ownerModId);
     }
 
     @Override
@@ -67,6 +69,25 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldBox(center: Vector3|CFrame, size: Vector3, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:Clear()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetAll()", "RenderObject[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterEntityRenderer(entityType: string, callback: function(Entity, RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterEntityRenderer(entityType: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterWorldRenderer(callback: function(RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterWorldRenderer()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterHudRenderer(callback: function(RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderer()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.type("RenderContext", null, "Native values supplied at a HUD, world, or living entity render point. All Java objects are frame-scoped; callbacks must not retain them or yield."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PoseStack", "Java object|nil", "The live com.mojang.blaze3d.vertex.PoseStack when the loader exposes one."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "BufferSource", "Java object|nil", "Minecraft's live MultiBufferSource, render submit collector, or nil when the loader event does not expose one."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Model", "Java object|nil", "The native entity model after Minecraft has applied its animation pose."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PartialTick", "number", "Frame interpolation from zero to one where the render API provides it; 26.1 extraction render hooks currently pass zero."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PackedLight", "number", "Minecraft packed light value when supplied by the entity render hook."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PackedOverlay", "number", "Minecraft packed overlay value when supplied by the entity render hook."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Target", "string", "Render callback target: EntityModel, World, or Hud."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "NativeContext", "Java object|nil", "The loader's native render event/context for world render callbacks."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Camera", "Java object|nil", "The native render camera for world render callbacks."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Graphics", "Java object|nil", "The live GuiGraphics for HUD callbacks."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Width", "number|nil", "HUD width in GUI-scaled pixels."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Height", "number|nil", "HUD height in GUI-scaled pixels."));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", "Sets this object's world position.", "Native Vector3 or CFrame", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetWorldPosition()", "Returns this object's world position as a native Vector3.", null, "Vector3", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", "Sets the endpoint used by world lines and beams.", "Native Vector3 or CFrame", "void", "client:Client", null));
@@ -108,5 +129,11 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Attach a 3D model to an entity part",
             "EntityModel draws a mesh or Blockbench model from a registered bone path after Minecraft has posed that entity. FollowOffset accepts a CFrame or a function returning a CFrame. MLua samples the function once per client tick and applies its returned position and rotation after the bone pose.",
             "local Models = Minecraft:GetService(\"ModelService\")\nlocal Render = Minecraft:GetService(\"RenderService\")\nlocal Players = Minecraft:GetService(\"Players\")\n\nModels:RegisterAdapter(\"net.minecraft.client.model.PlayerModel\", {\n    head = \"head\",\n})\n\nlocal hat = Render:LoadBBModel(\"myaddon:models/hat.bbmodel\")\nhat.Target = \"EntityModel\"\nhat.FollowEntity = Players.LocalPlayer\nhat.FollowBone = \"head\"\nlocal phase = 0\nhat.FollowOffset = function()\n    phase = phase + 0.1\n    return CFrame.new(0, 0.35 + math.sin(phase) * 0.02, 0)\n        * CFrame.Angles(0, math.sin(phase) * 0.08, 0)\nend\nhat.ModelScale = 1\nhat.Visible = true"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Hook a native entity render point",
+            "RegisterEntityRenderer adds an addon-owned callback after Minecraft has posed a living entity's model and before its model is drawn. It follows the same render-point pattern as a native entity renderer, while the callback receives the real entity, PoseStack, buffer source, model, partial tick, light, and overlay. Use Java:Invoke or Java object proxies for native rendering calls. The render context is frame-scoped: do not save it, yield from the callback, or use it after the callback returns. A callback error disables that callback for the rest of the session.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterEntityRenderer(\"myaddon:stalker\", function(entity, context)\n    local pose = context.PoseStack\n    Java:Invoke(pose, \"pushPose\", \"()V\")\n    -- Use the live pose, model, and buffer source for a native render pass.\n    Java:Invoke(pose, \"popPose\", \"()V\")\nend)\n\n-- Remove this addon's renderer when it is no longer needed.\nRender:UnregisterEntityRenderer(\"myaddon:stalker\")"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Attach a world or HUD render callback",
+            "World callbacks run through the loader's native world-render event; HUD callbacks run in MLua's registered GUI layer before MLua RenderObjects. Both callbacks receive a frame-scoped RenderContext. Use Java:Invoke or Java:Proxy to call Minecraft rendering APIs, and never retain frame objects or yield from a callback.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterHudRenderer(function(context)\n    local graphics = context.Graphics\n    -- Call GuiGraphics methods here through Java:Invoke.\nend)\n\nRender:RegisterWorldRenderer(function(context)\n    -- NativeContext, PoseStack, BufferSource and Camera are supplied when that\n    -- loader's stage exposes them.\nend)\n\nRender:UnregisterHudRenderer()\nRender:UnregisterWorldRenderer()"));
     }
 }

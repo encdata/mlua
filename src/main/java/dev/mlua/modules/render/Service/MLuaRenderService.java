@@ -337,6 +337,42 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return objects;
     }
 
+    @MLuaDescription("Registers a Lua callback at the living entity renderer for this entity type. The callback receives the live Entity and a RenderContext containing Minecraft's PoseStack, BufferSource, model, partial tick, light, and overlay values.")
+    public void RegisterEntityRenderer(String entityType, LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, callback, this.context.mlua());
+    }
+
+    @MLuaDescription("Removes this addon's callback from an entity type's living entity renderer.")
+    public boolean UnregisterEntityRenderer(String entityType) {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, this.context.mlua());
+    }
+
+    @MLuaDescription("Registers an addon-owned callback at the native world render point after Minecraft renders world entities and geometry.")
+    public void RegisterWorldRenderer(LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(callback, this.context.mlua());
+    }
+
+    @MLuaDescription("Removes this addon's callback from the native world render point.")
+    public boolean UnregisterWorldRenderer() {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(this.context.mlua());
+    }
+
+    @MLuaDescription("Registers an addon-owned callback in the HUD render layer, before MLua-managed RenderObjects are drawn.")
+    public void RegisterHudRenderer(LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(callback, this.context.mlua());
+    }
+
+    @MLuaDescription("Removes this addon's callback from the HUD render layer.")
+    public boolean UnregisterHudRenderer() {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHud(this.context.mlua());
+    }
+
     private static LuaTable optionalTable(Optional<LuaValue> value) {
         return value.orElse(LuaValue.NIL).opttable(new LuaTable());
     }

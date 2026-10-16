@@ -73,8 +73,9 @@ public final class MLuaClientRenderManager {
         try {
             Object rawPose = invoke(context, "matrixStack", "getPoseStack", "poseStack");
             Object rawBuffers = invoke(context, "consumers", "getRenderTypeBuffer", "bufferSource");
-            if (!(rawPose instanceof PoseStack pose) || !(rawBuffers instanceof MultiBufferSource buffers)) return;
             Object rawCamera = invoke(context, "camera", "getCamera");
+            MLuaRenderCallbacks.renderWorld(context, rawPose, rawBuffers, rawCamera);
+            if (!(rawPose instanceof PoseStack pose) || !(rawBuffers instanceof MultiBufferSource buffers)) return;
             Vec3 camera = rawCamera == null ? Minecraft.getInstance().gameRenderer.getMainCamera().getPosition() :
                 (Vec3) invoke(rawCamera, "getPosition", "position");
             var lookVector = rawCamera instanceof Camera ? ((Camera) rawCamera).getLookVector() : Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
@@ -442,6 +443,7 @@ public final class MLuaClientRenderManager {
     }
 
     public static void renderAll(GuiGraphics graphics) {
+        MLuaRenderCallbacks.renderHud(graphics, graphics.guiWidth(), graphics.guiHeight());
         List<RenderObject> objects = new ArrayList<>(OBJECTS.values());
         objects.sort(Comparator.comparingInt(RenderObject::zIndex));
         for (RenderObject object : objects) {

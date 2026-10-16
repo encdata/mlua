@@ -3,6 +3,7 @@ package dev.mlua.modules.mixin.Service;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
+import dev.mlua.runtime.client.MLuaRenderCallbacks;
 import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
@@ -36,9 +37,10 @@ public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.en
         if (entityId >= 0) {
             var level = Minecraft.getInstance().level;
             var entity = level == null ? null : level.getEntity(entityId);
-            if (entity == null) return;
-            MLuaEntityScope scope = MLuaEntityScope.of(entity);
+            if (!(entity instanceof net.minecraft.world.entity.LivingEntity livingEntity)) return;
+            MLuaEntityScope scope = MLuaEntityScope.of(livingEntity);
             MLuaModelAdapterRegistry.apply(model, scope);
+            MLuaRenderCallbacks.render(livingEntity, model, poseStack, collector, 0.0F, state.lightCoords, 0);
             MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, collector, state.lightCoords);
         }
     }

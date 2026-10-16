@@ -40,6 +40,8 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
         if (entity != null) {
             MLuaEntityScope scope = MLuaEntityScope.of(entity);
             MLuaModelAdapterRegistry.apply(model, scope);
+            dev.mlua.runtime.client.MLuaRenderCallbacks.render(entity, model, poseStack, buffers,
+                partialTick, packedLight, OverlayTexture.NO_OVERLAY);
             MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, buffers, packedLight, OverlayTexture.NO_OVERLAY);
         }
     }
