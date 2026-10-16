@@ -326,6 +326,18 @@ jobs:
           local service = Minecraft:GetService("CiSmokeService")
           assert(service.__type == "CiSmokeService", "Java registered service class was not attached")
           assert(service:GetSide() == "CLIENT", "Java service returned the wrong side")
+          local definition = Animation.new({
+              { Time = 0, Data = { head = CFrame.identity } },
+              { Time = 0.5, Data = { head = CFrame.Angles(0, math.rad(20), 0) } },
+          })
+          assert(definition.Length == 0.5, "Animation length was not derived from its keyframes")
+          assert(definition:GetKeyframeCount() == 2, "Animation keyframe count is wrong")
+          assert(definition:HasBone("head"), "Animation omitted its head bone")
+          assert(not definition:HasBone("tail"), "Animation reported a bone not present in its frames")
+          assert(definition:GetBoneNames()[1] == "head", "Animation bone names are not exposed")
+          assert(definition:Sample(0.25).head ~= nil, "Animation sampling did not return its interpolated bone pose")
+          assert(type(Animation.Animator.new) == "function", "Animator class was not registered")
+          print("MLUA_CI_ANIMATION_API_OK")
           print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.client.lua"
           Set-Content "$template/run/eula.txt" 'eula=true'
@@ -347,7 +359,7 @@ jobs:
             -Task runClient `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK') `
             -LogFile 'client-smoke.log' `
             -TimeoutSeconds 480
 

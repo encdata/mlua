@@ -439,13 +439,20 @@ public final class MLuaEntityWrapper {
          LuaValue priorityVal = args.arg(3);
          dev.mlua.common.enums.AnimationPriority priority = dev.mlua.common.enums.AnimationPriority.Idle;
          if (!priorityVal.isnil()) {
-            if (!priorityVal.isstring()) {
-               throw new LuaError("[MLua] LoadAnimation priority must be an AnimationPriority value or string.");
-            }
-            try {
-               priority = dev.mlua.common.enums.AnimationPriority.valueOf(priorityVal.tojstring());
-            } catch (IllegalArgumentException e) {
-               throw new LuaError("[MLua] Unknown AnimationPriority: " + priorityVal.tojstring());
+            if (priorityVal.istable()) {
+               priority = dev.mlua.modules.enums.MLuaEnumValue.toJava(
+                  priorityVal, dev.mlua.common.enums.AnimationPriority.class);
+               if (priority == null) {
+                  throw new LuaError("[MLua] LoadAnimation priority must be an Animation.AnimationPriority value.");
+               }
+            } else if (priorityVal.isstring()) {
+               try {
+                  priority = dev.mlua.common.enums.AnimationPriority.valueOf(priorityVal.tojstring());
+               } catch (IllegalArgumentException e) {
+                  throw new LuaError("[MLua] Unknown AnimationPriority: " + priorityVal.tojstring());
+               }
+            } else {
+               throw new LuaError("[MLua] LoadAnimation priority must be an AnimationPriority value or name.");
             }
          }
          float fadeTime = MLuaLuaArguments.optionalNonNegativeFiniteFloat(

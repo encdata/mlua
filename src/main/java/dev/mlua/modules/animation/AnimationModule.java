@@ -65,6 +65,10 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationService", "AnimationService:GetAnimationPriority()", "AnimationPriority"));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetLength()", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetKeyframes()", "KeyframeDefinition[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetKeyframeCount()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:GetBoneNames()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:HasBone(name: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animation", "Animation:Sample(time: number)", "table<string, CFrame>"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:Pause()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:Resume()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustSpeed(speed: number)", "void"));
@@ -83,7 +87,9 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimation()", "Animation"));
-        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetAnimator()", "Animator"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetPose()", "table<string, CFrame>"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetBonePose(bone: string)", "CFrame|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAnimator()", "Animator"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "AnimationTrack"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetPlayingAnimationTracks()", "AnimationTrack[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:StopAll()", "void"));
@@ -108,10 +114,13 @@ public class AnimationModule implements MLuaModule {
                 "A live animation playback instance returned by an entity animation controller.",
                 "classes/animation-track.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.clazz("Animator", "MLuaAnimationBindings",
-                "The animation controller owned by one entity. It loads immutable Animation definitions into playback tracks.",
+                "The animation controller owned by one living entity. It loads immutable Animation definitions into playback tracks.",
                 "classes/animator.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("Animation", "Animation.Length", "number",
             "The animation duration in seconds.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Animation", "Check animation bones before playback",
+            "Animation definitions are immutable after creation. GetBoneNames returns a sorted list of every mapped bone; HasBone and Sample help validate a definition against a model adapter before playback.",
+            "local animator = entity:GetAnimator()\nlocal animation = Animation.new({\n    { Time = 0, Data = { head = CFrame.identity } },\n    { Time = 0.5, Data = { head = CFrame.Angles(0, math.rad(20), 0) } },\n})\n\nprint(animation.Length, animation:GetKeyframeCount())\nfor _, bone in ipairs(animation:GetBoneNames()) do\n    print(\"Animated bone:\", bone)\nend\nif animation:HasBone(\"head\") then\n    animator:LoadAnimation(animation):Play()\nend"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Animation", "Animation",
             "The animation played by this track.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.TrackId", "number",
@@ -132,8 +141,8 @@ public class AnimationModule implements MLuaModule {
             "Whether playback repeats. Readable and writable.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Weight", "number",
             "The current blend weight from zero to one. Assigning it fades toward the new weight.", "client:Client"));
-        docs.register(MLuaDocBuilder.Registration.property("Animator", "Animator.Entity", "Entity",
-            "The entity controlled by this animator.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("Animator", "Animator.Entity", "LivingEntity",
+            "The living entity controlled by this animator.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.type("KeyframeDefinition", null, "A pose at a point in an animation. Time and Data are required; the easing values are optional."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "Time", "number", "Position in seconds. Keyframes are sorted by this value and duplicate times are rejected."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "Data", "table<string, CFrame>", "Maps each registered bone name to its pose at this keyframe."));

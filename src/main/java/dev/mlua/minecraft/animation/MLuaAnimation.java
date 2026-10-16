@@ -19,6 +19,7 @@ import org.luaj.vm2.Varargs;
 public final class MLuaAnimation {
     private final List<Keyframe> keyframes;
     private final double length;
+    private final List<String> boneNames;
 
     public MLuaAnimation(List<Keyframe> keyframes) {
         if (keyframes == null || keyframes.isEmpty()) {
@@ -40,6 +41,9 @@ public final class MLuaAnimation {
         }
         this.keyframes = List.copyOf(ordered);
         this.length = this.keyframes.get(this.keyframes.size() - 1).time;
+        java.util.TreeSet<String> names = new java.util.TreeSet<>();
+        this.keyframes.forEach(keyframe -> names.addAll(keyframe.data.keySet()));
+        this.boneNames = List.copyOf(names);
     }
 
     public List<Keyframe> getKeyframes() {
@@ -50,6 +54,13 @@ public final class MLuaAnimation {
         return length;
     }
 
+    public int getKeyframeCount() { return keyframes.size(); }
+
+    /** Returns the stable, sorted set of bone names used by any keyframe. */
+    public List<String> getBoneNames() { return boneNames; }
+
+    public boolean hasBone(String boneName) { return boneName != null && boneNames.contains(boneName); }
+
     public Map<String, MLuaCFrame> sample(double time) {
         if (keyframes.size() == 1) {
             return new HashMap<>(keyframes.get(0).data);
@@ -57,25 +68,18 @@ public final class MLuaAnimation {
 
         time = Math.max(0, Math.min(time, length));
 
-        Keyframe prev = null;
-        Keyframe next = null;
+        if (time <= keyframes.get(0).time) return new HashMap<>(keyframes.get(0).data);
+        if (time >= length) return new HashMap<>(keyframes.get(keyframes.size() - 1).data);
 
-        for (int i = 0; i < keyframes.size() - 1; i++) {
-            Keyframe a = keyframes.get(i);
-            Keyframe b = keyframes.get(i + 1);
-            if (time >= a.time && time <= b.time) {
-                prev = a;
-                next = b;
-                break;
-            }
+        int low = 0;
+        int high = keyframes.size() - 1;
+        while (low + 1 < high) {
+            int middle = (low + high) >>> 1;
+            if (keyframes.get(middle).time <= time) low = middle;
+            else high = middle;
         }
-
-        if (prev == null || next == null) {
-            if (time <= keyframes.get(0).time) {
-                return new HashMap<>(keyframes.get(0).data);
-            }
-            return new HashMap<>(keyframes.get(keyframes.size() - 1).data);
-        }
+        Keyframe prev = keyframes.get(low);
+        Keyframe next = keyframes.get(high);
 
         if (prev.time == next.time) {
             return new HashMap<>(next.data);

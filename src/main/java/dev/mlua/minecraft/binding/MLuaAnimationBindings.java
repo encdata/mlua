@@ -63,7 +63,7 @@ public final class MLuaAnimationBindings {
 
     private static void registerAnimatorClass(MLuaRegistration registration) {
         registration.registerClass("Animator", registration.requireInstanceBaseClassName(),
-            "Entity-scoped animation controller that loads and manages playback tracks.");
+            "Animation controller for a living entity, with independently managed playback tracks.");
         registration.registerClassFunction("Animator", "new", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 throw new LuaError("[MLua] Animator instances are created by Entity:GetAnimator().");
@@ -85,13 +85,21 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "ClearPose",
             "Clears custom pose overrides owned by this animator.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetEntity",
-            "Returns the entity controlled by this animator.");
+            "Returns the living entity controlled by this animator.");
         MLuaClassMethods.registerInstanceProperty(registration, "Animator", "Entity", "GetEntity", null,
-            "Entity", "client:Client", "The entity controlled by this animator.");
+            "LivingEntity", "client:Client", "The living entity controlled by this animator.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetLength",
             "Returns the total duration of this animation in seconds.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetKeyframes",
             "Returns this animation's ordered keyframes.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetKeyframeCount",
+            "Returns the number of keyframes in this animation.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetBoneNames",
+            "Returns the sorted bone names used by this animation.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animation", "HasBone",
+            "Returns whether this animation contains a pose for the given bone in any keyframe.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animation", "Sample",
+            "Returns the interpolated bone pose at a time in seconds.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Play",
             "Starts playback. An optional fadeTime in seconds fades the track in.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "Stop",
@@ -134,6 +142,10 @@ public final class MLuaAnimationBindings {
             "Removes all marker callbacks from this track.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetAnimation",
             "Returns the Animation instance played by this track.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetPose",
+            "Returns the current sampled pose as bone names mapped to CFrame values.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetBonePose",
+            "Returns the current sampled CFrame for one bone, or nil when the animation does not pose it.");
 
         MLuaClassMethods.registerInstanceProperty(registration, "Animation", "Length", "GetLength", null,
             "number", "client:Client", "The animation duration in seconds.");
@@ -164,11 +176,13 @@ public final class MLuaAnimationBindings {
         LuaTable animTable = new LuaTable();
         LuaTable animationClass = registration.classTable("Animation");
         LuaTable trackClass = registration.classTable("AnimationTrack");
-        if (animationClass == null || trackClass == null) {
+        LuaTable animatorClass = registration.classTable("Animator");
+        if (animationClass == null || trackClass == null || animatorClass == null) {
             throw new IllegalStateException("Animation classes must be registered before creating the Animation library table");
         }
         animTable.set("Animation", animationClass);
         animTable.set("AnimationTrack", trackClass);
+        animTable.set("Animator", animatorClass);
 
         animTable.set("AnimationPriority", MLuaEnumValue.enumConstants(AnimationPriority.class, null));
         animTable.set("EasingStyle", MLuaEnumValue.enumConstants(dev.mlua.common.enums.EasingStyle.class, null));
@@ -202,6 +216,30 @@ public final class MLuaAnimationBindings {
                     kfTable.set(i++, kfEntry);
                 }
                 return kfTable;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "GetKeyframeCount", new ZeroArgFunction() {
+            @Override public LuaValue call() { return LuaValue.valueOf(animation.getKeyframeCount()); }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "GetBoneNames", new ZeroArgFunction() {
+            @Override public LuaValue call() {
+                LuaTable names = new LuaTable();
+                int index = 1;
+                for (String name : animation.getBoneNames()) names.set(index++, LuaValue.valueOf(name));
+                return names;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "HasBone", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return LuaValue.valueOf(animation.hasBone(args.checkjstring(2)));
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "Sample", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                float time = MLuaLuaArguments.finiteNonNegativeFloat(args.arg(2), "Animation:Sample", "time");
+                LuaTable pose = new LuaTable();
+                animation.sample(time).forEach((bone, transform) -> pose.set(bone, transform.toLua()));
+                return pose;
             }
         });
         return table;
@@ -415,6 +453,19 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.setInstanceMethod(table, "GetAnimation", new ZeroArgFunction() {
             public LuaValue call() {
                 return wrapAnimation(track.animation(), registration);
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "GetPose", new ZeroArgFunction() {
+            @Override public LuaValue call() {
+                LuaTable pose = new LuaTable();
+                track.getComputedPose().forEach((bone, transform) -> pose.set(bone, transform.toLua()));
+                return pose;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "GetBonePose", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                MLuaCFrame pose = track.getBonePose(args.checkjstring(2));
+                return pose == null ? LuaValue.NIL : pose.toLua();
             }
         });
 
