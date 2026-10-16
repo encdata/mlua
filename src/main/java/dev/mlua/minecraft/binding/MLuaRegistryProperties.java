@@ -149,8 +149,7 @@ public final class MLuaRegistryProperties {
       // though Lua class metadata may report a shared inherited base class.
       if (!value.checktable().rawget(STATE).isnil()) {
          State state = state(value);
-         if (!expectedClass.equals(state.className)
-            || !registration.isInstanceOf(value, expectedClass)) {
+         if (!expectedClass.equals(state.className)) {
             throw new LuaError("[MLua] " + method + " received " + state.className + "; expected " + expectedClass + ".");
          }
          return dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog.copyTable(state.values);

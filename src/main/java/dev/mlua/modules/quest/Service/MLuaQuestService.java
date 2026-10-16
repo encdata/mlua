@@ -74,7 +74,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
         return result;
     }
 
-    @MLuaDescription("Adds or updates an objective in a quest.")
+    @MLuaDescription("Adds or updates a boolean or finite numeric objective for a registered quest. Returns false when the quest is unknown.")
     public boolean SetObjective(LuaValue playerValue, String questId, String objectiveKey, LuaValue progress) {
         this.requireServerSide(this.name());
         if (MLuaQuestRegistry.get(runtimeOwner(), ownerModId(), questId) == null) return false;
