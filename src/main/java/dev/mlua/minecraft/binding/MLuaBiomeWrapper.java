@@ -53,19 +53,15 @@ public final class MLuaBiomeWrapper {
             return LuaValue.valueOf(holder(self).is(TagKey.create(Registries.BIOME, location)));
         });
         register(registration, "GetTemperature", "Returns the biome's base temperature.", (self, args) -> LuaValue.valueOf(biome(self).getBaseTemperature()));
-        register(registration, "GetPrecipitation", "Returns the precipitation type at the sampled position.", (self, args) ->
-            LuaValue.valueOf(biome(self).getPrecipitationAt(position(self)).name().toLowerCase(java.util.Locale.ROOT)));
-        register(registration, "GetSkyColor", "Returns the biome sky color as a Color3.", (self, args) -> MLuaLuauTypes.color3FromArgb(biome(self).getSkyColor()));
-        register(registration, "GetFogColor", "Returns the biome fog color as a Color3.", (self, args) -> MLuaLuauTypes.color3FromArgb(biome(self).getFogColor()));
-        register(registration, "GetWaterColor", "Returns the biome water color as a Color3.", (self, args) -> MLuaLuauTypes.color3FromArgb(biome(self).getWaterColor()));
-        register(registration, "GetWaterFogColor", "Returns the biome water fog color as a Color3.", (self, args) -> MLuaLuauTypes.color3FromArgb(biome(self).getWaterFogColor()));
-        register(registration, "GetFoliageColor", "Returns the biome foliage color as a Color3.", (self, args) -> MLuaLuauTypes.color3FromArgb(biome(self).getFoliageColor()));
-        register(registration, "GetGrassColor", "Returns the biome grass color at the sampled X/Z position as a Color3.", (self, args) -> {
-            BlockPos position = position(self);
-            return MLuaLuauTypes.color3FromArgb(biome(self).getGrassColor(position.getX(), position.getZ()));
-        });
+        register(registration, "GetPrecipitation", "Returns the precipitation type at the sampled position.", (self, args) -> LuaValue.valueOf(precipitation(self)));
+        register(registration, "GetSkyColor", "Returns the biome sky color as a Color3.", (self, args) -> color(self, "getSkyColor", "skyColor"));
+        register(registration, "GetFogColor", "Returns the biome fog color as a Color3.", (self, args) -> color(self, "getFogColor", "fogColor"));
+        register(registration, "GetWaterColor", "Returns the biome water color as a Color3.", (self, args) -> color(self, "getWaterColor", "waterColor"));
+        register(registration, "GetWaterFogColor", "Returns the biome water fog color as a Color3.", (self, args) -> color(self, "getWaterFogColor", "waterFogColor"));
+        register(registration, "GetFoliageColor", "Returns the biome foliage color as a Color3.", (self, args) -> color(self, "getFoliageColor", "foliageColor"));
+        register(registration, "GetGrassColor", "Returns the biome grass color at the sampled X/Z position as a Color3.", MLuaBiomeWrapper::grassColor);
         register(registration, "IsCold", "Checks whether Minecraft considers the biome cold enough to snow at the sampled position.",
-            (self, args) -> LuaValue.valueOf(biome(self).coldEnoughToSnow(position(self))));
+            (self, args) -> LuaValue.valueOf(cold(self)));
         register(registration, "IsHot", "Checks whether the biome's base temperature is above one.",
             (self, args) -> LuaValue.valueOf(biome(self).getBaseTemperature() > 1.0F));
 
@@ -119,12 +115,49 @@ public final class MLuaBiomeWrapper {
     }
 
     private static String id(Holder<Biome> holder, Level level) {
-        return holder.unwrapKey().map(key -> key.location().toString())
-            .orElseGet(() -> {
-                Biome biome = holder.value();
-                ResourceLocation key = level.registryAccess().registryOrThrow(Registries.BIOME).getKey(biome);
-                return key == null ? "unknown" : key.toString();
-            });
+        Object key = holder.unwrapKey().orElse(null);
+        Object location = invoke(key, new String[]{"location", "identifier", "id"});
+        return location == null ? "unknown" : location.toString();
+    }
+
+    private static LuaValue color(LuaValue self, String direct, String... accessors) {
+        Biome biome = biome(self);
+        Object target = invoke(biome, new String[]{"getSpecialEffects", "getVisualEffects"});
+        if (target == null) target = biome;
+        Object value = invoke(target, new String[]{direct});
+        if (!(value instanceof Number)) value = invoke(target, accessors);
+        return MLuaLuauTypes.color3FromArgb(value instanceof Number number ? number.intValue() : 0xFF808080);
+    }
+
+    private static LuaValue grassColor(LuaValue self, Varargs args) {
+        Biome biome = biome(self);
+        BlockPos position = position(self);
+        Object target = invoke(biome, new String[]{"getSpecialEffects", "getVisualEffects"});
+        if (target == null) target = biome;
+        Object value = invoke(target, new String[]{"getGrassColor"}, position.getX(), position.getZ());
+        if (!(value instanceof Number)) value = invoke(target, new String[]{"grassColor"});
+        return MLuaLuauTypes.color3FromArgb(value instanceof Number number ? number.intValue() : 0xFF808080);
+    }
+
+    private static String precipitation(LuaValue self) {
+        Object value = invoke(biome(self), new String[]{"getPrecipitationAt"}, position(self));
+        if (value == null) value = invoke(biome(self), new String[]{"getPrecipitationAt"}, position(self), level(self).getSeaLevel());
+        return value == null ? "none" : value.toString().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static boolean cold(LuaValue self) {
+        Object value = invoke(biome(self), new String[]{"coldEnoughToSnow"}, position(self));
+        if (value == null) value = invoke(biome(self), new String[]{"coldEnoughToSnow"}, position(self), level(self).getSeaLevel());
+        return Boolean.TRUE.equals(value);
+    }
+
+    private static Object invoke(Object target, String[] names, Object... arguments) {
+        if (target == null) return null;
+        for (String name : names) for (java.lang.reflect.Method method : target.getClass().getMethods()) {
+            if (!method.getName().equals(name) || method.getParameterCount() != arguments.length) continue;
+            try { return method.invoke(target, arguments); } catch (ReflectiveOperationException | RuntimeException ignored) { }
+        }
+        return null;
     }
 
     @FunctionalInterface

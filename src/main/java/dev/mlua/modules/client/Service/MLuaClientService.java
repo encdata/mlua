@@ -34,7 +34,12 @@ public final class MLuaClientService extends MLuaReflectiveService {
     public boolean IsWindowFocused() { return bool(window(), new String[]{"isActive", "isFocused"}, false); }
 
     @MLuaDescription("Returns the Minecraft version name.")
-    public String GetVersion() { requireClientSide(name()); return SharedConstants.getCurrentVersion().getName(); }
+    public String GetVersion() {
+        requireClientSide(name());
+        Object version = SharedConstants.getCurrentVersion();
+        Object name = invoke(version, new String[]{"getName", "name", "getId", "getReleaseTarget"});
+        return name == null ? String.valueOf(version) : String.valueOf(name);
+    }
 
     @MLuaDescription("Returns the active screen class name, or nil when no screen is open.")
     public LuaValue GetScreenName() {

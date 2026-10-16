@@ -116,8 +116,7 @@ public final class MLuaClientRenderManager {
     private static void renderWorldModelsSubmitted(String stage, PoseStack pose, SubmitNodeCollector collector,
                                                    Vec3 cameraPosition) {
         if (pose == null || collector == null || cameraPosition == null) return;
-        var lookVector = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
-        Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
+        Vec3 look = cameraLook(Minecraft.getInstance().gameRenderer.getMainCamera());
         for (RenderObject object : orderedRenderObjects()) {
             synchronized (object.executionLock()) {
                 if (!object.visible || object.target() != RenderTarget.WORLD_MODEL) continue;
@@ -151,6 +150,17 @@ public final class MLuaClientRenderManager {
                 }
             }
         }
+    }
+
+    private static Vec3 cameraLook(Object camera) {
+        Object value = invokeOptional(camera, "getLookVector", "getLookDirection", "getForwardVector", "getLookAngle", "lookVector", "lookDirection");
+        if (value == null) return new Vec3(0, 0, 1);
+        Object x = invokeOptional(value, "x");
+        Object y = invokeOptional(value, "y");
+        Object z = invokeOptional(value, "z");
+        return x instanceof Number && y instanceof Number && z instanceof Number
+            ? new Vec3(((Number)x).doubleValue(), ((Number)y).doubleValue(), ((Number)z).doubleValue())
+            : new Vec3(0, 0, 1);
     }
 
     private static Entity resolveFollowEntity(MLuaEntityScope scope) {

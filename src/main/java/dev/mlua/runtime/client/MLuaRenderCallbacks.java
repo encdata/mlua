@@ -433,7 +433,7 @@ public final class MLuaRenderCallbacks {
             if (argument == null || !argument.istable()) continue;
             LuaValue value = argument.checktable().rawget("__mluaRenderFrameScope");
             if (value.isuserdata(MLuaRenderFrameScope.View.class)) {
-                return value.touserdata(MLuaRenderFrameScope.View.class).scope();
+                return ((MLuaRenderFrameScope.View)value.touserdata(MLuaRenderFrameScope.View.class)).scope();
             }
         }
         return null;

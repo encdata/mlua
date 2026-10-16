@@ -84,7 +84,8 @@ public final class RenderModule implements MLuaModule {
                 org.luaj.vm2.LuaValue scope = self.checktable().rawget("__mluaRenderFrameScope");
                 return org.luaj.vm2.LuaValue.valueOf(scope.isuserdata(
                     dev.mlua.runtime.client.MLuaRenderFrameScope.View.class)
-                    && scope.touserdata(dev.mlua.runtime.client.MLuaRenderFrameScope.View.class).isActive());
+                    && ((dev.mlua.runtime.client.MLuaRenderFrameScope.View)scope.touserdata(
+                        dev.mlua.runtime.client.MLuaRenderFrameScope.View.class)).isActive());
             }
         }, "Returns whether this RenderContext belongs to a callback that is still running.");
     }

@@ -97,7 +97,7 @@ jobs:
   run-client:
     name: Boot packaged ${{ matrix.target }} / ${{ matrix.loader }} client and server (Windows)
     needs: build
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 35
     strategy:

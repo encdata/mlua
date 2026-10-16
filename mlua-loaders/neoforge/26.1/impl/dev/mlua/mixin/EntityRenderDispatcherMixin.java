@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /** Dispatches Lua passes for render-state entities before their native renderer submits. */
 @Mixin(value = EntityRenderDispatcher.class, remap = false)
 public abstract class EntityRenderDispatcherMixin {
-    @Inject(method = "extractEntity", remap = false, at = @At("RETURN", remap = false))
+    @Inject(method = "extractEntity", remap = false, at = @At(value = "RETURN", remap = false))
     private void mlua$associateRenderState(Entity entity, float partialTick,
             CallbackInfoReturnable<EntityRenderState> callbackInfo) {
         MLuaRenderStateEntityResolver.associate(callbackInfo.getReturnValue(), entity);

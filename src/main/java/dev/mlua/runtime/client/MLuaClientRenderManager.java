@@ -104,8 +104,7 @@ public final class MLuaClientRenderManager {
             Vec3 camera = rawCamera == null ? Minecraft.getInstance().gameRenderer.getMainCamera().getPosition() :
                 (Vec3) invokeOptional(rawCamera, "getPosition", "position");
             if (camera == null) camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-            var lookVector = rawCamera instanceof Camera ? ((Camera) rawCamera).getLookVector() : Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
-            Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
+            Vec3 look = cameraLook(rawCamera == null ? Minecraft.getInstance().gameRenderer.getMainCamera() : rawCamera);
             for (RenderObject object : OBJECTS.values()) {
                 synchronized (object.executionLock()) {
                     if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL
@@ -142,6 +141,16 @@ public final class MLuaClientRenderManager {
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             return null;
         }
+    }
+
+    private static Vec3 cameraLook(Object camera) {
+        Object value = invokeOptional(camera, "getLookVector", "getLookDirection", "getForwardVector", "getLookAngle", "lookVector", "lookDirection");
+        Object x = invokeOptional(value, "x");
+        Object y = invokeOptional(value, "y");
+        Object z = invokeOptional(value, "z");
+        return x instanceof Number && y instanceof Number && z instanceof Number
+            ? new Vec3(((Number)x).doubleValue(), ((Number)y).doubleValue(), ((Number)z).doubleValue())
+            : new Vec3(0, 0, 1);
     }
 
     private static Entity resolveFollowEntity(MLuaEntityScope scope) {
@@ -729,9 +738,8 @@ public final class MLuaClientRenderManager {
         }
 
         Vec3 cameraPos = camera.getPosition();
-        var lookVector = camera.getLookVector();
+        Vec3 look = cameraLook(camera);
         var upVector = camera.getUpVector();
-        Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
         Vec3 up = new Vec3(upVector.x(), upVector.y(), upVector.z());
         Vec3 right = up.cross(look);
         Vec3 rel = new Vec3(worldX - cameraPos.x, worldY - cameraPos.y, worldZ - cameraPos.z);
