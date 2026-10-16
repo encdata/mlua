@@ -17,7 +17,9 @@ Remove-Item $minecraftLogPath -Force -ErrorAction SilentlyContinue
 
 $arguments = @($GradleArgs) + @($Task)
 $argumentText = $arguments -join ' '
-$command = "gradle $argumentText 1> `"$stdoutPath`" 2> `"$stderrPath`""
+$wrapperPath = Join-Path (Get-Location).Path 'gradlew.bat'
+$gradleCommand = if (Test-Path $wrapperPath) { "`"$wrapperPath`"" } else { 'gradle' }
+$command = "$gradleCommand $argumentText 1> `"$stdoutPath`" 2> `"$stderrPath`""
 $process = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', $command) `
     -WorkingDirectory (Get-Location).Path -PassThru
 

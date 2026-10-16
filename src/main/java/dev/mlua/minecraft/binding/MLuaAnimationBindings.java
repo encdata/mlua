@@ -144,7 +144,7 @@ public final class MLuaAnimationBindings {
             throw new LuaError("[MLua] " + caller + " expects an Animation or keyframe table");
         }
         if (registration.isInstanceOf(value, "Animation")) {
-            LuaValue stored = value.get("__mlua_animation");
+            LuaValue stored = value.rawget("__mlua_animation");
             if (stored.isuserdata(MLuaAnimation.class)) {
                 return (MLuaAnimation) stored.checkuserdata(MLuaAnimation.class);
             }
@@ -394,9 +394,8 @@ public final class MLuaAnimationBindings {
     }
 
     private static LuaTable createAnimationInstance(MLuaAnimation animation, MLuaRegistration registration) {
-        LuaTable fields = new LuaTable();
-        fields.set("__mlua_animation", LuaValue.userdataOf(animation));
-        LuaTable table = createClassInstance(registration, "Animation", fields);
+        LuaTable table = createClassInstance(registration, "Animation", new LuaTable());
+        table.rawset("__mlua_animation", LuaValue.userdataOf(animation));
         MLuaClassMethods.setInstanceMethod(table, "GetLength", new ZeroArgFunction() {
             public LuaValue call() {
                 return LuaValue.valueOf(animation.getLength());

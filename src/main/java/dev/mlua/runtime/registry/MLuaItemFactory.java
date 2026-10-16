@@ -21,6 +21,8 @@ import java.util.TreeMap;
 import net.minecraft.core.component.DataComponents;
 //--endversion
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -134,10 +136,10 @@ public final class MLuaItemFactory {
       if (extension != null) return extension.createNamed(Map.copyOf(properties), registryName);
       ItemDefinition definition = this.definition(properties);
       return switch (definition.kind()) {
-         case ITEM -> new MLuaNamedItem(this.makeProperties(properties), registryName);
-          case BOW -> new MLuaRegisteredBow(this.makeBowProperties(properties), registryName);
+         case ITEM -> new MLuaNamedItem(this.makeRegisteredProperties(properties, registryName), registryName);
+          case BOW -> new MLuaRegisteredBow(this.makeRegisteredBowProperties(properties, registryName), registryName);
           //--version 1.21.1
-          case SWORD -> new SwordItem(definition.tier(), this.makeProperties(properties)) {
+          case SWORD -> new SwordItem(definition.tier(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -151,7 +153,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case PICKAXE -> new PickaxeItem(definition.tier(), this.makeProperties(properties)) {
+          case PICKAXE -> new PickaxeItem(definition.tier(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -165,7 +167,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case AXE -> new AxeItem(definition.tier(), this.makeProperties(properties)) {
+          case AXE -> new AxeItem(definition.tier(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -179,7 +181,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case SHOVEL -> new ShovelItem(definition.tier(), this.makeProperties(properties)) {
+          case SHOVEL -> new ShovelItem(definition.tier(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -193,7 +195,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case HOE -> new HoeItem(definition.tier(), this.makeProperties(properties)) {
+          case HOE -> new HoeItem(definition.tier(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -209,7 +211,7 @@ public final class MLuaItemFactory {
           };
           //--endversion
           //--version 1.20.1
-          case SWORD -> new SwordItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+          case SWORD -> new SwordItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -223,7 +225,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case PICKAXE -> new PickaxeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+          case PICKAXE -> new PickaxeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -237,7 +239,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case AXE -> new AxeItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+          case AXE -> new AxeItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -251,7 +253,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case SHOVEL -> new ShovelItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+          case SHOVEL -> new ShovelItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -265,7 +267,7 @@ public final class MLuaItemFactory {
                MLuaItemHooks.initializeClient(consumer);
             }
           };
-          case HOE -> new HoeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+          case HOE -> new HoeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeRegisteredProperties(properties, registryName)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(registryName);
             }
@@ -289,10 +291,10 @@ public final class MLuaItemFactory {
       if (extension != null) return extension.createScripted(Map.copyOf(properties), behaviorKey);
       ItemDefinition definition = this.definition(properties);
       return switch (definition.kind()) {
-         case ITEM -> new dev.mlua.minecraft.scripted.MLuaScriptedItem(this.makeProperties(properties), behaviorKey);
-         case BOW -> new MLuaRegisteredBow(this.makeBowProperties(properties), behaviorKey);
+         case ITEM -> new dev.mlua.minecraft.scripted.MLuaScriptedItem(this.makeRegisteredProperties(properties, behaviorKey), behaviorKey);
+         case BOW -> new MLuaRegisteredBow(this.makeRegisteredBowProperties(properties, behaviorKey), behaviorKey);
          //--version 1.21.1
-         case SWORD -> new SwordItem(definition.tier(), this.makeProperties(properties)) {
+         case SWORD -> new SwordItem(definition.tier(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -336,7 +338,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case PICKAXE -> new PickaxeItem(definition.tier(), this.makeProperties(properties)) {
+          case PICKAXE -> new PickaxeItem(definition.tier(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -380,7 +382,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case AXE -> new AxeItem(definition.tier(), this.makeProperties(properties)) {
+          case AXE -> new AxeItem(definition.tier(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -424,7 +426,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case SHOVEL -> new ShovelItem(definition.tier(), this.makeProperties(properties)) {
+          case SHOVEL -> new ShovelItem(definition.tier(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -468,7 +470,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case HOE -> new HoeItem(definition.tier(), this.makeProperties(properties)) {
+          case HOE -> new HoeItem(definition.tier(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -514,7 +516,7 @@ public final class MLuaItemFactory {
           };
           //--endversion
           //--version 1.20.1
-          case SWORD -> new SwordItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+          case SWORD -> new SwordItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -558,7 +560,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case PICKAXE -> new PickaxeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+          case PICKAXE -> new PickaxeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -602,7 +604,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case AXE -> new AxeItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+          case AXE -> new AxeItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -646,7 +648,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case SHOVEL -> new ShovelItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeProperties(properties)) {
+          case SHOVEL -> new ShovelItem(definition.tier(), definition.attackDamage(), definition.attackSpeed(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -690,7 +692,7 @@ public final class MLuaItemFactory {
                super.onCraftedBy(stack, level, player);
             }
           };
-          case HOE -> new HoeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeProperties(properties)) {
+          case HOE -> new HoeItem(definition.tier(), Math.round(definition.attackDamage()), definition.attackSpeed(), this.makeRegisteredProperties(properties, behaviorKey)) {
             public net.minecraft.network.chat.Component getName(ItemStack stack) {
                return MLuaItemHooks.itemName(behaviorKey);
             }
@@ -810,6 +812,21 @@ public final class MLuaItemFactory {
       }
 
       return item;
+   }
+
+   public Item.Properties makeRegisteredProperties(Map<String, Object> properties, String registryName) {
+      return this.withRegistryId(this.makeProperties(properties), registryName);
+   }
+
+   private Item.Properties makeRegisteredBowProperties(Map<String, Object> properties, String registryName) {
+      return this.withRegistryId(this.makeBowProperties(properties), registryName);
+   }
+
+   private Item.Properties withRegistryId(Item.Properties properties, String registryName) {
+      //--version 26.1
+      properties.setId(ResourceKey.create(Registries.ITEM, MLuaResourceLocations.parse(registryName)));
+      //--endversion
+      return properties;
    }
 
    private Item.Properties makeBowProperties(Map<String, Object> properties) {

@@ -478,7 +478,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             } else {
                MLuaLoaderRegistry.register(RegistryKind.ITEM, owner, name, () -> {
-                  return MLuaRegistryService.this.itemFactory.createNamed(props, name);
+                  return MLuaRegistryService.this.itemFactory.createNamed(props, key);
                });
             }
 
@@ -595,7 +595,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             }
 
             MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
-               return MLuaRegistryService.this.blockFactory.create(props, name, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
+               return MLuaRegistryService.this.blockFactory.create(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
             });
             MLuaRegistryService.this.updateVisualMetadata(RegistryKind.BLOCK, owner, name, previous ->
                new RegistryVisualMetadata(propsTable != null ? propsTable.get("copy").optjstring((String)null) : null,
@@ -638,12 +638,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
             if (hasCallbacks) {
                MLuaLoaderRegistry.register(RegistryKind.ITEM, owner, name, () -> {
-                  return new MLuaScriptedBlockItem((Block)blockRO.get(), MLuaRegistryService.this.itemFactory.makeProperties(props), key);
+                  return new MLuaScriptedBlockItem((Block)blockRO.get(), MLuaRegistryService.this.itemFactory.makeRegisteredProperties(props, key), key);
                });
             } else {
                MLuaLoaderRegistry.register(RegistryKind.ITEM, owner, name, () -> {
                   return new dev.mlua.runtime.registry.MLuaNamedBlockItem((Block)blockRO.get(),
-                     MLuaRegistryService.this.itemFactory.makeProperties(props), key);
+                     MLuaRegistryService.this.itemFactory.makeRegisteredProperties(props, key), key);
                });
             }
 

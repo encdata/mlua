@@ -12,6 +12,8 @@ import java.util.Collections;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SoundType;
@@ -84,9 +86,9 @@ public final class MLuaBlockFactory {
       validateType(properties, extension);
       validateCopyDefinition(properties);
       if (extension != null) {
-         return extension.createNamed(Map.copyOf(properties), this.makeProperties(properties), registryName, blockEntityType);
+         return extension.createNamed(Map.copyOf(properties), this.withRegistryId(this.makeProperties(properties), registryName), registryName, blockEntityType);
       }
-      return new MLuaNamedBlock(this.makeProperties(properties), registryName, blockEntityType);
+      return new MLuaNamedBlock(this.withRegistryId(this.makeProperties(properties), registryName), registryName, blockEntityType);
    }
 
    public Block createScripted(Map<String, Object> properties, String behaviorKey, Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
@@ -94,9 +96,16 @@ public final class MLuaBlockFactory {
       validateType(properties, extension);
       validateCopyDefinition(properties);
       if (extension != null) {
-         return extension.createScripted(Map.copyOf(properties), this.makeProperties(properties), behaviorKey, blockEntityType);
+         return extension.createScripted(Map.copyOf(properties), this.withRegistryId(this.makeProperties(properties), behaviorKey), behaviorKey, blockEntityType);
       }
-      return MLuaScriptedBlock.create(this.makeProperties(properties), behaviorKey, blockEntityType);
+      return MLuaScriptedBlock.create(this.withRegistryId(this.makeProperties(properties), behaviorKey), behaviorKey, blockEntityType);
+   }
+
+   private BlockBehaviour.Properties withRegistryId(BlockBehaviour.Properties properties, String registryName) {
+      //--version 26.1
+      properties.setId(ResourceKey.create(Registries.BLOCK, MLuaResourceLocations.parse(registryName)));
+      //--endversion
+      return properties;
    }
 
    private static TypeProvider registeredType(Map<String, Object> properties) {

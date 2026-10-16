@@ -209,6 +209,17 @@ jobs:
           New-Item -ItemType Directory -Force "$template/run/mods" | Out-Null
           New-Item -ItemType Directory -Force "$template/run/mlua/scripts" | Out-Null
           New-Item -ItemType Directory -Force "$template/compile-libs" | Out-Null
+          New-Item -ItemType Directory -Force "$template/gradle/wrapper" | Out-Null
+          Copy-Item 'gradlew.bat' "$template/gradlew.bat"
+          Copy-Item 'gradle/wrapper/gradle-wrapper.jar' "$template/gradle/wrapper/gradle-wrapper.jar"
+          @(
+            'distributionBase=GRADLE_USER_HOME'
+            'distributionPath=wrapper/dists'
+            'distributionUrl=https\://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip'
+            'networkTimeout=10000'
+            'zipStoreBase=GRADLE_USER_HOME'
+            'zipStorePath=wrapper/dists'
+          ) | Set-Content "$template/gradle/wrapper/gradle-wrapper.properties"
           if ('${{ matrix.loader }}' -eq 'neoforge' -and '${{ matrix.target }}' -eq '1.21.1') {
             New-Item -ItemType Directory -Force "$template/run/config" | Out-Null
             'earlyWindowControl = false' | Set-Content "$template/run/config/fml.toml"
