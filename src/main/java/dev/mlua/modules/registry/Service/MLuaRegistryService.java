@@ -299,8 +299,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String resourceType = args.checkjstring(2);
             String id = args.checkjstring(3);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
-            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
-               "datapack", owner, args.checktable(4));
+            LuaTable definition = args.checktable(4);
             JsonObject json = MLuaRegistryService.jsonObjectArg(definition, "data pack resource");
             try {
                MLuaRegistryService.this.registerGeneratedDataResource(owner, resourceType, id, json);
@@ -336,8 +335,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String id = args.checkjstring(3);
-            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
-               "worldgen", owner, args.checktable(4));
+            LuaTable definition = args.checktable(4);
             MLuaRegistryService.this.registerWorldGenerationResource(owner, resourceType, id, definition);
             return LuaValue.NONE;
          }
@@ -359,8 +357,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String name = args.checkjstring(2);
-            LuaTable definition = MLuaRegistryService.this.context.mlua().registration().resolveContentType(
-               "worldgen", owner, args.checktable(3));
+            LuaTable definition = args.checktable(3);
             String feature = MLuaRegistryService.stringProperty(definition, "feature", "Feature", "placedFeature", "PlacedFeature");
             String step = MLuaRegistryService.worldGenerationStepProperty(definition);
             if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a placed feature id");
@@ -418,8 +415,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Items:Register");
-            LuaTable propsTable = MLuaRegistryService.this.context.mlua().registration().resolveContentType("item", owner,
-               args.arg(3).opttable((LuaTable)null));
+            LuaTable propsTable = args.arg(3).opttable(new LuaTable());
             Map<String, Object> props = MLuaLuaBindings.mapFromLua(propsTable);
             MLuaRegistryService.this.itemFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
@@ -465,8 +461,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:Register");
-            LuaTable propsTable = MLuaRegistryService.this.context.mlua().registration().resolveContentType("block", owner,
-               args.arg(3).opttable((LuaTable)null));
+            LuaTable propsTable = args.arg(3).opttable(new LuaTable());
             Map<String, Object> props = new HashMap(MLuaLuaBindings.mapFromLua(propsTable));
             MLuaBlockFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
