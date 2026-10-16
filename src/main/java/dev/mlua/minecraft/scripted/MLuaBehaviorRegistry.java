@@ -213,7 +213,7 @@ public final class MLuaBehaviorRegistry {
       return removed.get();
    }
 
-   private static ContainerDefinition validateContainerDefinition(ContainerDefinition definition) {
+   public static ContainerDefinition validateContainerDefinition(ContainerDefinition definition) {
       if (definition == null) throw new IllegalArgumentException("Scripted container definition is required");
       if (definition.rows() < 1 || definition.rows() > 6) throw new IllegalArgumentException("Scripted container rows must be from 1 to 6");
       if (definition.title() == null || definition.title().isBlank()) throw new IllegalArgumentException("Scripted container title must be non-empty");

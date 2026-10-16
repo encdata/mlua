@@ -422,9 +422,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             boolean copyModel = MLuaRegistryService.booleanProperty(propsTable, "copyModel", "CopyModel");
             MLuaTextureDescriptor itemTexture = MLuaRegistryService.textureDescriptor(propsTable, "itemTexture", "texture", "textures", "ItemTexture", "Texture", "Textures").resolve(owner, "item");
             String itemModel = MLuaRegistryService.resolvedModel(owner, "item", propsTable, "model", "Model", "itemModel", "ItemModel");
-            MLuaLoaderRegistry.setItemCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
-            MLuaLoaderRegistry.setItemCopyModel(owner, name, copyModel);
-            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             if (hasCallbacks) {
                MLuaLoaderRegistry.register(RegistryKind.ITEM, owner, name, () -> {
                   return MLuaRegistryService.this.itemFactory.createScripted(props, key);
@@ -435,6 +432,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             }
 
+            MLuaLoaderRegistry.setItemCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
+            MLuaLoaderRegistry.setItemCopyModel(owner, name, copyModel);
+            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             MLuaLoaderRegistry.setItemVisuals(owner, name, itemTexture, itemModel);
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, "Item".equals(className) ? null : className);
@@ -478,8 +478,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                      int rows = MLuaLuaArguments.optionalWholeInt(containerTable.get("Rows"), 3,
                         "Registry.Blocks:Register", "container.Rows");
                      String title = containerTable.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
-                     requestedContainer = new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
-                        MLuaRegistryService.containerAllowedItems(owner, containerTable));
+                     try {
+                        requestedContainer = MLuaBehaviorRegistry.validateContainerDefinition(
+                           new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
+                              MLuaRegistryService.containerAllowedItems(owner, containerTable)));
+                     } catch (IllegalArgumentException invalid) {
+                        throw new LuaError("[MLua] " + invalid.getMessage());
+                     }
                   } else if (containerValue.isstring()) {
                      String typeName = containerValue.checkjstring();
                      String typeKey = typeName.contains(":") ? typeName : owner + ":" + typeName;
@@ -494,10 +499,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaTextureDescriptor texture = MLuaRegistryService.textureDescriptor(propsTable, "textures", "texture", "Textures", "Texture", "blockTexture", "BlockTexture").resolve(owner, "block");
             String model = MLuaRegistryService.resolvedModel(owner, "block", propsTable, "model", "Model", "blockModel", "BlockModel");
             JsonObject blockState = MLuaRegistryService.optionalJsonObject(propsTable, "blockState", "blockstate", "BlockState");
-            MLuaLoaderRegistry.setBlockCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
-            MLuaLoaderRegistry.setBlockCopyModel(owner, name, copyModel);
-            MLuaLoaderRegistry.setBlockDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
-            MLuaRegistryService.this.applyMiningProperties(owner, name, propsTable, props);
+            MiningProperties mining = MLuaRegistryService.prepareMiningProperties(propsTable, props);
             if (blockState != null) {
                MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, blockState);
             }
@@ -509,6 +511,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                      return MLuaRegistryService.this.blockFactory.createScripted(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
                   });
+                  MLuaLoaderRegistry.setBlockCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
+                  MLuaLoaderRegistry.setBlockCopyModel(owner, name, copyModel);
+                  MLuaLoaderRegistry.setBlockDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
+                  MLuaRegistryService.this.registerMiningProperties(owner, name, mining);
                   if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
                   MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
                   MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
@@ -523,6 +529,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                return MLuaRegistryService.this.blockFactory.create(props, name, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
             });
+            MLuaLoaderRegistry.setBlockCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
+            MLuaLoaderRegistry.setBlockCopyModel(owner, name, copyModel);
+            MLuaLoaderRegistry.setBlockDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
+            MLuaRegistryService.this.registerMiningProperties(owner, name, mining);
             if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
             MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
             MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
@@ -547,7 +557,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             boolean hasCallbacks = !itemCallbacks.isEmpty();
 
-            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             RegistryHandle<Block> blockRO = MLuaLoaderRegistry.get(RegistryKind.BLOCK, owner, name);
             if (blockRO == null) {
                throw new LuaError("[MLua] Block '" + key + "' not found. Register the block before its block item.");
@@ -563,6 +572,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             }
 
+            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, className);
 
@@ -967,8 +977,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
             Map<String, LuaValue> itemCallbacks = collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
-            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             MLuaLoaderRegistry.registerSpawnEgg(owner, name, entityType, primaryColor, secondaryColor);
+            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             MLuaRegistryService.this.replaceBehaviors("item", owner + ":" + name, itemCallbacks);
             return LuaValue.NONE;
          }
@@ -1487,16 +1497,25 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       }
    }
 
-   private void applyMiningProperties(String owner, String name, LuaTable propsTable, Map<String, Object> props) {
+   private static MiningProperties prepareMiningProperties(LuaTable propsTable, Map<String, Object> props) {
       String mineableWith = stringProperty(propsTable, "mineableWith", "MineableWith", "toolType", "ToolType", "effectiveToolTag", "EffectiveToolTag");
-      if (mineableWith != null && !mineableWith.isBlank()) {
-         this.registerSingleBlockTag(owner, "mineable/" + normalizeToolName(mineableWith), owner + ":" + name);
-      }
+      String mineableTag = mineableWith == null || mineableWith.isBlank()
+         ? null : "mineable/" + normalizeToolName(mineableWith);
 
       String requiredTier = stringProperty(propsTable, "requiredToolTier", "RequiredToolTier", "toolTier", "ToolTier", "minToolTier", "MinToolTier");
       if (requiredTier != null && !requiredTier.isBlank()) {
-         this.registerSingleBlockTag(owner, requiredToolTierTag(requiredTier), owner + ":" + name);
+         requiredTier = requiredToolTierTag(requiredTier);
          props.put("requiresCorrectTool", true);
+      }
+      return new MiningProperties(mineableTag, requiredTier);
+   }
+
+   private void registerMiningProperties(String owner, String name, MiningProperties properties) {
+      if (properties.mineableTag() != null) {
+         this.registerSingleBlockTag(owner, properties.mineableTag(), owner + ":" + name);
+      }
+      if (properties.requiredTierTag() != null) {
+         this.registerSingleBlockTag(owner, properties.requiredTierTag(), owner + ":" + name);
       }
    }
 
@@ -1524,6 +1543,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          default -> throw new LuaError("[MLua] Unsupported requiredToolTier/toolTier value: " + value);
       };
    }
+
+   private record MiningProperties(String mineableTag, String requiredTierTag) { }
 
     private static MobCategory mobCategory(LuaTable table) {
       String value = stringProperty(table, "category", "Category", "mobCategory", "MobCategory");
