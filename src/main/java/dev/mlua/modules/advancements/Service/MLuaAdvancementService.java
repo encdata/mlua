@@ -148,19 +148,14 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       if (adv == null) return false;
       MCPlayerAdvancements pa = MCPlayerAdvancementsImpl.fromReal(
          (net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner());
-      var progress = pa.getOrStartProgress(adv);
-      if (!progress.getRemainingCriteria().contains(criterion)) return false;
-      pa.award(adv, criterion);
-      return true;
+      return pa.award(adv, criterion);
 //--endversion
 //--version 1.21.1,26.1
       var rawAdv = this.resolveAdvancementHolder(advancementId);
       if (rawAdv == null) return false;
       var rawPa = ((net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner()).getAdvancements();
       var holder = new net.minecraft.advancements.AdvancementHolder(MLuaResourceLocations.parse(advancementId), rawAdv);
-      if (!rawPa.getOrStartProgress(holder).getRemainingCriteria().contains(criterion)) return false;
-      rawPa.award(holder, criterion);
-      return true;
+      return rawPa.award(holder, criterion);
 //--endversion
    }
 
@@ -172,7 +167,8 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       MCAdvancement adv = this.resolveAdvancement(advancementId);
       if (adv == null) return false;
       var rawPa = ((net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner()).getAdvancements();
-      if (!rawPa.getOrStartProgress(((MCAdvancementImpl)adv).inner()).getCompletedCriteria().contains(criterion)) return false;
+      var progress = rawPa.getOrStartProgress(((MCAdvancementImpl)adv).inner());
+      if (!contains(progress.getCompletedCriteria(), criterion)) return false;
       rawPa.revoke(((MCAdvancementImpl)adv).inner(), criterion);
       return true;
 //--endversion
@@ -181,7 +177,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       if (rawAdv == null) return false;
       var rawPa = ((net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner()).getAdvancements();
       var holder = new net.minecraft.advancements.AdvancementHolder(MLuaResourceLocations.parse(advancementId), rawAdv);
-      if (!rawPa.getOrStartProgress(holder).getCompletedCriteria().contains(criterion)) return false;
+      if (!contains(rawPa.getOrStartProgress(holder).getCompletedCriteria(), criterion)) return false;
       rawPa.revoke(holder, criterion);
       return true;
 //--endversion
@@ -315,6 +311,11 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    private MCMinecraftServer server() {
       return MCMinecraftServerImpl.fromReal(this.context.mlua().server());
+   }
+
+   private static boolean contains(Iterable<String> values, String expected) {
+      for (String value : values) if (expected.equals(value)) return true;
+      return false;
    }
 
 //--version 1.20.1
