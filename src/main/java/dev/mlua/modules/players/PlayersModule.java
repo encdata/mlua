@@ -791,6 +791,8 @@ public class PlayersModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("Mob", "mob.PersistenceRequired", "boolean", "Whether this mob is marked to persist without despawning.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Name", "string", "The entity's current name.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.UUID", "string", "The entity's UUID.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Level", "Level", "The lightweight live dimension wrapper containing this entity.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.World", "Level", "Alias for Level. Use Minecraft:GetService(\"World\"):Get(entity.Dimension) to access the full world service instance.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Nbt", "Nbt|table", "The entity's persistent data. Server-side only; assigning a table or Nbt value replaces it.", "server:Server"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Position", "Vector3", "The entity's current position. Readable and writable.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("Entity", "entity.Velocity", "Vector3", "The entity's current velocity. Readable and writable.", "shared:Shared"));
