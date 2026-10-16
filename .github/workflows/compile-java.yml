@@ -285,6 +285,36 @@ jobs:
               if entry.Id == containerHandle.Id then foundContainer = true end
           end
           assert(foundContainer, "Registry.Containers:GetEntries did not include the registered container")
+          Registry.DataPack:Register("mlua_test/records", "entry", { Value = 7, nested = { enabled = true } })
+          local dataEntry = Registry.DataPack:Get("mlua_test/records", "entry")
+          assert(dataEntry ~= nil and dataEntry:IsA("GeneratedDataResource")
+              and dataEntry.Type == "mlua_test/records" and dataEntry.Id == "mlua:entry",
+              "Registry.DataPack:Get did not return a typed generated resource")
+          assert(Registry.DataPack:GetEntry("mlua_test/records", "entry"):Equals(dataEntry),
+              "Registry.DataPack:GetEntry did not alias Get")
+          local dataCopy = dataEntry:GetDefinition()
+          dataCopy.nested.enabled = false
+          assert(dataEntry:GetDefinition().nested.enabled == true,
+              "GeneratedDataResource exposed mutable registration state")
+          assert(Registry.DataPack:Exists("mlua_test/records", "entry"),
+              "Registry.DataPack:Exists missed a registered data resource")
+          local allDataEntries = Registry.DataPack:GetAll("mlua_test/records", "mlua")
+          assert(allDataEntries["mlua:entry"]:Equals(dataEntry),
+              "Registry.DataPack:GetAll did not return a map of typed handles")
+          local rootDataEntry = Registry:GetEntry("datapack", "mlua_test/records", "entry")
+          assert(rootDataEntry:IsA("GeneratedDataResource") and rootDataEntry:Equals(dataEntry),
+              "root Registry:GetEntry did not route generated data resources")
+          assert(Registry:GetAll("datapack", "mlua_test/records", "mlua")["mlua:entry"]:Equals(dataEntry),
+              "root Registry:GetAll did not return generated data handles")
+          local dataIds = Registry.DataPack:GetIds("mlua_test/records", "mlua")
+          assert(#dataIds == 1 and dataIds[1] == "mlua:entry",
+              "Registry.DataPack:GetIds did not filter the resource type and namespace")
+          local dataEntries = Registry.DataPack:GetEntries("mlua_test/records", "mlua")
+          assert(#dataEntries == 1 and dataEntries[1]:Equals(dataEntry),
+              "Registry.DataPack:GetEntries did not return typed handles")
+          local rootDataEntries = Registry:GetEntries("datapack", "mlua_test/records", "mlua")
+          assert(#rootDataEntries == 1 and rootDataEntries[1]:Equals(dataEntry),
+              "root Registry:GetEntries did not return generated data handles")
           Registry.Items:RegisterType("ci_property_item_kind", {
               Base = "item",
               Description = "CI item defaults built from ItemProperties.",

@@ -38,6 +38,7 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
 import dev.mlua.minecraft.binding.MLuaRegistryDefinition;
+import dev.mlua.minecraft.binding.MLuaGeneratedDataResource;
 import dev.mlua.minecraft.binding.MLuaContainerType;
 import dev.mlua.minecraft.binding.MLuaRegistryProperties;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
@@ -157,6 +158,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       };
       worldGeneration.set("Register" + name, register);
       worldGeneration.set("register" + name, register);
+      worldGeneration.set("Get" + name, this.generatedDataGetter(resourceType));
    }
 
    private void registerWorldGenerationResource(String owner, String resourceType, String id, LuaTable definition) {
@@ -175,6 +177,96 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedDataResource(
          owner, resourceType, id, contribution);
       this.context.mlua().registration().trackRollback(rollback);
+   }
+
+   private VarArgFunction generatedDataGetter(String resourceType) {
+      return new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryService.this.generatedDataResource(resourceType, args.checkjstring(2));
+         }
+      };
+   }
+
+   private LuaValue generatedDataResource(String resourceType, String id) {
+      String type = requireDataResourceType(resourceType);
+      LuaTable entry = MLuaGeneratedDataResource.create(this.context.mlua().registration(), type, this.registryId(id));
+      return entry == null ? LuaValue.NIL : entry;
+   }
+
+   private List<String> generatedDataIds(String resourceType, String namespace) {
+      String type = requireDataResourceType(resourceType);
+      try {
+         return MLuaLoaderRegistry.getGeneratedDataResourceIds(type, namespace);
+      } catch (IllegalArgumentException error) {
+         throw new LuaError("[MLua] " + error.getMessage());
+      }
+   }
+
+   private LuaTable generatedDataEntryList(String resourceType, String namespace) {
+      String type = requireDataResourceType(resourceType);
+      LuaTable result = new LuaTable();
+      int index = 1;
+      for (String id : this.generatedDataIds(type, namespace)) {
+         LuaTable entry = MLuaGeneratedDataResource.create(this.context.mlua().registration(), type, id);
+         if (entry != null) result.set(index++, entry);
+      }
+      return result;
+   }
+
+   private LuaTable generatedDataEntryMap(String resourceType, String namespace) {
+      String type = requireDataResourceType(resourceType);
+      LuaTable result = new LuaTable();
+      for (String id : this.generatedDataIds(type, namespace)) {
+         LuaTable entry = MLuaGeneratedDataResource.create(this.context.mlua().registration(), type, id);
+         if (entry != null) result.set(id, entry);
+      }
+      return result;
+   }
+
+   private void installGeneratedDataLookupApi(LuaTable target) {
+      target.set("Get", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryService.this.generatedDataResource(args.checkjstring(2), args.checkjstring(3));
+         }
+      });
+      target.set("GetEntry", target.get("Get"));
+      target.set("GetIds", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return stringArray(MLuaRegistryService.this.generatedDataIds(args.checkjstring(2), optionalNamespace(args.arg(3))));
+         }
+      });
+      target.set("GetEntries", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryService.this.generatedDataEntryList(
+               args.checkjstring(2), optionalNamespace(args.arg(3)));
+         }
+      });
+      target.set("GetAll", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryService.this.generatedDataEntryMap(
+               args.checkjstring(2), optionalNamespace(args.arg(3)));
+         }
+      });
+      target.set("Exists", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return LuaValue.valueOf(!MLuaRegistryService.this.generatedDataResource(
+               args.checkjstring(2), args.checkjstring(3)).isnil());
+         }
+      });
+   }
+
+   private static String requireDataResourceType(String value) {
+      String type = value == null ? "" : value.trim();
+      if (type.isEmpty() || type.startsWith("/") || type.endsWith("/") || type.contains("\\")
+          || !type.matches("[a-z0-9_./-]+")) {
+         throw new LuaError("[MLua] Data resource type must be a lowercase relative path, such as worldgen/biome");
+      }
+      for (String segment : type.split("/")) {
+         if (segment.isBlank() || segment.equals(".") || segment.equals("..")) {
+            throw new LuaError("[MLua] Data resource type contains an invalid path segment");
+         }
+      }
+      return type;
    }
 
    private void registerGeneratedAssetResource(String owner, String path, JsonObject definition) {
@@ -355,6 +447,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "Structure", "worldgen/structure");
       MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "StructureSet", "worldgen/structure_set");
       MLuaRegistryService.this.addWorldGenerationRegistration(worldGeneration, "TemplatePool", "worldgen/template_pool");
+      MLuaRegistryService.this.installGeneratedDataLookupApi(dataPack);
+      MLuaRegistryService.this.installGeneratedDataLookupApi(worldGeneration);
       worldGeneration.set("addFeature", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
@@ -1264,6 +1358,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             if ("DataPack".equals(endpoint.table())) {
+                return MLuaRegistryService.this.generatedDataEntryList(
+                   args.checkjstring(3), optionalNamespace(args.arg(4)));
+             }
              String namespace = optionalNamespace(args.arg(3));
              if (endpoint.registryKind() != null) {
                 return registeredEntries(endpoint.registryKind(), namespace);
@@ -1336,6 +1434,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             if ("DataPack".equals(endpoint.table())) {
+                return MLuaRegistryService.this.generatedDataResource(args.checkjstring(3), args.checkjstring(4));
+             }
              if (endpoint.registryKind() != null) {
                 return MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(),
                    endpoint.registryKind(), MLuaRegistryService.this.registryId(args.checkjstring(3)));
@@ -1353,6 +1454,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             if ("DataPack".equals(endpoint.table())) {
+                return MLuaRegistryService.this.generatedDataEntryMap(
+                   args.checkjstring(3), optionalNamespace(args.arg(4)));
+             }
              String namespace = optionalNamespace(args.arg(3));
              if (endpoint.registryKind() != null) {
                 return MLuaRegistryService.this.registeredEntryMap(endpoint.registryKind(), namespace);
@@ -1369,6 +1474,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             if ("DataPack".equals(endpoint.table())) {
+                return stringArray(MLuaRegistryService.this.generatedDataIds(
+                   args.checkjstring(3), optionalNamespace(args.arg(4))));
+             }
              String namespace = optionalNamespace(args.arg(3));
              if (endpoint.registryKind() != null) {
                 return stringArray(MLuaRegistryService.this.registeredIdList(endpoint.registryKind(), namespace));
@@ -1384,6 +1493,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        table.set("GetEntry", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "category", table);
+             if ("DataPack".equals(endpoint.table())) {
+                return MLuaRegistryService.this.generatedDataResource(args.checkjstring(3), args.checkjstring(4));
+             }
              String id = MLuaRegistryService.this.registryId(args.checkjstring(3));
              return MLuaRegistryService.this.registryEntryFor(endpoint, id, table);
           }
@@ -1392,6 +1504,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             if ("DataPack".equals(endpoint.table())) {
+                return LuaValue.valueOf(!MLuaRegistryService.this.generatedDataResource(
+                   args.checkjstring(3), args.checkjstring(4)).isnil());
+             }
              String id = MLuaRegistryService.this.registryId(args.checkjstring(3));
              if (endpoint.registryKind() != null) {
                 LuaTable entry = MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(),
@@ -1423,6 +1539,15 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       containerDescriptions.put("GetIds", "Returns sorted container type ids, optionally filtered by namespace.");
       containerDescriptions.put("Exists", "Checks whether a container type id is registered.");
       MLuaServiceMetadata.attachMethodDescriptions(containers, containerDescriptions);
+      Map<String, String> dataPackDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
+      dataPackDescriptions.put("Register", "Writes a Minecraft data-pack JSON resource under the addon's namespace.");
+      dataPackDescriptions.put("Get", "Returns a typed GeneratedDataResource handle for a resource type and id, or nil when missing.");
+      dataPackDescriptions.put("GetEntry", "Returns the typed resource handle for a resource type and id, or nil when missing.");
+      dataPackDescriptions.put("GetAll", "Returns typed resource handles keyed by namespaced id, filtered by resource type and optional namespace.");
+      dataPackDescriptions.put("GetEntries", "Returns sorted typed resource handles filtered by resource type and optional namespace.");
+      dataPackDescriptions.put("GetIds", "Returns sorted resource ids filtered by resource type and optional namespace.");
+      dataPackDescriptions.put("Exists", "Checks whether a resource type and id are registered.");
+      MLuaServiceMetadata.attachMethodDescriptions(dataPack, dataPackDescriptions);
       describeRegistryMethod(items, "Register", "Registers an item with this addon's namespace and returns its live RegistryEntry key.");
       describeRegistryMethod(items, "Properties", "Creates a chainable ItemProperties instance matching Minecraft Item.Properties.");
       describeRegistryMethod(blocks, "Register", "Registers a block and returns its live RegistryEntry key.");
@@ -1448,14 +1573,23 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       MLuaServiceMetadata.attachMethodDescriptions(assets, assetDescriptions);
       Map<String, String> worldGenerationDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
       worldGenerationDescriptions.put("Register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
+      worldGenerationDescriptions.put("Get", "Returns a typed GeneratedDataResource handle for a resource type and id, or nil when missing.");
+      worldGenerationDescriptions.put("GetEntry", "Returns the typed resource handle for a resource type and id, or nil when missing.");
+      worldGenerationDescriptions.put("GetAll", "Returns typed resource handles keyed by namespaced id, filtered by resource type and optional namespace.");
+      worldGenerationDescriptions.put("GetEntries", "Returns sorted typed resource handles filtered by resource type and optional namespace.");
+      worldGenerationDescriptions.put("GetIds", "Returns sorted resource ids filtered by resource type and optional namespace.");
+      worldGenerationDescriptions.put("Exists", "Checks whether a resource type and id are registered.");
       worldGenerationDescriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       worldGenerationDescriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       worldGenerationDescriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       worldGenerationDescriptions.put("RegisterBiome", "Registers a biome resource under worldgen/biome.");
+      worldGenerationDescriptions.put("GetBiome", "Returns a typed handle for a registered biome resource, or nil when missing.");
       worldGenerationDescriptions.put("registerBiome", "Registers a biome resource under worldgen/biome.");
       worldGenerationDescriptions.put("RegisterDimensionType", "Registers a dimension type resource.");
+      worldGenerationDescriptions.put("GetDimensionType", "Returns a typed handle for a registered dimension type, or nil when missing.");
       worldGenerationDescriptions.put("registerDimensionType", "Registers a dimension type resource.");
       worldGenerationDescriptions.put("RegisterDimension", "Registers a dimension resource.");
+      worldGenerationDescriptions.put("GetDimension", "Returns a typed handle for a registered dimension, or nil when missing.");
       worldGenerationDescriptions.put("registerDimension", "Registers a dimension resource.");
       worldGenerationDescriptions.put("RegisterNoiseSettings", "Registers terrain noise settings under worldgen/noise_settings.");
       worldGenerationDescriptions.put("registerNoiseSettings", "Registers terrain noise settings under worldgen/noise_settings.");

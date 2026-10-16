@@ -174,6 +174,18 @@ public final class MLuaLoaderRegistry {
         return GeneratedDataResources.snapshot();
     }
 
+    public static JsonObject getGeneratedDataResource(String resourceType, String id) {
+        return GeneratedDataResources.get(resourceType, id);
+    }
+
+    public static boolean hasGeneratedDataResource(String resourceType, String id) {
+        return GeneratedDataResources.contains(resourceType, id);
+    }
+
+    public static List<String> getGeneratedDataResourceIds(String resourceType, String namespace) {
+        return GeneratedDataResources.ids(resourceType, namespace);
+    }
+
     public static void registerGeneratedAssetResource(String owner, String path, JsonObject definition) {
         GeneratedAssetResources.register(owner, path, definition);
     }

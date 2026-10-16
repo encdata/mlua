@@ -33,6 +33,40 @@ public final class GeneratedDataResources {
         return Map.copyOf(result);
     }
 
+    /** Returns an isolated definition copy for one resource, or null when it is absent. */
+    public static JsonObject get(String resourceType, String id) {
+        String type = normalizePath(resourceType, "resource type");
+        String namespace = namespaceOf(id);
+        String[] location = normalizeId(namespace, id);
+        Entry entry = RESOURCES.get(resourceKey(location, type));
+        return entry == null ? null : entry.definition().deepCopy();
+    }
+
+    public static boolean contains(String resourceType, String id) {
+        String type = normalizePath(resourceType, "resource type");
+        String namespace = namespaceOf(id);
+        String[] location = normalizeId(namespace, id);
+        return RESOURCES.containsKey(resourceKey(location, type));
+    }
+
+    /** Returns sorted full resource identifiers without copying their JSON definitions. */
+    public static java.util.List<String> ids(String resourceType, String namespace) {
+        String type = normalizePath(resourceType, "resource type");
+        if (namespace != null && !NAMESPACE.matcher(namespace).matches()) {
+            throw new IllegalArgumentException("Data resource namespace is invalid");
+        }
+        String marker = ":" + type + "/";
+        java.util.List<String> result = new java.util.ArrayList<>();
+        for (String key : RESOURCES.keySet()) {
+            int separator = key.indexOf(':');
+            if (separator < 0 || !key.startsWith(marker, separator)) continue;
+            String id = key.substring(0, separator + 1) + key.substring(separator + marker.length());
+            if (namespace == null || id.startsWith(namespace + ":")) result.add(id);
+        }
+        result.sort(String::compareTo);
+        return java.util.List.copyOf(result);
+    }
+
     public static boolean removeOwner(String owner) {
         if (owner == null || owner.isBlank()) return false;
         return RESOURCES.entrySet().removeIf(entry -> owner.equals(entry.getValue().owner()));
@@ -79,6 +113,18 @@ public final class GeneratedDataResources {
         if (!NAMESPACE.matcher(namespace).matches()) throw new IllegalArgumentException("Data resource id has an invalid namespace");
         if (!owner.equals(namespace)) throw new IllegalArgumentException("Data resource id must use the addon's namespace");
         return new String[]{namespace, normalizePath(path, "resource id")};
+    }
+
+    private static String namespaceOf(String id) {
+        if (id == null) throw new IllegalArgumentException("Data resource id must be non-empty");
+        int separator = id.indexOf(':');
+        String namespace = separator < 0 ? "" : id.substring(0, separator);
+        if (!NAMESPACE.matcher(namespace).matches()) throw new IllegalArgumentException("Data resource id has an invalid namespace");
+        return namespace;
+    }
+
+    private static String resourceKey(String[] location, String type) {
+        return location[0] + ":" + type + "/" + location[1];
     }
 
     private record Entry(String owner, JsonObject definition) { }

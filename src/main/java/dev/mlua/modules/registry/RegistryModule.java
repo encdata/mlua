@@ -9,6 +9,7 @@ import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaRegistryCatalogs;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
 import dev.mlua.minecraft.binding.MLuaRegistryDefinition;
+import dev.mlua.minecraft.binding.MLuaGeneratedDataResource;
 import dev.mlua.minecraft.binding.MLuaContainerType;
 import dev.mlua.minecraft.binding.MLuaTextureBindings;
 import dev.mlua.modules.registry.Service.MLuaRegistryService;
@@ -151,6 +152,7 @@ public class RegistryModule implements MLuaModule {
         MLuaBlockWrapper.classTable(registration);
         MLuaRegistryEntry.registerClass(registration);
         MLuaRegistryDefinition.registerClass(registration);
+        MLuaGeneratedDataResource.registerClass(registration);
         MLuaContainerType.registerClass(registration);
     }
 
@@ -168,6 +170,7 @@ public class RegistryModule implements MLuaModule {
         globals.set("ScriptedEntity", registration.classTable("ScriptedEntity"));
         globals.set("RegistryEntry", registration.classTable("RegistryEntry"));
         globals.set("RegistryDefinition", registration.classTable("RegistryDefinition"));
+        globals.set("GeneratedDataResource", registration.classTable("GeneratedDataResource"));
         globals.set("ContainerType", registration.classTable("ContainerType"));
         globals.set("RegistryCategory", registration.classTable("RegistryCategory"));
         MLuaItemWrapper.attachCatalogs(itemGlobal, items);
@@ -180,6 +183,31 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("RegistryDefinition", "MLuaRegistryService",
             "A live handle for an entry in an addon-owned Registry category. Definition tables returned by this class are copies.",
             "classes/registry-definition.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("GeneratedDataResource", "MLuaRegistryService",
+            "A live handle for an addon-generated data-pack resource. Definition reads return independent copies.",
+            "classes/generated-data-resource.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("GeneratedDataResource", "GeneratedDataResource.Type", "string",
+            "The Minecraft data resource type, such as worldgen/biome.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("GeneratedDataResource", "GeneratedDataResource.Id", "string",
+            "The full namespaced resource id.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("GeneratedDataResource", "GeneratedDataResource.Definition", "table|nil",
+            "A copy of the JSON definition, or nil after resource removal.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("GeneratedDataResource", "GeneratedDataResource.IsRegistered", "boolean",
+            "Whether this resource remains registered.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetDefinition(): table?",
+            "Returns a copy of this resource's JSON definition, or nil after removal.", null, "table|nil", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:Equals(other: GeneratedDataResource): boolean",
+            "Compares resource type and identifier.", "another GeneratedDataResource", "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:Exists(): boolean",
+            "Checks whether this resource is still registered.", null, "boolean", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetType(): string",
+            "Returns the Minecraft data resource type.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetId(): string",
+            "Returns the full namespaced resource identifier.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetHashCode(): number",
+            "Returns a hash code derived from the resource type and identifier.", null, "number", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:ToString(): string",
+            "Returns this resource as type#namespace:path.", null, "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("RegistryDefinition", "RegistryDefinition:GetId()",
             "Returns this entry's full namespaced identifier.", null, "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.property("RegistryDefinition", "RegistryDefinition.Id", "string",
@@ -226,14 +254,29 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RegistryCategory", "RegistryCategory:GetEntry(id: string): RegistryDefinition?", "live definition handle or nil"));
         docs.register(MLuaDocBuilder.Registration.signature("RegistryCategory", "RegistryCategory:GetEntries(namespace?: string): RegistryDefinition[]", "sorted live definition handles"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:Register(resourceType: string, id: string, definition: table)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:Get(resourceType: string, id: string): GeneratedDataResource?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:GetEntry(resourceType: string, id: string): GeneratedDataResource?", "Alias of Get."));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:GetAll(resourceType: string, namespace?: string): table<string, GeneratedDataResource>", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:GetIds(resourceType: string, namespace?: string): string[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:GetEntries(resourceType: string, namespace?: string): GeneratedDataResource[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:Exists(resourceType: string, id: string): boolean", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Assets", "Registry.Assets:Register(path: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Assets", "Registry.Assets:register(path: string, definition: table)", "Alias of Register."));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:Register(resourceType: string, id: string, definition: table)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:Get(resourceType: string, id: string): GeneratedDataResource?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetEntry(resourceType: string, id: string): GeneratedDataResource?", "Alias of Get."));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetAll(resourceType: string, namespace?: string): table<string, GeneratedDataResource>", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetIds(resourceType: string, namespace?: string): string[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetEntries(resourceType: string, namespace?: string): GeneratedDataResource[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:Exists(resourceType: string, id: string): boolean", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:AddFeature(name: string, definition: WorldGenerationFeatureDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:register(resourceType: string, id: string, definition: table)", "Alias of Register."));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:RegisterBiome(id: string, definition: table)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetBiome(id: string): GeneratedDataResource?", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:RegisterDimensionType(id: string, definition: table)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetDimensionType(id: string): GeneratedDataResource?", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:RegisterDimension(id: string, definition: table)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:GetDimension(id: string): GeneratedDataResource?", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:RegisterNoiseSettings(id: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:RegisterDensityFunction(id: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.WorldGeneration", "Registry.WorldGeneration:RegisterConfiguredFeature(id: string, definition: table)", null));
@@ -611,6 +654,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(category: string, namespace?: string)", "table<string, RegistryEntry|ProjectileType|table>"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntry(category: string, id: string)", "RegistryEntry|RegistryDefinition|ContainerType|ProjectileType|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntries(category: string, namespace?: string)", "(RegistryEntry|RegistryDefinition|ContainerType|ProjectileType)[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntry(\"datapack\", resourceType: string, id: string): GeneratedDataResource?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntries(\"datapack\", resourceType: string, namespace?: string): GeneratedDataResource[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(\"datapack\", resourceType: string, namespace?: string): table<string, GeneratedDataResource>", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(category: string, namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Exists(category: string, id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition|ItemProperties)", "RegistryEntry"));
