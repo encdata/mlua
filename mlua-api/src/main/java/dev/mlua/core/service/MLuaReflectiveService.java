@@ -148,8 +148,15 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
                } catch (InvocationTargetException failure) {
                   Throwable cause = failure.getCause() == null ? failure : failure.getCause();
                   if (cause instanceof LuaError luaError) throw luaError;
+                  if (cause instanceof IllegalArgumentException argumentError) {
+                     throw argumentError(name, argumentError);
+                  }
                   throw new LuaError(new RuntimeException("[MLua] Java service method '" + name + "' on '"
                      + MLuaReflectiveService.this.name() + "' failed", cause));
+               } catch (LuaError error) {
+                  throw error;
+               } catch (IllegalArgumentException error) {
+                  throw argumentError(name, error);
                } catch (Exception e) {
                   throw new LuaError(new RuntimeException("[MLua] Failed to invoke Java service method '" + name
                      + "' on '" + MLuaReflectiveService.this.name() + "'", e));
@@ -162,6 +169,13 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       table.set("__mlua_accessor_parameter_counts", accessorParameterCounts);
 
       return table;
+   }
+
+   private LuaError argumentError(String methodName, IllegalArgumentException cause) {
+      String detail = cause.getMessage();
+      String prefix = "[MLua] " + this.name() + ":" + methodName;
+      return new LuaError(detail == null || detail.isBlank() ? prefix + " received invalid arguments"
+         : prefix + ": " + detail);
    }
 
    protected int serviceArgIndex(Varargs args, LuaValue serviceTable) {

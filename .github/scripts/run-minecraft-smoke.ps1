@@ -82,6 +82,15 @@ try {
         throw "MLua reached Minecraft startup but an API module failed registration:`n$failureDetails"
     }
     if (-not $booted) {
+        Write-Host "Minecraft smoke launcher exited before the boot marker. Captured launcher output follows."
+        foreach ($path in @($stdoutPath, $stderrPath, $minecraftLogPath)) {
+            if (Test-Path $path) {
+                Write-Host "--- $path (last 120 lines) ---"
+                Get-Content $path -Tail 120 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+            } else {
+                Write-Host "--- $path was not created ---"
+            }
+        }
         throw "Gradle task '$Task' exited before MLua emitted '$BootMarker'."
     }
     foreach ($marker in $RequiredMarker) {

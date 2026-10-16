@@ -412,9 +412,7 @@ jobs:
         with:
           name: client-logs-${{ matrix.loader }}-${{ matrix.target }}
           path: |
-            client-smoke/**/logs/latest.log
-            client-smoke/**/crash-reports/*.txt
-            client-smoke/**/client-smoke.log*
-            client-smoke/**/server-smoke.log*
+            ${{ github.workspace }}/client-smoke/**/*.log*
+            ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt
           if-no-files-found: ignore
           retention-days: 5
