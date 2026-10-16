@@ -341,7 +341,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                      table.set(category, LuaValue.NIL);
                   }
                });
-            } catch (RuntimeException failure) {
+            } catch (RuntimeException | Error failure) {
                MLuaRegistryService.this.dynamicRegistry.unregister(key, registered);
                throw failure;
             }
@@ -466,7 +466,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             try {
                MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
                   MLuaBehaviorRegistry.unregisterContainerType(key, container));
-            } catch (RuntimeException failure) {
+            } catch (RuntimeException | Error failure) {
                MLuaBehaviorRegistry.unregisterContainerType(key, container);
                throw failure;
             }
@@ -1336,7 +1336,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                try {
                   MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
                      MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
-               } catch (RuntimeException failure) {
+               } catch (RuntimeException | Error failure) {
                   MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored);
                   throw failure;
                }
@@ -1494,7 +1494,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          key = entry.arg1();
          if (key.isnil()) return copy;
          LuaValue value = entry.arg(2);
-         copy.set(key, value.istable() ? copyLuaTable(value.checktable(), copies) : value);
+         LuaValue copiedKey = key.istable() ? copyLuaTable(key.checktable(), copies) : key;
+         LuaValue copiedValue = value.istable() ? copyLuaTable(value.checktable(), copies) : value;
+         copy.rawset(copiedKey, copiedValue);
       }
    }
 
