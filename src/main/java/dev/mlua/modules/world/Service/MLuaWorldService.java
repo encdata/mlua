@@ -361,11 +361,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
          AABB search = new AABB(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.min(from.z, to.z),
             Math.max(from.x, to.x), Math.max(from.y, to.y), Math.max(from.z, to.z)).inflate(1.0);
          LuaValue filter = args.arg(distanceIndex + 1);
+         MLuaEntityQuery.Filter entityFilter = MLuaEntityQuery.compileFilter(filter, context.mlua().registration());
          Entity nearest = null;
          Vec3 nearestHit = null;
          Vec3 nearestNormal = null;
          for (Entity candidate : level.getEntities((Entity)null, search)) {
-            if (candidate.isRemoved() || !candidate.isPickable() || !matchesFilter(candidate, filter)) continue;
+            if (candidate.isRemoved() || !candidate.isPickable() || !entityFilter.matches(candidate)) continue;
             AABB hitBox = candidate.getBoundingBox().inflate(candidate.getPickRadius());
             var hit = hitBox.clip(from, to);
             if (hit.isEmpty()) continue;
@@ -721,12 +722,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private LuaTable entitiesTable(Level level, AABB box, LuaValue filter) {
-      MLuaEntityQuery.validateFilter(filter, context.mlua().registration());
+      MLuaEntityQuery.Filter entityFilter = MLuaEntityQuery.compileFilter(filter, context.mlua().registration());
       LuaTable list = new LuaTable();
       Iterable<Entity> entities = box == null ? this.allEntities(level) : level.getEntities((Entity)null, box);
       int index = 1;
       for (Entity entity : entities) {
-         if (matchesFilter(entity, filter)) {
+         if (entityFilter.matches(entity)) {
             list.set(index++, wrapEntity(entity));
          }
       }
@@ -930,10 +931,6 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaValue wrapEntity(Entity entity) {
       return entity == null ? LuaValue.NIL : MLuaEntityWrapper.entityTable(entity, context.mlua().registration());
-   }
-
-   private boolean matchesFilter(Entity entity, LuaValue filter) {
-      return MLuaEntityQuery.matches(entity, filter, context.mlua().registration());
    }
 
    private static double checkedQueryRadius(double radius) {

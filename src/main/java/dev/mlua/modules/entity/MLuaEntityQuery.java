@@ -26,7 +26,7 @@ public final class MLuaEntityQuery {
     /** Returns loaded entities inside a spherical query, applying the shared EntityQuery filter. */
     public static List<Entity> findWithinRadius(Level level, double x, double y, double z,
             double radius, Entity excluded, LuaValue filter, MLuaRegistration registration) {
-        CompiledFilter query = compile(filter, registration);
+        Filter query = compileFilter(filter, registration);
         if (level == null) return List.of();
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
             throw new LuaError("[MLua] Entity query center must contain only finite coordinates.");
@@ -87,13 +87,14 @@ public final class MLuaEntityQuery {
 
     public static boolean matches(Entity entity, LuaValue filter, MLuaRegistration registration) {
         if (entity == null) return true;
-        return compile(filter, registration).matches(entity);
+        return compileFilter(filter, registration).matches(entity);
     }
 
-    private static CompiledFilter compile(LuaValue filter, MLuaRegistration registration) {
-        if (filter == null || filter.isnil()) return CompiledFilter.EMPTY;
-        if (filter.isstring()) return new CompiledFilter(filter.tojstring(), null, Set.of(),
-            null, null, null, null, null, null, Set.of(), Set.of(), null, Set.of());
+    /** Compiles one Lua filter for reuse across candidate entities. */
+    public static Filter compileFilter(LuaValue filter, MLuaRegistration registration) {
+        if (filter == null || filter.isnil()) return new Filter(CompiledFilter.EMPTY);
+        if (filter.isstring()) return new Filter(new CompiledFilter(filter.tojstring(), null, Set.of(),
+            null, null, null, null, null, null, Set.of(), Set.of(), null, Set.of()));
         if (!filter.istable()) {
             throw new LuaError("[MLua] EntityQuery must be an entity type id or a filter table.");
         }
@@ -123,8 +124,20 @@ public final class MLuaEntityQuery {
                 excludedEntities.add(entityReference(entities.get(index), registration, "EntityQuery.exclude_entities"));
             }
         }
-        return new CompiledFilter(type, types, excludedTypes, playersOnly, excludePlayers, alive,
-            name, nameContains, tag, requiredTags, excludedTags, excludedEntity, excludedEntities);
+        return new Filter(new CompiledFilter(type, types, excludedTypes, playersOnly, excludePlayers, alive,
+            name, nameContains, tag, requiredTags, excludedTags, excludedEntity, excludedEntities));
+    }
+
+    public static final class Filter {
+        private final CompiledFilter compiled;
+
+        private Filter(CompiledFilter compiled) {
+            this.compiled = compiled;
+        }
+
+        public boolean matches(Entity entity) {
+            return this.compiled.matches(entity);
+        }
     }
 
     private record CompiledFilter(String type, Set<String> types, Set<String> excludedTypes,
@@ -182,7 +195,7 @@ public final class MLuaEntityQuery {
 
     /** Validates a filter, including when a query will find no candidates. */
     public static void validateFilter(LuaValue filter, MLuaRegistration registration) {
-        compile(filter, registration);
+        compileFilter(filter, registration);
     }
 
     /*
