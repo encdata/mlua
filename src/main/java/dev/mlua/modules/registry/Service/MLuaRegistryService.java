@@ -938,7 +938,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              MLuaRegistryService.validateCallback("onSpawn", onSpawn);
              MLuaRegistryService.validateCallback("onInteract", onInteract);
              MLuaRegistryService.validateCallback("onRemove", onRemove);
-             LuaTable attr = propsTable != null ? propsTable.get("attributes").opttable((LuaTable)null) : null;
+             LuaValue attributesValue = propsTable != null ? propsTable.get("attributes") : LuaValue.NIL;
+             if (!attributesValue.isnil() && !attributesValue.istable()) {
+                throw new LuaError("[MLua] Registry.Entities:Register attributes must be a table.");
+             }
+             LuaTable attr = attributesValue.istable() ? attributesValue.checktable() : null;
              double maxHealth = MLuaRegistryService.attrValue(attr, "maxHealth", 20.0);
              double speed = MLuaRegistryService.attrValue(attr, "movementSpeed", 0.25);
              double attack = MLuaRegistryService.attrValue(attr, "attackDamage", 2.0);
@@ -949,9 +953,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              double followRange = MLuaRegistryService.attrValue(attr, "followRange", 16.0);
              double width = propsTable != null ? propsTable.get("width").optdouble(0.6) : 0.6;
              double height = propsTable != null ? propsTable.get("height").optdouble(1.8) : 1.8;
+             MLuaRegistryService.requirePositiveFiniteEntitySize("width", width);
+             MLuaRegistryService.requirePositiveFiniteEntitySize("height", height);
              MLuaTextureDescriptor entityTexture = MLuaRegistryService.textureDescriptor(propsTable, "texture", "Texture", "entityTexture", "EntityTexture").resolve(owner, "entity");
              String entityModel = MLuaRegistryService.stringProperty(propsTable, "model", "Model", "entityModel", "EntityModel");
              float shadowRadius = propsTable != null ? (float)propsTable.get("shadowRadius").optdouble(0.5) : 0.5F;
+             if (!Float.isFinite(shadowRadius) || shadowRadius < 0.0F) {
+                throw new LuaError("[MLua] Registry.Entities:Register shadowRadius must be a finite non-negative number.");
+             }
              MobCategory category = MLuaRegistryService.mobCategory(propsTable);
              EntityType.EntityFactory<MLuaScriptedEntity> factory = (type, level) -> {
                 return new MLuaScriptedEntity((EntityType<? extends MLuaScriptedEntity>)(EntityType<?>)type, level, key, className);
@@ -998,13 +1007,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
 
             String entityName = propsTable != null ? propsTable.get("entity").optjstring(name) : name;
-            if (!entityName.contains(":")) {
-               entityName = owner + ":" + entityName;
-            }
+            if (!entityName.contains(":")) entityName = owner + ":" + entityName;
+            var entityId = MLuaResourceLocations.tryParseOrNull(entityName);
+            if (entityId == null) throw new LuaError("[MLua] Registry.Entities:RegisterSpawnEgg entity must be a valid namespaced entity id.");
 
-            int primaryColor = propsTable != null ? (int)propsTable.get("primaryColor").optdouble(16777215.0) : 16777215;
-            int secondaryColor = propsTable != null ? (int)propsTable.get("secondaryColor").optdouble(0.0) : 0;
-            RegistryHandle<EntityType<?>> entityType = MLuaLoaderRegistry.get(RegistryKind.ENTITY, entityName.split(":")[0], entityName.split(":")[1]);
+            int primaryColor = MLuaRegistryService.colorProperty(propsTable, "primaryColor", 16777215);
+            int secondaryColor = MLuaRegistryService.colorProperty(propsTable, "secondaryColor", 0);
+            RegistryHandle<EntityType<?>> entityType = MLuaLoaderRegistry.get(
+               RegistryKind.ENTITY, entityId.getNamespace(), entityId.getPath());
 
             if (entityType == null) {
                throw new LuaError("[MLua] Entity '" + entityName + "' not registered yet. Register the entity before its spawn egg.");
@@ -1870,7 +1880,40 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private static double attrValue(LuaTable attrs, String key, double fallback) {
-      return attrs != null ? attrs.get(key).optdouble(fallback) : fallback;
+      if (attrs == null || attrs.get(key).isnil()) return fallback;
+      LuaValue value = attrs.get(key);
+      if (!value.isnumber()) {
+         throw new LuaError("[MLua] Registry.Entities:Register attributes." + key + " must be a number.");
+      }
+      double number = value.todouble();
+      if (!Double.isFinite(number) || number < 0.0 || ("maxHealth".equals(key) && number == 0.0)
+            || ("knockbackResistance".equals(key) && number > 1.0)) {
+         String constraint = "knockbackResistance".equals(key) ? "between 0 and 1"
+            : "finite and " + ("maxHealth".equals(key) ? "greater than zero" : "non-negative");
+         throw new LuaError("[MLua] Registry.Entities:Register attributes." + key + " must be " + constraint + ".");
+      }
+      return number;
+   }
+
+   private static void requirePositiveFiniteEntitySize(String property, double value) {
+      float converted = (float)value;
+      if (!Double.isFinite(value) || value <= 0.0 || !Float.isFinite(converted) || converted <= 0.0F) {
+         throw new LuaError("[MLua] Registry.Entities:Register " + property
+            + " must be finite, greater than zero, and representable as a positive float.");
+      }
+   }
+
+   private static int colorProperty(LuaTable properties, String name, int fallback) {
+      if (properties == null || properties.get(name).isnil()) return fallback;
+      LuaValue value = properties.get(name);
+      if (!value.isnumber()) {
+         throw new LuaError("[MLua] Registry.Entities:RegisterSpawnEgg " + name + " must be a whole number from 0 to 16777215.");
+      }
+      double color = value.todouble();
+      if (!Double.isFinite(color) || color != Math.rint(color) || color < 0.0 || color > 16777215.0) {
+         throw new LuaError("[MLua] Registry.Entities:RegisterSpawnEgg " + name + " must be a whole number from 0 to 16777215.");
+      }
+      return (int)color;
    }
 
    private static JsonObject jsonObjectArg(LuaValue value, String type) {
