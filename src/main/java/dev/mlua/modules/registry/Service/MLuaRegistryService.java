@@ -73,7 +73,6 @@ import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.level.block.Block;
 
 public final class MLuaRegistryService extends MLuaServiceBase {
-   private static final Map<String, RegistryEndpoint> REGISTRY_ENDPOINTS = registryEndpoints();
    private static final Map<String, String> METHOD_DESCRIPTIONS = registryMethodDescriptions();
    private static final Set<String> ENTITY_ATTRIBUTE_ALIASES = Set.of(
       "maxHealth", "movementSpeed", "attackDamage", "armor", "armorToughness",
@@ -82,7 +81,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       "Register", "RegisterCategory", "RegisterType", "ResolveType", "GetKinds", "GetCategories",
       "GetCategory", "Get", "GetAll", "GetIds", "GetTypes", "GetRegistered", "GetEntries", "GetId", "GetEntry", "Exists");
    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
-   private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
+   private final RegistryEndpointCatalog registryEndpoints = new RegistryEndpointCatalog();
    private final MLuaDynamicRegistryCatalog dynamicRegistry = this.sharedState(
       "dynamic-categories", MLuaDynamicRegistryCatalog.class, MLuaDynamicRegistryCatalog::new);
    private final MLuaItemFactory itemFactory = new MLuaItemFactory();
@@ -128,53 +127,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return java.util.Collections.unmodifiableMap(descriptions);
    }
 
-   private static Map<String, RegistryEndpoint> registryEndpoints() {
-      Map<String, RegistryEndpoint> endpoints = new HashMap<>();
-      addEndpoint(endpoints, "Items", "Register", "item", "Items", RegistryKind.ITEM, List.of("item", "items"), "Register:3");
-      addEndpoint(endpoints, "Blocks", "Register", "block", "Blocks", RegistryKind.BLOCK, List.of("block", "blocks"), "Register:3");
-      addEndpoint(endpoints, "Blocks", "RegisterItem", "item", "Items", null, List.of("block_item", "blockitem", "blockitems"));
-      addEndpoint(endpoints, "Entities", "Register", "entity", "Entities", RegistryKind.ENTITY, List.of("entity", "entities", "entity_type", "entity_types"), "Register:3");
-      addEndpoint(endpoints, "Effects", "Register", "effect", "Effects", RegistryKind.MOB_EFFECT, List.of("effect", "effects", "mob_effect", "mob_effects", "mobeffect"), "Register:3");
-      addEndpoint(endpoints, "Potions", "Register", "potion", "Potions", RegistryKind.POTION, List.of("potion", "potions"), "Register:3");
-      addEndpoint(endpoints, "Particles", "Register", "particle", "Particles", RegistryKind.PARTICLE, List.of("particle", "particles"), "Register:3");
-      addEndpoint(endpoints, "Containers", "Register", "container", "Containers", null, List.of("container", "containers"), "Register:3");
-      addEndpoint(endpoints, "Projectiles", "Register", "projectile", "Projectiles", null, List.of("projectile", "projectiles"), "Register:3");
-      addEndpoint(endpoints, "DataPack", "Register", "datapack", "DataPack", null, List.of("data", "datapack", "data_pack"), "Register:4");
-      addEndpoint(endpoints, "Assets", "register", "assets", "Assets", null, List.of("asset", "assets"));
-      addEndpoint(endpoints, "WorldGeneration", "addFeature", "worldgen", "WorldGeneration", null,
-         List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"),
-         "addFeature:3", "register:4", "AddFeature:3", "Register:4");
-      addEndpoint(endpoints, "Tabs", "Register", "tab", "Tabs", RegistryKind.CREATIVE_TAB, List.of("tab", "tabs", "creative_tab", "creative_tabs"), "Register:3");
-      addEndpoint(endpoints, "Recipes", "Register", "recipe", "Recipes", null, List.of("recipe", "recipes"), "Register:3", "RegisterShaped:3", "RegisterShapeless:3", "RegisterSmelting:3", "RegisterStonecutting:3");
-      addEndpoint(endpoints, "Loot", "Register", "loot", "Loot", null, List.of("loot"), "Register:3", "RegisterEntity:3", "RegisterSimpleBlock:3", "RegisterSelfBlock:3", "RegisterSilkTouchBlock:3", "RegisterOreBlock:3");
-      addEndpoint(endpoints, "Tags", "Register", "tag", "Tags", null, List.of("tag", "tags"), "Register:4", "RegisterItem:3", "RegisterBlock:3", "RegisterEntity:3");
-      addEndpoint(endpoints, "Config", "RegisterCommon", "config", "Config", null, List.of("config"), "Register:4", "RegisterCommon:3", "RegisterClient:3", "RegisterServer:3");
-      addEndpoint(endpoints, "DamageSource", "Register", "damage_source", "DamageSource", null, List.of("damage_source", "damagesource"), "Register:3");
-      return Map.copyOf(endpoints);
-   }
-
-   private static void addEndpoint(Map<String, RegistryEndpoint> endpoints, String table, String registerMethod,
-                                   String typeDomain, String typeTable, RegistryKind registryKind,
-                                   List<String> aliases,
-                                   String... typedDefinitions) {
-      RegistryEndpoint endpoint = new RegistryEndpoint(table, registerMethod, typeDomain, typeTable, registryKind,
-         List.of(typedDefinitions));
-      for (String alias : aliases) {
-         RegistryEndpoint previous = endpoints.putIfAbsent(alias, endpoint);
-         if (previous != null) throw new ExceptionInInitializerError("Duplicate Registry category alias: " + alias);
-      }
-   }
-
    private void registerConfig(String scope, String name, LuaTable values) {
       String owner = this.context.mlua().ownerModId();
       MLuaConfigRegistry.ConfigSectionHandle handle = MLuaConfigRegistry.get().register(owner, scope, name, values);
       Runnable rollback = () -> MLuaConfigRegistry.get().unregister(handle);
       this.context.mlua().registration().trackRollback(rollback);
    }
-
-   private record RegistryEndpoint(String table, String registerMethod, String typeDomain,
-                                    String typeTable, RegistryKind registryKind,
-                                    List<String> typedDefinitions) { }
 
    private void addWorldGenerationRegistration(LuaTable worldGeneration, String name, String resourceType) {
       VarArgFunction register = new VarArgFunction() {
@@ -308,7 +266,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                throw new LuaError("[MLua] Registry category '" + category
                   + "' must use the registering addon's namespace '" + owner + "'");
             }
-            if (MLuaRegistryService.this.registryEndpoints.containsKey(key)) {
+            if (MLuaRegistryService.this.registryEndpoints.contains(key)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
             String domain = dynamicContentTypeDomain(owner, category);
@@ -319,7 +277,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             }
             Runnable rollback = () -> {
                if (MLuaRegistryService.this.dynamicRegistry.unregister(key, registered)) {
-                  RegistryEndpoint endpoint = new RegistryEndpoint(category, "Register", domain, category, null, List.of());
+                  RegistryEndpoint endpoint = new RegistryEndpoint(category, "Register", domain, category, null, 2, List.of());
                   MLuaRegistryService.this.registryEndpoints.remove(key, endpoint);
                   table.set(category, LuaValue.NIL);
                }
@@ -1099,10 +1057,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              LuaTable target = table.get(endpoint.table()).checktable();
              LuaValue register = target.get(endpoint.registerMethod());
              if (!register.isfunction()) throw new LuaError("[MLua] Registry category '" + category + "' does not support generic registration");
-             if ("tag".equals(endpoint.typeDomain()) || "datapack".equals(endpoint.typeDomain())) {
-                return register.invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3), args.arg(4), args.arg(5)}));
+             LuaValue[] registrationArgs = new LuaValue[endpoint.genericArgumentCount() + 1];
+             registrationArgs[0] = target;
+             for (int index = 1; index < registrationArgs.length; index++) {
+                registrationArgs[index] = args.arg(index + 2);
              }
-             return register.invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3), args.arg(4)}));
+             return register.invoke(LuaValue.varargsOf(registrationArgs));
           }
        });
       table.set("RegisterType", new VarArgFunction() {
@@ -1180,8 +1140,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              LuaTable result = new LuaTable();
              int index = 1;
-             java.util.TreeSet<String> categories = new java.util.TreeSet<>(REGISTRY_ENDPOINTS.values()
-                   .stream().map(RegistryEndpoint::table).toList());
+             java.util.TreeSet<String> categories = new java.util.TreeSet<>(MLuaRegistryService.this.registryEndpoints.categoryNames());
              MLuaRegistryService.this.dynamicRegistry.categories().forEach(category -> categories.add(category.name()));
              for (String category : categories) {
                 result.set(index++, LuaValue.valueOf(category));
@@ -1233,7 +1192,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              return entry.get("Exists").invoke(entry).arg1();
           }
        });
-       for (RegistryEndpoint endpoint : this.registryEndpoints.values().stream().distinct().toList()) {
+       for (RegistryEndpoint endpoint : this.registryEndpoints.uniqueEndpoints()) {
           if (!endpoint.table().equals(endpoint.typeTable())) continue;
           if (this.dynamicRegistry.category(endpoint.table()) != null) continue;
           LuaTable target = table.get(endpoint.table()).checktable();
@@ -1289,7 +1248,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private void installDynamicCategory(LuaTable registry, MLuaDynamicRegistryCatalog.Category category) {
       String key = category.name().trim().toLowerCase(java.util.Locale.ROOT);
       RegistryEndpoint endpoint = new RegistryEndpoint(category.name(), "Register", category.domain(),
-         category.name(), null, List.of());
+         category.name(), null, 2, List.of());
       RegistryEndpoint existing = this.registryEndpoints.putIfAbsent(key, endpoint);
       if (existing != null) return;
       LuaTable target = registryTable();
@@ -1511,7 +1470,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       RegistryEndpoint endpoint;
       if (dynamicCategory != null) {
          endpoint = new RegistryEndpoint(dynamicCategory.name(), "Register", dynamicCategory.domain(),
-            dynamicCategory.name(), null, List.of());
+            dynamicCategory.name(), null, 2, List.of());
          if (!endpoint.equals(this.registryEndpoints.get(key))) {
             this.registryEndpoints.remove(key);
             registry.set(dynamicCategory.name(), LuaValue.NIL);
@@ -1519,12 +1478,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          }
          endpoint = this.registryEndpoints.get(key);
       } else {
-         endpoint = REGISTRY_ENDPOINTS.get(key);
+         endpoint = this.registryEndpoints.builtIn(key);
+         RegistryEndpoint active = this.registryEndpoints.get(key);
          if (endpoint == null) {
             RegistryEndpoint stale = this.registryEndpoints.remove(key);
             if (stale != null) registry.set(stale.table(), LuaValue.NIL);
-         } else {
-            this.registryEndpoints.put(key, endpoint);
+         } else if (active != endpoint) {
+            this.registryEndpoints.putIfAbsent(key, endpoint);
          }
       }
       if (endpoint == null) throw new LuaError("[MLua] Unknown or unsupported Registry " + purpose + " '" + category + "'");
