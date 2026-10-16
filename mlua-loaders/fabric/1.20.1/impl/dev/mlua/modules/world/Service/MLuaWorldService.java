@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.modules.world.MLuaPositionArguments;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
@@ -147,8 +148,8 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return MLuaPlayerWrapper.positionTable(spawn.getX(), spawn.getY(), spawn.getZ());
       }));
       bindWorldMethod(table, implementations, "SetSpawnPosition", serverLevelFn(supplier, (level, args) -> {
-         double[] position = MLuaChunkWrapper.positionArgs(args, 2);
-         level.setDefaultSpawnPos(BlockPos.containing(position[0], position[1], position[2]), MLuaChunkWrapper.positionYaw(args, 2, 3));
+         double[] position = MLuaPositionArguments.vector3(args, 2);
+         level.setDefaultSpawnPos(BlockPos.containing(position[0], position[1], position[2]), MLuaPositionArguments.yaw(args, 2, 3));
          return LuaValue.TRUE;
       }));
       bindWorldMethod(table, implementations, "IsDay", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isDay())));
@@ -704,7 +705,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private static double[] positionArgs(Varargs args, int index) {
-      return MLuaChunkWrapper.positionArgs(args, index);
+      return MLuaPositionArguments.vector3(args, index);
    }
 
    private LuaValue levelFn(Supplier<Level> supplier, LevelFunction fn) {

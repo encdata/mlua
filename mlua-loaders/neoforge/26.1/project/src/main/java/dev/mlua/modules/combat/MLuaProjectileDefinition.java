@@ -106,6 +106,15 @@ public class MLuaProjectileDefinition {
       return DEFINITIONS.containsKey(new Key(null, "", name));
    }
 
+   public static java.util.List<String> registeredIds(Object runtimeOwner, String namespace) {
+      return DEFINITIONS.keySet().stream()
+         .filter(key -> key.runtimeOwner() == runtimeOwner)
+         .filter(key -> namespace == null || namespace.equals(key.ownerModId()))
+         .map(key -> key.ownerModId().isBlank() ? key.name() : key.ownerModId() + ":" + key.name())
+         .sorted()
+         .toList();
+   }
+
    public static LuaTable createTypeLuaTable(String name) {
       return createTypeLuaTable(null, "", name, MLuaRuntime.get());
    }

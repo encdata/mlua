@@ -5,6 +5,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
+import dev.mlua.modules.world.MLuaPositionArguments;
 import dev.mlua.modules.world.MLuaChunkWrapper;
 import dev.mlua.modules.world.MLuaBlockUpdateFlags;
 import dev.mlua.modules.entity.MLuaEntityQuery;

@@ -6,6 +6,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.modules.world.MLuaPositionArguments;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
@@ -202,7 +203,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
             ServerLevel serverLevel = requireServerWorld(world, "SetSpawnPosition");
             double[] position = positionArgs(args, 2);
             BlockPos spawn = BlockPos.containing(position[0], position[1], position[2]);
-            float yaw = MLuaChunkWrapper.positionYaw(args, 2, 3);
+            float yaw = MLuaPositionArguments.yaw(args, 2, 3);
             serverLevel.setRespawnData(LevelData.RespawnData.of(serverLevel.dimension(), spawn, yaw, 0.0f));
             return LuaValue.TRUE;
         }));
@@ -618,7 +619,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
     }
 
     private static double[] positionArgs(Varargs args, int index) {
-        return MLuaChunkWrapper.positionArgs(args, index);
+        return MLuaPositionArguments.vector3(args, index);
     }
 
     private static BlockPos blockPosition(Varargs args, int index) {

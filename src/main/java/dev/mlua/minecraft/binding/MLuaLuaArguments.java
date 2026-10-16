@@ -108,7 +108,10 @@ public final class MLuaLuaArguments {
     }
 
     public static float finiteFloat(Varargs args, int index, String method, String parameter) {
-        LuaValue value = args.arg(index);
+        return finiteFloat(args.arg(index), method, parameter);
+    }
+
+    public static float finiteFloat(LuaValue value, String method, String parameter) {
         if (!value.isnumber()) {
             throw new LuaError("[MLua] " + method + " " + parameter + " must be a number.");
         }
