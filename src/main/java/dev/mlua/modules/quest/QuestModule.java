@@ -36,5 +36,6 @@ public class QuestModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.service("Quest", "MLuaQuestService",
                 "Service for creating and tracking quests.",
                 "services/quest.html"));
+        docs.register(MLuaDocBuilder.Registration.signature("Quest", "Quest:SetObjective(player: Player, questId: string, objectiveKey: string, progress: boolean|number)", "boolean"));
     }
 }

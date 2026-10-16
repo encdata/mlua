@@ -72,8 +72,19 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Adds or updates an objective in a quest.")
-    public void SetObjective(LuaValue playerValue, String questId, String objectiveKey, LuaValue progress) {
+    public boolean SetObjective(LuaValue playerValue, String questId, String objectiveKey, LuaValue progress) {
         this.requireServerSide(this.name());
+        if (MLuaQuestRegistry.get(runtimeOwner(), ownerModId(), questId) == null) return false;
+        if (objectiveKey == null || objectiveKey.isBlank() || objectiveKey.equals("__started")
+                || objectiveKey.equals("__completed")) {
+            throw new LuaError("[MLua] Quest:SetObjective expects a non-empty objective key other than __started or __completed.");
+        }
+        if (!progress.isboolean() && !progress.isnumber()) {
+            throw new LuaError("[MLua] Quest:SetObjective progress must be a boolean or finite number.");
+        }
+        if (progress.isnumber() && !Double.isFinite(progress.todouble())) {
+            throw new LuaError("[MLua] Quest:SetObjective progress must be a boolean or finite number.");
+        }
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag playerQuests = getCompound(persistentData, NBT_KEY);
@@ -85,6 +96,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
             quest.putDouble(objectiveKey, progress.checkdouble());
         }
         MLuaDataManager.setPlayerPersistentTag(player, persistentData);
+        return true;
     }
 
     @MLuaDescription("Returns one objective from a quest.")
