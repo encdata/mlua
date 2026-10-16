@@ -584,6 +584,16 @@ public final class MLuaLuaCoercions {
       }
    }
 
+   private static Map<Object, Object> mapValuesFromLua(LuaTable table) {
+      IdentityHashMap<LuaTable, Boolean> active = new IdentityHashMap<>();
+      enterTable(table, active, 0);
+      try {
+         return mapValuesFromLua(table, active, 1);
+      } finally {
+         active.remove(table);
+      }
+   }
+
    private static Type typeArgument(Type type, int index) {
       if (!(type instanceof ParameterizedType parameterized)
          || index >= parameterized.getActualTypeArguments().length) return Object.class;
