@@ -13,11 +13,15 @@ public final class MLuaDamageSourceRegistry {
    private MLuaDamageSourceRegistry() {
    }
 
-   public static void register(String name, LuaTable props) {
-      register(null, "", name, props);
+   public static DamageSourceDef register(String name, LuaTable props) {
+      return register(null, "", name, props);
    }
 
-   public static void register(Object runtimeOwner, String ownerModId, String name, LuaTable props) {
+   public static DamageSourceDef register(Object runtimeOwner, String ownerModId, String name, LuaTable props) {
+      if (ownerModId != null && !ownerModId.isBlank()) {
+         dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(ownerModId);
+      }
+      dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(name);
       boolean bypassArmor = props != null && (props.get("bypassesArmor").optboolean(false) || props.get("BypassesArmor").optboolean(false));
       boolean isFire = props != null && (props.get("isFire").optboolean(false) || props.get("IsFire").optboolean(false));
       boolean isExplosion = props != null && (props.get("isExplosion").optboolean(false) || props.get("IsExplosion").optboolean(false));
@@ -25,8 +29,27 @@ public final class MLuaDamageSourceRegistry {
       boolean isProjectile = props != null && (props.get("isProjectile").optboolean(false) || props.get("IsProjectile").optboolean(false));
       boolean isFall = props != null && (props.get("isFall").optboolean(false) || props.get("IsFall").optboolean(false));
       boolean isLightning = props != null && (props.get("isLightning").optboolean(false) || props.get("IsLightning").optboolean(false));
-      DAMAGE_SOURCES.put(new Key(runtimeOwner, ownerModId, name), new DamageSourceDef(bypassArmor, isFire, isExplosion, isMagic, isProjectile, isFall, isLightning));
+      DamageSourceDef definition = new DamageSourceDef(bypassArmor, isFire, isExplosion, isMagic, isProjectile, isFall, isLightning);
+      Key key = new Key(runtimeOwner, ownerModId, name);
+      if (DAMAGE_SOURCES.putIfAbsent(key, definition) != null) {
+         throw new IllegalStateException("[MLua] Damage source '" + ownerModId + ":" + name + "' is already registered");
+      }
       MLuaLogger.LOGGER.info("Registered custom damage source '{}:{}'", ownerModId, name);
+      return definition;
+   }
+
+   public static boolean unregister(Object runtimeOwner, String ownerModId, String name, DamageSourceDef expected) {
+      if (expected == null) return false;
+      Key key = new Key(runtimeOwner, ownerModId, name);
+      final boolean[] removed = {false};
+      DAMAGE_SOURCES.computeIfPresent(key, (ignored, current) -> {
+         if (current == expected) {
+            removed[0] = true;
+            return null;
+         }
+         return current;
+      });
+      return removed[0];
    }
 
    public static DamageSourceDef get(String name) {

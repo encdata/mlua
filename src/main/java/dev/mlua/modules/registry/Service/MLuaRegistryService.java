@@ -446,7 +446,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
                      MLuaRegistryService.containerAllowedItems(owner, definition)));
             } catch (IllegalArgumentException | IllegalStateException invalid) {
-               throw new LuaError("[MLua] " + invalid.getMessage());
+               throw new LuaError(invalid.getMessage());
             }
             try {
                MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
@@ -929,7 +929,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
             Object runtimeOwner = MLuaRegistryService.this.context.mlua().registration() instanceof dev.mlua.core.MLuaRuntime runtime ? runtime.session() : null;
-            MLuaDamageSourceRegistry.register(runtimeOwner, MLuaRegistryService.this.context.mlua().ownerModId(), args.checkjstring(2), args.arg(3).opttable((LuaTable)null));
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            String name = args.checkjstring(2);
+            MLuaDamageSourceRegistry.DamageSourceDef definition;
+            try {
+               definition = MLuaDamageSourceRegistry.register(runtimeOwner, owner, name,
+                  args.arg(3).opttable((LuaTable)null));
+            } catch (IllegalArgumentException | IllegalStateException invalid) {
+               throw new LuaError("[MLua] " + invalid.getMessage());
+            }
+            try {
+               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                  MLuaDamageSourceRegistry.unregister(runtimeOwner, owner, name, definition));
+            } catch (RuntimeException | Error failure) {
+               MLuaDamageSourceRegistry.unregister(runtimeOwner, owner, name, definition);
+               throw failure;
+            }
             return LuaValue.NONE;
          }
       });
