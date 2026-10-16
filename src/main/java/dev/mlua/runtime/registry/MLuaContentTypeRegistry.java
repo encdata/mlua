@@ -11,6 +11,7 @@ import dev.mlua.module.MLuaRegistration;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 
 /** Runtime definitions for reusable Lua-authored content types. */
 public final class MLuaContentTypeRegistry {
@@ -31,6 +32,7 @@ public final class MLuaContentTypeRegistry {
         if (description == null || description.isBlank()) throw new LuaError("[MLua] Content type Description must be non-empty");
         // Freeze the caller's table at registration time; later addon mutations must not
         // silently change the behavior inherited by already-registered content types.
+        if (defaults != null) validateAcyclic(defaults, "Content type Defaults");
         LuaTable defaultProperties = defaults == null ? new LuaTable() : copy(defaults);
         String requestedBase = base.trim();
         String parent = normalizeReference(owner, requestedBase);
@@ -53,6 +55,7 @@ public final class MLuaContentTypeRegistry {
         java.util.Objects.requireNonNull(scope, "scope");
         domain = normalizeDomain(domain);
         if (properties == null) return new LuaTable();
+        validateAcyclic(properties, "Content definition");
         String field = selectionField(domain);
         LuaValue selected = properties.get(field);
         if (selected.isnil() && !"item".equals(domain) && !"block".equals(domain)) selected = properties.get("registryType");
@@ -210,6 +213,30 @@ public final class MLuaContentTypeRegistry {
         LuaTable copy = new LuaTable();
         merge(copy, source);
         return copy;
+    }
+
+    private static void validateAcyclic(LuaTable table, String label) {
+        validateAcyclic(table, label, new java.util.IdentityHashMap<>(), new java.util.IdentityHashMap<>());
+    }
+
+    private static void validateAcyclic(LuaTable table, String label,
+                                        java.util.IdentityHashMap<LuaTable, Boolean> active,
+                                        java.util.IdentityHashMap<LuaTable, Boolean> visited) {
+        if (active.containsKey(table)) {
+            throw new LuaError("[MLua] " + label + " cannot contain cyclic tables");
+        }
+        if (visited.containsKey(table)) return;
+        active.put(table, Boolean.TRUE);
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            LuaValue value = entry.arg(2);
+            if (value.istable()) validateAcyclic(value.checktable(), label, active, visited);
+        }
+        active.remove(table);
+        visited.put(table, Boolean.TRUE);
     }
 
     private static void merge(LuaTable target, LuaTable source) {
