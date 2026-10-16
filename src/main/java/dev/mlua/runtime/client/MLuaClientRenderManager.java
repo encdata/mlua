@@ -189,6 +189,9 @@ public final class MLuaClientRenderManager {
             if (location != null) textures.add(location);
         }
         var animation = object.animationPlayer.active() == null ? null : object.bbmodel.animations().get(object.animationPlayer.active());
+        float[] animatedPosition = new float[3];
+        float[] animatedRotation = new float[3];
+        float[] animatedScale = new float[3];
         for (var cube : object.bbmodel.cubes()) {
             float[] from = cube.from(), to = cube.to();
             pose.pushPose();
@@ -196,23 +199,21 @@ public final class MLuaClientRenderManager {
                 float[] pivot = bone.pivot();
                 float[] baseRotation = bone.rotation();
                 if (animation != null) {
-                    float[] position = object.animationPlayer.sample(animation, bone.uuid(), "position");
-                    float[] rotation = object.animationPlayer.sample(animation, bone.uuid(), "rotation");
-                    float[] scale = object.animationPlayer.sample(animation, bone.uuid(), "scale");
-                    pose.translate(position[0] / 16.0F, position[1] / 16.0F, position[2] / 16.0F);
-                    pivot = new float[]{pivot[0], pivot[1], pivot[2]};
-                    baseRotation = new float[]{baseRotation[0] + rotation[0], baseRotation[1] + rotation[1], baseRotation[2] + rotation[2]};
-                    pose.scale(1.0F + scale[0], 1.0F + scale[1], 1.0F + scale[2]);
+                    object.animationPlayer.sampleInto(animation, bone.uuid(), "position", animatedPosition);
+                    object.animationPlayer.sampleInto(animation, bone.uuid(), "rotation", animatedRotation);
+                    object.animationPlayer.sampleInto(animation, bone.uuid(), "scale", animatedScale);
+                    pose.translate(animatedPosition[0] / 16.0F, animatedPosition[1] / 16.0F, animatedPosition[2] / 16.0F);
+                    pose.scale(1.0F + animatedScale[0], 1.0F + animatedScale[1], 1.0F + animatedScale[2]);
                 }
                 pose.translate(pivot[0] / 16.0F, pivot[1] / 16.0F, pivot[2] / 16.0F);
-                pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(baseRotation[0]));
-                pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(baseRotation[1]));
-                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(baseRotation[2]));
+                pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(baseRotation[0] + (animation == null ? 0.0F : animatedRotation[0])));
+                pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(baseRotation[1] + (animation == null ? 0.0F : animatedRotation[1])));
+                pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(baseRotation[2] + (animation == null ? 0.0F : animatedRotation[2])));
                 pose.translate(-pivot[0] / 16.0F, -pivot[1] / 16.0F, -pivot[2] / 16.0F);
             }
             if (animation != null) {
-                float[] position = object.animationPlayer.sample(animation, cube.uuid(), "position");
-                pose.translate(position[0] / 16.0F, position[1] / 16.0F, position[2] / 16.0F);
+                object.animationPlayer.sampleInto(animation, cube.uuid(), "position", animatedPosition);
+                pose.translate(animatedPosition[0] / 16.0F, animatedPosition[1] / 16.0F, animatedPosition[2] / 16.0F);
             }
             MLuaRenderHelper.renderBBModelCube(pose, buffers, cube, textures,
                 object.bbmodel.textureWidth(), object.bbmodel.textureHeight(), MLuaRenderHelper.fallbackTexture(), light, overlay);
@@ -599,6 +600,9 @@ public final class MLuaClientRenderManager {
             pose.translate(object.x, object.y, object.zIndex * 0.01F);
             float scale = (float)(Math.min(object.width, object.height) / 16.0);
             pose.scale(scale, scale, scale);
+            float[] animatedPosition = new float[3];
+            float[] animatedRotation = new float[3];
+            float[] animatedScale = new float[3];
             for (var cube : object.bbmodel.cubes()) {
                 float[] from = cube.from();
                 float[] to = cube.to();
@@ -607,13 +611,13 @@ public final class MLuaClientRenderManager {
                 var animationName = object.animationPlayer.active();
                 if (animationName != null && object.bbmodel.animations().containsKey(animationName)) {
                     var animation = object.bbmodel.animations().get(animationName);
-                    float[] position = object.animationPlayer.sample(animation, cube.uuid(), "position");
-                    float[] rotation = object.animationPlayer.sample(animation, cube.uuid(), "rotation");
-                    float[] animatedScale = object.animationPlayer.sample(animation, cube.uuid(), "scale");
-                    pose.translate(position[0], position[1], position[2]);
-                    pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(rotation[0]));
-                    pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(rotation[1]));
-                    pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(rotation[2]));
+                    object.animationPlayer.sampleInto(animation, cube.uuid(), "position", animatedPosition);
+                    object.animationPlayer.sampleInto(animation, cube.uuid(), "rotation", animatedRotation);
+                    object.animationPlayer.sampleInto(animation, cube.uuid(), "scale", animatedScale);
+                    pose.translate(animatedPosition[0], animatedPosition[1], animatedPosition[2]);
+                    pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(animatedRotation[0]));
+                    pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(animatedRotation[1]));
+                    pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(animatedRotation[2]));
                     if (animatedScale[0] != 0 || animatedScale[1] != 0 || animatedScale[2] != 0) {
                         pose.scale(1.0F + animatedScale[0], 1.0F + animatedScale[1], 1.0F + animatedScale[2]);
                     }

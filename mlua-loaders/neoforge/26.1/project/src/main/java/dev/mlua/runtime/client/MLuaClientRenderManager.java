@@ -135,21 +135,22 @@ public final class MLuaClientRenderManager {
         var asset = object.bbmodel;
         var animationName = object.animationPlayer.active();
         var animation = animationName == null ? null : asset.animations().get(animationName);
+        float[] animatedPosition = new float[3];
+        float[] animatedRotation = new float[3];
         for (var cube : asset.cubes()) {
             pose.pushPose();
             for (var bone : asset.boneChainForCube(cube.uuid())) {
                 float[] pivot = bone.pivot();
                 float[] rotation = bone.rotation();
                 if (animation != null) {
-                    float[] animatedPosition = object.animationPlayer.sample(animation, bone.uuid(), "position");
-                    float[] animatedRotation = object.animationPlayer.sample(animation, bone.uuid(), "rotation");
+                    object.animationPlayer.sampleInto(animation, bone.uuid(), "position", animatedPosition);
+                    object.animationPlayer.sampleInto(animation, bone.uuid(), "rotation", animatedRotation);
                     pose.translate(animatedPosition[0] / 16.0F, animatedPosition[1] / 16.0F, animatedPosition[2] / 16.0F);
-                    rotation = new float[]{rotation[0] + animatedRotation[0], rotation[1] + animatedRotation[1], rotation[2] + animatedRotation[2]};
                 }
                 pose.translate(pivot[0] / 16.0F, pivot[1] / 16.0F, pivot[2] / 16.0F);
-                pose.mulPose(Axis.XP.rotationDegrees(rotation[0]));
-                pose.mulPose(Axis.YP.rotationDegrees(rotation[1]));
-                pose.mulPose(Axis.ZP.rotationDegrees(rotation[2]));
+                pose.mulPose(Axis.XP.rotationDegrees(rotation[0] + (animation == null ? 0.0F : animatedRotation[0])));
+                pose.mulPose(Axis.YP.rotationDegrees(rotation[1] + (animation == null ? 0.0F : animatedRotation[1])));
+                pose.mulPose(Axis.ZP.rotationDegrees(rotation[2] + (animation == null ? 0.0F : animatedRotation[2])));
                 pose.translate(-pivot[0] / 16.0F, -pivot[1] / 16.0F, -pivot[2] / 16.0F);
             }
             for (var entry : cube.faces().entrySet()) {

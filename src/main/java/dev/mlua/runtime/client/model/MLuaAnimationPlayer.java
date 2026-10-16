@@ -45,42 +45,101 @@ public final class MLuaAnimationPlayer {
    }
 
    public float[] sample(MLuaBBModelAsset.Animation animation, String bone, String channel) {
-      Map<String, java.util.List<MLuaBBModelAsset.Keyframe>> channels = animation.tracks().get(bone);
-      if (channels == null) return new float[]{0, 0, 0};
-      java.util.List<MLuaBBModelAsset.Keyframe> frames = channels.get(channel);
-      if (frames == null || frames.isEmpty()) return new float[]{0, 0, 0};
-      MLuaBBModelAsset.Keyframe previous = frames.get(0), next = frames.get(frames.size() - 1);
-      for (MLuaBBModelAsset.Keyframe frame : frames) {
-         if (frame.time() <= time) previous = frame;
-         if (frame.time() >= time) { next = frame; break; }
+      float[] result = new float[3];
+      sampleInto(animation, bone, channel, result);
+      return result;
+   }
+
+   /** Samples a track into caller-owned storage so render loops can reuse their scratch vectors. */
+   public void sampleInto(MLuaBBModelAsset.Animation animation, String bone, String channel, float[] result) {
+      if (result == null || result.length < 3) {
+         throw new IllegalArgumentException("Animation sample output must contain at least three values");
       }
-      if (previous == next || next.time() <= previous.time()) return previous.value().clone();
+      Map<String, java.util.List<MLuaBBModelAsset.Keyframe>> channels = animation.tracks().get(bone);
+      if (channels == null) {
+         result[0] = result[1] = result[2] = 0.0F;
+         return;
+      }
+      java.util.List<MLuaBBModelAsset.Keyframe> frames = channels.get(channel);
+      if (frames == null || frames.isEmpty()) {
+         result[0] = result[1] = result[2] = 0.0F;
+         return;
+      }
+      int low = 0;
+      int high = frames.size();
+      while (low < high) {
+         int middle = (low + high) >>> 1;
+         if (frames.get(middle).time() < time) low = middle + 1;
+         else high = middle;
+      }
+      int nextIndex = Math.min(low, frames.size() - 1);
+      MLuaBBModelAsset.Keyframe next = frames.get(nextIndex);
+      MLuaBBModelAsset.Keyframe previous;
+      if (next.time() == time) {
+         int lastEqual = nextIndex;
+         while (lastEqual + 1 < frames.size() && frames.get(lastEqual + 1).time() == time) lastEqual++;
+         previous = frames.get(lastEqual);
+      } else {
+         previous = frames.get(Math.max(0, nextIndex - 1));
+      }
+      if (previous == next || next.time() <= previous.time()) {
+         float[] value = previous.value();
+         result[0] = value[0]; result[1] = value[1]; result[2] = value[2];
+         return;
+      }
       float alpha = (time - previous.time()) / (next.time() - previous.time());
       if ("step".equalsIgnoreCase(next.interpolation())) alpha = 0.0F;
       alpha = ease(alpha, next.easing());
       float[] a = previous.value(), b = next.value();
-      return new float[]{a[0] + (b[0] - a[0]) * alpha, a[1] + (b[1] - a[1]) * alpha, a[2] + (b[2] - a[2]) * alpha};
+      result[0] = a[0] + (b[0] - a[0]) * alpha;
+      result[1] = a[1] + (b[1] - a[1]) * alpha;
+      result[2] = a[2] + (b[2] - a[2]) * alpha;
    }
 
    private static float ease(float value, String easing) {
       float t = Math.max(0.0F, Math.min(1.0F, value));
-      String name = easing == null ? "linear" : easing.toLowerCase().replace('-', '_');
-      if (name.contains("step")) return 0.0F;
-      if (name.contains("sine")) {
-         if (name.contains("in_out")) return (1.0F - (float)Math.cos(Math.PI * t)) * 0.5F;
-         if (name.contains("out")) return (float)Math.sin(t * Math.PI * 0.5F);
+      if (containsNormalized(easing, "step")) return 0.0F;
+      if (containsNormalized(easing, "sine")) {
+         if (containsNormalized(easing, "in_out")) return (1.0F - (float)Math.cos(Math.PI * t)) * 0.5F;
+         if (containsNormalized(easing, "out")) return (float)Math.sin(t * Math.PI * 0.5F);
          return 1.0F - (float)Math.cos(t * Math.PI * 0.5F);
       }
-      if (name.contains("quad")) {
-         if (name.contains("in_out")) return t < 0.5F ? 2.0F * t * t : 1.0F - (float)Math.pow(-2.0F * t + 2.0F, 2.0F) * 0.5F;
-         if (name.contains("out")) return 1.0F - (1.0F - t) * (1.0F - t);
+      if (containsNormalized(easing, "quad")) {
+         if (containsNormalized(easing, "in_out")) {
+            if (t < 0.5F) return 2.0F * t * t;
+            float inverse = -2.0F * t + 2.0F;
+            return 1.0F - inverse * inverse * 0.5F;
+         }
+         if (containsNormalized(easing, "out")) return 1.0F - (1.0F - t) * (1.0F - t);
          return t * t;
       }
-      if (name.contains("cubic")) {
-         if (name.contains("in_out")) return t < 0.5F ? 4.0F * t * t * t : 1.0F - (float)Math.pow(-2.0F * t + 2.0F, 3.0F) * 0.5F;
-         if (name.contains("out")) return 1.0F - (float)Math.pow(1.0F - t, 3.0F);
+      if (containsNormalized(easing, "cubic")) {
+         if (containsNormalized(easing, "in_out")) {
+            if (t < 0.5F) return 4.0F * t * t * t;
+            float inverse = -2.0F * t + 2.0F;
+            return 1.0F - inverse * inverse * inverse * 0.5F;
+         }
+         if (containsNormalized(easing, "out")) {
+            float inverse = 1.0F - t;
+            return 1.0F - inverse * inverse * inverse;
+         }
          return t * t * t;
       }
       return t;
+   }
+
+   private static boolean containsNormalized(String value, String fragment) {
+      if (value == null || value.length() < fragment.length()) return false;
+      for (int start = 0; start <= value.length() - fragment.length(); start++) {
+         int index = 0;
+         while (index < fragment.length()) {
+            char actual = value.charAt(start + index);
+            if (actual == '-') actual = '_';
+            if (Character.toLowerCase(actual) != fragment.charAt(index)) break;
+            index++;
+         }
+         if (index == fragment.length()) return true;
+      }
+      return false;
    }
 }

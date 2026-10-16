@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -218,6 +218,7 @@ public final class MLuaBBModelAsset {
                for (JsonElement keyframe : channel.getValue().getAsJsonArray()) {
                   if (keyframe.isJsonObject()) keyframes.add(Keyframe.from(keyframe.getAsJsonObject(), version, channel.getKey()));
                }
+               keyframes.sort(Comparator.comparingDouble(Keyframe::time));
                channelMap.put(channel.getKey(), keyframes);
             }
             tracks.put(animator.getKey(), channelMap);
