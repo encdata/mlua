@@ -1233,7 +1233,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           if (!endpoint.table().equals(endpoint.typeTable())) continue;
           if (this.dynamicRegistry.category(endpoint.table()) != null) continue;
           LuaTable target = table.get(endpoint.table()).checktable();
-          installContentTypeApi(target, endpoint.typeDomain(), endpoint.typedDefinitions().toArray(String[]::new));
+          installContentTypeApi(target, endpoint.typeDomain(), endpoint.typedDefinitions());
           if (endpoint.registryKind() != null) installRegistryEntryApi(target, endpoint.registryKind());
           documentRegistryTable(target, endpoint.table());
        }
@@ -1271,8 +1271,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       worldGenerationDescriptions.put("RegisterTemplatePool", "Registers a jigsaw structure template pool.");
       worldGenerationDescriptions.put("registerTemplatePool", "Registers a jigsaw structure template pool.");
       MLuaServiceMetadata.attachMethodDescriptions(worldGeneration, worldGenerationDescriptions);
-       wrapTypedDefinition(entities, "item", "RegisterSpawnEgg:3");
-       wrapTypedDefinition(blocks, "item", "RegisterItem:3");
+       wrapTypedDefinition(entities, "item", List.of(new RegistryEndpoint.TypedDefinition("RegisterSpawnEgg", 3)));
+       wrapTypedDefinition(blocks, "item", List.of(new RegistryEndpoint.TypedDefinition("RegisterItem", 3)));
        return supportColonAndDotCalls(table);
     }
 
@@ -1346,7 +1346,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return LuaValue.valueOf(MLuaRegistryService.this.dynamicRegistry.containsDefinition(key, id));
          }
       });
-      this.installContentTypeApi(target, category.domain());
+      this.installContentTypeApi(target, category.domain(), List.of());
       this.documentRegistryTable(target, category.name());
       target.rawset("__mlua_doc_description", LuaValue.valueOf(category.description()));
       registry.set(category.name(), target);
@@ -1405,7 +1405,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          base, description, defaultsValue.istable() ? defaultsValue.checktable() : null);
    }
 
-   private void installContentTypeApi(LuaTable target, String domain, String... methods) {
+   private void installContentTypeApi(LuaTable target, String domain,
+                                      List<RegistryEndpoint.TypedDefinition> definitions) {
       target.set("RegisterType", contentTypeRegistrar(domain));
       target.set("ResolveType", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
@@ -1424,7 +1425,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return MLuaRegistryService.typeCatalog(types);
          }
       });
-      wrapTypedDefinition(target, domain, methods);
+      wrapTypedDefinition(target, domain, definitions);
    }
 
    private void installRegistryEntryApi(LuaTable target, RegistryKind kind) {
@@ -1534,11 +1535,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return endpoint;
    }
 
-   private void wrapTypedDefinition(LuaTable target, String domain, String... methodIndexes) {
-      for (String methodIndex : methodIndexes) {
-         int split = methodIndex.lastIndexOf(':');
-         String methodName = methodIndex.substring(0, split);
-         int definitionIndex = Integer.parseInt(methodIndex.substring(split + 1));
+   private void wrapTypedDefinition(LuaTable target, String domain,
+                                    List<RegistryEndpoint.TypedDefinition> definitions) {
+      for (RegistryEndpoint.TypedDefinition definitionSpec : definitions) {
+         String methodName = definitionSpec.method();
+         int definitionIndex = definitionSpec.argumentIndex();
          LuaValue original = target.get(methodName);
          if (!original.isfunction()) continue;
          target.set(methodName, new VarArgFunction() {
