@@ -82,6 +82,39 @@ public final class MLuaBehaviorRegistry {
       return behaviors == null ? LuaValue.NIL : behaviors.getOrDefault(event, LuaValue.NIL);
    }
 
+   public static Map<String, LuaValue> getBehaviors(String domain, String key) {
+      ConcurrentMap<String, Map<String, LuaValue>> definitions = SCRIPTED_BEHAVIORS.get(domain);
+      Map<String, LuaValue> behaviors = definitions == null ? null : definitions.get(key);
+      return behaviors == null ? Map.of() : behaviors;
+   }
+
+   /** Restores a previous behavior set only while the definition still matches the failed registration. */
+   public static boolean restoreBehaviors(String domain, String key, Map<String, LuaValue> expected,
+                                          Map<String, LuaValue> previous) {
+      if (domain == null || key == null) return false;
+      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
+      SCRIPTED_BEHAVIORS.compute(domain, (ignored, definitions) -> {
+         ConcurrentMap<String, Map<String, LuaValue>> values = definitions == null
+            ? new ConcurrentHashMap<>() : definitions;
+         values.compute(key, (ignoredKey, current) -> {
+            Map<String, LuaValue> actual = current == null ? Map.of() : current;
+            if (!sameBehaviors(actual, expected == null ? Map.of() : expected)) return current;
+            restored.set(true);
+            return previous == null || previous.isEmpty() ? null : Map.copyOf(previous);
+         });
+         return values.isEmpty() ? null : values;
+      });
+      return restored.get();
+   }
+
+   private static boolean sameBehaviors(Map<String, LuaValue> left, Map<String, LuaValue> right) {
+      if (left.size() != right.size()) return false;
+      for (Map.Entry<String, LuaValue> entry : left.entrySet()) {
+         if (right.get(entry.getKey()) != entry.getValue()) return false;
+      }
+      return true;
+   }
+
    /** Compatibility name used by scripted content dispatchers. */
    public static LuaValue getCallback(String domain, String key, String event) {
       return getBehavior(domain, key, event);
@@ -108,6 +141,23 @@ public final class MLuaBehaviorRegistry {
    public static String getContentClass(String domain, String key) {
       ConcurrentMap<String, String> definitions = CONTENT_CLASSES.get(domain);
       return definitions == null ? null : definitions.get(key);
+   }
+
+   /** Restores a previous class mapping only while the mapping still belongs to the failed registration. */
+   public static boolean restoreContentClass(String domain, String key, String expected, String previous) {
+      if (domain == null || key == null) return false;
+      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
+      CONTENT_CLASSES.compute(domain, (ignored, definitions) -> {
+         ConcurrentMap<String, String> values = definitions == null
+            ? new ConcurrentHashMap<>() : definitions;
+         values.compute(key, (ignoredKey, current) -> {
+            if (!java.util.Objects.equals(current, expected)) return current;
+            restored.set(true);
+            return previous;
+         });
+         return values.isEmpty() ? null : values;
+      });
+      return restored.get();
    }
 
    private static void clearBehaviors(String domain, String key) {
@@ -219,6 +269,21 @@ public final class MLuaBehaviorRegistry {
 
     public static int getEntityAIInterval(String key) {
        return ENTITY_AI_INTERVAL.getOrDefault(key, 5);
+    }
+
+    public static Integer getRegisteredEntityAIInterval(String key) {
+       return ENTITY_AI_INTERVAL.get(key);
+    }
+
+    public static boolean restoreEntityAIInterval(String key, int expected, Integer previous) {
+       if (key == null) return false;
+       java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
+       ENTITY_AI_INTERVAL.compute(key, (ignored, current) -> {
+          if (current == null || current != expected) return current;
+          restored.set(true);
+          return previous;
+       });
+       return restored.get();
     }
 
 }

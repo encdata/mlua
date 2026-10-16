@@ -416,7 +416,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
             String className = MLuaRegistryService.requireContentClass(registration, propsTable, "Item");
-            boolean hasCallbacks = registerItemCallbacks(propsTable, key);
+            Map<String, LuaValue> itemCallbacks = collectCallbacks(propsTable,
+               "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
+            boolean hasCallbacks = !itemCallbacks.isEmpty();
             boolean copyModel = MLuaRegistryService.booleanProperty(propsTable, "copyModel", "CopyModel");
             MLuaTextureDescriptor itemTexture = MLuaRegistryService.textureDescriptor(propsTable, "itemTexture", "texture", "textures", "ItemTexture", "Texture", "Textures").resolve(owner, "item");
             String itemModel = MLuaRegistryService.resolvedModel(owner, "item", propsTable, "model", "Model", "itemModel", "ItemModel");
@@ -434,7 +436,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             }
 
             MLuaLoaderRegistry.setItemVisuals(owner, name, itemTexture, itemModel);
-            MLuaBehaviorRegistry.registerContentClass("item", key, "Item".equals(className) ? null : className);
+            MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
+            MLuaRegistryService.this.registerContentClass("item", key, "Item".equals(className) ? null : className);
             return LuaValue.NONE;
          }
       });
@@ -461,16 +464,15 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   throw new LuaError("[MLua] Content class '" + blockEntityClass + "' must be registered and inherit from BlockEntity");
                }
             }
-            MLuaBehaviorRegistry.registerContentClass("block_entity", key,
-               "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
-            MLuaBehaviorRegistry.clearBlockCallbacks(key);
-            registerCallbacks("block_entity", key, blockEntityProperties, "onLoad", "onUnload");
-            MLuaBehaviorRegistry.ContainerDefinition containerDefinition = null;
+            Map<String, LuaValue> blockEntityCallbacks = collectCallbacks(blockEntityProperties, "onLoad", "onUnload");
+            Map<String, LuaValue> blockCallbacks = collectCallbacks(propsTable,
+               "onRightClick", "onPlace", "onBreak", "onStepOn", "onEntityInside",
+               "onNeighborChanged", "onRemove", "onRandomTick", "onTick", "onFallOn", "onProjectileHit");
+            MLuaBehaviorRegistry.ContainerDefinition requestedContainer = null;
             if (propsTable != null) {
                LuaValue containerValue = propsTable.get("container");
                if (containerValue.isnil()) containerValue = propsTable.get("Container");
                if (!containerValue.isnil()) {
-                  MLuaBehaviorRegistry.ContainerDefinition requestedContainer;
                   if (containerValue.istable()) {
                      LuaTable containerTable = containerValue.checktable();
                      int rows = MLuaLuaArguments.optionalWholeInt(containerTable.get("Rows"), 3,
@@ -486,19 +488,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   } else {
                      throw new LuaError("[MLua] Block Container must be a registered type name or a table with Rows and optional Title");
                   }
-                  try {
-                     containerDefinition = MLuaBehaviorRegistry.registerBlockContainer(key, requestedContainer);
-                  } catch (IllegalArgumentException | IllegalStateException invalid) {
-                     throw new LuaError("[MLua] " + invalid.getMessage());
-                  }
-                  MLuaBehaviorRegistry.ContainerDefinition registeredContainer = containerDefinition;
-                  try {
-                     registration.onRegistrationRollback(() ->
-                        MLuaBehaviorRegistry.unregisterBlockContainer(key, registeredContainer));
-                  } catch (RuntimeException failure) {
-                     MLuaBehaviorRegistry.unregisterBlockContainer(key, registeredContainer);
-                     throw failure;
-                  }
                }
             }
             boolean copyModel = MLuaRegistryService.booleanProperty(propsTable, "copyModel", "CopyModel");
@@ -513,18 +502,20 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                MLuaLoaderRegistry.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, blockState);
             }
             if (propsTable != null) {
-               boolean hasBlockCallback = registerCallbacks("block", key, propsTable,
-                  "onRightClick", "onPlace", "onBreak", "onStepOn", "onEntityInside",
-                  "onNeighborChanged", "onRemove", "onRandomTick", "onTick", "onFallOn", "onProjectileHit");
                if (!propsTable.get("onRandomTick").isnil()) ((Map)props).put("randomTicks", true);
 
-               boolean hasBlockCallbacks = containerDefinition != null || hasBlockCallback;
+               boolean hasBlockCallbacks = requestedContainer != null || !blockCallbacks.isEmpty();
                if (hasBlockCallbacks) {
                   MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                      return MLuaRegistryService.this.blockFactory.createScripted(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
                   });
+                  if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
                   MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
-                  MLuaBehaviorRegistry.registerContentClass("block", key, "Block".equals(className) ? null : className);
+                  MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
+                  MLuaRegistryService.this.replaceBehaviors("block", key, blockCallbacks);
+                  MLuaRegistryService.this.registerContentClass("block_entity", key,
+                     "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
+                  MLuaRegistryService.this.registerContentClass("block", key, "Block".equals(className) ? null : className);
                   return LuaValue.NONE;
                }
             }
@@ -532,8 +523,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                return MLuaRegistryService.this.blockFactory.create(props, name, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
             });
+            if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
             MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
-            MLuaBehaviorRegistry.registerContentClass("block", key, "Block".equals(className) ? null : className);
+            MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
+            MLuaRegistryService.this.replaceBehaviors("block", key, Map.of());
+            MLuaRegistryService.this.registerContentClass("block_entity", key,
+               "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
+            MLuaRegistryService.this.registerContentClass("block", key, "Block".equals(className) ? null : className);
             return LuaValue.NONE;
          }
       });
@@ -547,7 +543,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
             String className = MLuaRegistryService.requireContentClass(registration, propsTable, "BlockItem");
-            boolean hasCallbacks = registerItemCallbacks(propsTable, key);
+            Map<String, LuaValue> itemCallbacks = collectCallbacks(propsTable,
+               "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
+            boolean hasCallbacks = !itemCallbacks.isEmpty();
 
             MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             RegistryHandle<Block> blockRO = MLuaLoaderRegistry.get(RegistryKind.BLOCK, owner, name);
@@ -565,7 +563,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             }
 
-            MLuaBehaviorRegistry.registerContentClass("item", key, className);
+            MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
+            MLuaRegistryService.this.registerContentClass("item", key, className);
 
             return LuaValue.NONE;
          }
@@ -801,9 +800,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.validateCallback("onTick", onTick);
             MLuaRegistryService.validateCallback("onApplied", onApplied);
             MLuaRegistryService.validateCallback("onEnding", onEnding);
-            MLuaBehaviorRegistry.registerBehaviors("effect", key, Map.of(
-               "onTick", onTick, "onApplied", onApplied, "onEnding", onEnding));
-
             MobEffectCategory category = MLuaRegistryService.effectCategory(propsTable);
             int color = MLuaRegistryService.colorProperty(propsTable, 16777215, "color", "Color");
             String descriptionId = MLuaRegistryService.stringProperty(propsTable, "translation", "Translation", "descriptionId", "DescriptionId", "name", "Name");
@@ -818,6 +814,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaLoaderRegistry.register(RegistryKind.MOB_EFFECT, owner, name, () -> {
                return new MLuaScriptedMobEffect(category, color, key, MLuaRegistryService.effectDescriptionId(owner, name, descriptionId), iconValue != null && !iconValue.isBlank() ? MLuaAssetResolver.resolveTexture(owner, iconValue, "mob_effect") : null, visibleInInventory, visibleInGui, instant, tickInterval);
             });
+            MLuaRegistryService.this.replaceBehaviors("effect", key, Map.of(
+               "onTick", onTick, "onApplied", onApplied, "onEnding", onEnding));
             return LuaValue.NONE;
          }
       });
@@ -897,11 +895,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              MLuaRegistryService.validateCallback("onSpawn", onSpawn);
              MLuaRegistryService.validateCallback("onInteract", onInteract);
              MLuaRegistryService.validateCallback("onRemove", onRemove);
-             MLuaBehaviorRegistry.registerBehaviors("entity", key, Map.of(
-                "onTick", onTick, "onHurt", onHurt, "onDeath", onDeath, "AI", onAI,
-                "onSpawn", onSpawn, "onInteract", onInteract, "onRemove", onRemove));
-             MLuaBehaviorRegistry.registerEntityAIInterval(key, Math.max(1, Math.min(120, aiInterval)));
-
              LuaTable attr = propsTable != null ? propsTable.get("attributes").opttable((LuaTable)null) : null;
              double maxHealth = MLuaRegistryService.attrValue(attr, "maxHealth", 20.0);
              double speed = MLuaRegistryService.attrValue(attr, "movementSpeed", 0.25);
@@ -944,6 +937,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                 return builder.build(owner + ":" + name);
                 //--endversion
              }, attrSupplier);
+             MLuaRegistryService.this.replaceBehaviors("entity", key, Map.of(
+                "onTick", onTick, "onHurt", onHurt, "onDeath", onDeath, "AI", onAI,
+                "onSpawn", onSpawn, "onInteract", onInteract, "onRemove", onRemove));
+             MLuaRegistryService.this.setEntityAIInterval(key, Math.max(1, Math.min(120, aiInterval)));
              MLuaLogger.LOGGER.info("Registered MLua scripted entity '{}' with AI callback={}", key, !onAI.isnil());
              return LuaValue.NONE;
          }
@@ -968,9 +965,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                throw new LuaError("[MLua] Entity '" + entityName + "' not registered yet. Register the entity before its spawn egg.");
             }
 
-            registerItemCallbacks(propsTable, owner + ":" + name);
+            Map<String, LuaValue> itemCallbacks = collectCallbacks(propsTable,
+               "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
             MLuaLoaderRegistry.registerSpawnEgg(owner, name, entityType, primaryColor, secondaryColor);
+            MLuaRegistryService.this.replaceBehaviors("item", owner + ":" + name, itemCallbacks);
             return LuaValue.NONE;
          }
       });
@@ -1575,30 +1574,85 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return result;
    }
 
-   private static boolean registerItemCallbacks(LuaTable propsTable, String key) {
-      return registerCallbacks("item", key, propsTable,
-         "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
-   }
-
-   private static boolean registerCallbacks(String domain, String key, LuaTable properties, String... eventNames) {
+   private static Map<String, LuaValue> collectCallbacks(LuaTable properties, String... eventNames) {
       Map<String, LuaValue> callbacks = new HashMap<>();
-      if (properties == null) {
-         MLuaBehaviorRegistry.registerBehaviors(domain, key, callbacks);
-         return false;
-      }
-      for (String eventName : eventNames) {
-         LuaValue callback = properties.get(eventName);
-         if (callback.isnil()) continue;
-         if (!callback.isfunction()) {
-            throw new LuaError("[MLua] Registry callback '" + eventName + "' must be a function");
+      if (properties != null) {
+         for (String eventName : eventNames) {
+            LuaValue callback = properties.get(eventName);
+            if (callback.isnil()) continue;
+            if (!callback.isfunction()) {
+               throw new LuaError("[MLua] Registry callback '" + eventName + "' must be a function");
+            }
+         }
+         for (String eventName : eventNames) {
+            LuaValue callback = properties.get(eventName);
+            if (!callback.isnil()) callbacks.put(eventName, callback);
          }
       }
-      for (String eventName : eventNames) {
-         LuaValue callback = properties.get(eventName);
-         if (!callback.isnil()) callbacks.put(eventName, callback);
-      }
+      return Map.copyOf(callbacks);
+   }
+
+   private void replaceBehaviors(String domain, String key, Map<String, LuaValue> requested) {
+      Map<String, LuaValue> callbacks = new HashMap<>();
+      if (requested != null) requested.forEach((name, callback) -> {
+         if (name != null && !name.isBlank() && callback != null && !callback.isnil()) callbacks.put(name, callback);
+      });
+      Map<String, LuaValue> previous = MLuaBehaviorRegistry.getBehaviors(domain, key);
       MLuaBehaviorRegistry.registerBehaviors(domain, key, callbacks);
-      return !callbacks.isEmpty();
+      try {
+         this.context.mlua().registration().onRegistrationRollback(() ->
+            MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous));
+      } catch (RuntimeException | Error failure) {
+         MLuaBehaviorRegistry.restoreBehaviors(domain, key, callbacks, previous);
+         throw failure;
+      }
+   }
+
+   private void setEntityAIInterval(String key, int interval) {
+      Integer previous = MLuaBehaviorRegistry.getRegisteredEntityAIInterval(key);
+      MLuaBehaviorRegistry.registerEntityAIInterval(key, interval);
+      int expected = Math.max(1, Math.min(120, interval));
+      try {
+         this.context.mlua().registration().onRegistrationRollback(() ->
+            MLuaBehaviorRegistry.restoreEntityAIInterval(key, expected, previous));
+      } catch (RuntimeException | Error failure) {
+         MLuaBehaviorRegistry.restoreEntityAIInterval(key, expected, previous);
+         throw failure;
+      }
+   }
+
+   private void registerBlockContainer(dev.mlua.module.MLuaRegistration registration, String key,
+                                       MLuaBehaviorRegistry.ContainerDefinition requested) {
+      MLuaBehaviorRegistry.ContainerDefinition previous = MLuaBehaviorRegistry.getBlockContainer(key);
+      final MLuaBehaviorRegistry.ContainerDefinition installed;
+      try {
+         installed = MLuaBehaviorRegistry.registerBlockContainer(key, requested);
+      } catch (IllegalArgumentException | IllegalStateException invalid) {
+         throw new LuaError("[MLua] " + invalid.getMessage());
+      }
+      Runnable rollback = () -> {
+         if (MLuaBehaviorRegistry.unregisterBlockContainer(key, installed) && previous != null) {
+            MLuaBehaviorRegistry.registerBlockContainer(key, previous);
+         }
+      };
+      try {
+         registration.onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
+      }
+   }
+
+   private void registerContentClass(String domain, String key, String className) {
+      String previous = MLuaBehaviorRegistry.getContentClass(domain, key);
+      MLuaBehaviorRegistry.registerContentClass(domain, key, className);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(() ->
+            MLuaBehaviorRegistry.restoreContentClass(domain, key, className, previous));
+      } catch (RuntimeException | Error failure) {
+         MLuaBehaviorRegistry.restoreContentClass(domain, key, className, previous);
+         throw failure;
+      }
    }
 
    private static void validateCallback(String name, LuaValue callback) {
