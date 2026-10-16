@@ -13,6 +13,9 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.modules.enums.MLuaEnumValue;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.WeakHashMap;
+import java.lang.ref.WeakReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.LivingEntity;
@@ -24,6 +27,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 public final class MLuaAnimationBindings {
+
+    private static final Map<MLuaRegistration, Map<MLuaAnimation, WeakReference<LuaTable>>> ANIMATION_WRAPPERS = new WeakHashMap<>();
+    private static final Map<MLuaRegistration, Map<Integer, WeakReference<LuaTable>>> TRACK_WRAPPERS = new WeakHashMap<>();
 
     private MLuaAnimationBindings() {}
 
@@ -366,6 +372,20 @@ public final class MLuaAnimationBindings {
     }
 
     public static LuaTable wrapAnimation(MLuaAnimation animation, MLuaRegistration registration) {
+        synchronized (ANIMATION_WRAPPERS) {
+            Map<MLuaAnimation, WeakReference<LuaTable>> wrappers = ANIMATION_WRAPPERS.computeIfAbsent(
+                registration, ignored -> new WeakHashMap<>());
+            wrappers.entrySet().removeIf(entry -> entry.getValue().get() == null);
+            WeakReference<LuaTable> existingReference = wrappers.get(animation);
+            LuaTable existing = existingReference == null ? null : existingReference.get();
+            if (existing != null && registration.isInstanceOf(existing, "Animation")) return existing;
+            LuaTable created = createAnimationInstance(animation, registration);
+            wrappers.put(animation, new WeakReference<>(created));
+            return created;
+        }
+    }
+
+    private static LuaTable createAnimationInstance(MLuaAnimation animation, MLuaRegistration registration) {
         LuaTable fields = new LuaTable();
         fields.set("__mlua_animation", LuaValue.userdataOf(animation));
         LuaTable table = createClassInstance(registration, "Animation", fields);
@@ -485,6 +505,20 @@ public final class MLuaAnimationBindings {
     }
 
     public static LuaTable wrapTrack(MLuaAnimationTrack track, MLuaRegistration registration) {
+        synchronized (TRACK_WRAPPERS) {
+            Map<Integer, WeakReference<LuaTable>> wrappers = TRACK_WRAPPERS.computeIfAbsent(
+                registration, ignored -> new HashMap<>());
+            wrappers.entrySet().removeIf(entry -> entry.getValue().get() == null);
+            WeakReference<LuaTable> existingReference = wrappers.get(track.trackId());
+            LuaTable existing = existingReference == null ? null : existingReference.get();
+            if (existing != null && registration.isInstanceOf(existing, "AnimationTrack")) return existing;
+            LuaTable created = createTrackInstance(track, registration);
+            wrappers.put(track.trackId(), new WeakReference<>(created));
+            return created;
+        }
+    }
+
+    private static LuaTable createTrackInstance(MLuaAnimationTrack track, MLuaRegistration registration) {
         LuaTable fields = new LuaTable();
         fields.set("__trackId", track.trackId());
         fields.set("__entityId", track.entityId());
