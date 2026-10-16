@@ -164,8 +164,8 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         boolean loop = (!loopedOption.isnil() ? loopedOption : loopOption).optboolean(false);
         MLuaEntityScope followEntity = resolveOptionalEntityScope(
             option(props, "FollowEntity"));
-        SoundSource category = parseSoundSource(
-            option(props, "Category").optjstring("players"));
+        LuaValue categoryValue = option(props, "Category");
+        SoundSource category = parseSoundSource(categoryValue, "SoundService:Play");
         Double x = null;
         Double y = null;
         Double z = null;
@@ -196,6 +196,17 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     public void Clear() {
         this.requireClientSide(this.name());
         MLuaClientSoundManager.clearOwned(owner());
+    }
+
+    @MLuaDescription("Returns the sound categories supported by this Minecraft version as lowercase names.")
+    public LuaTable GetCategories() {
+        LuaTable result = new LuaTable();
+        SoundSource[] categories = SoundSource.values();
+        java.util.Arrays.sort(categories, java.util.Comparator.comparing(source -> source.name().toLowerCase(java.util.Locale.ROOT)));
+        for (int index = 0; index < categories.length; index++) {
+            result.set(index + 1, categories[index].name().toLowerCase(java.util.Locale.ROOT));
+        }
+        return result;
     }
 
     private LuaTable soundTable(int id, MLuaSoundOwnershipRegistry.Owner owner) {
@@ -314,14 +325,16 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         return MLuaEntityScope.of(entity);
     }
 
-    private static SoundSource parseSoundSource(String value) {
-        if (value == null || value.isBlank()) {
-            return SoundSource.PLAYERS;
-        }
+    private static SoundSource parseSoundSource(LuaValue value, String method) {
+        if (value.isnil()) return SoundSource.PLAYERS;
+        if (!value.isstring()) throw new LuaError("[MLua] " + method + " Category must be one of SoundService:GetCategories().");
+        String name = value.tojstring().trim();
+        if (name.isEmpty()) throw new LuaError("[MLua] " + method + " Category must be one of SoundService:GetCategories().");
         try {
-            return SoundSource.valueOf(value.trim().toUpperCase());
-        } catch (IllegalArgumentException ignored) {
-            return SoundSource.PLAYERS;
+            return SoundSource.valueOf(name.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException invalid) {
+            throw new LuaError("[MLua] " + method + " has unknown Category '" + name
+                + "'. Use one of SoundService:GetCategories().");
         }
     }
 

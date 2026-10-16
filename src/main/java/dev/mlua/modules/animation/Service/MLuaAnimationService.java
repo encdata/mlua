@@ -20,7 +20,6 @@ import java.util.Collections;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import java.util.Optional;
 
 @MLuaDescription("Service for creating and managing animations.")
 public final class MLuaAnimationService extends MLuaReflectiveService {
@@ -79,6 +78,15 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
         return removed;
     }
 
+    @MLuaDescription("Returns registered animation identifiers in lexicographic order.")
+    public LuaTable GetAnimationIds() {
+        ArrayList<String> ids = new ArrayList<>(this.registeredAnimations.keySet());
+        Collections.sort(ids);
+        LuaTable result = new LuaTable();
+        for (int index = 0; index < ids.size(); index++) result.set(index + 1, ids.get(index));
+        return result;
+    }
+
     @MLuaDescription("Returns all animations registered in this service instance.")
     public LuaTable GetRegisteredAnimations() {
         LuaTable result = new LuaTable();
@@ -116,11 +124,13 @@ public final class MLuaAnimationService extends MLuaReflectiveService {
     }
 
     @MLuaDescription("Clears custom pose overrides for an entity.")
-    public void ClearPose(Optional<LuaValue> entity) {
-        if (entity.isEmpty() || entity.get().isnil()) {
-            throw new LuaError("[MLua] AnimationService:ClearPose expects an Entity instance or entity ID.");
-        }
-        MLuaBonePose.clearPose(resolveEntityScope(entity.get()), this.context.mlua().registration());
+    public void ClearPose(LuaValue entity) {
+        MLuaBonePose.clearPose(resolveEntityScope(entity), this.context.mlua().registration());
+    }
+
+    @MLuaDescription("Clears all manual and animated pose overrides owned by this script runtime on the current side.")
+    public void ClearPoses() {
+        MLuaBonePose.clearRuntime(this.context.mlua().registration(), this.context.mlua().side());
     }
 
     @MLuaDescription("Returns the available animation priorities.")

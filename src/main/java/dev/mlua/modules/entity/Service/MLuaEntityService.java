@@ -47,11 +47,7 @@ public final class MLuaEntityService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
     public LuaValue FindByUUID(String uuid) {
-        try {
-            return wrap(resolveEntity(UUID.fromString(uuid)));
-        } catch (IllegalArgumentException invalidUuid) {
-            throw new LuaError("[MLua] EntityService:FindByUUID expects a valid UUID string.");
-        }
+        return wrap(resolveEntity(MLuaLuaArguments.uuid(uuid, "EntityService:FindByUUID", "uuid")));
     }
 
     @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")

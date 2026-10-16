@@ -1,6 +1,7 @@
 package dev.mlua.minecraft.binding;
 
 import dev.mlua.math.MLuaCFrame;
+import java.util.UUID;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -28,6 +29,17 @@ public final class MLuaLuaArguments {
             }
         }
         return coordinates;
+    }
+
+    /** Parses UUID arguments with the same Lua-facing failure across services. */
+    public static UUID uuid(String value, String method, String parameter) {
+        try {
+            UUID parsed = UUID.fromString(value);
+            if (!parsed.toString().equalsIgnoreCase(value)) throw new IllegalArgumentException("Non-canonical UUID");
+            return parsed;
+        } catch (IllegalArgumentException | NullPointerException invalid) {
+            throw new LuaError("[MLua] " + method + " " + parameter + " must be a valid UUID string.");
+        }
     }
 
     public static double optionalFiniteNumber(Varargs args, int index, double fallback,

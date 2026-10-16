@@ -371,10 +371,13 @@ jobs:
           assert(animationService:HasAnimation("ci_identity"), "Animation service did not report its registered id")
           assert(animationService:GetRegisteredAnimations().ci_identity ~= nil,
             "Animation service omitted its registered asset from the snapshot")
+          assert(animationService:GetAnimationIds()[1] == "ci_identity",
+            "Animation service did not return registered ids in a predictable array")
           assert(animationService:RemoveAnimation("ci_identity"), "Animation service failed to remove a registered id")
           assert(not animationService:HasAnimation("ci_identity"), "Animation service retained a removed id")
           animationService:RegisterAnimation("ci_identity", definition)
           assert(animationService:ClearAnimations() == 1, "Animation service did not report the number of cleared assets")
+          animationService:ClearPoses()
           local badAnimationIdOk = pcall(function() animationService:RegisterAnimation("bad id", definition) end)
           assert(not badAnimationIdOk, "Animation service accepted an id containing whitespace")
           assert(type(Animation.Animator.new) == "function", "Animator class was not registered")
@@ -394,6 +397,23 @@ jobs:
           assert(type(components.GetAll) == "function", "Components:GetAll was not registered")
           local config = Minecraft:GetService("Config")
           assert(type(config.SetMany) == "function", "Config:SetMany was not registered")
+          local playerService = Minecraft:GetService("Players")
+          local invalidPlayerUuid = pcall(function() playerService:GetPlayerByUUID("not-a-uuid") end)
+          assert(not invalidPlayerUuid, "Players:GetPlayerByUUID accepted malformed UUID input")
+          local entityService = Minecraft:GetService("EntityService")
+          local invalidEntityUuid = pcall(function() entityService:FindByUUID("not-a-uuid") end)
+          assert(not invalidEntityUuid, "EntityService:FindByUUID accepted malformed UUID input")
+          local soundService = Minecraft:GetService("SoundService")
+          local categories = soundService:GetCategories()
+          assert(#categories > 0, "SoundService did not expose Minecraft sound categories")
+          for index, category in ipairs(categories) do
+              assert(category == category:lower(), "SoundService categories must use lowercase names")
+              if index > 1 then assert(categories[index - 1] <= category, "SoundService categories must be sorted") end
+          end
+          local invalidSoundCategory = pcall(function()
+              soundService:Play("minecraft:ambient.cave", { Category = "not_a_category" })
+          end)
+          assert(not invalidSoundCategory, "SoundService silently accepted an invalid category")
           print("MLUA_CI_ANIMATION_API_OK")
           print("MLUA_CI_SERVICE_PARITY_OK")
           print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")

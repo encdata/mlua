@@ -9,6 +9,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
+import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
 import dev.mlua.core.signal.MLuaSignal;
 import java.util.UUID;
@@ -94,7 +95,7 @@ public final class MLuaPlayersService extends MLuaReflectiveService {
 
    @MLuaDescription("Finds a connected player by UUID, or returns nil.")
    public LuaValue GetPlayerByUUID(String value) {
-      UUID uuid = UUID.fromString(value);
+      UUID uuid = MLuaLuaArguments.uuid(value, "Players:GetPlayerByUUID", "uuid");
       ServerPlayer player = this.isClientSide() || this.server() == null
          ? null : this.server().getPlayerList().getPlayer(uuid);
       if (player != null) return playerTable(player, this.context.mlua().registration());
