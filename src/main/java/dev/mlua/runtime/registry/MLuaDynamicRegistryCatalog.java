@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -16,14 +17,13 @@ import org.luaj.vm2.Varargs;
  */
 public final class MLuaDynamicRegistryCatalog {
     private final MLuaRegistry<Category> categories = new MLuaRegistry<>();
-    private final Map<String, MLuaRegistry<DefinitionHandle>> definitions = new HashMap<>();
-    private final Map<String, Map<String, String>> pendingDefinitions = new HashMap<>();
+    private final Map<String, CategoryState> categoryStates = new HashMap<>();
 
     public synchronized boolean register(Category category) {
+        Objects.requireNonNull(category, "category");
         String key = key(category.name());
         if (!this.categories.register(category.owner(), key, category)) return false;
-        this.definitions.put(key, new MLuaRegistry<>());
-        this.pendingDefinitions.put(key, new HashMap<>());
+        this.categoryStates.put(key, new CategoryState());
         return true;
     }
 
@@ -38,75 +38,76 @@ public final class MLuaDynamicRegistryCatalog {
     public synchronized boolean unregister(String name, Category expected) {
         String key = key(name);
         if (!this.categories.remove(expected.owner(), key, expected)) return false;
-        this.definitions.remove(key);
-        this.pendingDefinitions.remove(key);
+        this.categoryStates.remove(key);
         return true;
     }
 
-    public synchronized boolean beginDefinition(String category, String id, String owner) {
+    /** Reserves an id until the callback either stores a definition or fails. */
+    public synchronized DefinitionReservation beginDefinition(String category, String id, String owner) {
         String key = key(category);
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key);
-        Map<String, String> pending = this.pendingDefinitions.get(key);
-        if (values == null || pending == null || values.contains(id) || pending.containsKey(id)) return false;
-        pending.put(id, owner);
-        return true;
+        requireText(id, "definition id");
+        requireText(owner, "definition owner");
+        CategoryState state = this.categoryStates.get(key);
+        if (state == null || state.definitions.contains(id) || state.pending.containsKey(id)) return null;
+        DefinitionReservation reservation = new DefinitionReservation(key, id, owner);
+        state.pending.put(id, reservation);
+        return reservation;
     }
 
-    public synchronized void cancelPendingDefinition(String category, String id) {
-        Map<String, String> pending = this.pendingDefinitions.get(key(category));
-        if (pending != null) pending.remove(id);
+    /** Clears only the exact reservation created by beginDefinition. */
+    public synchronized void cancelPendingDefinition(DefinitionReservation reservation) {
+        if (reservation == null) return;
+        CategoryState state = this.categoryStates.get(reservation.category());
+        if (state != null) state.pending.remove(reservation.id(), reservation);
     }
 
-    public synchronized DefinitionHandle registerDefinition(String category, String id,
-                                                            String owner, LuaTable definition) {
-        String key = key(category);
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key);
-        Map<String, String> pending = this.pendingDefinitions.get(key);
-        if (values == null || pending == null || !owner.equals(pending.get(id)) || values.contains(id)) return null;
-        DefinitionHandle stored = new DefinitionHandle(owner, copyTable(definition));
-        return values.register(owner, id, stored) ? stored : null;
+    public synchronized DefinitionHandle registerDefinition(DefinitionReservation reservation, LuaTable definition) {
+        if (reservation == null) return null;
+        CategoryState state = this.categoryStates.get(reservation.category());
+        if (state == null || state.pending.get(reservation.id()) != reservation
+            || state.definitions.contains(reservation.id())) return null;
+        DefinitionHandle stored = new DefinitionHandle(reservation.owner(), copyTable(definition));
+        return state.definitions.register(reservation.owner(), reservation.id(), stored) ? stored : null;
     }
 
     public synchronized void unregisterDefinition(String category, String id, DefinitionHandle expected) {
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key(category));
-        if (values != null && expected != null) values.remove(expected.owner(), id, expected);
+        CategoryState state = this.categoryStates.get(key(category));
+        if (state != null && expected != null) state.definitions.remove(expected.owner(), id, expected);
     }
 
     public synchronized void unregisterOwner(String ownerModId) {
         this.categories.removeOwner(ownerModId);
-        List<String> removedCategories = this.definitions.keySet().stream()
+        List<String> removedCategories = this.categoryStates.keySet().stream()
             .filter(key -> this.categories.get(key) == null).toList();
-        removedCategories.forEach(key -> {
-            this.definitions.remove(key);
-            this.pendingDefinitions.remove(key);
+        removedCategories.forEach(this.categoryStates::remove);
+        this.categoryStates.values().forEach(state -> {
+            state.definitions.removeOwner(ownerModId);
+            state.pending.entrySet().removeIf(entry -> ownerModId.equals(entry.getValue().owner()));
         });
-        this.definitions.values().forEach(values -> values.removeOwner(ownerModId));
-        this.pendingDefinitions.values().forEach(pending -> pending.entrySet()
-            .removeIf(entry -> ownerModId.equals(entry.getValue())));
     }
 
     public synchronized LuaTable definition(String category, String id) {
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key(category));
-        DefinitionHandle definition = values == null ? null : values.get(id);
+        CategoryState state = this.categoryStates.get(key(category));
+        DefinitionHandle definition = state == null ? null : state.definitions.get(id);
         return definition == null ? null : copyTable(definition.value());
     }
 
     public synchronized boolean containsDefinition(String category, String id) {
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key(category));
-        return values != null && values.contains(id);
+        CategoryState state = this.categoryStates.get(key(category));
+        return state != null && state.definitions.contains(id);
     }
 
     public synchronized List<String> ids(String category, String namespace) {
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key(category));
-        if (values == null) return List.of();
-        return values.snapshot().keySet().stream().filter(id -> namespace == null || id.startsWith(namespace + ":"))
+        CategoryState state = this.categoryStates.get(key(category));
+        if (state == null) return List.of();
+        return state.definitions.snapshot().keySet().stream().filter(id -> namespace == null || id.startsWith(namespace + ":"))
             .sorted().toList();
     }
 
     public synchronized LuaTable definitions(String category, String namespace) {
         LuaTable result = new LuaTable();
-        MLuaRegistry<DefinitionHandle> values = this.definitions.get(key(category));
-        if (values != null) values.snapshot().entrySet().stream()
+        CategoryState state = this.categoryStates.get(key(category));
+        if (state != null) state.definitions.snapshot().entrySet().stream()
             .filter(entry -> namespace == null || entry.getKey().startsWith(namespace + ":"))
             .forEach(entry -> result.set(entry.getKey(), copyTable(entry.getValue().value())));
         return result;
@@ -134,10 +135,50 @@ public final class MLuaDynamicRegistryCatalog {
     }
 
     private static String key(String value) {
-        return value.trim().toLowerCase(Locale.ROOT);
+        return requireText(value, "category name").toLowerCase(Locale.ROOT);
     }
 
-    public record Category(String name, String description, String domain, String owner, LuaValue register) { }
+    private static String requireText(String value, String name) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " must be non-empty");
+        return value.trim();
+    }
+
+    private static final class CategoryState {
+        private final MLuaRegistry<DefinitionHandle> definitions = new MLuaRegistry<>();
+        private final Map<String, DefinitionReservation> pending = new HashMap<>();
+    }
+
+    /** Opaque ticket; only the catalog that created it can complete or cancel it. */
+    public static final class DefinitionReservation {
+        private final String category;
+        private final String id;
+        private final String owner;
+
+        private DefinitionReservation(String category, String id, String owner) {
+            this.category = category;
+            this.id = id;
+            this.owner = owner;
+        }
+
+        private String category() { return this.category; }
+        private String id() { return this.id; }
+        private String owner() { return this.owner; }
+    }
+
+    public record Category(String name, String description, String domain, String owner, LuaValue register) {
+        public Category {
+            name = requireText(name, "category name");
+            description = requireText(description, "category description");
+            domain = requireText(domain, "category content type domain");
+            owner = requireText(owner, "category owner");
+            Objects.requireNonNull(register, "category register callback");
+            if (!register.isfunction()) throw new IllegalArgumentException("category register callback must be a function");
+            int namespaceEnd = name.indexOf(':');
+            if (namespaceEnd < 1 || !owner.equals(name.substring(0, namespaceEnd))) {
+                throw new IllegalArgumentException("category must be namespaced to its owner");
+            }
+        }
+    }
 
     public static final class DefinitionHandle {
         private final String owner;

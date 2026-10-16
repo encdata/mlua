@@ -1297,7 +1297,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             if (active == null) throw new LuaError("[MLua] Registry category '" + category.name() + "' is no longer registered");
             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
-            if (!MLuaRegistryService.this.dynamicRegistry.beginDefinition(categoryKey, id, owner)) {
+            MLuaDynamicRegistryCatalog.DefinitionReservation reservation =
+               MLuaRegistryService.this.dynamicRegistry.beginDefinition(categoryKey, id, owner);
+            if (reservation == null) {
                throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
             }
             try {
@@ -1307,7 +1309,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                Varargs result = active.register().invoke(LuaValue.varargsOf(
                   new LuaValue[]{LuaValue.valueOf(id), MLuaDynamicRegistryCatalog.copyTable(resolved)}));
                MLuaDynamicRegistryCatalog.DefinitionHandle stored = MLuaRegistryService.this.dynamicRegistry
-                  .registerDefinition(categoryKey, id, owner, resolved);
+                  .registerDefinition(reservation, resolved);
                if (stored == null) {
                   throw new LuaError("[MLua] Registry entry '" + id + "' is already registered in '" + category.name() + "'");
                }
@@ -1315,7 +1317,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   MLuaRegistryService.this.dynamicRegistry.unregisterDefinition(categoryKey, id, stored));
                return result;
             } finally {
-               MLuaRegistryService.this.dynamicRegistry.cancelPendingDefinition(categoryKey, id);
+               MLuaRegistryService.this.dynamicRegistry.cancelPendingDefinition(reservation);
             }
          }
       });
