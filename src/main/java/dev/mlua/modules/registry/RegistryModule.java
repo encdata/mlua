@@ -680,7 +680,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Register(id: string, definition: ContainerDefinition)", "ContainerType"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetId(name: string)", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Get(id: string)", "ContainerType|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetEntry(id: string)", "ContainerType|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetAll(namespace?: string)", "table<string, ContainerType>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetEntries(namespace?: string)", "ContainerType[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Exists(id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetId()", "string"));
@@ -735,7 +737,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:Register(id: string, props: ProjectileDefinition)", "ProjectileType"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:GetId(name: string)", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:Get(id: string)", "ProjectileType|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:GetEntry(id: string)", "ProjectileType|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:GetAll(namespace?: string)", "table<string, ProjectileType>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:GetEntries(namespace?: string)", "ProjectileType[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Projectiles", "Registry.Projectiles:Exists(id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Tabs", "Registry.Tabs:Register(id: string, props: CreativeTabDefinition)", "RegistryEntry"));

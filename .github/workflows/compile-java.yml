@@ -274,6 +274,17 @@ jobs:
               if entry.Id == genericItemHandle.Id then foundGenericItem = entry:Equals(genericItemHandle) end
           end
           assert(foundGenericItem, "root Registry:GetEntries did not include the registered item handle")
+          Registry.Containers:Register("ci_small_container", { Rows = 2, Title = "CI Container" })
+          local containerHandle = Registry.Containers:GetEntry("ci_small_container")
+          assert(containerHandle:IsA("ContainerType") and containerHandle.SlotCount == 18,
+              "Registry.Containers:GetEntry did not return a typed container handle")
+          assert(Registry:GetEntry("containers", "ci_small_container").Id == containerHandle.Id,
+              "root Registry:GetEntry did not route to the container category")
+          local foundContainer = false
+          for _, entry in ipairs(Registry.Containers:GetEntries("mlua")) do
+              if entry.Id == containerHandle.Id then foundContainer = true end
+          end
+          assert(foundContainer, "Registry.Containers:GetEntries did not include the registered container")
           Registry.Items:RegisterType("ci_property_item_kind", {
               Base = "item",
               Description = "CI item defaults built from ItemProperties.",

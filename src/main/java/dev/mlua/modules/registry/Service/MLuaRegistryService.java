@@ -1411,6 +1411,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           LuaTable target = table.get(endpoint.table()).checktable();
           installContentTypeApi(target, endpoint.typeDomain(), endpoint.typedDefinitions());
           if (endpoint.registryKind() != null) installRegistryEntryApi(target, endpoint.registryKind());
+          installEntryLookupApi(target, endpoint.table());
           documentRegistryTable(target, endpoint.table());
        }
        documentRegistryTable(table, "Registry");
@@ -1497,6 +1498,37 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaValue metadata = target.rawget("__mlua_doc_methods");
       if (!metadata.istable() || !target.get(method).isfunction()) return;
       metadata.checktable().rawset(method, LuaValue.valueOf(description));
+   }
+
+   private static void installEntryLookupApi(LuaTable target, String category) {
+      LuaValue get = target.get("Get");
+      if (!target.get("GetEntry").isfunction() && get.isfunction()) {
+         target.set("GetEntry", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+               String id = args.checkjstring(2);
+               return get.invoke(LuaValue.varargsOf(new LuaValue[]{target, LuaValue.valueOf(id)}));
+            }
+         });
+      }
+      LuaValue getIds = target.get("GetIds");
+      LuaValue getEntry = target.get("GetEntry");
+      if (target.get("GetEntries").isfunction() || !getIds.isfunction() || !getEntry.isfunction()) return;
+      target.set("GetEntries", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaValue idsValue = getIds.invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(2)})).arg1();
+            if (!idsValue.istable()) {
+               throw new LuaError("[MLua] Registry." + category + ":GetIds must return an array of identifiers");
+            }
+            LuaTable ids = idsValue.checktable();
+            LuaTable entries = new LuaTable();
+            int entryIndex = 1;
+            for (int index = 1; index <= ids.length(); index++) {
+               LuaValue entry = getEntry.invoke(LuaValue.varargsOf(new LuaValue[]{target, ids.get(index)})).arg1();
+               if (!entry.isnil()) entries.set(entryIndex++, entry);
+            }
+            return entries;
+         }
+      });
    }
 
    private LuaValue containerType(String id) {
