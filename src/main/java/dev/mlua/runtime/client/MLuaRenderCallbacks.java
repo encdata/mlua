@@ -127,28 +127,29 @@ public final class MLuaRenderCallbacks {
         if (typeId == null) return;
         HookBucket registered = ENTITY_HOOKS.get(typeId.toString());
         if (registered == null || registered.isEmpty()) return;
-        var context = renderContext("EntityModel", poseStack, bufferSource, model, partialTick,
-            packedLight, packedOverlay, null);
-        LuaValue[] args = {MLuaEntityWrapper.entityTable(entity), context};
-        Varargs invocationArgs = LuaValue.varargsOf(args);
         for (Hook hook : registered.snapshot()) {
-            invoke(hook, args, invocationArgs);
+            LuaValue[] args = {MLuaEntityWrapper.entityTable(entity), renderContext(hook, "EntityModel", poseStack,
+                bufferSource, model, partialTick, packedLight, packedOverlay, null)};
+            invoke(hook, args, LuaValue.varargsOf(args));
         }
     }
 
     public static void renderWorld(String stage, Object nativeContext, Object poseStack, Object bufferSource, Object camera) {
-        var context = renderContext("World", poseStack, bufferSource, null, 0.0F, 0, 0, nativeContext);
-        context.set("Stage", LuaValue.valueOf(stage));
-        context.set("Camera", userdata(camera));
-        invokeSnapshot(WORLD_HOOKS.get(stage), new LuaValue[]{context});
+        HookBucket hooks = WORLD_HOOKS.get(stage);
+        if (hooks == null) return;
+        for (Hook hook : hooks.snapshot()) {
+            LuaValue[] args = {renderContext(hook, "World", poseStack, bufferSource, null, 0.0F, 0, 0, nativeContext,
+                "Stage", LuaValue.valueOf(stage), "Camera", userdata(camera))};
+            invoke(hook, args, LuaValue.varargsOf(args));
+        }
     }
 
     public static void renderHud(Object graphics, int width, int height) {
-        var context = renderContext("Hud", null, null, null, 0.0F, 0, 0, null);
-        context.set("Graphics", userdata(graphics));
-        context.set("Width", LuaValue.valueOf(width));
-        context.set("Height", LuaValue.valueOf(height));
-        invokeSnapshot(HUD_HOOKS, new LuaValue[]{context});
+        for (Hook hook : HUD_HOOKS.snapshot()) {
+            LuaValue[] args = {renderContext(hook, "Hud", null, null, null, 0.0F, 0, 0, null,
+                "Graphics", userdata(graphics), "Width", LuaValue.valueOf(width), "Height", LuaValue.valueOf(height))};
+            invoke(hook, args, LuaValue.varargsOf(args));
+        }
     }
 
     public static void clearOwned(Object session, String modId) {
@@ -171,12 +172,6 @@ public final class MLuaRenderCallbacks {
             bucket.removeOwned(predicate);
             return bucket.isEmpty() ? null : bucket;
         }));
-    }
-
-    private static void invokeSnapshot(HookBucket hooks, LuaValue[] args) {
-        if (hooks == null || hooks.isEmpty()) return;
-        Varargs invocationArgs = LuaValue.varargsOf(args);
-        for (Hook hook : hooks.snapshot()) invoke(hook, args, invocationArgs);
     }
 
     private static void removeWorld(java.util.function.Predicate<Owner> predicate) {
@@ -202,8 +197,6 @@ public final class MLuaRenderCallbacks {
         MLuaContext context = hook.context;
         try {
             synchronized (context.executionLock()) {
-                int contextIndex = args.length > 1 && args[1].istable() ? 1 : 0;
-                if (args[contextIndex].istable()) args[contextIndex].set("PassId", LuaValue.valueOf(hook.id));
                 MLuaLuaBindings.bindContext(context.globals(), context);
                 hook.callback.invoke(invocationArgs);
             }
@@ -214,8 +207,9 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    private static org.luaj.vm2.LuaTable renderContext(String target, Object poseStack, Object bufferSource,
-            Object model, float partialTick, int packedLight, int packedOverlay, Object nativeContext) {
+    private static LuaValue renderContext(Hook hook, String target, Object poseStack, Object bufferSource,
+            Object model, float partialTick, int packedLight, int packedOverlay, Object nativeContext,
+            Object... additionalFields) {
         var context = new org.luaj.vm2.LuaTable();
         context.set("Target", LuaValue.valueOf(target));
         context.set("PoseStack", userdata(poseStack));
@@ -225,7 +219,11 @@ public final class MLuaRenderCallbacks {
         context.set("PackedLight", LuaValue.valueOf(packedLight));
         context.set("PackedOverlay", LuaValue.valueOf(packedOverlay));
         context.set("NativeContext", userdata(nativeContext));
-        return context;
+        context.set("PassId", LuaValue.valueOf(hook.id));
+        for (int index = 0; index + 1 < additionalFields.length; index += 2) {
+            context.set((String) additionalFields[index], (LuaValue) additionalFields[index + 1]);
+        }
+        return hook.context.mlua().registration().attachClassInstance(context, "RenderContext", null);
     }
 
     private static LuaValue requireCallback(LuaValue callback) {

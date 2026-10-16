@@ -9,6 +9,23 @@ import java.util.List;
 
 @dev.mlua.module.MLuaModuleSide(Side.CLIENT)
 public final class RenderModule implements MLuaModule {
+    private static final String[][] CONTEXT_PROPERTIES = {
+        {"Target", "string", "Render callback target: EntityModel, World, or Hud."},
+        {"PoseStack", "Java object|nil", "The live pose stack when exposed by this render point."},
+        {"BufferSource", "Java object|nil", "Minecraft's live buffer source or render collector when exposed."},
+        {"Model", "Java object|nil", "The native entity model after Minecraft has applied its animation pose."},
+        {"PartialTick", "number", "Frame interpolation where provided by the render point."},
+        {"PackedLight", "number", "Minecraft packed light value when supplied."},
+        {"PackedOverlay", "number", "Minecraft packed overlay value when supplied."},
+        {"PassId", "string", "Namespaced id of the render pass receiving this context."},
+        {"Stage", "WorldRenderStage|nil", "Canonical world render stage for world callbacks."},
+        {"NativeContext", "Java object|nil", "The loader's native render event or context."},
+        {"Camera", "Java object|nil", "The native camera for world render callbacks."},
+        {"Graphics", "Java object|nil", "The live GuiGraphics for HUD callbacks."},
+        {"Width", "number|nil", "HUD width in GUI-scaled pixels."},
+        {"Height", "number|nil", "HUD height in GUI-scaled pixels."}
+    };
+
     @Override
     public String id() {
         return "render";
@@ -34,6 +51,21 @@ public final class RenderModule implements MLuaModule {
 
     @Override public void registerClasses(MLuaRegistration registration) {
         MLuaRenderService.registerRenderObjectClass(registration);
+        registration.registerClass("RenderContext", registration.requireInstanceBaseClassName(),
+            "Frame-scoped values supplied to an entity, world, or HUD render callback.");
+        for (String[] property : CONTEXT_PROPERTIES) {
+            String getter = "Get" + property[0];
+            registration.registerClassFunction("RenderContext", getter, new org.luaj.vm2.lib.OneArgFunction() {
+                @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                    return self.checktable().get(property[0]);
+                }
+            }, "Returns the " + property[0] + " value for this render callback.");
+            registration.registerClassProperty("RenderContext", property[0], new org.luaj.vm2.lib.OneArgFunction() {
+                @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                    return self.checktable().get(property[0]);
+                }
+            }, org.luaj.vm2.LuaValue.NIL, property[1], "client:Client", property[2]);
+        }
     }
 
     @Override
@@ -84,26 +116,17 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderer()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterHudRenderPass(id: string, callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderPass(id: string)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.type("RenderContext", null, "Native values supplied at a HUD, world, or living entity render point. All Java objects are frame-scoped; callbacks must not retain them or yield."));
+        docs.register(MLuaDocBuilder.Registration.clazz("RenderContext", "RenderService", "Frame-scoped values supplied at a HUD, world, or living entity render point. All Java objects are frame-scoped; callbacks must not retain them or yield.", "classes/render-context.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.type("WorldRenderStage", null, "A shared stage name mapped to the closest supported native world-render event for the active loader and Minecraft version."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "BEFORE_ENTITIES", "string", "After opaque terrain and before entity rendering."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "AFTER_ENTITIES", "string", "After opaque entity and block-entity features."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "AFTER_TRANSLUCENT", "string", "After translucent geometry, at the nearest matching native stage."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "AFTER_LEVEL", "string", "At the end of the main level-render pass, before late effects where the loader separates them."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PoseStack", "Java object|nil", "The live com.mojang.blaze3d.vertex.PoseStack when the loader exposes one."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "BufferSource", "Java object|nil", "Minecraft's live MultiBufferSource, render submit collector, or nil when the loader event does not expose one."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Model", "Java object|nil", "The native entity model after Minecraft has applied its animation pose."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PartialTick", "number", "Frame interpolation from zero to one where the render API provides it; 26.1 extraction render hooks currently pass zero."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PackedLight", "number", "Minecraft packed light value when supplied by the entity render hook."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PackedOverlay", "number", "Minecraft packed overlay value when supplied by the entity render hook."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Target", "string", "Render callback target: EntityModel, World, or Hud."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PassId", "string", "Namespaced id of the registered render pass currently receiving this context."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Stage", "WorldRenderStage|nil", "Canonical world render stage for world callbacks."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "NativeContext", "Java object|nil", "The loader's native render event/context for world render callbacks."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Camera", "Java object|nil", "The native render camera for world render callbacks."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Graphics", "Java object|nil", "The live GuiGraphics for HUD callbacks."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Width", "number|nil", "HUD width in GUI-scaled pixels."));
-        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Height", "number|nil", "HUD height in GUI-scaled pixels."));
+        for (String[] property : CONTEXT_PROPERTIES) {
+            docs.register(MLuaDocBuilder.Registration.field("RenderContext", property[0], property[1], property[2]));
+            docs.register(MLuaDocBuilder.Registration.method("RenderContext", "RenderContext:Get" + property[0] + "()",
+                "Returns the " + property[0] + " value for this render callback.", null, property[1], "client:Client", null));
+        }
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", "Sets this object's world position.", "Native Vector3 or CFrame", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetWorldPosition()", "Returns this object's world position as a native Vector3.", null, "Vector3", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", "Sets the endpoint used by world lines and beams.", "Native Vector3 or CFrame", "void", "client:Client", null));
