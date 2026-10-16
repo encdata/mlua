@@ -200,7 +200,7 @@ public class RegistryModule implements MLuaModule {
             "Compares resource type and identifier.", "another GeneratedDataResource", "boolean", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:Exists(): boolean",
             "Checks whether this resource is still registered.", null, "boolean", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetType(): string",
+        docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetResourceType(): string",
             "Returns the Minecraft data resource type.", null, "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("GeneratedDataResource", "GeneratedDataResource:GetId(): string",
             "Returns the full namespaced resource identifier.", null, "string", "shared:Shared", null));
@@ -411,7 +411,7 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:OnLoad(context)", "Override this lifecycle method on a registered BlockEntity subclass to run server-side whenever Minecraft loads the block entity. The context includes live Block, BlockEntity, and World instances plus a Vector3 Position.", "Lifecycle context", "void", "server:Server", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:OnUnload(context)", "Override this lifecycle method on a registered BlockEntity subclass to run server-side when Minecraft removes the block entity, including chunk unloads.", "Lifecycle context", "void", "server:Server", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetBlock(): Block", "Returns the live block that owns this block entity.", "", "Block", "Shared", ""));
-        docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetType(): string", "Returns this block entity type's registry identifier.", "", "string", "Shared", ""));
+        docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetBlockEntityType(): string", "Returns this block entity's Minecraft registry type identifier. GetType() continues to return the MLua runtime class name.", "", "string", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetNbt(): Nbt", "Returns this block entity's live NBT data.", "", "Nbt", "Shared", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:SetNbt(keyOrValue: string|table|Nbt, value?: any)", "On the server, writes one NBT value or replaces the full data compound.", "key and value, or a replacement table or Nbt value", "void", "server:Server", ""));
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:GetContainer(): Container|nil", "Returns the same live Container exposed by Block.Container, when available.", "", "Container|nil", "Shared", ""));
@@ -420,7 +420,7 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("BlockEntity", "BlockEntity:SetChanged()", "On the server, marks this block entity's saved state as changed.", "", "void", "server:Server", ""));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Position", "Vector3", "This block entity's world position.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Block", "Block", "The live block that owns this block entity.", "shared:Shared"));
-        docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Type", "string", "This block entity type's registry identifier.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Type", "string", "This block entity's Minecraft registry type identifier.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Nbt", "Nbt|table", "Reads are available on both sides; writes are server-side only.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Container", "Container|nil", "The same live Container exposed by Block.Container, when available.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("BlockEntity", "blockEntity.Inventory", "Container|nil", "Alias for blockEntity.Container.", "shared:Shared"));
@@ -657,6 +657,12 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntry(\"datapack\", resourceType: string, id: string): GeneratedDataResource?", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntries(\"datapack\", resourceType: string, namespace?: string): GeneratedDataResource[]", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(\"datapack\", resourceType: string, namespace?: string): table<string, GeneratedDataResource>", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Get(\"worldgen\", resourceType: string, id: string): GeneratedDataResource?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntry(\"worldgen\", resourceType: string, id: string): GeneratedDataResource?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntries(\"worldgen\", resourceType: string, namespace?: string): GeneratedDataResource[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(\"worldgen\", resourceType: string, namespace?: string): table<string, GeneratedDataResource>", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(\"worldgen\", resourceType: string, namespace?: string): string[]", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Exists(\"worldgen\", resourceType: string, id: string): boolean", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(category: string, namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Exists(category: string, id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition|ItemProperties)", "RegistryEntry"));

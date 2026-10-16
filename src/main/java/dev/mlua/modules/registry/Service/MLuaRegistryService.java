@@ -223,6 +223,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return result;
    }
 
+   private static boolean isGeneratedDataEndpoint(String name) {
+      return "DataPack".equals(name) || "WorldGeneration".equals(name);
+   }
+
    private void installGeneratedDataLookupApi(LuaTable target) {
       target.set("Get", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
@@ -1434,7 +1438,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
-             if ("DataPack".equals(endpoint.table())) {
+             if (isGeneratedDataEndpoint(endpoint.table())) {
                 return MLuaRegistryService.this.generatedDataResource(args.checkjstring(3), args.checkjstring(4));
              }
              if (endpoint.registryKind() != null) {
@@ -1454,7 +1458,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
-             if ("DataPack".equals(endpoint.table())) {
+             if (isGeneratedDataEndpoint(endpoint.table())) {
                 return MLuaRegistryService.this.generatedDataEntryMap(
                    args.checkjstring(3), optionalNamespace(args.arg(4)));
              }
@@ -1474,7 +1478,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
-             if ("DataPack".equals(endpoint.table())) {
+             if (isGeneratedDataEndpoint(endpoint.table())) {
                 return stringArray(MLuaRegistryService.this.generatedDataIds(
                    args.checkjstring(3), optionalNamespace(args.arg(4))));
              }
@@ -1493,7 +1497,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        table.set("GetEntry", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "category", table);
-             if ("DataPack".equals(endpoint.table())) {
+             if (isGeneratedDataEndpoint(endpoint.table())) {
                 return MLuaRegistryService.this.generatedDataResource(args.checkjstring(3), args.checkjstring(4));
              }
              String id = MLuaRegistryService.this.registryId(args.checkjstring(3));
@@ -1504,7 +1508,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
-             if ("DataPack".equals(endpoint.table())) {
+             if (isGeneratedDataEndpoint(endpoint.table())) {
                 return LuaValue.valueOf(!MLuaRegistryService.this.generatedDataResource(
                    args.checkjstring(3), args.checkjstring(4)).isnil());
              }

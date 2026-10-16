@@ -226,7 +226,7 @@ public final class MLuaBlockWrapper {
                   (net.minecraft.core.BlockPos)self.rawget("__block_pos").touserdata(net.minecraft.core.BlockPos.class), registration);
             }
          }, "Returns the live block that owns this block entity.");
-         registration.registerClassFunction("BlockEntity", "GetType", new VarArgFunction() {
+         registration.registerClassFunction("BlockEntity", "GetBlockEntityType", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                return LuaValue.valueOf(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity(args.arg1()).getType()).toString());
             }
@@ -285,7 +285,7 @@ public final class MLuaBlockWrapper {
             "string", "shared:Shared", "The dimension identifier containing this block entity.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Block", "GetBlock", null,
             "Block", "shared:Shared", "The live block that owns this block entity.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Type", "GetType", null,
+         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Type", "GetBlockEntityType", null,
             "string", "shared:Shared", "This block entity type's registry identifier.");
          MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "IsRemoved", "GetIsRemoved", null,
             "boolean", "shared:Shared", "Whether Minecraft has removed this block entity from its dimension.");

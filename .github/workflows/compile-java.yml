@@ -250,6 +250,12 @@ jobs:
           @'
           local Registry = Minecraft:GetService("Registry")
 
+          local earlyEntity = Registry.Entities:Properties()
+          assert(type(earlyEntity.MovementSpeed) == "function",
+              "EntityProperties did not expose MovementSpeed before generic registry queries")
+          assert(earlyEntity:MovementSpeed(0.25) == earlyEntity,
+              "EntityProperties:MovementSpeed did not return the same chainable instance")
+
           local item = Item.Properties()
               :StacksTo(1)
               :Rarity("rare")
@@ -290,6 +296,14 @@ jobs:
           assert(dataEntry ~= nil and dataEntry:IsA("GeneratedDataResource")
               and dataEntry.Type == "mlua_test/records" and dataEntry.Id == "mlua:entry",
               "Registry.DataPack:Get did not return a typed generated resource")
+          assert(dataEntry:GetType() == "GeneratedDataResource"
+              and dataEntry:GetResourceType() == "mlua_test/records",
+              "GeneratedDataResource did not preserve Instance:GetType alongside its Minecraft resource type")
+          assert(dataEntry.Definition.Value == 7,
+              "GeneratedDataResource did not convert JSON numbers to Lua numbers")
+          assert(Registry.DataPack:Get("mlua_test/records", "missing") == nil
+              and Registry:GetEntry("datapack", "mlua_test/records", "missing") == nil,
+              "missing generated data lookups did not return Lua nil")
           assert(Registry.DataPack:GetEntry("mlua_test/records", "entry"):Equals(dataEntry),
               "Registry.DataPack:GetEntry did not alias Get")
           local dataCopy = dataEntry:GetDefinition()
@@ -306,6 +320,21 @@ jobs:
               "root Registry:GetEntry did not route generated data resources")
           assert(Registry:GetAll("datapack", "mlua_test/records", "mlua")["mlua:entry"]:Equals(dataEntry),
               "root Registry:GetAll did not return generated data handles")
+          Registry.WorldGeneration:Register("worldgen/mlua_test", "entry", { Value = 9 })
+          local worldgenEntry = Registry.WorldGeneration:Get("worldgen/mlua_test", "entry")
+          assert(worldgenEntry:IsA("GeneratedDataResource") and worldgenEntry.Type == "worldgen/mlua_test",
+              "WorldGeneration:Get did not return a typed data resource")
+          assert(Registry.WorldGeneration:Exists("worldgen/mlua_test", "entry"),
+              "WorldGeneration:Exists missed a registered resource")
+          assert(Registry:Get("worldgen", "worldgen/mlua_test", "entry"):Equals(worldgenEntry)
+              and Registry:GetEntry("worldgen", "worldgen/mlua_test", "entry"):Equals(worldgenEntry),
+              "root Registry lookup aliases did not route world-generation resource arguments")
+          assert(Registry:GetIds("worldgen", "worldgen/mlua_test", "mlua")[1] == "mlua:entry"
+              and Registry:Exists("worldgen", "worldgen/mlua_test", "entry"),
+              "root Registry list and exists methods did not route world-generation resource arguments")
+          assert(Registry:GetAll("worldgen", "worldgen/mlua_test", "mlua")["mlua:entry"]:Equals(worldgenEntry)
+              and Registry:GetEntries("worldgen", "worldgen/mlua_test", "mlua")[1]:Equals(worldgenEntry),
+              "root Registry collection methods did not return world-generation resource handles")
           local dataIds = Registry.DataPack:GetIds("mlua_test/records", "mlua")
           assert(#dataIds == 1 and dataIds[1] == "mlua:entry",
               "Registry.DataPack:GetIds did not filter the resource type and namespace")
@@ -344,7 +373,10 @@ jobs:
           Registry.Blocks:Register("ci_property_typed_block", { type = "ci_property_block_kind" })
 
           local entity = Registry.Entities:Properties()
-              :Category("monster")
+          assert(type(entity.MaxHealth) == "function" and type(entity.MovementSpeed) == "function"
+              and type(entity.AttackDamage) == "function",
+              "EntityProperties did not expose its named attribute builder methods")
+          entity:Category("monster")
               :Size(0.7, 1.9)
               :TrackingRange(10)
               :AIInterval(4)

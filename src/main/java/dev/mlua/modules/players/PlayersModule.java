@@ -69,7 +69,6 @@ public class PlayersModule implements MLuaModule {
         registration.registerClassFunction("Entity", "GetId",
             entityMethod(registration, entity -> LuaValue.valueOf(entity.getId())), "Returns this entity's runtime ID.");
         LuaValue entityType = entityMethod(registration, entity -> LuaValue.valueOf(MCApiRuntime.registryKey("entity_type", entity.getType())));
-        registration.registerClassFunction("Entity", "GetType", entityType, "Returns this entity's registered type.");
         registration.registerClassFunction("Entity", "GetEntityType", entityType, "Returns this entity's registered type.");
         registration.registerClassFunction("Entity", "GetName",
             entityMethod(registration, entity -> LuaValue.valueOf(entity.getName().getString())), "Returns this entity's current name.");
@@ -597,7 +596,7 @@ public class PlayersModule implements MLuaModule {
     private static void registerEntityProperties(MLuaRegistration registration) {
         String[][] properties = {
             {"Id", "GetId", null, "number", "shared:Shared", "This entity's runtime ID."},
-            {"Type", "GetType", null, "string", "shared:Shared", "This entity's registered type."},
+            {"Type", "GetEntityType", null, "string", "shared:Shared", "This entity's Minecraft entity type identifier."},
             {"EntityType", "GetEntityType", null, "string", "shared:Shared", "This entity's registered type."},
             {"Name", "GetName", null, "string", "shared:Shared", "This entity's current name."},
             {"UUID", "GetUUID", null, "string", "shared:Shared", "This entity's UUID."},

@@ -24,7 +24,7 @@ public final class MLuaGeneratedDataResource {
     public static void registerClass(MLuaRegistration registration) {
         registration.registerClass("GeneratedDataResource", registration.requireInstanceBaseClassName(),
             "A live handle for an addon-generated data resource. Definition reads return independent copies.");
-        register(registration, "GetType", "Returns the Minecraft data resource type, such as worldgen/biome.",
+        register(registration, "GetResourceType", "Returns the Minecraft data resource type, such as worldgen/biome.",
             entry -> LuaValue.valueOf(state(entry).type()));
         register(registration, "GetId", "Returns the full namespaced resource id.",
             entry -> LuaValue.valueOf(state(entry).id()));
@@ -52,7 +52,7 @@ public final class MLuaGeneratedDataResource {
                 return LuaValue.valueOf(value.type() + "#" + value.id());
             }
         }, "Returns this resource as type#namespace:path.");
-        MLuaClassMethods.registerInstanceProperty(registration, "GeneratedDataResource", "Type", "GetType", null,
+        MLuaClassMethods.registerInstanceProperty(registration, "GeneratedDataResource", "Type", "GetResourceType", null,
             "string", "shared:Shared", "The Minecraft data resource type.");
         MLuaClassMethods.registerInstanceProperty(registration, "GeneratedDataResource", "Id", "GetId", null,
             "string", "shared:Shared", "The full namespaced resource id.");
@@ -93,7 +93,7 @@ public final class MLuaGeneratedDataResource {
         if (element.isJsonPrimitive()) {
             JsonPrimitive value = element.getAsJsonPrimitive();
             if (value.isBoolean()) return LuaValue.valueOf(value.getAsBoolean());
-            if (value.isNumber()) return LuaValue.valueOf(value.getAsDouble());
+            if (value.isNumber()) return LuaValue.valueOf(value.getAsNumber().doubleValue());
             return LuaValue.valueOf(value.getAsString());
         }
         if (element.isJsonArray()) {

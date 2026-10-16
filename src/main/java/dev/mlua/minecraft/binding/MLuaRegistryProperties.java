@@ -245,7 +245,13 @@ public final class MLuaRegistryProperties {
                               BuilderMethod implementation, String description) {
       registration.registerClassFunction(className, name, new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
-            return implementation.apply(state(args.arg1()), args);
+            State properties = state(args.arg1());
+            LuaValue result = implementation.apply(properties, args);
+            if (result == null) {
+               throw new LuaError("[MLua] " + properties.className + ":" + name
+                  + " returned Java null; registry property methods must return a Lua value.");
+            }
+            return result;
          }
       }, description);
    }
