@@ -26,6 +26,7 @@ public final class MLuaLevelWrapper {
     }
 
     public static LuaTable levelTable(Level level, MLuaRegistration registration) {
+        classTable(registration);
         synchronized (LEVEL_INSTANCES) {
             Map<Level, WeakReference<LuaTable>> instances = LEVEL_INSTANCES.computeIfAbsent(registration, ignored -> new WeakHashMap<>());
             WeakReference<LuaTable> reference = instances.get(level);
