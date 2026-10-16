@@ -367,6 +367,8 @@ jobs:
           assert(type(components.Find) == "function", "Components:Find was not registered")
           assert(type(components.Has) == "function", "Components:Has was not registered")
           assert(type(components.GetAll) == "function", "Components:GetAll was not registered")
+          local config = Minecraft:GetService("Config")
+          assert(type(config.SetMany) == "function", "Config:SetMany was not registered")
           print("MLUA_CI_ANIMATION_API_OK")
           print("MLUA_CI_SERVICE_PARITY_OK")
           print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")

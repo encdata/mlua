@@ -4,9 +4,13 @@ import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.runtime.config.MLuaConfigRegistry;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 
 @MLuaDescription("Reads and updates registered MLua configuration values.")
 public final class MLuaConfigService extends MLuaReflectiveService {
@@ -45,6 +49,24 @@ public final class MLuaConfigService extends MLuaReflectiveService {
       MLuaConfigRegistry.get().setValue(this.context.ownerModId(), scope, path,
          MLuaLuaBindings.javaValue(value));
       MLuaConfigRegistry.get().save(this.context.ownerModId(), scope);
+   }
+
+   @MLuaDescription("Validates and updates several values in one config scope, then writes the config file once. No values change if a key or value is invalid.")
+   public int SetMany(String requestedScope, LuaTable values) {
+      String scope = MLuaConfigRegistry.scopeFromString(requestedScope);
+      Map<String, Object> updates = new LinkedHashMap<>();
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = values.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         if (!key.isstring()) throw new LuaError("[MLua] Config:SetMany expects string config paths as table keys.");
+         updates.put(key.tojstring(), MLuaLuaBindings.javaValue(entry.arg(2)));
+      }
+      if (updates.isEmpty()) return 0;
+      int changed = MLuaConfigRegistry.get().setValues(this.context.ownerModId(), scope, updates);
+      MLuaConfigRegistry.get().save(this.context.ownerModId(), scope);
+      return changed;
    }
 
    @MLuaDescription("Persists the current configuration values to disk.")

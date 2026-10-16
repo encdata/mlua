@@ -149,6 +149,23 @@ public final class MLuaConfigRegistry {
       }
    }
 
+   /** Validates every requested value before applying any change in the selected scope. */
+   public synchronized int setValues(String ownerModId, String scope, Map<String, Object> values) {
+      String normalizedScope = scopeFromString(scope);
+      InstalledConfigSet set = this.requiredSet(ownerModId, normalizedScope);
+      Map<ConfigValue, Object> updates = new LinkedHashMap<>();
+      for (Map.Entry<String, Object> entry : values.entrySet()) {
+         ConfigValue configValue = set.values().get(entry.getKey());
+         if (configValue == null) {
+            throw new LuaError("[MLua] Unknown " + normalizedScope + " config value '" + entry.getKey()
+               + "' for mod '" + ownerModId + "'.");
+         }
+         updates.put(configValue, coerceValue(entry.getKey(), configValue, entry.getValue()));
+      }
+      updates.forEach(ConfigValue::set);
+      return updates.size();
+   }
+
    public synchronized void setValue(String ownerModId, ModConfig.Type type, String path, Object value) {
       this.setValue(ownerModId, scopeName(type), path, value);
    }
