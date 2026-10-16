@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SoundType;
@@ -146,15 +148,23 @@ public final class MLuaBlockFactory {
     public Block create(Map<String, Object> properties, String registryName,
                         Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
         TypeProvider custom = registeredType(properties);
-        if (custom != null) return custom.createNamed(Map.copyOf(properties), makeProperties(properties), registryName, blockEntityType);
-        return new Block(makeProperties(properties));
+        BlockBehaviour.Properties registered = makeRegisteredProperties(properties, registryName);
+        if (custom != null) return custom.createNamed(Map.copyOf(properties), registered, registryName, blockEntityType);
+        return new Block(registered);
     }
 
     public Block createScripted(Map<String, Object> properties, String behaviorKey,
                                 Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
         TypeProvider custom = registeredType(properties);
-        if (custom != null) return custom.createScripted(Map.copyOf(properties), makeProperties(properties), behaviorKey, blockEntityType);
-        return MLuaScriptedBlock.create(makeProperties(properties), behaviorKey, blockEntityType);
+        BlockBehaviour.Properties registered = makeRegisteredProperties(properties, behaviorKey);
+        if (custom != null) return custom.createScripted(Map.copyOf(properties), registered, behaviorKey, blockEntityType);
+        return MLuaScriptedBlock.create(registered, behaviorKey, blockEntityType);
+    }
+
+    public BlockBehaviour.Properties makeRegisteredProperties(Map<String, Object> properties, String registryName) {
+        BlockBehaviour.Properties result = makeProperties(properties);
+        result.setId(ResourceKey.create(Registries.BLOCK, MLuaResourceLocations.parse(registryName)));
+        return result;
     }
 
     public BlockBehaviour.Properties makeProperties(Map<String, Object> properties) {

@@ -92,8 +92,9 @@ public final class MLuaFilesService extends MLuaReflectiveService {
    public LuaTable List(Optional<String> relative) {
       String requested = relative.orElse(".");
       Path directory = requested.equals(".") ? root() : resolve(requested);
-      if (!Files.isDirectory(directory)) throw new LuaError("[MLua] Files:List path is not a directory: " + requested);
       LuaTable result = new LuaTable();
+      if (!Files.exists(directory) && requested.equals(".")) return result;
+      if (!Files.isDirectory(directory)) throw new LuaError("[MLua] Files:List path is not a directory: " + requested);
       try (var children = Files.list(directory)) {
          var names = children.map(path -> path.getFileName().toString()).sorted().toList();
          for (int index = 0; index < names.size(); index++) result.set(index + 1, LuaValue.valueOf(names.get(index)));
@@ -126,9 +127,8 @@ public final class MLuaFilesService extends MLuaReflectiveService {
          throw new LuaError("[MLua] Files path traversal blocked: " + relative);
       }
       try {
-         Path probe = path;
-         while (probe != null && !Files.exists(probe, LinkOption.NOFOLLOW_LINKS)) probe = probe.getParent();
-         if (probe == null || !probe.toRealPath().startsWith(root)) {
+         Path realRoot = resolvedPath(root);
+         if (!resolvedPath(path).startsWith(realRoot)) {
             throw new LuaError("[MLua] Files path resolves outside the calling mod's data directory: " + relative);
          }
       } catch (IOException failure) {
@@ -139,11 +139,19 @@ public final class MLuaFilesService extends MLuaReflectiveService {
 
    private Path root() {
       Path root = this.context.filesRoot().toAbsolutePath().normalize();
-      try {
-         return Files.createDirectories(root).toRealPath();
-      } catch (IOException failure) {
-         throw fileError("open mod data directory", this.context.ownerModId(), failure);
+      if (Files.isSymbolicLink(root)) {
+         throw new LuaError("[MLua] The calling mod's data directory cannot be a symbolic link.");
       }
+      return root;
+   }
+
+   /** Resolves existing symlink components while retaining the tail of a new path. */
+   private static Path resolvedPath(Path path) throws IOException {
+      Path existing = path;
+      while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) existing = existing.getParent();
+      if (existing == null) throw new IOException("no existing parent directory");
+      Path realExisting = existing.toRealPath();
+      return realExisting.resolve(existing.relativize(path)).normalize();
    }
 
    private static LuaError fileError(String operation, String path, IOException failure) {

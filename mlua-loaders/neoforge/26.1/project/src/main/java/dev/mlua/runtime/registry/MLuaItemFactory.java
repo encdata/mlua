@@ -11,6 +11,8 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.item.context.UseOnContext;
@@ -19,6 +21,7 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.minecraft.scripted.MLuaScriptedItem;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
+import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
@@ -132,16 +135,21 @@ public final class MLuaItemFactory {
         TypeProvider custom = registeredType(properties);
         if (custom != null) return custom.createNamed(Map.copyOf(properties), registryName);
         String kind = kind(properties);
-        return "bow".equals(kind) ? new MLuaRegisteredBow(itemProperties(properties), registryName) : create(properties);
+        Item.Properties registered = makeRegisteredProperties(properties, registryName);
+        return "bow".equals(kind) ? new MLuaRegisteredBow(registered, registryName) : new Item(registered);
     }
     public Item createScripted(Map<String, Object> properties, String behaviorKey) {
         TypeProvider custom = registeredType(properties);
         if (custom != null) return custom.createScripted(Map.copyOf(properties), behaviorKey);
-        return new MLuaScriptedItem(itemProperties(properties), behaviorKey);
+        return new MLuaScriptedItem(makeRegisteredProperties(properties, behaviorKey), behaviorKey);
     }
-    private Item create(Map<String, Object> properties) { return new Item(itemProperties(properties)); }
     public Item.Properties makeProperties(Map<String, Object> properties) {
         return itemProperties(properties);
+    }
+    public Item.Properties makeRegisteredProperties(Map<String, Object> properties, String registryName) {
+        Item.Properties result = itemProperties(properties);
+        result.setId(ResourceKey.create(Registries.ITEM, MLuaResourceLocations.parse(registryName)));
+        return result;
     }
     private Item.Properties itemProperties(Map<String, Object> properties) {
         validateItemProperties(properties);
