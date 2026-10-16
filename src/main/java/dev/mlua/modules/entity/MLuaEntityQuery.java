@@ -4,7 +4,10 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.runtime.data.MLuaDataManager;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -23,7 +26,7 @@ public final class MLuaEntityQuery {
     /** Returns loaded entities inside a spherical query, applying the shared EntityQuery filter. */
     public static List<Entity> findWithinRadius(Level level, double x, double y, double z,
             double radius, Entity excluded, LuaValue filter, MLuaRegistration registration) {
-        validateFilter(filter, registration);
+        CompiledFilter query = compile(filter, registration);
         if (level == null) return List.of();
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
             throw new LuaError("[MLua] Entity query center must contain only finite coordinates.");
@@ -49,7 +52,7 @@ public final class MLuaEntityQuery {
         List<Entity> matches = new ArrayList<>();
         for (Entity entity : candidates) {
             if (entity == excluded || !withinRadius(entity, x, y, z, radius, radiusSquared)
-                || !matches(entity, filter, registration)) continue;
+                || !query.matches(entity)) continue;
             matches.add(entity);
         }
         return matches;
@@ -83,81 +86,118 @@ public final class MLuaEntityQuery {
     }
 
     public static boolean matches(Entity entity, LuaValue filter, MLuaRegistration registration) {
-        if (entity == null || filter == null || filter.isnil()) return true;
-        if (filter.isstring()) return entityTypeId(entity).equals(filter.tojstring());
-        if (!filter.istable()) {
-            throw new LuaError("[MLua] EntityQuery must be an entity type id or a filter table.");
-        }
-
-        LuaTable table = filter.checktable();
-        String entityType = entityTypeId(entity);
-        String type = optionalString(table, "type");
-        if (type != null && !entityType.equals(type)) return false;
-        LuaValue types = table.get("types");
-        if (!types.isnil() && !containsStringList(types, "EntityQuery.types", entityType)) return false;
-        LuaValue excludedTypes = table.get("exclude_types");
-        if (!excludedTypes.isnil() && containsStringList(excludedTypes, "EntityQuery.exclude_types", entityType)) return false;
-        Boolean playersOnly = optionalBoolean(table, "players_only");
-        if (Boolean.TRUE.equals(playersOnly) && !(entity instanceof Player)) return false;
-        Boolean excludePlayers = optionalBoolean(table, "exclude_players");
-        if (Boolean.TRUE.equals(excludePlayers) && entity instanceof Player) return false;
-        Boolean alive = optionalBoolean(table, "alive");
-        if (alive != null && alive != entity.isAlive()) return false;
-        String name = optionalString(table, "name");
-        if (name != null && !entity.getName().getString().equals(name)) return false;
-        String nameContains = optionalString(table, "name_contains");
-        if (nameContains != null && !entity.getName().getString().contains(nameContains)) return false;
-        LuaValue excludedEntity = table.get("exclude");
-        if (!excludedEntity.isnil() && entityReference(excludedEntity, registration, "EntityQuery.exclude") == entity) return false;
-        LuaValue excludedEntities = table.get("exclude_entities");
-        if (!excludedEntities.isnil() && !excludedEntities.istable()) {
-            throw new LuaError("[MLua] EntityQuery.exclude_entities must be an array of live Entity instances.");
-        }
-        if (excludedEntities.istable()) {
-            LuaTable entities = excludedEntities.checktable();
-            for (int index = 1; !entities.get(index).isnil(); index++) {
-                if (entityReference(entities.get(index), registration, "EntityQuery.exclude_entities") == entity) return false;
-            }
-        }
-        String tag = optionalString(table, "tag");
-        if (tag != null && !MLuaDataManager.hasEntityTag(entity, tag)) return false;
-        LuaValue requiredTags = table.get("tags");
-        if (!requiredTags.isnil() && !hasAllTags(entity, requiredTags, "EntityQuery.tags")) return false;
-        LuaValue excludedTags = table.get("exclude_tags");
-        if (!excludedTags.isnil() && hasAnyTag(entity, excludedTags, "EntityQuery.exclude_tags")) return false;
-        return true;
+        if (entity == null) return true;
+        return compile(filter, registration).matches(entity);
     }
 
-    /** Validates a filter before a query starts, including when it finds no candidates. */
-    public static void validateFilter(LuaValue filter, MLuaRegistration registration) {
-        if (filter == null || filter.isnil() || filter.isstring()) return;
+    private static CompiledFilter compile(LuaValue filter, MLuaRegistration registration) {
+        if (filter == null || filter.isnil()) return CompiledFilter.EMPTY;
+        if (filter.isstring()) return new CompiledFilter(filter.tojstring(), null, Set.of(),
+            null, null, null, null, null, null, Set.of(), Set.of(), null, Set.of());
         if (!filter.istable()) {
             throw new LuaError("[MLua] EntityQuery must be an entity type id or a filter table.");
         }
+
         LuaTable table = filter.checktable();
-        optionalString(table, "type");
-        optionalString(table, "name");
-        optionalString(table, "name_contains");
-        optionalString(table, "tag");
-        optionalBoolean(table, "players_only");
-        optionalBoolean(table, "exclude_players");
-        optionalBoolean(table, "alive");
-        validateStringList(table.get("types"), "EntityQuery.types");
-        validateStringList(table.get("exclude_types"), "EntityQuery.exclude_types");
-        validateStringList(table.get("tags"), "EntityQuery.tags");
-        validateStringList(table.get("exclude_tags"), "EntityQuery.exclude_tags");
+        String type = optionalString(table, "type");
+        Set<String> types = optionalStringSet(table.get("types"), "EntityQuery.types");
+        Set<String> excludedTypes = stringSet(table.get("exclude_types"), "EntityQuery.exclude_types");
+        Boolean playersOnly = optionalBoolean(table, "players_only");
+        Boolean excludePlayers = optionalBoolean(table, "exclude_players");
+        Boolean alive = optionalBoolean(table, "alive");
+        String name = optionalString(table, "name");
+        String nameContains = optionalString(table, "name_contains");
+        String tag = optionalString(table, "tag");
+        Set<String> requiredTags = stringSet(table.get("tags"), "EntityQuery.tags");
+        Set<String> excludedTags = stringSet(table.get("exclude_tags"), "EntityQuery.exclude_tags");
         LuaValue excluded = table.get("exclude");
-        if (!excluded.isnil()) entityReference(excluded, registration, "EntityQuery.exclude");
-        LuaValue excludedEntities = table.get("exclude_entities");
-        if (!excludedEntities.isnil()) {
-            if (!excludedEntities.istable()) {
-                throw new LuaError("[MLua] EntityQuery.exclude_entities must be an array of live Entity instances.");
-            }
-            LuaTable entities = excludedEntities.checktable();
+        Entity excludedEntity = excluded.isnil() ? null : entityReference(excluded, registration, "EntityQuery.exclude");
+        LuaValue excludedValue = table.get("exclude_entities");
+        Set<Entity> excludedEntities = Collections.newSetFromMap(new IdentityHashMap<>());
+        if (!excludedValue.isnil() && !excludedValue.istable()) {
+            throw new LuaError("[MLua] EntityQuery.exclude_entities must be an array of live Entity instances.");
+        }
+        if (excludedValue.istable()) {
+            LuaTable entities = excludedValue.checktable();
             for (int index = 1; !entities.get(index).isnil(); index++) {
-                entityReference(entities.get(index), registration, "EntityQuery.exclude_entities");
+                excludedEntities.add(entityReference(entities.get(index), registration, "EntityQuery.exclude_entities"));
             }
         }
+        return new CompiledFilter(type, types, excludedTypes, playersOnly, excludePlayers, alive,
+            name, nameContains, tag, requiredTags, excludedTags, excludedEntity, excludedEntities);
+    }
+
+    private record CompiledFilter(String type, Set<String> types, Set<String> excludedTypes,
+            Boolean playersOnly, Boolean excludePlayers, Boolean alive, String name, String nameContains,
+            String tag, Set<String> requiredTags, Set<String> excludedTags, Entity excludedEntity,
+            Set<Entity> excludedEntities) {
+        private static final CompiledFilter EMPTY = new CompiledFilter(null, Set.of(), Set.of(),
+            null, null, null, null, null, null, Set.of(), Set.of(), null, Set.of());
+
+        private CompiledFilter {
+            if (types != null) types = Set.copyOf(types);
+            excludedTypes = Set.copyOf(excludedTypes);
+            requiredTags = Set.copyOf(requiredTags);
+            excludedTags = Set.copyOf(excludedTags);
+            Set<Entity> excludedCopy = Collections.newSetFromMap(new IdentityHashMap<>());
+            excludedCopy.addAll(excludedEntities);
+            excludedEntities = Collections.unmodifiableSet(excludedCopy);
+        }
+
+        private boolean matches(Entity entity) {
+            if (entity == null) return false;
+            if (this.type != null || this.types != null || !this.excludedTypes.isEmpty()) {
+                String entityType = entityTypeId(entity);
+                if (this.type != null && !this.type.equals(entityType)) return false;
+                if (this.types != null && !this.types.contains(entityType)) return false;
+                if (this.excludedTypes.contains(entityType)) return false;
+            }
+            if (Boolean.TRUE.equals(this.playersOnly) && !(entity instanceof Player)) return false;
+            if (Boolean.TRUE.equals(this.excludePlayers) && entity instanceof Player) return false;
+            if (this.alive != null && this.alive != entity.isAlive()) return false;
+            if (this.name != null || this.nameContains != null) {
+                String entityName = entity.getName().getString();
+                if (this.name != null && !this.name.equals(entityName)) return false;
+                if (this.nameContains != null && !entityName.contains(this.nameContains)) return false;
+            }
+            if (entity == this.excludedEntity || this.excludedEntities.contains(entity)) return false;
+            if (this.tag != null && !MLuaDataManager.hasEntityTag(entity, this.tag)) return false;
+            for (String requiredTag : this.requiredTags) {
+                if (!MLuaDataManager.hasEntityTag(entity, requiredTag)) return false;
+            }
+            for (String excludedTag : this.excludedTags) {
+                if (MLuaDataManager.hasEntityTag(entity, excludedTag)) return false;
+            }
+            return true;
+        }
+    }
+
+    private static Set<String> optionalStringSet(LuaValue value, String field) {
+        return value.isnil() ? null : Set.copyOf(stringList(value, field));
+    }
+
+    private static Set<String> stringSet(LuaValue value, String field) {
+        return value.isnil() ? Set.of() : Set.copyOf(stringList(value, field));
+    }
+
+    /** Validates a filter, including when a query will find no candidates. */
+    public static void validateFilter(LuaValue filter, MLuaRegistration registration) {
+        compile(filter, registration);
+    }
+
+    /*
+     * Filter validation and Lua-to-Java conversion happen once per query. Candidate checks only
+     * touch immutable sets and entity state, so a large radius query doesn't repeatedly traverse
+     * the same Lua tables.
+     */
+    private static String entityTypeId(Entity entity) {
+        Object id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        return id == null ? "unknown" : id.toString();
+    }
+
+    private static Entity entityReference(LuaValue value, MLuaRegistration registration, String field) {
+        if (!value.istable()) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
+        return MLuaEntityWrapper.requireLuaInstance(value, registration, "Entity", field);
     }
 
     private static String optionalString(LuaTable table, String key) {
@@ -174,36 +214,6 @@ public final class MLuaEntityQuery {
         return value.toboolean();
     }
 
-    private static boolean containsStringList(LuaValue value, String field, String expected) {
-        if (!value.istable()) throw new LuaError("[MLua] " + field + " must be an array of strings.");
-        LuaTable values = value.checktable();
-        boolean found = false;
-        for (int index = 1; !values.get(index).isnil(); index++) {
-            LuaValue item = values.get(index);
-            if (!item.isstring()) throw new LuaError("[MLua] " + field + " must contain only strings.");
-            if (expected.equals(item.tojstring())) found = true;
-        }
-        return found;
-    }
-
-    private static void validateStringList(LuaValue value, String field) {
-        if (!value.isnil()) stringList(value, field);
-    }
-
-    private static boolean hasAllTags(Entity entity, LuaValue value, String field) {
-        for (String tag : stringList(value, field)) {
-            if (!MLuaDataManager.hasEntityTag(entity, tag)) return false;
-        }
-        return true;
-    }
-
-    private static boolean hasAnyTag(Entity entity, LuaValue value, String field) {
-        for (String tag : stringList(value, field)) {
-            if (MLuaDataManager.hasEntityTag(entity, tag)) return true;
-        }
-        return false;
-    }
-
     private static List<String> stringList(LuaValue value, String field) {
         if (!value.istable()) throw new LuaError("[MLua] " + field + " must be an array of strings.");
         LuaTable values = value.checktable();
@@ -214,16 +224,6 @@ public final class MLuaEntityQuery {
             strings.add(item.tojstring());
         }
         return strings;
-    }
-
-    private static Entity entityReference(LuaValue value, MLuaRegistration registration, String field) {
-        if (!value.istable()) throw new LuaError("[MLua] " + field + " must contain live Entity instances.");
-        return MLuaEntityWrapper.requireLuaInstance(value, registration, "Entity", field);
-    }
-
-    private static String entityTypeId(Entity entity) {
-        Object id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-        return id == null ? "unknown" : id.toString();
     }
 
 }
