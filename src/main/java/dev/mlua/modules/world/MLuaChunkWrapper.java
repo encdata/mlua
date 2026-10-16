@@ -434,11 +434,20 @@ public final class MLuaChunkWrapper {
 
     private static boolean ensureLoaded(Level world, LuaValue self) {
         BlockPos origin = chunkOrigin(self, world);
-        if (world.hasChunkAt(origin)) return true;
-        if (!(world instanceof ServerLevel server)) return false;
         ChunkPos pos = chunkPosition(self);
-        server.getChunk(chunkX(pos), chunkZ(pos));
-        return world.hasChunkAt(origin);
+        return ensureLoaded(world, pos, origin);
+    }
+
+    public static boolean ensureLoaded(Level world, BlockPos position) {
+        ChunkPos pos = new ChunkPos(position.getX() >> 4, position.getZ() >> 4);
+        return ensureLoaded(world, pos, position);
+    }
+
+    private static boolean ensureLoaded(Level world, ChunkPos position, BlockPos probe) {
+        if (world.hasChunkAt(probe)) return true;
+        if (!(world instanceof ServerLevel server)) return false;
+        server.getChunk(chunkX(position), chunkZ(position));
+        return world.hasChunkAt(probe);
     }
 
     private static BlockPos requirePosition(Varargs args, int index, LuaValue self) {

@@ -205,21 +205,28 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       table.set("GetBlock", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         return MLuaBlockWrapper.blockTable(level, BlockPos.containing(pos[0], pos[1], pos[2]), context.mlua().registration());
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         return MLuaBlockWrapper.blockTable(level, blockPos, context.mlua().registration());
       }));
       table.set("GetBlockEntity", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         LuaTable block = MLuaBlockWrapper.blockTable(level, BlockPos.containing(pos[0], pos[1], pos[2]), context.mlua().registration());
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         LuaTable block = MLuaBlockWrapper.blockTable(level, blockPos, context.mlua().registration());
          return block.get("BlockEntity");
       }));
       table.set("GetBlockState", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
          return MLuaBlockStateWrapper.wrap(level.getBlockState(blockPos), level, blockPos, context.mlua().registration());
       }));
       table.set("GetFluid", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         FluidState state = level.getFluidState(BlockPos.containing(pos[0], pos[1], pos[2]));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         FluidState state = level.getFluidState(blockPos);
          if (state == null || state.isEmpty()) {
             return LuaValue.NIL;
          }
@@ -230,40 +237,53 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetFluidState", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
          return MLuaFluidStateWrapper.wrap(level.getFluidState(blockPos), level, blockPos, context.mlua().registration());
       }));
       table.set("GetBiome", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         Biome biome = level.getBiome(BlockPos.containing(pos[0], pos[1], pos[2])).value();
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         Biome biome = level.getBiome(blockPos).value();
          ResourceLocation id = biomeId(level, biome);
          return LuaValue.valueOf(id == null ? "unknown" : id.toString());
       }));
       table.set("GetLightLevel", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         return LuaValue.valueOf(level.getMaxLocalRawBrightness(BlockPos.containing(pos[0], pos[1], pos[2])));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         return LuaValue.valueOf(level.getMaxLocalRawBrightness(blockPos));
       }));
       table.set("GetSkyLight", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         return LuaValue.valueOf(level.getBrightness(LightLayer.SKY, BlockPos.containing(pos[0], pos[1], pos[2])));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         return LuaValue.valueOf(level.getBrightness(LightLayer.SKY, blockPos));
       }));
       table.set("GetBlockLight", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         return LuaValue.valueOf(level.getBrightness(LightLayer.BLOCK, BlockPos.containing(pos[0], pos[1], pos[2])));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         return LuaValue.valueOf(level.getBrightness(LightLayer.BLOCK, blockPos));
       }));
       table.set("CanSeeSky", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         return LuaValue.valueOf(level.canSeeSky(BlockPos.containing(pos[0], pos[1], pos[2])));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         return LuaValue.valueOf(level.canSeeSky(blockPos));
       }));
       table.set("IsRaining", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isRaining())));
       table.set("IsThundering", levelFn(supplier, (level, args) -> LuaValue.valueOf(level.isThundering())));
       table.set("IsRainingAt", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         return LuaValue.valueOf(level.isRainingAt(BlockPos.containing(pos[0], pos[1], pos[2])));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         return LuaValue.valueOf(level.isRainingAt(blockPos));
       }));
       table.set("GetSurfaceY", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
          BlockPos column = BlockPos.containing(pos[0], minBuildHeight(level), pos[2]);
-         if (!level.hasChunkAt(column)) return LuaValue.NIL;
+         if (!MLuaChunkWrapper.ensureLoaded(level, column)) return LuaValue.NIL;
          return LuaValue.valueOf(level.getHeight(Heightmap.Types.MOTION_BLOCKING, column.getX(), column.getZ()));
       }));
       table.set("Raycast", levelFn(supplier, (level, args) -> {
@@ -593,7 +613,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       table.set("GetBlockInventory", serverLevelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
-         BlockEntity blockEntity = level.getBlockEntity(BlockPos.containing(pos[0], pos[1], pos[2]));
+         BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
+         if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
+         BlockEntity blockEntity = level.getBlockEntity(blockPos);
          if (blockEntity instanceof Container container
             && (!(blockEntity instanceof dev.mlua.runtime.client.MLuaVisualBlockEntity scripted) || scripted.hasContainer())) {
             return MLuaContainer.containerTable(MCContainerImpl.fromReal(container), true, context.mlua().registration());
