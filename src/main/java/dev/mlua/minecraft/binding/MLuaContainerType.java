@@ -45,12 +45,15 @@ public final class MLuaContainerType {
                throw new org.luaj.vm2.LuaError("[MLua] ContainerType:AllowsItem expects an item id or Item instance.");
             }
             String requested = candidate.tojstring().trim();
+            if (!requested.contains(":")) {
+               requested = type.id().substring(0, type.id().indexOf(':')) + ":" + requested;
+            }
             net.minecraft.resources.ResourceLocation id = dev.mlua.minecraft.MLuaResourceLocations.tryParseOrNull(requested);
             if (id == null) throw new org.luaj.vm2.LuaError("[MLua] ContainerType:AllowsItem received an invalid item id: " + requested);
             return LuaValue.valueOf(type.definition().allowedItems().isEmpty()
                || type.definition().allowedItems().contains(id.toString()));
          }
-      }, "Checks whether an item id or live Item instance is allowed by this container type.");
+      }, "Checks whether an item id or live Item instance is allowed by this container type. An unqualified id uses the container type's namespace.");
       MLuaClassMethods.registerInstanceProperty(registration, "ContainerType", "Id", "GetId", null,
          "string", "shared:Shared", "This container type's full namespaced identifier.");
       MLuaClassMethods.registerInstanceProperty(registration, "ContainerType", "Rows", "GetRows", null,
