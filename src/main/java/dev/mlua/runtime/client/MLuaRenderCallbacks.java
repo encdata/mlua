@@ -130,8 +130,9 @@ public final class MLuaRenderCallbacks {
         var context = renderContext("EntityModel", poseStack, bufferSource, model, partialTick,
             packedLight, packedOverlay, null);
         LuaValue[] args = {MLuaEntityWrapper.entityTable(entity), context};
+        Varargs invocationArgs = LuaValue.varargsOf(args);
         for (Hook hook : registered.snapshot()) {
-            invoke(hook, args);
+            invoke(hook, args, invocationArgs);
         }
     }
 
@@ -174,7 +175,8 @@ public final class MLuaRenderCallbacks {
 
     private static void invokeSnapshot(HookBucket hooks, LuaValue[] args) {
         if (hooks == null || hooks.isEmpty()) return;
-        for (Hook hook : hooks.snapshot()) invoke(hook, args);
+        Varargs invocationArgs = LuaValue.varargsOf(args);
+        for (Hook hook : hooks.snapshot()) invoke(hook, args, invocationArgs);
     }
 
     private static void removeWorld(java.util.function.Predicate<Owner> predicate) {
@@ -195,7 +197,7 @@ public final class MLuaRenderCallbacks {
         return MLuaResourceLocations.parse(id).toString();
     }
 
-    private static void invoke(Hook hook, LuaValue[] args) {
+    private static void invoke(Hook hook, LuaValue[] args, Varargs invocationArgs) {
         if (hook.failed) return;
         MLuaContext context = hook.context;
         try {
@@ -203,7 +205,7 @@ public final class MLuaRenderCallbacks {
                 int contextIndex = args.length > 1 && args[1].istable() ? 1 : 0;
                 if (args[contextIndex].istable()) args[contextIndex].set("PassId", LuaValue.valueOf(hook.id));
                 MLuaLuaBindings.bindContext(context.globals(), context);
-                hook.callback.invoke(LuaValue.varargsOf(args));
+                hook.callback.invoke(invocationArgs);
             }
         } catch (Throwable failure) {
             hook.failed = true;
