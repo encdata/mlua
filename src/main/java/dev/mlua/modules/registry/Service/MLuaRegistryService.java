@@ -444,10 +444,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             }
 
-            MLuaLoaderRegistry.setItemCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
-            MLuaLoaderRegistry.setItemCopyModel(owner, name, copyModel);
-            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
-            MLuaLoaderRegistry.setItemVisuals(owner, name, itemTexture, itemModel);
+            MLuaRegistryService.this.updateVisualMetadata(RegistryKind.ITEM, owner, name, previous ->
+               new RegistryVisualMetadata(propsTable != null ? propsTable.get("copy").optjstring((String)null) : null,
+                  copyModel, MLuaRegistryService.descriptionList(propsTable), itemTexture, itemModel));
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, "Item".equals(className) ? null : className);
             return LuaValue.NONE;
@@ -523,12 +522,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                      return MLuaRegistryService.this.blockFactory.createScripted(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
                   });
-                  MLuaLoaderRegistry.setBlockCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
-                  MLuaLoaderRegistry.setBlockCopyModel(owner, name, copyModel);
-                  MLuaLoaderRegistry.setBlockDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
+                  MLuaRegistryService.this.updateVisualMetadata(RegistryKind.BLOCK, owner, name, previous ->
+                     new RegistryVisualMetadata(propsTable != null ? propsTable.get("copy").optjstring((String)null) : null,
+                        copyModel, MLuaRegistryService.descriptionList(propsTable), texture, model));
                   MLuaRegistryService.this.registerMiningProperties(owner, name, mining);
                   if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
-                  MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
                   MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
                   MLuaRegistryService.this.replaceBehaviors("block", key, blockCallbacks);
                   MLuaRegistryService.this.registerContentClass("block_entity", key,
@@ -541,12 +539,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                return MLuaRegistryService.this.blockFactory.create(props, name, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
             });
-            MLuaLoaderRegistry.setBlockCopy(owner, name, propsTable != null ? propsTable.get("copy").optjstring((String)null) : null);
-            MLuaLoaderRegistry.setBlockCopyModel(owner, name, copyModel);
-            MLuaLoaderRegistry.setBlockDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
+            MLuaRegistryService.this.updateVisualMetadata(RegistryKind.BLOCK, owner, name, previous ->
+               new RegistryVisualMetadata(propsTable != null ? propsTable.get("copy").optjstring((String)null) : null,
+                  copyModel, MLuaRegistryService.descriptionList(propsTable), texture, model));
             MLuaRegistryService.this.registerMiningProperties(owner, name, mining);
             if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
-            MLuaLoaderRegistry.setBlockVisuals(owner, name, texture, model);
             MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
             MLuaRegistryService.this.replaceBehaviors("block", key, Map.of());
             MLuaRegistryService.this.registerContentClass("block_entity", key,
@@ -584,7 +581,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             }
 
-            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
+            MLuaRegistryService.this.updateVisualMetadata(RegistryKind.ITEM, owner, name, previous ->
+               new RegistryVisualMetadata(previous.copy(), previous.copyModel(),
+                  MLuaRegistryService.descriptionList(propsTable), previous.texture(), previous.model()));
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, className);
 
@@ -990,7 +989,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             Map<String, LuaValue> itemCallbacks = collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             MLuaLoaderRegistry.registerSpawnEgg(owner, name, entityType, primaryColor, secondaryColor);
-            MLuaLoaderRegistry.setItemDescription(owner, name, MLuaRegistryService.descriptionList(propsTable));
+            MLuaRegistryService.this.updateVisualMetadata(RegistryKind.ITEM, owner, name, previous ->
+               new RegistryVisualMetadata(previous.copy(), previous.copyModel(),
+                  MLuaRegistryService.descriptionList(propsTable), previous.texture(), previous.model()));
             MLuaRegistryService.this.replaceBehaviors("item", owner + ":" + name, itemCallbacks);
             return LuaValue.NONE;
          }
@@ -1708,6 +1709,72 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       } catch (RuntimeException | Error failure) {
          MLuaBehaviorRegistry.restoreContentClass(domain, key, className, previous);
          throw failure;
+      }
+   }
+
+   private void updateVisualMetadata(RegistryKind kind, String owner, String name,
+                                    java.util.function.UnaryOperator<RegistryVisualMetadata> update) {
+      RegistryVisualMetadata previous = this.readVisualMetadata(kind, owner, name);
+      RegistryVisualMetadata requested = update.apply(previous);
+      try {
+         this.writeVisualMetadata(kind, owner, name, requested);
+      } catch (RuntimeException | Error failure) {
+         this.writeVisualMetadata(kind, owner, name, previous);
+         throw failure;
+      }
+      RegistryVisualMetadata installed = this.readVisualMetadata(kind, owner, name);
+      Runnable rollback = () -> {
+         if (this.readVisualMetadata(kind, owner, name).equals(installed)) {
+            this.writeVisualMetadata(kind, owner, name, previous);
+         }
+      };
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
+      }
+   }
+
+   private RegistryVisualMetadata readVisualMetadata(RegistryKind kind, String owner, String name) {
+      return switch (kind) {
+         case ITEM -> new RegistryVisualMetadata(MLuaLoaderRegistry.getItemCopy(owner, name),
+            MLuaLoaderRegistry.getItemCopyModel(owner, name), MLuaLoaderRegistry.getItemDescription(owner, name),
+            new MLuaTextureDescriptor(MLuaLoaderRegistry.getItemTexture(owner, name).faces()),
+            MLuaLoaderRegistry.getItemModel(owner, name));
+         case BLOCK -> new RegistryVisualMetadata(MLuaLoaderRegistry.getBlockCopy(owner, name),
+            MLuaLoaderRegistry.getBlockCopyModel(owner, name), MLuaLoaderRegistry.getBlockDescription(owner, name),
+            new MLuaTextureDescriptor(MLuaLoaderRegistry.getBlockTexture(owner, name).faces()),
+            MLuaLoaderRegistry.getBlockModel(owner, name));
+         default -> throw new IllegalArgumentException("Visual metadata is supported only for items and blocks");
+      };
+   }
+
+   private void writeVisualMetadata(RegistryKind kind, String owner, String name, RegistryVisualMetadata metadata) {
+      switch (kind) {
+         case ITEM -> {
+            MLuaLoaderRegistry.setItemCopy(owner, name, metadata.copy());
+            MLuaLoaderRegistry.setItemCopyModel(owner, name, metadata.copyModel());
+            MLuaLoaderRegistry.setItemDescription(owner, name, metadata.description());
+            MLuaLoaderRegistry.setItemVisuals(owner, name, metadata.texture(), metadata.model());
+         }
+         case BLOCK -> {
+            MLuaLoaderRegistry.setBlockCopy(owner, name, metadata.copy());
+            MLuaLoaderRegistry.setBlockCopyModel(owner, name, metadata.copyModel());
+            MLuaLoaderRegistry.setBlockDescription(owner, name, metadata.description());
+            MLuaLoaderRegistry.setBlockVisuals(owner, name, metadata.texture(), metadata.model());
+         }
+         default -> throw new IllegalArgumentException("Visual metadata is supported only for items and blocks");
+      }
+   }
+
+   private record RegistryVisualMetadata(String copy, boolean copyModel, List<String> description,
+                                         MLuaTextureDescriptor texture, String model) {
+      private RegistryVisualMetadata {
+         if (copy != null && copy.isBlank()) copy = null;
+         if (description != null) description = List.copyOf(description);
+         texture = texture == null ? MLuaTextureDescriptor.empty() : texture;
+         if (model != null && model.isBlank()) model = null;
       }
    }
 
