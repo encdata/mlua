@@ -18,6 +18,7 @@ import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.world.entity.Entity;
@@ -106,6 +107,15 @@ public class MLuaProjectileDefinition {
 
    public static boolean exists(String name) {
       return DEFINITIONS.containsKey(new Key(null, "", name));
+   }
+
+   public static List<String> registeredIds(Object runtimeOwner, String namespace) {
+      return DEFINITIONS.keySet().stream()
+         .filter(key -> key.runtimeOwner() == runtimeOwner)
+         .filter(key -> namespace == null || namespace.equals(key.ownerModId()))
+         .map(key -> key.ownerModId().isBlank() ? key.name() : key.ownerModId() + ":" + key.name())
+         .sorted()
+         .toList();
    }
 
    public static LuaTable createTypeLuaTable(String name) {

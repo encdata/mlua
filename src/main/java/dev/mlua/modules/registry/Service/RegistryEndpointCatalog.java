@@ -63,7 +63,7 @@ final class RegistryEndpointCatalog {
             List.of("item", "items"), definition("Register", 3));
         add(endpoints, "Blocks", "Register", "block", "Blocks", RegistryKind.BLOCK, 2,
             List.of("block", "blocks"), definition("Register", 3));
-        add(endpoints, "Blocks", "RegisterItem", "item", "Items", null, 2,
+        add(endpoints, "Blocks", "RegisterItem", "item", "Items", RegistryKind.BLOCK_ITEM, 2,
             List.of("block_item", "blockitem", "blockitems"));
         add(endpoints, "Entities", "Register", "entity", "Entities", RegistryKind.ENTITY, 2,
             List.of("entity", "entities", "entity_type", "entity_types"), definition("Register", 3));

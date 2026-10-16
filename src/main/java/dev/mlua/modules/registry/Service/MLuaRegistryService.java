@@ -111,8 +111,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("GetKinds", "Lists the registry kinds supported by this loader.");
       descriptions.put("GetCategories", "Lists the built-in and addon-owned registration categories.");
       descriptions.put("GetCategory", "Returns the live category API table for a built-in or addon-owned category name or alias.");
-      descriptions.put("Get", "Returns a live RegistryEntry for a built-in category or a copied definition for an addon-owned category.");
-      descriptions.put("GetAll", "Returns entries or definitions keyed by namespaced identifier, optionally filtered by namespace.");
+      descriptions.put("Get", "Returns a live RegistryEntry, a registered ProjectileType, or a copied definition for an addon-owned category.");
+      descriptions.put("GetAll", "Returns entries, projectile types, or definitions keyed by namespaced identifier, optionally filtered by namespace.");
       descriptions.put("GetIds", "Returns sorted identifiers from a built-in registry or addon-owned category, optionally filtered by namespace.");
       descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
       descriptions.put("GetRegistered", "Returns identifiers registered through MLua for a supported Minecraft registry kind.");
@@ -442,7 +442,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   copyModel, MLuaRegistryService.descriptionList(propsTable), itemTexture, itemModel));
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, "Item".equals(className) ? null : className);
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.ITEM, owner, name);
          }
       });
       items.set("GetTiers", new VarArgFunction() {
@@ -535,7 +535,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                   MLuaRegistryService.this.registerContentClass("block_entity", key,
                      "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
                   MLuaRegistryService.this.registerContentClass("block", key, "Block".equals(className) ? null : className);
-                  return LuaValue.NONE;
+                  return MLuaRegistryService.this.registryEntry(RegistryKind.BLOCK, owner, name);
                }
             }
 
@@ -552,7 +552,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.registerContentClass("block_entity", key,
                "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
             MLuaRegistryService.this.registerContentClass("block", key, "Block".equals(className) ? null : className);
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.BLOCK, owner, name);
          }
       });
       blocks.set("RegisterItem", new VarArgFunction() {
@@ -597,7 +597,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.replaceBehaviors("item", key, itemCallbacks);
             MLuaRegistryService.this.registerContentClass("item", key, className);
 
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.BLOCK_ITEM, owner, name);
          }
       });
       blocks.set("GetPushReactions", new VarArgFunction() {
@@ -630,7 +630,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaLoaderRegistry.register(RegistryKind.CREATIVE_TAB, owner, name, () -> {
                return MLuaRegistryService.this.tabFactory.create(owner, name, props);
             });
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.CREATIVE_TAB, owner, name);
          }
       });
       recipes.set("Register", new VarArgFunction() {
@@ -823,8 +823,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                name, "Registry.Particles:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             boolean overrideLimiter = propsTable != null && propsTable.get("overrideLimiter").optboolean(false);
-            MLuaLoaderRegistry.registerParticle(MLuaRegistryService.this.context.mlua().ownerModId(), name, overrideLimiter);
-            return LuaValue.NONE;
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaLoaderRegistry.registerParticle(owner, name, overrideLimiter);
+            return MLuaRegistryService.this.registryEntry(RegistryKind.PARTICLE, owner, name);
          }
       });
       potions.set("Register", new VarArgFunction() {
@@ -835,9 +836,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                name, "Registry.Potions:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             List<MobEffectInstance> effects = MLuaRegistryService.potionEffects(propsTable);
-            MLuaLoaderRegistry.register(RegistryKind.POTION, MLuaRegistryService.this.context.mlua().ownerModId(), name, () -> {
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaLoaderRegistry.register(RegistryKind.POTION, owner, name, () -> {
                //--version 26.1
-               return new Potion(MLuaRegistryService.this.context.mlua().ownerModId() + ":" + name,
+               return new Potion(owner + ":" + name,
                   effects.toArray(MobEffectInstance[]::new));
                //--endversion
                //--version 1.20.1,1.21.1
@@ -846,7 +848,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                }));
                //--endversion
             });
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.POTION, owner, name);
          }
       });
       effects.set("Register", new VarArgFunction() {
@@ -879,7 +881,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             });
             MLuaRegistryService.this.replaceBehaviors("effect", key, Map.of(
                "onTick", onTick, "onApplied", onApplied, "onEnding", onEnding));
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.MOB_EFFECT, owner, name);
          }
       });
       config.set("Register", new VarArgFunction() {
@@ -1030,7 +1032,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                 "onSpawn", onSpawn, "onInteract", onInteract, "onRemove", onRemove));
              MLuaRegistryService.this.setEntityAIInterval(key, Math.max(1, Math.min(120, aiInterval)));
              MLuaLogger.LOGGER.info("Registered MLua scripted entity '{}' with AI callback={}", key, !onAI.isnil());
-             return LuaValue.NONE;
+             return MLuaRegistryService.this.registryEntry(RegistryKind.ENTITY, owner, name);
          }
       });
       entities.set("RegisterSpawnEgg", new VarArgFunction() {
@@ -1064,7 +1066,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                new RegistryVisualMetadata(previous.copy(), previous.copyModel(),
                   MLuaRegistryService.descriptionList(propsTable), previous.texture(), previous.model()));
             MLuaRegistryService.this.replaceBehaviors("item", owner + ":" + name, itemCallbacks);
-            return LuaValue.NONE;
+            return MLuaRegistryService.this.registryEntry(RegistryKind.ITEM, owner, name);
          }
       });
        projectiles.set("Register", new VarArgFunction() {
@@ -1077,7 +1079,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              if (props == null) {
                 throw new LuaError("[MLua] Registry.Projectiles:Register requires a properties table");
              }
-             Object runtimeOwner = MLuaRegistryService.this.context.mlua().registration() instanceof dev.mlua.core.MLuaRuntime runtime ? runtime.session() : null;
+             Object runtimeOwner = MLuaRegistryService.this.projectileRuntimeOwner();
              String ownerModId = MLuaRegistryService.this.context.mlua().ownerModId();
              MLuaProjectileDefinition.ProjectileDef definition = MLuaProjectileDefinition.register(runtimeOwner, ownerModId, name, props,
                    MLuaLuaBindings.boundContext(MLuaRegistryService.this.context.mlua().globals()));
@@ -1085,6 +1087,43 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                 MLuaProjectileDefinition.unregister(runtimeOwner, ownerModId, name, definition));
              return MLuaProjectileDefinition.createTypeLuaTable(runtimeOwner, ownerModId, name,
                 MLuaRegistryService.this.context.mlua().registration());
+          }
+       });
+       projectiles.set("Get", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             return MLuaRegistryService.this.projectileType(
+                MLuaRegistryService.this.registryId(args.checkjstring(2)));
+          }
+       });
+       projectiles.set("GetId", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             return LuaValue.valueOf(MLuaRegistryService.this.registryId(args.checkjstring(2)));
+          }
+       });
+       projectiles.set("GetAll", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             LuaTable result = new LuaTable();
+             Object runtimeOwner = MLuaRegistryService.this.projectileRuntimeOwner();
+             String namespace = optionalNamespace(args.arg(2));
+             for (String id : MLuaProjectileDefinition.registeredIds(runtimeOwner, namespace)) {
+                result.set(id, MLuaRegistryService.this.projectileType(id));
+             }
+             return result;
+          }
+       });
+       projectiles.set("GetIds", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             return stringArray(MLuaProjectileDefinition.registeredIds(
+                MLuaRegistryService.this.projectileRuntimeOwner(), optionalNamespace(args.arg(2))));
+          }
+       });
+       projectiles.set("Exists", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
+             net.minecraft.resources.ResourceLocation location = MLuaResourceLocations.tryParseOrNull(id);
+             return LuaValue.valueOf(location != null && MLuaProjectileDefinition.get(
+                MLuaRegistryService.this.projectileRuntimeOwner(), MLuaResourceLocations.namespace(location),
+                MLuaResourceLocations.path(location)) != null);
           }
        });
       table.set("Register", new VarArgFunction() {
@@ -1199,10 +1238,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                 return MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(),
                    endpoint.registryKind(), MLuaRegistryService.this.registryId(args.checkjstring(3)));
              }
-             MLuaRegistryService.this.requireDynamicCategory(endpoint.table());
-             LuaTable definition = MLuaRegistryService.this.dynamicRegistry.definition(
-                endpoint.table(), MLuaRegistryService.this.registryId(args.checkjstring(3)));
-             return definition == null ? LuaValue.NIL : definition;
+             String id = MLuaRegistryService.this.registryId(args.checkjstring(3));
+             if (MLuaRegistryService.this.dynamicRegistry.category(endpoint.table()) != null) {
+                LuaTable definition = MLuaRegistryService.this.dynamicRegistry.definition(endpoint.table(), id);
+                return definition == null ? LuaValue.NIL : definition;
+             }
+             LuaTable target = table.get(endpoint.table()).checktable();
+             return invokeCategoryQuery(target, endpoint.table(), "Get", LuaValue.valueOf(id));
           }
        });
        table.set("GetAll", new VarArgFunction() {
@@ -1213,8 +1255,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              if (endpoint.registryKind() != null) {
                 return MLuaRegistryService.this.registeredEntryMap(endpoint.registryKind(), namespace);
              }
-             MLuaRegistryService.this.requireDynamicCategory(endpoint.table());
-             return MLuaRegistryService.this.dynamicRegistry.definitions(endpoint.table(), namespace);
+             if (MLuaRegistryService.this.dynamicRegistry.category(endpoint.table()) != null) {
+                return MLuaRegistryService.this.dynamicRegistry.definitions(endpoint.table(), namespace);
+             }
+             LuaTable target = table.get(endpoint.table()).checktable();
+             return invokeCategoryQuery(target, endpoint.table(), "GetAll",
+                namespace == null ? LuaValue.NIL : LuaValue.valueOf(namespace));
           }
        });
        table.set("GetIds", new VarArgFunction() {
@@ -1225,8 +1271,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              if (endpoint.registryKind() != null) {
                 return stringArray(MLuaRegistryService.this.registeredIdList(endpoint.registryKind(), namespace));
              }
-             MLuaRegistryService.this.requireDynamicCategory(endpoint.table());
-             return stringArray(MLuaRegistryService.this.dynamicRegistry.ids(endpoint.table(), namespace));
+             if (MLuaRegistryService.this.dynamicRegistry.category(endpoint.table()) != null) {
+                return stringArray(MLuaRegistryService.this.dynamicRegistry.ids(endpoint.table(), namespace));
+             }
+             LuaTable target = table.get(endpoint.table()).checktable();
+             return invokeCategoryQuery(target, endpoint.table(), "GetIds",
+                namespace == null ? LuaValue.NIL : LuaValue.valueOf(namespace));
           }
        });
        table.set("GetEntry", new VarArgFunction() {
@@ -1238,10 +1288,19 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        });
        table.set("Exists", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryKind kind = MLuaRegistryEntry.kind(args.checkjstring(2));
-             LuaTable entry = MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(), kind,
-               MLuaRegistryService.this.registryId(args.checkjstring(3)));
-             return entry.get("Exists").invoke(entry).arg1();
+             String category = args.checkjstring(2);
+             RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             String id = MLuaRegistryService.this.registryId(args.checkjstring(3));
+             if (endpoint.registryKind() != null) {
+                LuaTable entry = MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(),
+                   endpoint.registryKind(), id);
+                return entry.get("Exists").invoke(entry).arg1();
+             }
+             if (MLuaRegistryService.this.dynamicRegistry.category(endpoint.table()) != null) {
+                return LuaValue.valueOf(MLuaRegistryService.this.dynamicRegistry.containsDefinition(endpoint.table(), id));
+             }
+             LuaTable target = table.get(endpoint.table()).checktable();
+             return invokeCategoryQuery(target, endpoint.table(), "Exists", LuaValue.valueOf(id)).arg1();
           }
        });
        for (RegistryEndpoint endpoint : this.registryEndpoints.uniqueEndpoints()) {
@@ -1254,6 +1313,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        }
        documentRegistryTable(table, "Registry");
        documentRegistryTable(contentTypes, "ContentTypes");
+      describeRegistryMethod(items, "Register", "Registers an item with this addon's namespace and returns its live RegistryEntry key.");
+      describeRegistryMethod(blocks, "Register", "Registers a block and returns its live RegistryEntry key.");
+      describeRegistryMethod(blocks, "RegisterItem", "Registers the block's item form and returns its live item RegistryEntry key.");
+      describeRegistryMethod(entities, "Register", "Registers a scripted entity type and returns its live RegistryEntry key.");
+      describeRegistryMethod(entities, "RegisterSpawnEgg", "Registers a spawn egg for a registered entity and returns its item RegistryEntry key.");
+      describeRegistryMethod(effects, "Register", "Registers a scripted mob effect and returns its live RegistryEntry key.");
+      describeRegistryMethod(potions, "Register", "Registers a potion and returns its live RegistryEntry key.");
+      describeRegistryMethod(particles, "Register", "Registers a particle type and returns its live RegistryEntry key.");
+      describeRegistryMethod(tabs, "Register", "Registers a creative tab and returns its live RegistryEntry key.");
+      Map<String, String> projectileDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
+      projectileDescriptions.put("Register", "Registers a reusable projectile definition and returns its ProjectileType instance.");
+      projectileDescriptions.put("Get", "Returns a registered ProjectileType in this runtime, or nil when the id is unknown.");
+      projectileDescriptions.put("GetAll", "Returns registered ProjectileType instances keyed by namespaced id, optionally filtered by namespace.");
+      projectileDescriptions.put("GetIds", "Returns sorted projectile ids registered in this runtime, optionally filtered by namespace.");
+      projectileDescriptions.put("Exists", "Checks whether a ProjectileType id is registered in this runtime.");
+      MLuaServiceMetadata.attachMethodDescriptions(projectiles, projectileDescriptions);
       Map<String, String> assetDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
       assetDescriptions.put("Register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json.");
       assetDescriptions.put("register", "Registers a JSON resource in the addon's assets namespace, merging distinct top-level keys in shared files such as sounds.json.");
@@ -1295,6 +1370,40 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable table = new LuaTable();
       table.set("__side", "Registry");
       return table;
+   }
+
+   private static Varargs invokeCategoryQuery(LuaTable target, String category, String method, LuaValue argument) {
+      LuaValue query = target.get(method);
+      if (!query.isfunction()) {
+         throw new LuaError("[MLua] Registry category '" + category + "' does not support " + method);
+      }
+      return query.invoke(LuaValue.varargsOf(new LuaValue[]{target, argument}));
+   }
+
+   private static void describeRegistryMethod(LuaTable target, String method, String description) {
+      LuaValue metadata = target.rawget("__mlua_doc_methods");
+      if (!metadata.istable() || !target.get(method).isfunction()) return;
+      metadata.checktable().rawset(method, LuaValue.valueOf(description));
+   }
+
+   private Object projectileRuntimeOwner() {
+      return this.context.mlua().registration() instanceof dev.mlua.core.MLuaRuntime runtime
+         ? runtime.session() : null;
+   }
+
+   private LuaValue projectileType(String id) {
+      net.minecraft.resources.ResourceLocation location = MLuaResourceLocations.tryParseOrNull(id);
+      if (location == null) return LuaValue.NIL;
+      Object runtimeOwner = this.projectileRuntimeOwner();
+      String namespace = MLuaResourceLocations.namespace(location);
+      String name = MLuaResourceLocations.path(location);
+      if (MLuaProjectileDefinition.get(runtimeOwner, namespace, name) == null) return LuaValue.NIL;
+      return MLuaProjectileDefinition.createTypeLuaTable(runtimeOwner, namespace, name,
+         this.context.mlua().registration());
+   }
+
+   private LuaValue registryEntry(RegistryKind kind, String owner, String name) {
+      return MLuaRegistryEntry.create(this.context.mlua().registration(), kind, owner + ":" + name);
    }
 
    private void installDynamicCategory(LuaTable registry, MLuaDynamicRegistryCatalog.Category category) {
@@ -1342,6 +1451,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
             LuaTable definition = MLuaRegistryService.this.dynamicRegistry.definition(key, id);
             return definition == null ? LuaValue.NIL : definition;
+         }
+      });
+      target.set("GetId", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return LuaValue.valueOf(MLuaRegistryService.this.registryId(args.checkjstring(2)));
          }
       });
       target.set("GetAll", new VarArgFunction() {
