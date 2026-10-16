@@ -79,7 +79,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       "attackSpeed", "knockbackResistance", "followRange");
    private static final List<String> SERVICE_METHODS = List.of(
       "Register", "RegisterCategory", "RegisterType", "ResolveType", "GetKinds", "GetCategories",
-      "Get", "GetAll", "GetTypes", "GetRegistered", "GetEntries", "GetId", "GetEntry", "Exists");
+      "GetCategory", "Get", "GetAll", "GetIds", "GetTypes", "GetRegistered", "GetEntries", "GetId", "GetEntry", "Exists");
    private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
    private final Map<String, RegistryEndpoint> registryEndpoints = new HashMap<>(REGISTRY_ENDPOINTS);
    private final DynamicRegistryState dynamicRegistry = this.sharedState(
@@ -110,8 +110,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("ResolveType", "Returns a definition with its reusable type defaults merged in.");
       descriptions.put("GetKinds", "Lists the registry kinds supported by this loader.");
       descriptions.put("GetCategories", "Lists the built-in and addon-owned registration categories.");
+      descriptions.put("GetCategory", "Returns the live category API table for a built-in or addon-owned category name or alias.");
       descriptions.put("Get", "Returns one copied definition from an addon-owned category.");
-      descriptions.put("GetAll", "Returns definitions keyed by namespaced identifier from an addon-owned category.");
+      descriptions.put("GetAll", "Returns copied definitions keyed by namespaced identifier from an addon-owned category, optionally filtered by namespace.");
+      descriptions.put("GetIds", "Returns sorted identifiers from an addon-owned category, optionally filtered by namespace.");
       descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
       descriptions.put("GetRegistered", "Returns identifiers registered through MLua for a supported Minecraft registry kind.");
       descriptions.put("GetEntries", "Returns live RegistryEntry objects for identifiers registered through MLua, optionally filtered by namespace.");
@@ -1225,6 +1227,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              return result;
           }
        });
+       table.set("GetCategory", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "category", table);
+             return table.get(endpoint.table()).checktable();
+          }
+       });
        table.set("Get", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
@@ -1238,7 +1246,14 @@ public final class MLuaRegistryService extends MLuaServiceBase {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
              MLuaRegistryService.this.requireDynamicCategory(category);
-             return MLuaRegistryService.this.dynamicRegistry.definitions(category);
+             return MLuaRegistryService.this.dynamicRegistry.definitions(category, optionalNamespace(args.arg(3)));
+          }
+       });
+       table.set("GetIds", new VarArgFunction() {
+          @Override public Varargs invoke(Varargs args) {
+             String category = args.checkjstring(2);
+             MLuaRegistryService.this.requireDynamicCategory(category);
+             return stringArray(MLuaRegistryService.this.dynamicRegistry.ids(category, optionalNamespace(args.arg(3))));
           }
        });
        table.set("GetEntry", new VarArgFunction() {
@@ -1362,14 +1377,20 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       target.set("GetAll", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.requireDynamicCategory(category.name());
-            return MLuaRegistryService.this.dynamicRegistry.definitions(key);
+            return MLuaRegistryService.this.dynamicRegistry.definitions(key, optionalNamespace(args.arg(2)));
+         }
+      });
+      target.set("GetIds", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaRegistryService.this.requireDynamicCategory(category.name());
+            return stringArray(MLuaRegistryService.this.dynamicRegistry.ids(key, optionalNamespace(args.arg(2))));
          }
       });
       target.set("Exists", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.requireDynamicCategory(category.name());
             String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
-            return LuaValue.valueOf(MLuaRegistryService.this.dynamicRegistry.definition(key, id) != null);
+            return LuaValue.valueOf(MLuaRegistryService.this.dynamicRegistry.containsDefinition(key, id));
          }
       });
       this.installContentTypeApi(target, category.domain());
@@ -1454,11 +1475,25 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          return definition == null ? null : copyLuaTable(definition.value(), new java.util.IdentityHashMap<>());
       }
 
-      private synchronized LuaTable definitions(String category) {
+      private synchronized boolean containsDefinition(String category, String id) {
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         return values != null && values.containsKey(id);
+      }
+
+      private synchronized List<String> ids(String category, String namespace) {
+         Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
+         if (values == null) return List.of();
+         return values.keySet().stream().filter(id -> namespace == null || id.startsWith(namespace + ":"))
+            .sorted().toList();
+      }
+
+      private synchronized LuaTable definitions(String category, String namespace) {
          LuaTable result = new LuaTable();
          Map<String, RegisteredDefinition> values = this.definitions.get(category.trim().toLowerCase(java.util.Locale.ROOT));
-         if (values != null) values.forEach((id, definition) ->
-            result.set(id, copyLuaTable(definition.value(), new java.util.IdentityHashMap<>())));
+         if (values != null) values.entrySet().stream()
+            .filter(entry -> namespace == null || entry.getKey().startsWith(namespace + ":"))
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(entry -> result.set(entry.getKey(), copyLuaTable(entry.getValue().value(), new java.util.IdentityHashMap<>())));
          return result;
       }
    }
@@ -1617,6 +1652,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          throw new LuaError("[MLua] Registry namespace must contain lowercase letters, digits, '_', '.', or '-'");
       }
       return namespace;
+   }
+
+   private static LuaTable stringArray(List<String> values) {
+      LuaTable result = new LuaTable();
+      for (int index = 0; index < values.size(); index++) result.set(index + 1, LuaValue.valueOf(values.get(index)));
+      return result;
    }
 
    private String registryId(String name) {
