@@ -55,8 +55,11 @@ public class RegistryModule implements MLuaModule {
             "A registered Lua-controlled mob with navigation, sensing, combat, and persistent AI data.");
         String[][] aiMethods = {
             {"MoveTo", "On the server, finds a path to a Vector3 or CFrame position using a finite positive speed."},
+            {"StopMoving", "On the server, stops the current navigation path and reports whether a path was active."},
             {"LookAt", "Turns the mob toward a native Vector3 or CFrame position."},
             {"AttackTarget", "On the server, sets or clears this mob's target; a target must be in the same dimension."},
+            {"GetTarget", "Returns the mob's current live target, or nil."},
+            {"CanSee", "Returns whether this mob has line of sight to a live entity in the same dimension."},
             {"GetBehaviorKey", "Returns the registered content key that defines this mob's behavior."},
             {"GetAIState", "Returns the mob's active scripted AI state, or nil."},
             {"GetAIStateTicks", "Returns the number of ticks spent in the active AI state."},

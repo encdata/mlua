@@ -255,6 +255,14 @@ public class MLuaScriptedEntity extends PathfinderMob {
                position[0], position[1], position[2], speed));
          }
       });
+      methods.set("StopMoving", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            MLuaScriptedEntity.this.requireServerSide("StopMoving");
+            boolean wasMoving = !MLuaScriptedEntity.this.getNavigation().isDone();
+            MLuaScriptedEntity.this.getNavigation().stop();
+            return LuaValue.valueOf(wasMoving);
+         }
+      });
       methods.set("LookAt", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             double[] position = MLuaLuaArguments.finiteVector3(args.arg(2), "ScriptedEntity:LookAt position");
@@ -281,6 +289,21 @@ public class MLuaScriptedEntity extends PathfinderMob {
             }
             MLuaScriptedEntity.this.setTarget(target);
             return LuaValue.valueOf(true);
+         }
+      });
+      methods.set("GetTarget", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LivingEntity target = MLuaScriptedEntity.this.getTarget();
+            return target == null || target.isRemoved() ? LuaValue.NIL : MLuaScriptedEntity.this.entityToLua(target);
+         }
+      });
+      methods.set("CanSee", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            Entity target = MLuaScriptedEntity.this.resolveEntity(args.arg(2));
+            if (target == null) {
+               throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:CanSee expects a live entity in the same dimension.");
+            }
+            return LuaValue.valueOf(MLuaScriptedEntity.this.hasLineOfSight(target));
          }
       });
       methods.set("GetBehaviorKey", new VarArgFunction() {
@@ -502,6 +525,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("RandomStroll", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            MLuaScriptedEntity.this.requireServerSide("RandomStroll");
             double speed = positiveSpeed(args, 2, 1.0, "ScriptedEntity:RandomStroll");
             Level level = MLuaScriptedEntity.this.level();
             for (int attempt = 0; attempt < 10; attempt++) {
@@ -518,13 +542,23 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("Panic", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            MLuaScriptedEntity.this.requireServerSide("Panic");
             double speed = positiveSpeed(args, 2, 1.5, "ScriptedEntity:Panic");
             DamageSource lastDamage = MLuaScriptedEntity.this.getLastDamageSource();
             if (lastDamage == null) return LuaValue.valueOf(false);
             LivingEntity attacker = MLuaScriptedEntity.this.getLastHurtByMob();
             if (attacker != null) {
-               Vec3 away = MLuaScriptedEntity.this.position().subtract(attacker.position()).normalize();
-               BlockPos panicPos = MLuaScriptedEntity.this.blockPosition().offset((int)away.x * 5, 0, (int)away.z * 5);
+               Vec3 away = MLuaScriptedEntity.this.position().subtract(attacker.position());
+               away = new Vec3(away.x, 0.0, away.z);
+               if (away.lengthSqr() < 1.0E-6) {
+                  double angle = MLuaScriptedEntity.this.random.nextDouble() * Math.PI * 2.0;
+                  away = new Vec3(Math.cos(angle), 0.0, Math.sin(angle));
+               } else {
+                  away = away.normalize();
+               }
+               int dx = (int)Math.round(away.x * 5.0);
+               int dz = (int)Math.round(away.z * 5.0);
+               BlockPos panicPos = MLuaScriptedEntity.this.blockPosition().offset(dx, 0, dz);
                return LuaValue.valueOf(MLuaScriptedEntity.this.navigation.moveTo(panicPos.getX(), panicPos.getY(), panicPos.getZ(), speed));
             }
             int x = MLuaScriptedEntity.this.random.nextInt(20) - 10;
@@ -544,6 +578,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       });
       methods.set("MeleeAttack", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            MLuaScriptedEntity.this.requireServerSide("MeleeAttack");
             int cooldownTicks = MLuaLuaArguments.optionalWholeInt(args, 3, 20,
                "ScriptedEntity:MeleeAttack", "cooldownTicks");
             LivingEntity other = MLuaScriptedEntity.this.resolveLivingEntity(args.arg(2));
@@ -772,6 +807,12 @@ public class MLuaScriptedEntity extends PathfinderMob {
          throw new org.luaj.vm2.LuaError("[MLua] " + method + " speed must be greater than zero.");
       }
       return speed;
+   }
+
+   private void requireServerSide(String method) {
+      if (this.level().isClientSide) {
+         throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:" + method + " is server-side only.");
+      }
    }
 
    private void invokeLifecycleSuper(String methodName) {
