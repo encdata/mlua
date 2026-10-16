@@ -132,6 +132,13 @@ public final class MLuaConfigRegistry {
       return this.getValue(ownerModId, scopeName(type), path);
    }
 
+   public synchronized Map<String, Object> getValues(String ownerModId, String scope) {
+      InstalledConfigSet set = this.requiredSet(ownerModId, scopeFromString(scope));
+      Map<String, Object> snapshot = new LinkedHashMap<>();
+      set.values().forEach((path, value) -> snapshot.put(path, value.get()));
+      return java.util.Collections.unmodifiableMap(snapshot);
+   }
+
    public synchronized void setValue(String ownerModId, String scope, String path, Object value) {
       InstalledConfigSet set = this.requiredSet(ownerModId, scopeFromString(scope));
       ConfigValue configValue = set.values().get(path);

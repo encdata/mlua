@@ -20,6 +20,7 @@ public class ConfigModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Get(path: string, scope?: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:GetAll(scope: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Set(path: string, value: any, scope?: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Save(scope?: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Config", "Config:Exists(path: string, scope?: string)", null));

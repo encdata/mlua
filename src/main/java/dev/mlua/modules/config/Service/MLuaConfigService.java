@@ -33,6 +33,12 @@ public final class MLuaConfigService extends MLuaReflectiveService {
       return MLuaLuaBindings.toLuaValue(value);
    }
 
+   @MLuaDescription("Returns a snapshot of every registered value in a configuration scope, keyed by path.")
+   public LuaValue GetAll(String scope) {
+      return MLuaLuaBindings.toLuaValue(
+         MLuaConfigRegistry.get().getValues(this.context.ownerModId(), scope));
+   }
+
    @MLuaDescription("Updates a configuration value for the requested scope.")
    public void Set(String path, LuaValue value, Optional<String> requestedScope) {
       String scope = scope(requestedScope, path);
