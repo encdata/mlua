@@ -228,6 +228,12 @@ public class NeoForgeRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                         JsonObject expectedCurrent, JsonObject previousDefinition) {
+        return neoForgeRegistry.restoreGeneratedAsset(kind, modId, name, expectedCurrent, previousDefinition);
+    }
+
+    @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         Map<String, JsonObject> assets = switch (kind) {
             case RECIPE -> neoForgeRegistry.getRecipes();

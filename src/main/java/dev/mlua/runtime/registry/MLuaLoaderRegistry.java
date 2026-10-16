@@ -143,6 +143,11 @@ public final class MLuaLoaderRegistry {
         return LoaderApi.registry().unregisterGeneratedAsset(kind, modId, name, expectedDefinition);
     }
 
+    public static boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                                JsonObject expectedCurrent, JsonObject previousDefinition) {
+        return LoaderApi.registry().restoreGeneratedAsset(kind, modId, name, expectedCurrent, previousDefinition);
+    }
+
     public static Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         return LoaderApi.registry().getGeneratedAssets(kind);
     }

@@ -355,6 +355,24 @@ public final class MLuaNeoForgeRegistry {
       return current != null && current.equals(expectedDefinition) && assets.remove(id, current);
    }
 
+   public boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                        JsonObject expectedCurrent, JsonObject previousDefinition) {
+      String id = this.contentId(modId, name).toString();
+      Map<String, JsonObject> assets = switch (kind) {
+         case RECIPE -> this.recipes;
+         case LOOT_TABLE -> this.lootTables;
+         case BLOCKSTATE -> this.blockStates;
+         case ITEM_TAG -> this.itemTags;
+         case BLOCK_TAG -> this.blockTags;
+         case ENTITY_TYPE_TAG -> this.entityTypeTags;
+      };
+      JsonObject current = assets.get(id);
+      if (current == null || !current.equals(expectedCurrent)) return false;
+      if (previousDefinition == null) return assets.remove(id, current);
+      assets.put(id, previousDefinition.deepCopy());
+      return true;
+   }
+
    public void registerItemTag(String modId, String name, boolean replace, JsonArray values) {
       this.registerTag(this.itemTags, modId, "item tag", name, replace, values);
    }

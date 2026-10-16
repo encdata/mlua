@@ -228,6 +228,12 @@ public class ForgeRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                         JsonObject expectedCurrent, JsonObject previousDefinition) {
+        return forgeRegistry.restoreGeneratedAsset(kind, modId, name, expectedCurrent, previousDefinition);
+    }
+
+    @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         Map<String, JsonObject> assets = switch (kind) {
             case RECIPE -> forgeRegistry.getRecipes();

@@ -236,6 +236,19 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     @Override
+    public boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                         JsonObject expectedCurrent, JsonObject previousDefinition) {
+        String key = assetKey(modId, name);
+        Map<String, JsonObject> assets = generatedAssets.get(kind);
+        if (assets == null) return false;
+        JsonObject current = assets.get(key);
+        if (current == null || !current.equals(expectedCurrent)) return false;
+        if (previousDefinition == null) return assets.remove(key, current);
+        assets.put(key, previousDefinition.deepCopy());
+        return true;
+    }
+
+    @Override
     public Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind) {
         return RegistryBridge.snapshotGeneratedAssets(generatedAssets.getOrDefault(kind, Map.of()));
     }

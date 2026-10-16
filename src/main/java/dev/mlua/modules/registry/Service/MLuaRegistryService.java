@@ -1502,10 +1502,33 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       TagRegistration tag = parseTagRegistration(definition);
       String owner = this.context.mlua().ownerModId();
       switch (normalizeTagKind(kind)) {
-         case "items" -> MLuaLoaderRegistry.registerTag(RegistryKind.ITEM, owner, name, tag.replace(), tag.values());
-         case "blocks" -> MLuaLoaderRegistry.registerTag(RegistryKind.BLOCK, owner, name, tag.replace(), tag.values());
-         case "entity_types" -> MLuaLoaderRegistry.registerTag(RegistryKind.ENTITY, owner, name, tag.replace(), tag.values());
+         case "items" -> this.registerTagWithRollback(RegistryKind.ITEM, owner, name, tag.replace(), tag.values());
+         case "blocks" -> this.registerTagWithRollback(RegistryKind.BLOCK, owner, name, tag.replace(), tag.values());
+         case "entity_types" -> this.registerTagWithRollback(RegistryKind.ENTITY, owner, name, tag.replace(), tag.values());
          default -> throw new LuaError("[MLua] Unsupported tag kind: " + kind);
+      }
+   }
+
+   private void registerTagWithRollback(RegistryKind registryKind, String owner, String name,
+                                        boolean replace, JsonArray values) {
+      GeneratedAssetKind assetKind = switch (registryKind) {
+         case ITEM -> GeneratedAssetKind.ITEM_TAG;
+         case BLOCK -> GeneratedAssetKind.BLOCK_TAG;
+         case ENTITY -> GeneratedAssetKind.ENTITY_TYPE_TAG;
+         default -> throw new LuaError("[MLua] Unsupported tag registry: " + registryKind);
+      };
+      String id = this.registryId(name);
+      JsonObject previous = MLuaLoaderRegistry.getGeneratedAssets(assetKind).get(id);
+      MLuaLoaderRegistry.registerTag(registryKind, owner, name, replace, values);
+      JsonObject expected = MLuaLoaderRegistry.getGeneratedAssets(assetKind).get(id);
+      if (expected == null) throw new LuaError("[MLua] Tag registration did not produce '" + id + "'");
+      Runnable rollback = () -> MLuaLoaderRegistry.restoreGeneratedAsset(
+         assetKind, owner, name, expected, previous);
+      try {
+         this.context.mlua().registration().onRegistrationRollback(rollback);
+      } catch (RuntimeException | Error failure) {
+         rollback.run();
+         throw failure;
       }
    }
 
@@ -1534,7 +1557,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    private void registerSingleBlockTag(String owner, String tagName, String blockId) {
       JsonArray values = new JsonArray();
       values.add(blockId);
-      MLuaLoaderRegistry.registerTag(RegistryKind.BLOCK, owner, tagName, false, values);
+      this.registerTagWithRollback(RegistryKind.BLOCK, owner, tagName, false, values);
    }
 
    private static String normalizeToolName(String value) {
@@ -1590,9 +1613,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
       JsonArray values = valuesElement.getAsJsonArray();
       switch (normalizeTagKind(kind)) {
-         case "items" -> MLuaLoaderRegistry.registerTag(RegistryKind.ITEM, owner, name, false, values);
-         case "blocks" -> MLuaLoaderRegistry.registerTag(RegistryKind.BLOCK, owner, name, false, values);
-         case "entity_types" -> MLuaLoaderRegistry.registerTag(RegistryKind.ENTITY, owner, name, false, values);
+         case "items" -> this.registerTagWithRollback(RegistryKind.ITEM, owner, name, false, values);
+         case "blocks" -> this.registerTagWithRollback(RegistryKind.BLOCK, owner, name, false, values);
+         case "entity_types" -> this.registerTagWithRollback(RegistryKind.ENTITY, owner, name, false, values);
          default -> throw new LuaError("[MLua] Unsupported tag kind: " + kind);
       }
    }
