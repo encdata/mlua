@@ -39,8 +39,8 @@ public final class MLuaConfigRegistry {
       if (this.installed) {
          throw new IllegalStateException("[MLua] Cannot register config '" + sectionName + "': configs are already installed.");
       } else if (sectionName != null && !sectionName.isBlank()) {
-         Map<String, PendingConfigSet> byScope = this.pending.computeIfAbsent(ownerModId, ignored -> new LinkedHashMap());
          String normalizedScope = scopeFromString(scope);
+         Map<String, PendingConfigSet> byScope = this.pending.computeIfAbsent(ownerModId, ignored -> new LinkedHashMap());
          PendingConfigSet set = byScope.computeIfAbsent(normalizedScope,
             ignored -> new PendingConfigSet(ownerModId, normalizedScope));
          try {
@@ -67,7 +67,7 @@ public final class MLuaConfigRegistry {
       PendingConfigSet pendingSet = byScope == null ? null : byScope.get(handle.scope());
       if (pendingSet != null) {
          removed |= pendingSet.remove(handle);
-         if (pendingSet.values().isEmpty()) byScope.remove(handle.scope());
+         if (pendingSet.isEmpty()) byScope.remove(handle.scope());
          if (byScope.isEmpty()) this.pending.remove(handle.ownerModId());
       }
       InstalledConfigSet installedSet = this.installedSet(handle.ownerModId(), handle.scope());
