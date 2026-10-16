@@ -168,7 +168,9 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                                                String description, String getter, String setter) {
         LuaValue get = new OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
-                return name.equals("Id") ? self.checktable().rawget(OBJECT_ID) : invokeObjectOperation(self, getter).arg1();
+                if ("Id".equals(name)) return self.checktable().rawget(OBJECT_ID);
+                if ("Type".equals(name)) return self.checktable().rawget("__mluaRenderType");
+                return invokeObjectOperation(self, getter).arg1();
             }
         };
         LuaValue set = setter == null ? LuaValue.NIL : new TwoArgFunction() {
@@ -834,6 +836,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         handle.rawset("GetRenderType", new OneArgFunction() {
             @Override public LuaValue call(LuaValue self) { return renderTypeValue; }
         });
+        handle.rawset("__mluaRenderType", renderTypeValue);
         objectHandles.put(id, new ObjectHandleReference(id, handle, collectedObjectHandles));
         return handle;
     }
