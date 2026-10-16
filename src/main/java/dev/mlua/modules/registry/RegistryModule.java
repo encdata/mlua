@@ -52,6 +52,51 @@ public class RegistryModule implements MLuaModule {
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Get", "Reads a value at the given NBT key.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Set", "Writes a value at the given NBT key.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Remove", "Removes the value at the given NBT key.");
+        registration.registerClass("RegistryCategory", registration.requireInstanceBaseClassName(),
+            "A live category API table exposed by the Registry service.");
+        registration.registerClassFunction("RegistryCategory", "GetName", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                return self.checktable().get("__registry_category_name");
+            }
+        }, "Returns this category's canonical Registry table name.");
+        registration.registerClassFunction("RegistryCategory", "GetDescription", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                return self.checktable().get("__mlua_doc_description");
+            }
+        }, "Returns the category's registered description.");
+        registration.registerClassFunction("RegistryCategory", "GetMethods", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                org.luaj.vm2.LuaValue metadata = self.checktable().rawget("__mlua_doc_methods");
+                java.util.List<String> names = new java.util.ArrayList<>();
+                if (metadata.istable()) {
+                    for (org.luaj.vm2.LuaValue key : metadata.checktable().keys()) {
+                        if (key.isstring()) names.add(key.tojstring());
+                    }
+                }
+                java.util.Collections.sort(names);
+                org.luaj.vm2.LuaTable result = new org.luaj.vm2.LuaTable();
+                for (int index = 0; index < names.size(); index++) {
+                    result.set(index + 1, org.luaj.vm2.LuaValue.valueOf(names.get(index)));
+                }
+                return result;
+            }
+        }, "Lists the public methods available on this registry category.");
+        registration.registerClassFunction("RegistryCategory", "GetMethodDescription", new org.luaj.vm2.lib.TwoArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self, org.luaj.vm2.LuaValue name) {
+                org.luaj.vm2.LuaValue metadata = self.checktable().rawget("__mlua_doc_methods");
+                return metadata.istable() ? metadata.checktable().get(name) : org.luaj.vm2.LuaValue.NIL;
+            }
+        }, "Returns the registered description for one category method, or nil when that method is unavailable.");
+        registration.registerClassProperty("RegistryCategory", "Name", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                return self.checktable().get("__registry_category_name");
+            }
+        }, org.luaj.vm2.LuaValue.NIL, "string", "shared:Shared", "This category's canonical Registry table name.");
+        registration.registerClassProperty("RegistryCategory", "Description", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                return self.checktable().get("__mlua_doc_description");
+            }
+        }, org.luaj.vm2.LuaValue.NIL, "string", "shared:Shared", "The category's registered description.");
         registration.registerClass("ScriptedEntity", "Mob",
             "A registered Lua-controlled mob with navigation, sensing, combat, and persistent AI data.");
         String[][] aiMethods = {
@@ -111,6 +156,21 @@ public class RegistryModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.clazz("RegistryCategory", "MLuaRegistryService",
+            "A live category API table exposed by the Registry service.", "classes/registry-category.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryCategory", "RegistryCategory.Name", "string",
+            "This category's canonical Registry table name.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.property("RegistryCategory", "RegistryCategory.Description", "string",
+            "The category's registered description.", "shared:Shared"));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetName()",
+            "Returns this category's canonical Registry table name.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetDescription()",
+            "Returns the category's registered description.", null, "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetMethods()",
+            "Lists the public methods available on this registry category.", null, "string[]", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetMethodDescription(name: string)",
+            "Returns the registered description for one category method, or nil when that method is unavailable.",
+            "Method name", "string|nil", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.DataPack", "Registry.DataPack:Register(resourceType: string, id: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Assets", "Registry.Assets:Register(path: string, definition: table)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Assets", "Registry.Assets:register(path: string, definition: table)", "Alias of Register."));

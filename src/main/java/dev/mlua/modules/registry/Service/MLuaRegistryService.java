@@ -219,24 +219,24 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    public LuaTable toLua() {
       LuaTable table = new LuaTable();
-      LuaTable items = registryTable();
-      LuaTable blocks = registryTable();
-      LuaTable entities = registryTable();
-      LuaTable effects = registryTable();
-      LuaTable potions = registryTable();
-      LuaTable particles = registryTable();
-      LuaTable recipes = registryTable();
-      LuaTable loot = registryTable();
-      LuaTable tags = registryTable();
-      LuaTable containers = registryTable();
-      LuaTable projectiles = registryTable();
-      LuaTable tabs = registryTable();
-      LuaTable config = registryTable();
-      LuaTable damageSource = registryTable();
-      LuaTable dataPack = registryTable();
-      LuaTable assets = registryTable();
-      LuaTable worldGeneration = registryTable();
-      LuaTable contentTypes = registryTable();
+      LuaTable items = registryTable("Items");
+      LuaTable blocks = registryTable("Blocks");
+      LuaTable entities = registryTable("Entities");
+      LuaTable effects = registryTable("Effects");
+      LuaTable potions = registryTable("Potions");
+      LuaTable particles = registryTable("Particles");
+      LuaTable recipes = registryTable("Recipes");
+      LuaTable loot = registryTable("Loot");
+      LuaTable tags = registryTable("Tags");
+      LuaTable containers = registryTable("Containers");
+      LuaTable projectiles = registryTable("Projectiles");
+      LuaTable tabs = registryTable("Tabs");
+      LuaTable config = registryTable("Config");
+      LuaTable damageSource = registryTable("DamageSource");
+      LuaTable dataPack = registryTable("DataPack");
+      LuaTable assets = registryTable("Assets");
+      LuaTable worldGeneration = registryTable("WorldGeneration");
+      LuaTable contentTypes = registryTable("ContentTypes");
       table.set("__side", "Registry");
       table.set("Items", items);
       table.set("Blocks", blocks);
@@ -1420,9 +1420,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        return supportColonAndDotCalls(table);
     }
 
-   private static LuaTable registryTable() {
-      LuaTable table = new LuaTable();
+   private LuaTable registryTable(String name) {
+      LuaTable table = this.context.mlua().registration().attachClassInstance(new LuaTable(), "RegistryCategory", null);
       table.set("__side", "Registry");
+      table.set("__registry_category_name", LuaValue.valueOf(name));
       return table;
    }
 
@@ -1472,7 +1473,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          category.name(), null, 2, List.of());
       RegistryEndpoint existing = this.registryEndpoints.putIfAbsent(key, endpoint);
       if (existing != null) return;
-      LuaTable target = registryTable();
+      LuaTable target = registryTable(category.name());
       target.set("Register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
