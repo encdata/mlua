@@ -50,6 +50,18 @@ public class RegistryModule implements MLuaModule {
     @Override
     public void registerClasses(MLuaRegistration registration) {
         MLuaRegistryProperties.registerClasses(registration);
+        MLuaItemWrapper.classTable(registration);
+        registration.registerClassFunction("Item", "Properties", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call() {
+                return MLuaRegistryProperties.create(registration, "ItemProperties");
+            }
+        }, "Creates chainable item registration properties matching Minecraft Item.Properties.");
+        MLuaBlockWrapper.classTable(registration);
+        registration.registerClassFunction("Block", "Properties", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call() {
+                return MLuaRegistryProperties.create(registration, "BlockProperties");
+            }
+        }, "Creates chainable block registration properties matching Minecraft BlockBehaviour.Properties.");
         registration.registerClass("Nbt", registration.requireInstanceBaseClassName(), "A live view of a Minecraft NBT compound that reads and writes its backing data.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Get", "Reads a value at the given NBT key.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Set", "Writes a value at the given NBT key.");
@@ -143,19 +155,9 @@ public class RegistryModule implements MLuaModule {
     @Override
     public void contributeGlobals(Globals globals, MLuaContextView context) {
         var registration = context.registration();
-        LuaTable blockGlobal = registration.classTable("Block");
-        blockGlobal.set("Properties", new org.luaj.vm2.lib.ZeroArgFunction() {
-            @Override public org.luaj.vm2.LuaValue call() {
-                return MLuaRegistryProperties.create(registration, "BlockProperties");
-            }
-        });
-        globals.set("Block", blockGlobal);
+        globals.set("Block", registration.classTable("Block"));
         LuaTable itemGlobal = MLuaItemWrapper.itemGlobal(registration);
-        itemGlobal.set("Properties", new org.luaj.vm2.lib.ZeroArgFunction() {
-            @Override public org.luaj.vm2.LuaValue call() {
-                return MLuaRegistryProperties.create(registration, "ItemProperties");
-            }
-        });
+        itemGlobal.set("Properties", registration.classTable("Item").get("Properties"));
         globals.set("Item", itemGlobal);
         LuaTable items = MLuaRegistryCatalogs.items();
         globals.set("Items", items);
