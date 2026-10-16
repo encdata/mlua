@@ -45,6 +45,11 @@ public final class MLuaClientRenderManager {
         LoaderApi.client().registerOverlay("mlua_render_service", graphics -> {
             if (graphics instanceof GuiGraphicsExtractor extractor) renderOverlayObjects(extractor);
         });
+        for (String stage : dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES) {
+            LoaderApi.client().registerWorldRenderer(stage, context -> MLuaRenderCallbacks.renderWorld(stage,
+                context, invokeOptional(context, "getPoseStack", "poseStack", "matrixStack"), null,
+                invokeOptional(context, "getCamera", "camera")));
+        }
     }
 
     private static void tickAnimations() {
@@ -52,6 +57,15 @@ public final class MLuaClientRenderManager {
             if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
             object.sampleFollowOffset();
         }
+    }
+
+    private static Object invokeOptional(Object target, String... names) {
+        if (target == null) return null;
+        for (String name : names) {
+            try { return target.getClass().getMethod(name).invoke(target); }
+            catch (ReflectiveOperationException | RuntimeException ignored) { }
+        }
+        return null;
     }
 
     /** Submits 3D render objects after Minecraft has posed a living entity model. */
@@ -442,6 +456,7 @@ public final class MLuaClientRenderManager {
         private MLuaBBModelAsset bbmodel;
         private List<Identifier> resolvedTextures = List.of();
         private float modelScale = 1.0F;
+        private String renderStage = "AFTER_ENTITIES";
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
         private volatile Object executionLock = this;
 
@@ -500,6 +515,7 @@ public final class MLuaClientRenderManager {
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
         public float modelScale() { return modelScale; }
+        public String renderStage() { return renderStage; }
 
         public void setResource(String resource) { this.resource = resource; }
         public void setPosition(double x, double y) { this.x = x; this.y = y; }
@@ -538,6 +554,9 @@ public final class MLuaClientRenderManager {
         public void setThickness(double thickness) { this.thickness = Math.max(1.0, thickness); }
         public void setScaleWithDistance(boolean scaleWithDistance) { this.scaleWithDistance = scaleWithDistance; }
         public void setModelScale(float modelScale) { this.modelScale = Math.max(0.001F, modelScale); }
+        public void setRenderStage(String renderStage) {
+            this.renderStage = dev.mlua.loaderapi.ClientBridge.normalizeWorldRenderStage(renderStage);
+        }
         public void setFollowEntityScope(MLuaEntityScope followEntityScope) {
             if (this.followEntityScope != null && !this.followEntityScope.equals(followEntityScope)) {
                 unregisterEntityModel(this.followEntityScope, this.id);
@@ -630,6 +649,7 @@ public final class MLuaClientRenderManager {
             copy.bbmodel = bbmodel;
             copy.resolvedTextures = resolvedTextures;
             copy.modelScale = modelScale;
+            copy.renderStage = renderStage;
             copy.animationPlayer.copyStateFrom(animationPlayer);
             return copy;
         }

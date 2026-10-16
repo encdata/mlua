@@ -16,45 +16,59 @@ import org.luaj.vm2.Varargs;
 
 /** Addon-owned Lua callbacks attached to Minecraft's client render points. */
 public final class MLuaRenderCallbacks {
-    private static final ConcurrentMap<String, ConcurrentMap<Owner, Hook>> ENTITY_HOOKS = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<String, ConcurrentMap<Owner, Hook>> WORLD_HOOKS = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<Owner, Hook> HUD_HOOKS = new ConcurrentHashMap<>();
+    private static final String DEFAULT_PASS_ID = "mlua:default";
+    private static final ConcurrentMap<String, ConcurrentMap<HookKey, Hook>> ENTITY_HOOKS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, ConcurrentMap<HookKey, Hook>> WORLD_HOOKS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<HookKey, Hook> HUD_HOOKS = new ConcurrentHashMap<>();
 
     private MLuaRenderCallbacks() { }
 
     public static void register(String entityId, LuaValue callback, MLuaContext context) {
+        register(entityId, DEFAULT_PASS_ID, callback, context);
+    }
+
+    public static void register(String entityId, String passId, LuaValue callback, MLuaContext context) {
         if (context == null) throw new IllegalArgumentException("Render callback needs its owning Lua context");
-        if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("Entity renderer callback must be a function");
-        String id = MLuaResourceLocations.parse(entityId).toString();
-        Owner owner = new Owner(context.session(), context.ownerModId());
+        requireCallback(callback);
+        String id = normalizeId(entityId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
         ENTITY_HOOKS.computeIfAbsent(id, ignored -> new ConcurrentHashMap<>())
-            .put(owner, new Hook(callback, context));
+            .put(key, new Hook(callback, context, "entity pass '" + key.id() + "' for " + id));
     }
 
     public static boolean unregister(String entityId, MLuaContext context) {
+        return unregister(entityId, DEFAULT_PASS_ID, context);
+    }
+
+    public static boolean unregister(String entityId, String passId, MLuaContext context) {
         if (context == null) return false;
-        String id = MLuaResourceLocations.parse(entityId).toString();
-        Owner owner = new Owner(context.session(), context.ownerModId());
-        ConcurrentMap<Owner, Hook> hooks = ENTITY_HOOKS.get(id);
-        if (hooks == null || hooks.remove(owner) == null) return false;
+        String id = normalizeId(entityId);
+        ConcurrentMap<HookKey, Hook> hooks = ENTITY_HOOKS.get(id);
+        if (hooks == null || hooks.remove(new HookKey(owner(context), normalizeId(passId))) == null) return false;
         if (hooks.isEmpty()) ENTITY_HOOKS.remove(id, hooks);
         return true;
     }
 
     public static void registerWorld(LuaValue callback, MLuaContext context) {
-        registerWorld("AFTER_ENTITIES", callback, context);
+        registerWorld("mlua:default", "AFTER_ENTITIES", callback, context);
     }
 
     public static void registerWorld(String stage, LuaValue callback, MLuaContext context) {
+        registerWorld("mlua:default", stage, callback, context);
+    }
+
+    public static void registerWorld(String id, String stage, LuaValue callback, MLuaContext context) {
         String normalized = normalizeWorldStage(stage);
+        String key = normalizeId(id);
         WORLD_HOOKS.computeIfAbsent(normalized, ignored -> new ConcurrentHashMap<>())
-            .put(owner(context), new Hook(requireCallback(callback), context, "world " + normalized));
+            .put(new HookKey(owner(context), key), new Hook(requireCallback(callback), context,
+                "world pass '" + key + "' at " + normalized));
     }
 
     public static boolean unregisterWorld(String stage, MLuaContext context) {
         String normalized = normalizeWorldStage(stage);
-        ConcurrentMap<Owner, Hook> hooks = WORLD_HOOKS.get(normalized);
-        if (hooks == null || hooks.remove(owner(context)) == null) return false;
+        ConcurrentMap<HookKey, Hook> hooks = WORLD_HOOKS.get(normalized);
+        if (hooks == null || hooks.remove(new HookKey(owner(context), DEFAULT_PASS_ID)) == null) return false;
         if (hooks.isEmpty()) WORLD_HOOKS.remove(normalized, hooks);
         return true;
     }
@@ -63,12 +77,31 @@ public final class MLuaRenderCallbacks {
         return unregisterWorld("AFTER_ENTITIES", context);
     }
 
+    public static boolean unregisterWorldPass(String id, MLuaContext context) {
+        HookKey key = new HookKey(owner(context), normalizeId(id));
+        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+        WORLD_HOOKS.forEach((stage, hooks) -> {
+            if (hooks.remove(key) != null) removed.set(true);
+            if (hooks.isEmpty()) WORLD_HOOKS.remove(stage, hooks);
+        });
+        return removed.get();
+    }
+
     public static void registerHud(LuaValue callback, MLuaContext context) {
-        HUD_HOOKS.put(owner(context), new Hook(requireCallback(callback), context, "HUD"));
+        registerHud(DEFAULT_PASS_ID, callback, context);
+    }
+
+    public static void registerHud(String id, LuaValue callback, MLuaContext context) {
+        String key = normalizeId(id);
+        HUD_HOOKS.put(new HookKey(owner(context), key), new Hook(requireCallback(callback), context, "HUD pass '" + key + "'"));
     }
 
     public static boolean unregisterHud(MLuaContext context) {
-        return HUD_HOOKS.remove(owner(context)) != null;
+        return unregisterHudPass(DEFAULT_PASS_ID, context);
+    }
+
+    public static boolean unregisterHudPass(String id, MLuaContext context) {
+        return context != null && HUD_HOOKS.remove(new HookKey(owner(context), normalizeId(id))) != null;
     }
 
     public static void render(LivingEntity entity, Object model, Object poseStack, Object bufferSource,
@@ -76,13 +109,12 @@ public final class MLuaRenderCallbacks {
         if (entity == null) return;
         var typeId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         if (typeId == null) return;
-        ConcurrentMap<Owner, Hook> registered = ENTITY_HOOKS.get(typeId.toString());
+        ConcurrentMap<HookKey, Hook> registered = ENTITY_HOOKS.get(typeId.toString());
         if (registered == null || registered.isEmpty()) return;
-        List<Map.Entry<Owner, Hook>> snapshot = new ArrayList<>(registered.entrySet());
-        snapshot.sort(java.util.Comparator.comparing(entry -> entry.getKey().modId()));
+        List<Map.Entry<HookKey, Hook>> snapshot = sorted(registered);
         var context = renderContext("EntityModel", poseStack, bufferSource, model, partialTick,
             packedLight, packedOverlay, null);
-        for (Map.Entry<Owner, Hook> entry : snapshot) {
+        for (Map.Entry<HookKey, Hook> entry : snapshot) {
             invoke(entry.getValue(), new LuaValue[]{MLuaEntityWrapper.entityTable(entity), context});
         }
     }
@@ -91,7 +123,7 @@ public final class MLuaRenderCallbacks {
         var context = renderContext("World", poseStack, bufferSource, null, 0.0F, 0, 0, nativeContext);
         context.set("Stage", LuaValue.valueOf(stage));
         context.set("Camera", userdata(camera));
-        invokeSnapshot(WORLD_HOOKS.get(stage), new LuaValue[]{context});
+        invokeWorldSnapshot(WORLD_HOOKS.get(stage), new LuaValue[]{context});
     }
 
     public static void renderHud(Object graphics, int width, int height) {
@@ -104,31 +136,49 @@ public final class MLuaRenderCallbacks {
 
     public static void clearOwned(Object session, String modId) {
         java.util.function.Predicate<Owner> matches = owner -> owner.session() == session && owner.modId().equals(modId);
-        remove(ENTITY_HOOKS, matches);
-        remove(WORLD_HOOKS, matches);
-        HUD_HOOKS.keySet().removeIf(matches);
+        removeOwned(ENTITY_HOOKS, matches);
+        removeWorld(matches);
+        HUD_HOOKS.keySet().removeIf(key -> matches.test(key.owner()));
     }
 
     public static void clearRuntime(Object session) {
         java.util.function.Predicate<Owner> matches = owner -> owner.session() == session;
-        remove(ENTITY_HOOKS, matches);
-        remove(WORLD_HOOKS, matches);
-        HUD_HOOKS.keySet().removeIf(matches);
+        removeOwned(ENTITY_HOOKS, matches);
+        removeWorld(matches);
+        HUD_HOOKS.keySet().removeIf(key -> matches.test(key.owner()));
     }
 
-    private static void remove(ConcurrentMap<String, ConcurrentMap<Owner, Hook>> source,
+    private static void removeOwned(ConcurrentMap<String, ConcurrentMap<HookKey, Hook>> source,
                                java.util.function.Predicate<Owner> predicate) {
         source.forEach((id, hooks) -> {
-            hooks.keySet().removeIf(predicate);
+            hooks.keySet().removeIf(key -> predicate.test(key.owner()));
             if (hooks.isEmpty()) source.remove(id, hooks);
         });
     }
 
-    private static void invokeSnapshot(ConcurrentMap<Owner, Hook> hooks, LuaValue[] args) {
+    private static void invokeSnapshot(ConcurrentMap<HookKey, Hook> hooks, LuaValue[] args) {
         if (hooks == null || hooks.isEmpty()) return;
-        List<Map.Entry<Owner, Hook>> snapshot = new ArrayList<>(hooks.entrySet());
-        snapshot.sort(java.util.Comparator.comparing(entry -> entry.getKey().modId()));
-        for (Map.Entry<Owner, Hook> entry : snapshot) invoke(entry.getValue(), args);
+        for (Map.Entry<HookKey, Hook> entry : sorted(hooks)) invoke(entry.getValue(), args);
+    }
+
+    private static List<Map.Entry<HookKey, Hook>> sorted(ConcurrentMap<HookKey, Hook> hooks) {
+        List<Map.Entry<HookKey, Hook>> snapshot = new ArrayList<>(hooks.entrySet());
+        snapshot.sort(java.util.Comparator
+            .comparing((Map.Entry<HookKey, Hook> entry) -> entry.getKey().owner().modId())
+            .thenComparing(entry -> entry.getKey().id()));
+        return snapshot;
+    }
+
+    private static void invokeWorldSnapshot(ConcurrentMap<HookKey, Hook> hooks, LuaValue[] args) {
+        if (hooks == null || hooks.isEmpty()) return;
+        for (Map.Entry<HookKey, Hook> entry : sorted(hooks)) invoke(entry.getValue(), args);
+    }
+
+    private static void removeWorld(java.util.function.Predicate<Owner> predicate) {
+        WORLD_HOOKS.forEach((stage, hooks) -> {
+            hooks.keySet().removeIf(key -> predicate.test(key.owner()));
+            if (hooks.isEmpty()) WORLD_HOOKS.remove(stage, hooks);
+        });
     }
 
     private static String normalizeWorldStage(String stage) {
@@ -138,6 +188,11 @@ public final class MLuaRenderCallbacks {
         }
         throw new IllegalArgumentException("Unknown world render stage '" + stage + "'. Supported stages: "
             + String.join(", ", dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES));
+    }
+
+    private static String normalizeId(String id) {
+        if (id == null || id.isBlank()) throw new IllegalArgumentException("Render pass id cannot be blank");
+        return MLuaResourceLocations.parse(id).toString();
     }
 
     private static void invoke(Hook hook, LuaValue[] args) {
@@ -186,16 +241,13 @@ public final class MLuaRenderCallbacks {
     }
 
     private record Owner(Object session, String modId) { }
+    private record HookKey(Owner owner, String id) { }
 
     private static final class Hook {
         private final LuaValue callback;
         private final MLuaContext context;
         private final String target;
         private volatile boolean failed;
-
-        private Hook(LuaValue callback, MLuaContext context) {
-            this(callback, context, "entity");
-        }
 
         private Hook(LuaValue callback, MLuaContext context, String target) {
             this.callback = callback;

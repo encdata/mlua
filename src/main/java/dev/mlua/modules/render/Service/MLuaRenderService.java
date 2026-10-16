@@ -352,10 +352,22 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, callback, renderOwnerContext());
     }
 
+    @MLuaDescription("Registers an independently owned callback at the living renderer for an entity type. Use a resource id so multiple passes can coexist and be removed separately.")
+    public void RegisterEntityRenderPass(String entityType, String id, LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, id, callback, renderOwnerContext());
+    }
+
     @MLuaDescription("Removes this addon's callback from an entity type's living entity renderer.")
     public boolean UnregisterEntityRenderer(String entityType) {
         ensureClient();
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes only the named callback registered for this entity type.")
+    public boolean UnregisterEntityRenderPass(String entityType, String id) {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, id, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an addon-owned callback at the native world render point after Minecraft renders world entities and geometry.")
@@ -370,6 +382,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(stage, callback, renderOwnerContext());
     }
 
+    @MLuaDescription("Registers an independently owned world render pass by resource id. The id can be removed without affecting other passes from this addon.")
+    public void RegisterWorldRenderPass(String id, String stage, LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(id, stage, callback, renderOwnerContext());
+    }
+
     @MLuaDescription("Removes this addon's callback from the native world render point.")
     public boolean UnregisterWorldRenderer() {
         ensureClient();
@@ -380,6 +398,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     public boolean UnregisterWorldRendererAt(String stage) {
         ensureClient();
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(stage, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes this addon's world render pass with the given resource id, regardless of its registered stage.")
+    public boolean UnregisterWorldRenderPass(String id) {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorldPass(id, renderOwnerContext());
     }
 
     @MLuaDescription("Returns the cross-loader world render stage names supported by RenderService.")
@@ -396,10 +420,22 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(callback, renderOwnerContext());
     }
 
+    @MLuaDescription("Registers an independently owned HUD render pass by resource id, before MLua-managed RenderObjects are drawn.")
+    public void RegisterHudRenderPass(String id, LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(id, callback, renderOwnerContext());
+    }
+
     @MLuaDescription("Removes this addon's callback from the HUD render layer.")
     public boolean UnregisterHudRenderer() {
         ensureClient();
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHud(renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes only the HUD render pass registered with this id.")
+    public boolean UnregisterHudRenderPass(String id) {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHudPass(id, renderOwnerContext());
     }
 
     private static LuaTable optionalTable(Optional<LuaValue> value) {
