@@ -5,6 +5,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.math.MLuaVector;
@@ -69,6 +70,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     );
     private final ReferenceQueue<LuaTable> collectedObjectHandles = new ReferenceQueue<>();
     private final Map<Integer, ObjectHandleReference> objectHandles = new ConcurrentHashMap<>();
+
+    private dev.mlua.core.MLuaContext renderOwnerContext() {
+        dev.mlua.core.MLuaContext context = MLuaLuaBindings.boundContext(this.context.mlua().globals());
+        if (context == null) throw new LuaError("[MLua] Render callbacks can only be registered while a Lua addon is executing.");
+        return context;
+    }
     public static void registerRenderObjectClass(MLuaRegistration registration) {
         String description = "A live client render instance with mutable screen-space or world-space properties and rendering methods.";
         registration.registerClass("RenderObject", registration.requireInstanceBaseClassName(), description);
@@ -340,37 +347,57 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     @MLuaDescription("Registers a Lua callback at the living entity renderer for this entity type. The callback receives the live Entity and a RenderContext containing Minecraft's PoseStack, BufferSource, model, partial tick, light, and overlay values.")
     public void RegisterEntityRenderer(String entityType, LuaValue callback) {
         ensureClient();
-        dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, callback, this.context.mlua());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from an entity type's living entity renderer.")
     public boolean UnregisterEntityRenderer(String entityType) {
         ensureClient();
-        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, this.context.mlua());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an addon-owned callback at the native world render point after Minecraft renders world entities and geometry.")
     public void RegisterWorldRenderer(LuaValue callback) {
         ensureClient();
-        dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(callback, this.context.mlua());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(callback, renderOwnerContext());
+    }
+
+    @MLuaDescription("Registers a callback at a cross-loader world stage: BEFORE_ENTITIES, AFTER_ENTITIES, AFTER_TRANSLUCENT, or AFTER_LEVEL. MLua maps the stage to the nearest native Fabric, Forge, or NeoForge render event; the callback receives that native event/context in RenderContext.")
+    public void RegisterWorldRendererAt(String stage, LuaValue callback) {
+        ensureClient();
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(stage, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from the native world render point.")
     public boolean UnregisterWorldRenderer() {
         ensureClient();
-        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(this.context.mlua());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes this addon's callback from the selected world render stage.")
+    public boolean UnregisterWorldRendererAt(String stage) {
+        ensureClient();
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(stage, renderOwnerContext());
+    }
+
+    @MLuaDescription("Returns the cross-loader world render stage names supported by RenderService.")
+    public LuaTable GetWorldRenderStages() {
+        LuaTable stages = new LuaTable();
+        java.util.List<String> supported = dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES;
+        for (int index = 0; index < supported.size(); index++) stages.set(index + 1, supported.get(index));
+        return stages;
     }
 
     @MLuaDescription("Registers an addon-owned callback in the HUD render layer, before MLua-managed RenderObjects are drawn.")
     public void RegisterHudRenderer(LuaValue callback) {
         ensureClient();
-        dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(callback, this.context.mlua());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(callback, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from the HUD render layer.")
     public boolean UnregisterHudRenderer() {
         ensureClient();
-        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHud(this.context.mlua());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHud(renderOwnerContext());
     }
 
     private static LuaTable optionalTable(Optional<LuaValue> value) {

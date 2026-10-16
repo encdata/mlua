@@ -70,8 +70,19 @@ public final class NeoForgeClientBridge implements ClientBridge {
 
     @Override
     public void registerWorldRenderer(Consumer<Object> renderer) {
+        registerWorldRenderer("AFTER_ENTITIES", renderer);
+    }
+
+    @Override
+    public void registerWorldRenderer(String stage, Consumer<Object> renderer) {
         ClientBridge.validateRenderer(renderer);
-        NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterLevel event) -> renderer.accept(event));
+        switch (ClientBridge.normalizeWorldRenderStage(stage)) {
+            case "BEFORE_ENTITIES" -> NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterOpaqueBlocks event) -> renderer.accept(event));
+            case "AFTER_ENTITIES" -> NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterOpaqueFeatures event) -> renderer.accept(event));
+            case "AFTER_TRANSLUCENT" -> NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterTranslucentFeatures event) -> renderer.accept(event));
+            case "AFTER_LEVEL" -> NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterLevel event) -> renderer.accept(event));
+            default -> throw new IllegalArgumentException("Unsupported world render stage: " + stage);
+        }
     }
 
     @Override

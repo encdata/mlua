@@ -43,8 +43,18 @@ public final class FabricClientBridge implements ClientBridge {
     }
 
     @Override public void registerWorldRenderer(Consumer<Object> renderer) {
+        registerWorldRenderer("AFTER_ENTITIES", renderer);
+    }
+
+    @Override public void registerWorldRenderer(String stage, Consumer<Object> renderer) {
         ClientBridge.validateRenderer(renderer);
-        LevelRenderEvents.AFTER_SOLID_FEATURES.register(context -> renderer.accept(context));
+        switch (ClientBridge.normalizeWorldRenderStage(stage)) {
+            case "BEFORE_ENTITIES" -> LevelRenderEvents.AFTER_OPAQUE_TERRAIN.register(renderer::accept);
+            case "AFTER_ENTITIES" -> LevelRenderEvents.AFTER_SOLID_FEATURES.register(renderer::accept);
+            case "AFTER_TRANSLUCENT" -> LevelRenderEvents.AFTER_TRANSLUCENT_FEATURES.register(renderer::accept);
+            case "AFTER_LEVEL" -> LevelRenderEvents.END_MAIN.register(renderer::accept);
+            default -> throw new IllegalArgumentException("Unsupported world render stage: " + stage);
+        }
     }
 
     @Override public void registerKeyBinding(Object keyMapping) {

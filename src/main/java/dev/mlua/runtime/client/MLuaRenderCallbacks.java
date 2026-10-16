@@ -17,7 +17,7 @@ import org.luaj.vm2.Varargs;
 /** Addon-owned Lua callbacks attached to Minecraft's client render points. */
 public final class MLuaRenderCallbacks {
     private static final ConcurrentMap<String, ConcurrentMap<Owner, Hook>> ENTITY_HOOKS = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<Owner, Hook> WORLD_HOOKS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, ConcurrentMap<Owner, Hook>> WORLD_HOOKS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<Owner, Hook> HUD_HOOKS = new ConcurrentHashMap<>();
 
     private MLuaRenderCallbacks() { }
@@ -42,11 +42,25 @@ public final class MLuaRenderCallbacks {
     }
 
     public static void registerWorld(LuaValue callback, MLuaContext context) {
-        WORLD_HOOKS.put(owner(context), new Hook(requireCallback(callback), context, "world"));
+        registerWorld("AFTER_ENTITIES", callback, context);
+    }
+
+    public static void registerWorld(String stage, LuaValue callback, MLuaContext context) {
+        String normalized = normalizeWorldStage(stage);
+        WORLD_HOOKS.computeIfAbsent(normalized, ignored -> new ConcurrentHashMap<>())
+            .put(owner(context), new Hook(requireCallback(callback), context, "world " + normalized));
+    }
+
+    public static boolean unregisterWorld(String stage, MLuaContext context) {
+        String normalized = normalizeWorldStage(stage);
+        ConcurrentMap<Owner, Hook> hooks = WORLD_HOOKS.get(normalized);
+        if (hooks == null || hooks.remove(owner(context)) == null) return false;
+        if (hooks.isEmpty()) WORLD_HOOKS.remove(normalized, hooks);
+        return true;
     }
 
     public static boolean unregisterWorld(MLuaContext context) {
-        return WORLD_HOOKS.remove(owner(context)) != null;
+        return unregisterWorld("AFTER_ENTITIES", context);
     }
 
     public static void registerHud(LuaValue callback, MLuaContext context) {
@@ -73,10 +87,11 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    public static void renderWorld(Object nativeContext, Object poseStack, Object bufferSource, Object camera) {
+    public static void renderWorld(String stage, Object nativeContext, Object poseStack, Object bufferSource, Object camera) {
         var context = renderContext("World", poseStack, bufferSource, null, 0.0F, 0, 0, nativeContext);
+        context.set("Stage", LuaValue.valueOf(stage));
         context.set("Camera", userdata(camera));
-        invokeSnapshot(WORLD_HOOKS, new LuaValue[]{context});
+        invokeSnapshot(WORLD_HOOKS.get(stage), new LuaValue[]{context});
     }
 
     public static void renderHud(Object graphics, int width, int height) {
@@ -90,14 +105,14 @@ public final class MLuaRenderCallbacks {
     public static void clearOwned(Object session, String modId) {
         java.util.function.Predicate<Owner> matches = owner -> owner.session() == session && owner.modId().equals(modId);
         remove(ENTITY_HOOKS, matches);
-        WORLD_HOOKS.keySet().removeIf(matches);
+        remove(WORLD_HOOKS, matches);
         HUD_HOOKS.keySet().removeIf(matches);
     }
 
     public static void clearRuntime(Object session) {
         java.util.function.Predicate<Owner> matches = owner -> owner.session() == session;
         remove(ENTITY_HOOKS, matches);
-        WORLD_HOOKS.keySet().removeIf(matches);
+        remove(WORLD_HOOKS, matches);
         HUD_HOOKS.keySet().removeIf(matches);
     }
 
@@ -110,9 +125,19 @@ public final class MLuaRenderCallbacks {
     }
 
     private static void invokeSnapshot(ConcurrentMap<Owner, Hook> hooks, LuaValue[] args) {
+        if (hooks == null || hooks.isEmpty()) return;
         List<Map.Entry<Owner, Hook>> snapshot = new ArrayList<>(hooks.entrySet());
         snapshot.sort(java.util.Comparator.comparing(entry -> entry.getKey().modId()));
         for (Map.Entry<Owner, Hook> entry : snapshot) invoke(entry.getValue(), args);
+    }
+
+    private static String normalizeWorldStage(String stage) {
+        String normalized = stage == null ? "" : stage.trim().toUpperCase(java.util.Locale.ROOT);
+        for (String supported : dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES) {
+            if (supported.equals(normalized)) return normalized;
+        }
+        throw new IllegalArgumentException("Unknown world render stage '" + stage + "'. Supported stages: "
+            + String.join(", ", dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES));
     }
 
     private static void invoke(Hook hook, LuaValue[] args) {

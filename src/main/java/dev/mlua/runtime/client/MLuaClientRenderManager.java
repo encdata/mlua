@@ -57,7 +57,10 @@ public final class MLuaClientRenderManager {
             }
             renderAll(graphics);
         });
-        dev.mlua.loaderapi.LoaderApi.client().registerWorldRenderer(MLuaClientRenderManager::renderWorldContext);
+        for (String stage : dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES) {
+            dev.mlua.loaderapi.LoaderApi.client().registerWorldRenderer(stage,
+                context -> renderWorldContext(stage, context));
+        }
     }
 
     private static void tickAnimations() {
@@ -69,15 +72,17 @@ public final class MLuaClientRenderManager {
         }
     }
 
-    private static void renderWorldContext(Object context) {
+    private static void renderWorldContext(String stage, Object context) {
         try {
-            Object rawPose = invoke(context, "matrixStack", "getPoseStack", "poseStack");
-            Object rawBuffers = invoke(context, "consumers", "getRenderTypeBuffer", "bufferSource");
-            Object rawCamera = invoke(context, "camera", "getCamera");
-            MLuaRenderCallbacks.renderWorld(context, rawPose, rawBuffers, rawCamera);
+            Object rawPose = invokeOptional(context, "matrixStack", "getPoseStack", "poseStack");
+            Object rawBuffers = invokeOptional(context, "consumers", "getRenderTypeBuffer", "bufferSource");
+            Object rawCamera = invokeOptional(context, "camera", "getCamera");
+            MLuaRenderCallbacks.renderWorld(stage, context, rawPose, rawBuffers, rawCamera);
+            if (!"AFTER_ENTITIES".equals(stage)) return;
             if (!(rawPose instanceof PoseStack pose) || !(rawBuffers instanceof MultiBufferSource buffers)) return;
             Vec3 camera = rawCamera == null ? Minecraft.getInstance().gameRenderer.getMainCamera().getPosition() :
-                (Vec3) invoke(rawCamera, "getPosition", "position");
+                (Vec3) invokeOptional(rawCamera, "getPosition", "position");
+            if (camera == null) camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
             var lookVector = rawCamera instanceof Camera ? ((Camera) rawCamera).getLookVector() : Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
             Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
             for (RenderObject object : OBJECTS.values()) {
@@ -107,6 +112,14 @@ public final class MLuaClientRenderManager {
             catch (NoSuchMethodException ignored) { }
         }
         return null;
+    }
+
+    private static Object invokeOptional(Object target, String... names) {
+        try {
+            return target == null ? null : invoke(target, names);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static Entity resolveFollowEntity(MLuaEntityScope scope) {
