@@ -6,6 +6,7 @@ import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.module.MLuaRegistration;
+import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
@@ -39,36 +40,43 @@ import org.luaj.vm2.lib.TwoArgFunction;
 public final class MLuaRenderService extends MLuaReflectiveService {
     private static final String OBJECT_OPERATIONS = "__render_object_operations";
     private static final String OBJECT_ID = "__render_object_id";
+    private record ObjectProperty(String name, String type, String description, String getter, String setter) { }
+    private static final List<ObjectProperty> OBJECT_PROPERTIES = List.of(
+        new ObjectProperty("Id", "number", "The render object's runtime identifier.", "", null),
+        new ObjectProperty("Type", "string", "The render object's type.", "GetType", null),
+        new ObjectProperty("IsDestroyed", "boolean", "Whether this render object has been removed.", "GetIsDestroyed", null),
+        new ObjectProperty("Position", "Vector2", "The render object's screen position.", "GetPosition", "SetPosition"),
+        new ObjectProperty("EndPosition", "Vector2", "The second screen position used by line and beam objects.", "GetEndPosition", "SetEndPosition"),
+        new ObjectProperty("WorldPosition", "Vector3|CFrame", "The render object's world position.", "GetWorldPosition", "SetWorldPosition"),
+        new ObjectProperty("EndWorldPosition", "Vector3|CFrame", "The second world position used by line and beam objects.", "GetEndWorldPosition", "SetEndWorldPosition"),
+        new ObjectProperty("Depth", "number", "The object's non-negative depth offset.", "GetDepth", "SetDepth"),
+        new ObjectProperty("Size", "Vector2", "The render object's non-negative width and height.", "GetSize", "SetSize"),
+        new ObjectProperty("Rotation", "number", "The object's rotation in degrees.", "GetRotation", "SetRotation"),
+        new ObjectProperty("Visible", "boolean", "Whether this render object is visible.", "GetVisible", "SetVisible"),
+        new ObjectProperty("Transparency", "number", "The object's transparency from zero to one. Provide Alpha or Transparency, not both.", "GetTransparency", "SetTransparency"),
+        new ObjectProperty("Alpha", "number", "The object's opacity from zero to one; the inverse of Transparency. Provide Alpha or Transparency, not both.", "GetAlpha", "SetAlpha"),
+        new ObjectProperty("Color", "number", "The object's packed color value.", "GetColor", "SetColor"),
+        new ObjectProperty("Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness"),
+        new ObjectProperty("ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex"),
+        new ObjectProperty("WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace"),
+        new ObjectProperty("Target", "string", "Render stage: Hud, WorldOverlay, WorldModel, or EntityModel. GetTarget returns the same canonical spelling accepted by SetTarget.", "GetTarget", "SetTarget"),
+        new ObjectProperty("ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance"),
+        new ObjectProperty("ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale"),
+        new ObjectProperty("FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity"),
+        new ObjectProperty("FollowBone", "string|nil", "A registered model adapter bone to attach this 3D object to on the followed entity.", "GetFollowBone", "SetFollowBone"),
+        new ObjectProperty("FollowOffset", "CFrame|function", "A local transform after the followed model bone. A function returning CFrame is sampled once per client tick.", "GetFollowOffset", "SetFollowOffset"),
+        new ObjectProperty("Resource", "string|nil", "The resource identifier for image, item, or block objects; nil for other render types.", "GetResource", "SetResource"),
+        new ObjectProperty("Text", "string|nil", "The displayed text; available only on text objects.", "GetText", "SetText")
+    );
     private final ReferenceQueue<LuaTable> collectedObjectHandles = new ReferenceQueue<>();
     private final Map<Integer, ObjectHandleReference> objectHandles = new ConcurrentHashMap<>();
     public static void registerRenderObjectClass(MLuaRegistration registration) {
         String description = "A live client render instance with mutable screen-space or world-space properties and rendering methods.";
         registration.registerClass("RenderObject", registration.requireInstanceBaseClassName(), description);
-        registerObjectProperty(registration, "Id", "number", "The render object's runtime identifier.", "", null);
-        registerObjectProperty(registration, "Type", "string", "The render object's type.", "GetType", null);
-        registerObjectProperty(registration, "IsDestroyed", "boolean", "Whether this render object has been removed.", "GetIsDestroyed", null);
-        registerObjectProperty(registration, "Position", "Vector2", "The render object's screen position.", "GetPosition", "SetPosition");
-        registerObjectProperty(registration, "EndPosition", "Vector2", "The second screen position used by line and beam objects.", "GetEndPosition", "SetEndPosition");
-        registerObjectProperty(registration, "WorldPosition", "Vector3|CFrame", "The render object's world position.", "GetWorldPosition", "SetWorldPosition");
-        registerObjectProperty(registration, "EndWorldPosition", "Vector3|CFrame", "The second world position used by line and beam objects.", "GetEndWorldPosition", "SetEndWorldPosition");
-        registerObjectProperty(registration, "Depth", "number", "The object's non-negative depth offset.", "GetDepth", "SetDepth");
-        registerObjectProperty(registration, "Size", "Vector2", "The render object's non-negative width and height.", "GetSize", "SetSize");
-        registerObjectProperty(registration, "Rotation", "number", "The object's rotation in degrees.", "GetRotation", "SetRotation");
-        registerObjectProperty(registration, "Visible", "boolean", "Whether this render object is visible.", "GetVisible", "SetVisible");
-        registerObjectProperty(registration, "Transparency", "number", "The object's transparency from zero to one.", "GetTransparency", "SetTransparency");
-        registerObjectProperty(registration, "Alpha", "number", "The object's opacity from zero to one.", "GetAlpha", "SetAlpha");
-        registerObjectProperty(registration, "Color", "number", "The object's packed color value.", "GetColor", "SetColor");
-        registerObjectProperty(registration, "Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness");
-        registerObjectProperty(registration, "ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex");
-        registerObjectProperty(registration, "WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace");
-        registerObjectProperty(registration, "Target", "string", "Render stage: Hud, WorldOverlay, WorldModel, or EntityModel. GetTarget returns the same canonical spelling accepted by SetTarget.", "GetTarget", "SetTarget");
-        registerObjectProperty(registration, "ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance");
-        registerObjectProperty(registration, "ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale");
-        registerObjectProperty(registration, "FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity");
-        registerObjectProperty(registration, "FollowBone", "string|nil", "A registered model adapter bone to attach this 3D object to on the followed entity.", "GetFollowBone", "SetFollowBone");
-        registerObjectProperty(registration, "FollowOffset", "CFrame|function", "A local transform after the followed model bone. A function returning CFrame is sampled once per client tick.", "GetFollowOffset", "SetFollowOffset");
-        registerObjectProperty(registration, "Resource", "string|nil", "The resource identifier for image, item, or block objects; nil for other render types.", "GetResource", "SetResource");
-        registerObjectProperty(registration, "Text", "string|nil", "The displayed text; available only on text objects.", "GetText", "SetText");
+        for (ObjectProperty property : OBJECT_PROPERTIES) {
+            registerObjectProperty(registration, property.name(), property.type(), property.description(),
+                property.getter(), property.setter());
+        }
         String[][] methods = {
             {"GetId", "Returns the object's runtime identifier."}, {"GetType", "Returns the object's render type."},
             {"GetIsDestroyed", "Returns whether this object has been removed."},
@@ -106,6 +114,17 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"Destroy", "Removes this render object."}
         };
         for (String[] method : methods) registerObjectMethod(registration, method[0], method[1]);
+    }
+
+    public static void contributeRenderObjectPropertyDocs(MLuaDocBuilder docs) {
+        for (ObjectProperty property : OBJECT_PROPERTIES) {
+            docs.register(MLuaDocBuilder.Registration.property("RenderObject",
+                "RenderObject." + property.name(), property.type(), property.description(), "client:Client"));
+            if (property.setter() != null) {
+                docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", property.name(),
+                    property.type(), "Initial value. " + property.description()));
+            }
+        }
     }
 
     private static void registerObjectProperty(MLuaRegistration registration, String name, String type,
