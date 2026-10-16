@@ -233,23 +233,9 @@ public final class MLuaPlayerWrapper {
          if (stack.isEmpty()) return LuaValue.FALSE;
          return LuaValue.valueOf(player.addItem(MCItemStackImpl.fromReal(stack)));
       }));
-      MLuaClassMethods.setInstanceMethod(table, "ClearInventory", luaFn(() -> {
-         player.getInventory().clearContent();
-         return LuaValue.NONE;
-      }));
       LuaTable inventory = attachInventoryMethods(table, player, true, true, registration);
       MLuaClassMethods.setInstanceMethod(table, "SetSlot", varArg((args) -> {
-         int slot = MLuaLuaArguments.wholeInt(args, 2, "Player:SetSlot", "slot") - 1;
-         LuaValue itemVal = args.arg(3);
-         if (slot < 0 || slot >= player.getInventory().getContainerSize()) {
-            throw new LuaError("[MLua] Inventory slot must be between 1 and " + player.getInventory().getContainerSize() + ".");
-         }
-         if (itemVal.isnil()) {
-            player.getInventory().setItem(slot, MCItemStack.EMPTY);
-         } else {
-            player.getInventory().setItem(slot, MCItemStackImpl.fromReal(MLuaItemWrapper.toItemStack(itemVal, registration)));
-         }
-         return LuaValue.NONE;
+         return invokeInstance(inventory, "SetSlot", args.arg(2), args.arg(3));
       }));
       MLuaClassMethods.setInstanceMethod(table, "SetHotbarSlot", varArg((args) -> {
          return invokeInstance(inventory, "SetHotbarSlot", args.arg(2), args.arg(3));
@@ -666,16 +652,7 @@ public final class MLuaPlayerWrapper {
             return LuaValue.NONE;
          }));
          MLuaClassMethods.setInstanceMethod(table, "SetInventory", varArg((args) -> {
-            LuaValue inventoryValue = args.arg(2);
-            if (!inventoryValue.istable()) {
-               throw new LuaError("[MLua] SetInventory expects an array of Item instances or nil values.");
-            }
-            LuaTable inventoryTable = inventoryValue.checktable();
-            int size = rawInventory.getContainerSize();
-            for (int slot = 1; slot <= size; slot++) {
-               LuaValue value = inventoryTable.get(slot);
-               rawInventory.setItem(slot - 1, value.isnil() ? net.minecraft.world.item.ItemStack.EMPTY : MLuaItemWrapper.toItemStack(value, registration));
-            }
+            invokeInstance(inventory, "SetContents", args.arg(2));
             return LuaValue.NONE;
          }));
       }

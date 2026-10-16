@@ -6,6 +6,8 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.lang.ref.WeakReference;
@@ -82,6 +84,27 @@ public final class MLuaContainer {
                Math.max(1, inv.getContainerSize() - 4),
                Math.min(4, Math.max(0, inv.getContainerSize() - 1)), inv.getContainerSize())
             : inventoryLayout;
+         MLuaClassMethods.setInstanceMethod(table, "SetContents", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+               ensureWritable(writable);
+               LuaValue contentsValue = args.arg(2);
+               if (!contentsValue.istable()) {
+                  throw new org.luaj.vm2.LuaError("[MLua] SetContents expects an array of Item instances or nil values.");
+               }
+               LuaTable contents = contentsValue.checktable();
+               List<MCItemStack> replacement = new ArrayList<>(inv.getContainerSize());
+               for (int index = 1; index <= inv.getContainerSize(); index++) {
+                  LuaValue item = contents.get(index);
+                  replacement.add(item.isnil() ? MCItemStack.EMPTY
+                     : new MCItemStackImpl(MLuaItemWrapper.toItemStack(item, registration)));
+               }
+               for (int index = 0; index < replacement.size(); index++) {
+                  inv.setItem(index, replacement.get(index));
+               }
+               return LuaValue.NONE;
+            }
+         });
          MLuaClassMethods.setInstanceMethod(table, "GetHotbar", new ZeroArgFunction() {
             @Override
             public LuaValue call() {
@@ -404,6 +427,7 @@ public final class MLuaContainer {
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "ContainsItem", "Returns whether this container has at least the requested whole-number item count.");
       MLuaClassMethods.registerInstanceMethod(registration, "Container", "RemoveItem", "Removes up to a positive whole-number count from this writable container and returns the removed count.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetHotbar", "Returns the live slots for the nine hotbar positions.");
+      MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "SetContents", "Validates a one-based array of Item instances or nil values, then replaces inventory contents; omitted slots are cleared.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetArmorContents", "Returns the live slots for the four armor positions.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "GetOffhandSlot", "Returns the live offhand slot.");
       MLuaClassMethods.registerInstanceMethod(registration, "Inventory", "SetHotbarSlot", "Sets or clears a hotbar slot by one-based position.");

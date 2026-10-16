@@ -344,7 +344,7 @@ public class PlayersModule implements MLuaModule {
             {"GetOffhandSlot", "Returns the same live Slot instance exposed by Inventory for the offhand."},
             {"GetOpenContainerTitle", "Returns the title of this player's current menu."},
             {"GetOpenContainerSize", "Returns the slot count of this player's current menu."},
-            {"SetInventory", "Replaces this player's inventory contents from a one-based item table; server-side only."},
+            {"SetInventory", "Validates the item table before replacing this player's inventory; server-side only, and omitted slots are cleared."},
             {"GetIsLocalPlayer", "Whether this Player instance represents the local client player."},
             {"GetEffects", "Returns this player's active effects."}
         };
