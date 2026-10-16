@@ -179,6 +179,14 @@ if (is26Family) {
                     if (source.name == 'MLuaMinecraftEnums.java') text = text.replace('d.getKey()', 'd.getSerializedName()')
                     if (source.name == 'MLuaNbtWrapper.java') text = text.replace('byteTag.getAsByte()', 'byteTag.byteValue()')
                     if (source.name == 'MLuaNbtWrapper.java') text = text.replace('numericTag.getAsDouble()', 'numericTag.doubleValue()').replace('numericTag.getAsLong()', 'numericTag.longValue()')
+                    if ((source.name.startsWith('MC') && source.name.endsWith('TagImpl.java'))
+                            || source.name == 'MLuaScriptedEntity.java') {
+                        text = text.replace('.getAsDouble()', '.doubleValue()')
+                            .replace('.getAsInt()', '.intValue()')
+                            .replace('.getAsLong()', '.longValue()')
+                            .replace('.getAsFloat()', '.floatValue()')
+                            .replace('.getAsString()', '.toString()')
+                    }
                     if (source.name == 'MLuaSlot.java') text = text.replace('rawIndexSupplier.intValue()', 'rawIndexSupplier.getAsInt()')
                     if (source.name == 'MLuaItemWrapper.java') text = text.replace('BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id))', 'BuiltInRegistries.ITEM.get(dev.mlua.minecraft.MLuaResourceLocations.parse(id)).map(reference -> reference.value()).orElse(null)')
                     if (source.name == 'MLuaEntityWrapper.java') text = text.replaceAll('\\.isClientSide\\b(?!\\s*\\()', '.isClientSide()').replace('.kill();', '.discard();')

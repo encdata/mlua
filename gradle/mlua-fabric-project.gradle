@@ -197,6 +197,14 @@ if (isUnobfuscated) {
                         text = text.replace('numericTag.getAsDouble()', 'numericTag.doubleValue()')
                             .replace('numericTag.getAsLong()', 'numericTag.longValue()')
                     }
+                    if ((source.name.startsWith('MC') && source.name.endsWith('TagImpl.java'))
+                            || source.name == 'MLuaScriptedEntity.java') {
+                        text = text.replace('.getAsDouble()', '.doubleValue()')
+                            .replace('.getAsInt()', '.intValue()')
+                            .replace('.getAsLong()', '.longValue()')
+                            .replace('.getAsFloat()', '.floatValue()')
+                            .replace('.getAsString()', '.toString()')
+                    }
                     if (source.name == 'MLuaGeneratedAssetPack.java') {
                         text = text.replace('MetadataSectionSerializer', 'MetadataSectionType')
                     }
