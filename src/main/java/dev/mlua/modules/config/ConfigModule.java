@@ -27,11 +27,11 @@ public class ConfigModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.service("Config", "MLuaConfigService",
             "Reads and updates registered MLua configuration values.", "services/config.html"));
         docs.register(MLuaDocBuilder.Registration.type("ConfigDefinition", null, "Options for registering one configuration value."));
-        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "type", "string", "Value type, such as boolean, number, string, or enum."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "type?", "string", "Value type: boolean, int, long, double, string, or enum. Inferred from default when omitted."));
         docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "default", "any", "Initial value for this configuration entry."));
         docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "description?", "string", "Optional explanation shown in the config screen."));
         docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "min?", "number", "Optional lower bound for numeric values. The default must meet it; saved and assigned values are clamped."));
         docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "max?", "number", "Optional upper bound for numeric values. The default must meet it; saved and assigned values are clamped."));
-        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "options?", "string[]", "Allowed values for enum entries."));
+        docs.register(MLuaDocBuilder.Registration.field("ConfigDefinition", "options?", "string[]", "Allowed values for an enum. Supplying options infers enum type when type is omitted; the default must match one option."));
     }
 }

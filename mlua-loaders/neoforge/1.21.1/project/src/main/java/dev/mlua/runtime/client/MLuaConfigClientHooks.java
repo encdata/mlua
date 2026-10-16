@@ -141,7 +141,7 @@ public final class MLuaConfigClientHooks {
                String key = entryKey(set.ownerModId(), set.type(), (String)entry.getKey());
                Object currentValue = this.pendingValues.containsKey(key) ? this.pendingValues.get(key) : value.get();
                String valueType = value.typeName();
-               entries.add(new ConfigEntry(set.ownerModId(), set.type(), (String)entry.getKey(), labelFor((String)entry.getKey()), valueType, currentValue, set.loaded()));
+               entries.add(new ConfigEntry(set.ownerModId(), set.type(), (String)entry.getKey(), labelFor((String)entry.getKey()), valueType, currentValue, set.loaded(), value));
             });
             String title = friendlyType(set.type()) + (multipleOwners ? " - " + set.ownerModId() : "");
             String sectionKey = sectionKey(set.ownerModId(), set.type());
@@ -208,6 +208,17 @@ public final class MLuaConfigClientHooks {
                this.refreshSections();
                this.rebuildEditor();
             }).bounds(widgetX, y, widgetWidth, 20).build()).active = entry.loaded();
+         } else if ("enum".equals(entry.valueType())) {
+            List<String> options = entry.configValue().options();
+            Button choice = Button.builder(Component.literal(String.valueOf(entry.value())), (button) -> {
+               int current = options.indexOf(String.valueOf(entry.value()));
+               String next = options.get((current + 1 + options.size()) % options.size());
+               this.pendingValues.put(entryKey(entry), next);
+               this.refreshSections();
+               this.rebuildEditor();
+            }).bounds(widgetX, y, widgetWidth, 20).build();
+            choice.active = entry.loaded() && !options.isEmpty();
+            this.addRenderableWidget(choice);
          } else {
             ConfigEditBox editBox = new ConfigEditBox(this, entry, widgetX, y, widgetWidth, 20);
             String key = entryKey(entry);
@@ -233,6 +244,7 @@ public final class MLuaConfigClientHooks {
 
          try {
             Object parsed = parseValue(entry.valueType(), text);
+            if (!entry.configValue().isAllowedValue(parsed)) return;
             this.pendingValues.put(key, parsed);
             this.refreshSections();
          } catch (RuntimeException var5) {
@@ -356,6 +368,7 @@ public final class MLuaConfigClientHooks {
          case "long":
             return text.matches("-?\\d*");
          case "string":
+         case "enum":
             return true;
          default:
             return false;
@@ -386,6 +399,7 @@ public final class MLuaConfigClientHooks {
          case "double":
             return Double.parseDouble(text);
          case "string":
+         case "enum":
             return text;
          default:
             throw new IllegalArgumentException("Unsupported UI config type: " + type);
@@ -428,7 +442,9 @@ public final class MLuaConfigClientHooks {
    private static record ConfigSection(String key, String title, boolean loaded, List<ConfigEntry> entries) {
    }
 
-   private static record ConfigEntry(String ownerModId, ModConfig.Type type, String path, String label, String valueType, Object value, boolean loaded) {
+   private static record ConfigEntry(String ownerModId, ModConfig.Type type, String path, String label,
+                                     String valueType, Object value, boolean loaded,
+                                     MLuaConfigRegistry.ConfigValue configValue) {
    }
 
    private static record RowLayout(RowKind kind, String label, int y, boolean loaded) {
