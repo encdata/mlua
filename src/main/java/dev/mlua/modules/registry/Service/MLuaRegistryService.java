@@ -1255,6 +1255,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          for (String key : removed) {
             this.categories.remove(key);
             this.definitions.remove(key);
+            this.pendingDefinitions.remove(key);
          }
          this.definitions.values().forEach(values -> values.entrySet()
             .removeIf(entry -> ownerModId.equals(entry.getValue().owner())));
