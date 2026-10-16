@@ -16,6 +16,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -39,6 +40,7 @@ public final class MLuaClientRenderManager {
     private static final ConcurrentHashMap<MLuaEntityScope, java.util.Set<Integer>> ENTITY_MODELS = new ConcurrentHashMap<>();
     private static final MLuaEmbeddedTextureRegistry EMBEDDED_TEXTURES = new MLuaEmbeddedTextureRegistry();
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
+    private static final AtomicBoolean WORLD_RENDER_FAILURE_REPORTED = new AtomicBoolean();
     private static boolean animationClockRegistered;
 
     private MLuaClientRenderManager() {
@@ -80,12 +82,21 @@ public final class MLuaClientRenderManager {
             for (RenderObject object : OBJECTS.values()) {
                 synchronized (object.executionLock()) {
                     if (!object.visible() || object.target() != RenderTarget.WORLD_MODEL) continue;
-                    renderWorldModel(pose, buffers, object, camera, look);
+                    try {
+                        renderWorldModel(pose, buffers, object, camera, look);
+                    } catch (RuntimeException failure) {
+                        reportWorldRenderFailure(failure);
+                    }
                 }
             }
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            // The UI projection remains available when a loader changes its
-            // world-render context shape.
+        } catch (ReflectiveOperationException | RuntimeException failure) {
+            reportWorldRenderFailure(failure);
+        }
+    }
+
+    private static void reportWorldRenderFailure(Throwable failure) {
+        if (WORLD_RENDER_FAILURE_REPORTED.compareAndSet(false, true)) {
+            MLuaLogger.LOGGER.warn("[MLua] World render hook failed; HUD rendering remains available.", failure);
         }
     }
 
