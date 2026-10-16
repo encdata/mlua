@@ -485,6 +485,14 @@ public final class MLuaEntityWrapper {
          LuaTable result = new LuaTable();
          int i = 1;
          for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
+            if (track.isPlaying()) result.set(i++, MLuaAnimationBindings.wrapTrack(track, registration));
+         }
+         return result;
+      }));
+      MLuaClassMethods.setInstanceMethod(table, "GetAnimationTracks", luaFn(() -> {
+         LuaTable result = new LuaTable();
+         int i = 1;
+         for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
             result.set(i++, MLuaAnimationBindings.wrapTrack(track, registration));
          }
          return result;

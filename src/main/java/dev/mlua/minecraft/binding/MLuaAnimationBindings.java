@@ -75,7 +75,9 @@ public final class MLuaAnimationBindings {
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "LoadAnimation",
             "Loads an animation for this entity and returns a controllable AnimationTrack.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetPlayingAnimationTracks",
-            "Returns the tracks currently owned by this entity animator.");
+            "Returns tracks whose playback is currently active.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetAnimationTracks",
+            "Returns every live track, including tracks fading out after Stop.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "StopAll",
             "Stops every animation track owned by this entity animator.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animator", "SetBonePose",
@@ -256,6 +258,7 @@ public final class MLuaAnimationBindings {
         LuaTable animator = createClassInstance(registration, "Animator", fields);
         bindForwarder(animator, entity, "LoadAnimation");
         bindForwarder(animator, entity, "GetPlayingAnimationTracks");
+        bindForwarder(animator, entity, "GetAnimationTracks");
         bindForwarder(animator, entity, "SetBonePose");
         bindForwarder(animator, entity, "GetBonePose");
         MLuaClassMethods.setInstanceMethod(animator, "StopAll", new ZeroArgFunction() {
