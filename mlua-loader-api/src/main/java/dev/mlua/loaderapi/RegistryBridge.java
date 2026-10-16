@@ -51,9 +51,14 @@ public interface RegistryBridge {
     void setEntityVisual(String modId, String name, String texture, String model, float shadowRadius);
     EntityVisualInfo getEntityVisual(String key);
     void registerGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject definition);
-    boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name, JsonObject expectedDefinition);
-    boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
-                                  JsonObject expectedCurrent, JsonObject previousDefinition);
+    default boolean unregisterGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                             JsonObject expectedDefinition) {
+        return false;
+    }
+    default boolean restoreGeneratedAsset(GeneratedAssetKind kind, String modId, String name,
+                                          JsonObject expectedCurrent, JsonObject previousDefinition) {
+        return false;
+    }
     Map<String, JsonObject> getGeneratedAssets(GeneratedAssetKind kind);
     void registerTag(RegistryKind registryKind, String modId, String name, boolean replace, JsonArray values);
     Set<String> getRegisteredIds(RegistryKind registryKind);
