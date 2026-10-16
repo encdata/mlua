@@ -200,9 +200,9 @@ public final class MLuaRenderCallbacks {
         if (hook.failed) return;
         MLuaContext context = hook.context;
         try {
-            int contextIndex = args.length > 1 && args[1].istable() ? 1 : 0;
-            if (args[contextIndex].istable()) args[contextIndex].set("PassId", LuaValue.valueOf(hook.id));
             synchronized (context.executionLock()) {
+                int contextIndex = args.length > 1 && args[1].istable() ? 1 : 0;
+                if (args[contextIndex].istable()) args[contextIndex].set("PassId", LuaValue.valueOf(hook.id));
                 MLuaLuaBindings.bindContext(context.globals(), context);
                 hook.callback.invoke(LuaValue.varargsOf(args));
             }

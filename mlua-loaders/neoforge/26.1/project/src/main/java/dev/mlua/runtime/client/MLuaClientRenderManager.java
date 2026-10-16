@@ -43,7 +43,10 @@ public final class MLuaClientRenderManager {
             LoaderApi.lifecycle().onClientTickEnd(MLuaClientRenderManager::tickAnimations);
         }
         LoaderApi.client().registerOverlay("mlua_render_service", graphics -> {
-            if (graphics instanceof GuiGraphicsExtractor extractor) renderOverlayObjects(extractor);
+            if (graphics instanceof GuiGraphicsExtractor extractor) {
+                MLuaRenderCallbacks.renderHud(extractor, extractor.guiWidth(), extractor.guiHeight());
+                renderOverlayObjects(extractor);
+            }
         });
         for (String stage : dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES) {
             LoaderApi.client().registerWorldRenderer(stage, context -> MLuaRenderCallbacks.renderWorld(stage,
