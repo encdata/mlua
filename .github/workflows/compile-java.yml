@@ -256,6 +256,8 @@ jobs:
               :OnUse(function(context)
                   return true
               end)
+          assert(item:IsA("ItemProperties") and item:IsA("RegistryProperties"),
+              "Item.Properties did not create an inherited registry property class")
           assert(item:Build().maxStackSize == 1, "ItemProperties:Build lost StacksTo")
           assert(not pcall(function() Item.Properties():OnUse("not a function") end),
               "ItemProperties accepted a non-function callback")
@@ -277,6 +279,8 @@ jobs:
               :OnRightClick(function(context)
                   return true
               end)
+          assert(block:IsA("BlockProperties") and block:IsA("RegistryProperties"),
+              "Block.Properties did not create an inherited registry property class")
           assert(block:Build().strength == 2, "BlockProperties:Build lost Strength")
           Registry.Blocks:Register("ci_property_block", block)
           Registry.Blocks:RegisterType("ci_property_block_kind", {
@@ -297,6 +301,8 @@ jobs:
               :MovementSpeed(0.25)
               :OnTick(function(self)
               end)
+          assert(entity:IsA("EntityProperties") and entity:IsA("RegistryProperties"),
+              "Registry.Entities:Properties did not create an inherited registry property class")
           assert(entity:Build().attributes.maxHealth == 24, "EntityProperties:Build lost MaxHealth")
           assert(entity:Build().aiInterval == 4, "EntityProperties:Build lost AIInterval")
           Registry.Entities:Register("ci_property_entity", entity)
