@@ -1,0 +1,160 @@
+package dev.mlua.minecraft.binding;
+
+import dev.mlua.module.MLuaRegistration;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+
+/** Java-shaped, chainable property instances used by Registry item and block registration. */
+public final class MLuaRegistryProperties {
+   private static final String STATE = "__mlua_registry_properties";
+
+   private MLuaRegistryProperties() { }
+
+   public static void registerClasses(MLuaRegistration registration) {
+      registration.registerClass("RegistryProperties", registration.requireInstanceBaseClassName(),
+         "A chainable set of native Minecraft registration properties.");
+      registration.registerClass("ItemProperties", "RegistryProperties",
+         "Item settings corresponding to Minecraft Item.Properties.");
+      registration.registerClass("BlockProperties", "RegistryProperties",
+         "Block settings corresponding to Minecraft BlockBehaviour.Properties.");
+      common(registration, "Description", "description", "Sets the item or block tooltip description.");
+      common(registration, "Copy", "copy", "Copies native defaults from an existing Minecraft item or block id.");
+      common(registration, "CopyModel", "copyModel", "Copies the model from the selected native item or block.");
+      common(registration, "Class", "className", "Selects a registered Lua class that extends the native item or block class.");
+      method(registration, "RegistryProperties", "Build", (properties, args) -> copy(properties.values),
+         "Returns a plain property table that can be passed to a Registry:Register method.");
+
+      item(registration, "StacksTo", "maxStackSize", "Sets the maximum stack size.");
+      item(registration, "Durability", "durability", "Sets item durability and forces a maximum stack size of one.");
+      item(registration, "Rarity", "rarity", "Sets the Minecraft item rarity.");
+      item(registration, "FireResistant", "fireResistant", "Makes the item immune to fire and lava damage.");
+      item(registration, "CraftRemainder", "craftRemainder", "Sets the item returned after crafting.");
+      item(registration, "Kind", "kind", "Selects the registered item implementation type.");
+      item(registration, "Tier", "tier", "Sets the tool tier for a sword, pickaxe, axe, shovel, or hoe.");
+      item(registration, "AttackDamage", "attackDamage", "Sets the tool's attack damage where supported.");
+      item(registration, "AttackSpeed", "attackSpeed", "Sets the tool's attack speed where supported.");
+      method(registration, "ItemProperties", "Food", (properties, args) -> {
+         LuaValue food = args.arg(2);
+         if (!food.istable()) throw new LuaError("[MLua] ItemProperties:Food expects a food properties table.");
+         properties.values.set("food", copy(food.checktable()));
+         return properties.instance;
+      }, "Sets food properties using nutrition, saturation, and optional meat, fast, and alwaysEat values.");
+      item(registration, "Nutrition", "nutrition", "Sets food nutrition and enables food behavior.");
+      item(registration, "Saturation", "saturation", "Sets food saturation and enables food behavior.");
+      item(registration, "Meat", "meat", "Marks the food as meat.");
+      item(registration, "AlwaysEdible", "alwaysEat", "Allows the food to be eaten when the hunger bar is full.");
+      item(registration, "Fast", "fast", "Reduces the food eating duration.");
+      item(registration, "OnUse", "onUse", "Registers the item use callback.");
+      item(registration, "OnUseOnBlock", "onUseOnBlock", "Registers the item use-on-block callback.");
+      item(registration, "OnInventoryTick", "onInventoryTick", "Registers the item inventory tick callback.");
+      item(registration, "OnCrafted", "onCrafted", "Registers the item crafted callback.");
+      item(registration, "OnConsume", "onConsume", "Registers the item consume callback.");
+      item(registration, "OnAttackEntity", "onAttackEntity", "Registers the item attack-entity callback.");
+
+      method(registration, "BlockProperties", "Strength", (properties, args) -> {
+         LuaValue hardness = args.arg(2);
+         if (!hardness.isnumber()) throw new LuaError("[MLua] BlockProperties:Strength expects numeric hardness.");
+         properties.values.set("strength", hardness);
+         LuaValue resistance = args.arg(3);
+         if (!resistance.isnil()) {
+            if (!resistance.isnumber()) throw new LuaError("[MLua] BlockProperties:Strength resistance must be numeric.");
+            properties.values.set("resistance", resistance);
+         }
+         return properties.instance;
+      }, "Sets block hardness and optionally its explosion resistance.");
+      block(registration, "Resistance", "resistance", "Sets explosion resistance; call Strength first to provide hardness.");
+      block(registration, "RequiresCorrectToolForDrops", "requiresCorrectTool", "Requires the correct tool to drop this block's item.");
+      block(registration, "NoCollision", "noCollision", "Removes the block's collision shape.");
+      block(registration, "NoOcclusion", "noOcclusion", "Prevents the block from occluding neighboring faces.");
+      block(registration, "RandomTicks", "randomTicks", "Enables random block ticks for scripted random-tick callbacks.");
+      block(registration, "IgnitedByLava", "ignitedByLava", "Allows lava to ignite this block.");
+      block(registration, "Replaceable", "replaceable", "Allows this block to be replaced by placement and fluid rules.");
+      block(registration, "LightLevel", "lightLevel", "Sets emitted light from zero through fifteen.");
+      block(registration, "Friction", "friction", "Sets the movement friction multiplier on this block.");
+      block(registration, "SpeedFactor", "speedFactor", "Sets the movement speed multiplier on this block.");
+      block(registration, "JumpFactor", "jumpFactor", "Sets the jump multiplier on this block.");
+      block(registration, "Sound", "sound", "Sets the Minecraft block sound type.");
+      block(registration, "MapColor", "mapColor", "Sets the map color used for this block.");
+      block(registration, "PushReaction", "pushReaction", "Sets the block reaction to pistons.");
+      block(registration, "Instrument", "instrument", "Sets the note-block instrument for this block.");
+      block(registration, "OnRightClick", "onRightClick", "Registers the block interaction callback.");
+      block(registration, "OnPlace", "onPlace", "Registers the block placement callback.");
+      block(registration, "OnBreak", "onBreak", "Registers the block break callback.");
+      block(registration, "OnStepOn", "onStepOn", "Registers the entity step-on callback.");
+      block(registration, "OnEntityInside", "onEntityInside", "Registers the entity-inside callback.");
+      block(registration, "OnNeighborChanged", "onNeighborChanged", "Registers the neighbor-change callback.");
+      block(registration, "OnRemove", "onRemove", "Registers the block removal callback.");
+      block(registration, "OnRandomTick", "onRandomTick", "Registers the random block tick callback.");
+      block(registration, "OnTick", "onTick", "Registers the scheduled block tick callback.");
+      block(registration, "OnFallOn", "onFallOn", "Registers the entity fall-on callback.");
+      block(registration, "OnProjectileHit", "onProjectileHit", "Registers the projectile hit callback.");
+   }
+
+   public static LuaTable create(MLuaRegistration registration, String className) {
+      if (!"ItemProperties".equals(className) && !"BlockProperties".equals(className)) {
+         throw new LuaError("[MLua] Unsupported registry property class '" + className + "'.");
+      }
+      LuaTable instance = registration.createClassInstance(className);
+      instance.rawset(STATE, LuaValue.userdataOf(new State(instance, new LuaTable(), className)));
+      return instance;
+   }
+
+   /** Returns a copy of a builder's data, or the original plain Lua table. */
+   public static LuaTable table(MLuaRegistration registration, LuaValue value, String expectedClass, String method) {
+      if (value.isnil()) return new LuaTable();
+      if (!value.istable()) throw new LuaError("[MLua] " + method + " expects a property table or " + expectedClass + " instance.");
+      if (registration.isInstanceOf(value, "RegistryProperties")) {
+         State state = state(value);
+         if (!registration.isInstanceOf(value, expectedClass)) {
+            throw new LuaError("[MLua] " + method + " received " + state.className + "; expected " + expectedClass + ".");
+         }
+         return dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog.copyTable(state.values);
+      }
+      return value.checktable();
+   }
+
+   private static void common(MLuaRegistration registration, String name, String key, String description) {
+      method(registration, "RegistryProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
+   private static void item(MLuaRegistration registration, String name, String key, String description) {
+      method(registration, "ItemProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
+   private static void block(MLuaRegistration registration, String name, String key, String description) {
+      method(registration, "BlockProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
+   private static LuaValue set(State state, String key, LuaValue value) {
+      if (value.isnil()) throw new LuaError("[MLua] Property method cannot receive nil.");
+      state.values.set(key, value);
+      return state.instance;
+   }
+
+   private static void method(MLuaRegistration registration, String className, String name,
+                              BuilderMethod implementation, String description) {
+      registration.registerClassFunction(className, name, new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return implementation.apply(state(args.arg1()), args);
+         }
+      }, description);
+   }
+
+   private static State state(LuaValue value) {
+      if (!value.istable()) throw new LuaError("[MLua] Expected a RegistryProperties instance.");
+      LuaValue holder = value.checktable().rawget(STATE);
+      Object raw = holder.isuserdata() ? holder.touserdata() : null;
+      if (!(raw instanceof State state)) throw new LuaError("[MLua] Invalid RegistryProperties instance.");
+      return state;
+   }
+
+   private static LuaTable copy(LuaTable source) {
+      return dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog.copyTable(source);
+   }
+
+   @FunctionalInterface private interface BuilderMethod { LuaValue apply(State properties, Varargs args); }
+   private record State(LuaTable instance, LuaTable values, String className) { }
+}

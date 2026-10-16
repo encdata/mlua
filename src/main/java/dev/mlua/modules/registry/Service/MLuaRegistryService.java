@@ -38,6 +38,7 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
 import dev.mlua.minecraft.binding.MLuaContainerType;
+import dev.mlua.minecraft.binding.MLuaRegistryProperties;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
 import dev.mlua.minecraft.scripted.MLuaScriptedEntity;
@@ -458,7 +459,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Items:Register");
-            LuaTable propsTable = args.arg(3).opttable(new LuaTable());
+            LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
+               args.arg(3), "ItemProperties", "Registry.Items:Register");
             Map<String, Object> props = MLuaLuaBindings.mapFromLua(propsTable);
             MLuaRegistryService.this.itemFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
@@ -493,6 +495,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             return stringArray(MLuaItemFactory.tierNames());
          }
       });
+      items.set("Properties", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryProperties.create(MLuaRegistryService.this.context.mlua().registration(), "ItemProperties");
+         }
+      });
       items.set("GetRarities", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             return stringArray(MLuaItemFactory.rarityNames());
@@ -504,7 +511,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:Register");
-            LuaTable propsTable = args.arg(3).opttable(new LuaTable());
+            LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
+               args.arg(3), "BlockProperties", "Registry.Blocks:Register");
             Map<String, Object> props = new HashMap(MLuaLuaBindings.mapFromLua(propsTable));
             MLuaBlockFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
@@ -608,7 +616,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:RegisterItem");
-            LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
+            LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
+               args.arg(3), "ItemProperties", "Registry.Blocks:RegisterItem");
             Map<String, Object> props = propsTable != null ? MLuaLuaBindings.mapFromLua(propsTable) : Map.of();
             try {
                MLuaRegistryService.this.itemFactory.validateItemProperties(props);
@@ -645,6 +654,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.registerContentClass("item", key, className);
 
             return MLuaRegistryService.this.registryEntry(RegistryKind.BLOCK_ITEM, owner, name);
+         }
+      });
+      blocks.set("Properties", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryProperties.create(MLuaRegistryService.this.context.mlua().registration(), "BlockProperties");
          }
       });
       blocks.set("GetPushReactions", new VarArgFunction() {
@@ -1368,8 +1382,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       containerDescriptions.put("Exists", "Checks whether a container type id is registered.");
       MLuaServiceMetadata.attachMethodDescriptions(containers, containerDescriptions);
       describeRegistryMethod(items, "Register", "Registers an item with this addon's namespace and returns its live RegistryEntry key.");
+      describeRegistryMethod(items, "Properties", "Creates a chainable ItemProperties instance matching Minecraft Item.Properties.");
       describeRegistryMethod(blocks, "Register", "Registers a block and returns its live RegistryEntry key.");
       describeRegistryMethod(blocks, "RegisterItem", "Registers the block's item form and returns its live item RegistryEntry key.");
+      describeRegistryMethod(blocks, "Properties", "Creates a chainable BlockProperties instance matching Minecraft BlockBehaviour.Properties.");
       describeRegistryMethod(entities, "Register", "Registers a scripted entity type and returns its live RegistryEntry key.");
       describeRegistryMethod(entities, "RegisterSpawnEgg", "Registers a spawn egg for a registered entity and returns its item RegistryEntry key.");
       describeRegistryMethod(effects, "Register", "Registers a scripted mob effect and returns its live RegistryEntry key.");

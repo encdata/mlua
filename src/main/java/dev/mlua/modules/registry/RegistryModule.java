@@ -2,6 +2,7 @@ package dev.mlua.modules.registry;
 
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.core.classes.MLuaClassMethods;
+import dev.mlua.minecraft.binding.MLuaRegistryProperties;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
@@ -48,6 +49,7 @@ public class RegistryModule implements MLuaModule {
 
     @Override
     public void registerClasses(MLuaRegistration registration) {
+        MLuaRegistryProperties.registerClasses(registration);
         registration.registerClass("Nbt", registration.requireInstanceBaseClassName(), "A live view of a Minecraft NBT compound that reads and writes its backing data.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Get", "Reads a value at the given NBT key.");
         MLuaClassMethods.registerInstanceMethod(registration, "Nbt", "Set", "Writes a value at the given NBT key.");
@@ -218,6 +220,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.service("Registry", "MLuaRegistryService",
                 "Registers addon content, generated data pack resources, Minecraft registry entries, and reusable inherited content types.",
                 "services/registry.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("RegistryProperties", "Registry", "Shared chainable settings for registered Minecraft content.", "classes/registry-properties.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("ItemProperties", "Registry", "Item settings matching Minecraft Item.Properties, plus MLua's scripted item callbacks.", "classes/item-properties.html", "RegistryProperties"));
+        docs.register(MLuaDocBuilder.Registration.clazz("BlockProperties", "Registry", "Block settings matching Minecraft BlockBehaviour.Properties, plus MLua's scripted block callbacks.", "classes/block-properties.html", "RegistryProperties"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Register a reusable container type",
                 "Register the layout once and keep its ContainerType instance. Its properties expose the namespaced id, row and slot counts, title, and allowed item ids. Reference the type from a scripted block with its id; an empty or omitted allowedItems list accepts every item. Lua-style lower-camel fields are canonical; Rows, Title, and AllowedItems are accepted aliases.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal crate = Registry.Containers:Register(\"supply_crate\", {\n    rows = 3,\n    title = \"Supply Crate\",\n    allowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})\n\nprint(crate.Id, crate.SlotCount, crate.AllowedItems[1])\nprint(crate:AllowsItem(\"minecraft:torch\"))\nlocal registered = Registry.Containers:Get(crate.Id)"));
@@ -227,6 +232,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Blocks", "Register a block and its item",
                 "Register the block first, then register its item form. Each call returns a RegistryEntry key you can keep for later lookup or to check registration state. The block definition accepts Minecraft block properties and scripted callbacks; the item definition accepts stack, durability, food, rarity, and item callbacks.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal block = Registry.Blocks:Register(\"signal_block\", {\n    strength = 3,\n    resistance = 6,\n    sound = \"stone\",\n    mapColor = \"stone\",\n    requiresCorrectTool = true,\n    onRightClick = function(context)\n        context.Player:SendMessage(\"The block answers with a quiet hum.\")\n        return true\n    end,\n})\n\nlocal item = Registry.Blocks:RegisterItem(\"signal_block\", {\n    maxStackSize = 16,\n    rarity = \"uncommon\",\n    description = \"A block that listens for a signal.\",\n})\n\nprint(block.Id, item.Id)\nprint(table.concat(Registry.Blocks:GetSounds(), \", \"))\nprint(table.concat(Registry.Items:GetRarities(), \", \"))"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Items", "Use Minecraft-style property chains",
+                "ItemProperties and BlockProperties are real Lua classes with inherited common settings. Their chainable methods map to native Minecraft properties, and the same instances can be passed directly to Register. Build returns a plain table when you need to add or inspect fields yourself.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal sword = Registry.Items:Properties()\n    :Kind(\"sword\")\n    :Tier(\"iron\")\n    :Durability(420)\n    :AttackDamage(7)\n    :AttackSpeed(1.4)\n    :Rarity(\"uncommon\")\n    :OnUse(function(context)\n        context.Player:SendMessage(\"The blade answers.\")\n    end)\n\nRegistry.Items:Register(\"signal_sword\", sword)\n\nlocal block = Registry.Blocks:Properties()\n    :Strength(3, 6)\n    :Sound(\"stone\")\n    :RequiresCorrectToolForDrops(true)\n    :OnRightClick(function(context)\n        context.Player:SendMessage(\"The block answers.\")\n        return true\n    end)\n\nRegistry.Blocks:Register(\"signal_block\", block)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry", "Use the shared registration entry point",
                 "Registry:Register routes definitions through the typed registries for items, blocks, entities, effects, potions, particles, containers, projectiles, world generation, tabs, recipes, loot, tags, common config, and damage sources. Use block_item after registering its block; register a tag as Registry:Register(\"tag\", kind, name, definition). RegisterType defines reusable addon-scoped defaults for each category. Items select them with kind, blocks with type, and other categories with RegistryType. Use Registry.ContentTypes for reusable defaults in your own data domains. GetRegistered returns IDs visible for a Minecraft registry kind.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:Register(\"item\", \"flare_gun\", {\n    kind = \"firearm\",\n    maxStackSize = 1,\n    onUse = function(context)\n        -- Use the live player and projectile services here.\n    end,\n})\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\")) do\n    print(id)\nend"));
@@ -546,7 +554,8 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(category: string, namespace?: string)", "table<string, RegistryEntry|ProjectileType|table>"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(category: string, namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Exists(category: string, id: string)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition|ItemProperties)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Properties()", "ItemProperties"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetTiers()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetRarities()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetId(name: string)", null));
@@ -554,8 +563,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Exists(name: string)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Register(id: string, props: BlockDefinition)", "RegistryEntry"));
-        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterItem(id: string, definition?: BlockItemDefinition)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Register(id: string, props: BlockDefinition|BlockProperties)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Properties()", "BlockProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterItem(id: string, definition?: BlockItemDefinition|ItemProperties)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterState(id: string, blockState: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetPushReactions()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetInstruments()", "string[]"));
@@ -566,6 +576,34 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Build()", "table"));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Description(text: string)", "RegistryProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Copy(id: string)", "RegistryProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:CopyModel(enabled: boolean)", "RegistryProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Class(className: string)", "RegistryProperties"));
+        String[] itemPropertyMethods = {"StacksTo(size: number)", "Durability(maxDamage: number)", "Rarity(name: string)",
+            "FireResistant(enabled: boolean)", "CraftRemainder(item: string)", "Kind(name: string)", "Tier(name: string)",
+            "AttackDamage(amount: number)", "AttackSpeed(amount: number)", "Food(properties: table)",
+            "Nutrition(amount: number)", "Saturation(amount: number)", "Meat(enabled: boolean)",
+            "AlwaysEdible(enabled: boolean)", "Fast(enabled: boolean)", "OnUse(callback: function)",
+            "OnUseOnBlock(callback: function)", "OnInventoryTick(callback: function)", "OnCrafted(callback: function)",
+            "OnConsume(callback: function)", "OnAttackEntity(callback: function)"};
+        for (String method : itemPropertyMethods) {
+            docs.register(MLuaDocBuilder.Registration.signature("ItemProperties", "ItemProperties:" + method, "ItemProperties"));
+        }
+        String[] blockPropertyMethods = {"Strength(hardness: number, resistance?: number)", "Resistance(amount: number)",
+            "RequiresCorrectToolForDrops(enabled: boolean)", "NoCollision(enabled: boolean)", "NoOcclusion(enabled: boolean)",
+            "RandomTicks(enabled: boolean)", "IgnitedByLava(enabled: boolean)", "Replaceable(enabled: boolean)",
+            "LightLevel(level: number)", "Friction(multiplier: number)", "SpeedFactor(multiplier: number)",
+            "JumpFactor(multiplier: number)", "Sound(name: string)", "MapColor(name: string)",
+            "PushReaction(name: string)", "Instrument(name: string)", "OnRightClick(callback: function)",
+            "OnPlace(callback: function)", "OnBreak(callback: function)", "OnStepOn(callback: function)",
+            "OnEntityInside(callback: function)", "OnNeighborChanged(callback: function)", "OnRemove(callback: function)",
+            "OnRandomTick(callback: function)", "OnTick(callback: function)", "OnFallOn(callback: function)",
+            "OnProjectileHit(callback: function)"};
+        for (String method : blockPropertyMethods) {
+            docs.register(MLuaDocBuilder.Registration.signature("BlockProperties", "BlockProperties:" + method, "BlockProperties"));
+        }
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Register(id: string, definition: ContainerDefinition)", "ContainerType"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetId(name: string)", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Get(id: string)", "ContainerType|nil"));
