@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.luaj.vm2.LuaValue;
 
 public final class MLuaAnimationTrack {
+    private static final int MAX_EVENT_CALLBACKS_PER_TICK = 1024;
     private final int trackId;
     private final int entityId;
     private final MLuaAnimation animation;
@@ -228,11 +229,14 @@ public final class MLuaAnimationTrack {
         }
 
         double nextTime = time + (double) delta * speed;
+        double eventEndTime;
 
         if (looped && nextTime >= animation.getLength()) {
             time = (float) (nextTime % animation.getLength());
+            eventEndTime = nextTime;
         } else {
             time = (float) Math.min(nextTime, animation.getLength());
+            eventEndTime = time;
         }
 
         if (!looped && time >= animation.getLength()) {
@@ -242,7 +246,7 @@ public final class MLuaAnimationTrack {
 
         updateComputedPose();
 
-        checkEvents(previousTime, time, emitStartEvents);
+        checkEvents(previousTime, eventEndTime, emitStartEvents);
         emitStartEvents = false;
     }
 
@@ -287,27 +291,58 @@ public final class MLuaAnimationTrack {
         weight = Math.max(0.0f, Math.min(1.0f, weight));
     }
 
-    private void checkEvents(float fromTime, float toTime, boolean includeStart) {
+    private void checkEvents(double fromTime, double toTime, boolean includeStart) {
         List<AnimationEvent> snapshot;
         synchronized (events) {
             snapshot = List.copyOf(events);
         }
-        for (AnimationEvent event : snapshot) {
-            synchronized (events) {
-                if (!events.contains(event)) continue;
-            }
-            if ((includeStart && event.triggerTime == 0.0f)
-                || event.triggerTime > fromTime && event.triggerTime <= toTime ||
-                (looped && toTime < fromTime && (event.triggerTime > fromTime || event.triggerTime <= toTime))) {
-                if (event.callback != null && !event.callback.isnil()) {
-                try {
-                    event.callback.invoke(LuaValue.valueOf(trackId), LuaValue.valueOf(event.triggerTime));
-                } catch (Exception e) {
-                    MLuaLogger.LOGGER.warn("[MLua] Animation event callback failed at t={}: {}", event.triggerTime, e.getMessage());
+        if (snapshot.isEmpty()) return;
+
+        double length = animation.getLength();
+        if (!looped || length <= 0.0) {
+            int dispatched = 0;
+            for (AnimationEvent event : snapshot) {
+                boolean startsNow = includeStart && fromTime == 0.0 && event.triggerTime == 0.0f;
+                if (!startsNow && !(event.triggerTime > fromTime && event.triggerTime <= toTime)) continue;
+                if (dispatched >= MAX_EVENT_CALLBACKS_PER_TICK) {
+                    MLuaLogger.LOGGER.warn("[MLua] Animation event callback limit reached for track {}", trackId);
+                    return;
                 }
-                }
+                if (fireEvent(event)) dispatched++;
             }
+            return;
         }
+
+        long firstCycle = (long) Math.floor(fromTime / length);
+        long lastCycle = (long) Math.floor(toTime / length);
+        int dispatched = 0;
+        for (long cycle = firstCycle; cycle <= lastCycle; cycle++) {
+            double cycleOffset = cycle * length;
+            for (AnimationEvent event : snapshot) {
+                double eventTime = cycleOffset + event.triggerTime;
+                boolean startsNow = includeStart && fromTime == 0.0 && cycle == 0 && event.triggerTime == 0.0f;
+                if (!startsNow && !(eventTime > fromTime && eventTime <= toTime)) continue;
+                if (dispatched >= MAX_EVENT_CALLBACKS_PER_TICK) {
+                    MLuaLogger.LOGGER.warn("[MLua] Animation event callback limit reached for track {}", trackId);
+                    return;
+                }
+                if (fireEvent(event)) dispatched++;
+            }
+            if (cycle == Long.MAX_VALUE) break;
+        }
+    }
+
+    private boolean fireEvent(AnimationEvent event) {
+        synchronized (events) {
+            if (!events.contains(event)) return false;
+        }
+        if (event.callback == null || event.callback.isnil()) return false;
+        try {
+            event.callback.invoke(LuaValue.valueOf(trackId), LuaValue.valueOf(event.triggerTime));
+        } catch (Exception error) {
+            MLuaLogger.LOGGER.warn("[MLua] Animation event callback failed at t={}: {}", event.triggerTime, error.getMessage());
+        }
+        return true;
     }
 
     private static float finiteNonNegative(float value, String name) {
