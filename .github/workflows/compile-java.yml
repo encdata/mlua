@@ -264,6 +264,16 @@ jobs:
           assert(not pcall(function() Registry.Items:Register("ci_wrong_property_class", Registry.Blocks:Properties()) end),
               "Registry.Items:Register accepted BlockProperties")
           Registry.Items:Register("ci_property_item", item)
+          local genericItemHandle = Registry:GetEntry("items", "ci_property_item")
+          assert(genericItemHandle:IsA("RegistryEntry") and genericItemHandle.Kind == "item"
+              and genericItemHandle.Id == "mlua:ci_property_item",
+              "root Registry:GetEntry did not return a typed item handle")
+          local genericItems = Registry:GetEntries("item", "mlua")
+          local foundGenericItem = false
+          for _, entry in ipairs(genericItems) do
+              if entry.Id == genericItemHandle.Id then foundGenericItem = entry:Equals(genericItemHandle) end
+          end
+          assert(foundGenericItem, "root Registry:GetEntries did not include the registered item handle")
           Registry.Items:RegisterType("ci_property_item_kind", {
               Base = "item",
               Description = "CI item defaults built from ItemProperties.",
@@ -325,6 +335,14 @@ jobs:
           assert(handle ~= nil and handle:IsA("RegistryDefinition"), "dynamic GetEntry did not return a RegistryDefinition")
           assert(handle.Id == "mlua:record" and handle.Category == "mlua:ci_records", "dynamic entry metadata is incorrect")
           assert(handle.Owner == "mlua" and handle.IsRegistered, "dynamic entry owner or registration status is incorrect")
+          local rootHandle = Registry:GetEntry("mlua:ci_records", "record")
+          assert(rootHandle ~= nil and rootHandle:IsA("RegistryDefinition") and rootHandle:Equals(handle),
+              "root Registry:GetEntry did not route to the addon category entry")
+          assert(Registry:GetEntry("mlua:ci_records", "missing") == nil,
+              "root Registry:GetEntry returned a handle for a missing addon definition")
+          local rootEntries = Registry:GetEntries("mlua:ci_records", "mlua")
+          assert(#rootEntries == 1 and rootEntries[1]:Equals(handle),
+              "root Registry:GetEntries did not return sorted typed addon entry handles")
           local snapshot = handle:GetDefinition()
           snapshot.Value = 99
           assert(handle:GetDefinition().Value == 7, "RegistryDefinition exposed mutable catalog state")

@@ -609,6 +609,8 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block.Properties()", "BlockProperties"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Get(category: string, id: string)", "RegistryEntry|ProjectileType|table|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(category: string, namespace?: string)", "table<string, RegistryEntry|ProjectileType|table>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntry(category: string, id: string)", "RegistryEntry|RegistryDefinition|ContainerType|ProjectileType|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetEntries(category: string, namespace?: string)", "(RegistryEntry|RegistryDefinition|ContainerType|ProjectileType)[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(category: string, namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Exists(category: string, id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition|ItemProperties)", "RegistryEntry"));

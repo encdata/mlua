@@ -119,9 +119,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("GetIds", "Returns sorted identifiers from a built-in registry or addon-owned category, optionally filtered by namespace.");
       descriptions.put("GetTypes", "Lists reusable implementation and addon-defined content types for a category.");
       descriptions.put("GetRegistered", "Returns identifiers registered through MLua for a supported Minecraft registry kind.");
-      descriptions.put("GetEntries", "Returns live entry objects for identifiers registered in this category as a sorted array, optionally filtered by namespace.");
+      descriptions.put("GetEntries", "Returns typed entry objects for identifiers registered in this category as a sorted array, optionally filtered by namespace.");
       descriptions.put("GetId", "Resolves a short name in the addon's namespace or validates a full namespaced identifier.");
-      descriptions.put("GetEntry", "Returns a live entry object for an addon-local or namespaced identifier, or nil when it is not registered.");
+      descriptions.put("GetEntry", "Returns the category's typed entry handle for an identifier. Addon-owned definition categories return nil when the identifier is not registered.");
       descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
       descriptions.put("GetPushReactions", "Lists the piston reactions supported by this Minecraft version.");
@@ -1262,7 +1262,41 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        });
        table.set("GetEntries", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             return registeredEntries(MLuaRegistryEntry.kind(args.checkjstring(2)), optionalNamespace(args.arg(3)));
+             String category = args.checkjstring(2);
+             RegistryEndpoint endpoint = resolveEndpoint(category, "category", table);
+             String namespace = optionalNamespace(args.arg(3));
+             if (endpoint.registryKind() != null) {
+                return registeredEntries(endpoint.registryKind(), namespace);
+             }
+             if (MLuaRegistryService.this.dynamicRegistry.category(endpoint.table()) != null) {
+                LuaTable result = new LuaTable();
+                int index = 1;
+                for (String id : MLuaRegistryService.this.dynamicRegistry.ids(endpoint.table(), namespace)) {
+                   LuaTable entry = MLuaRegistryDefinition.create(MLuaRegistryService.this.context.mlua().registration(),
+                      MLuaRegistryService.this.dynamicRegistry, endpoint.table(), id);
+                   if (entry != null) result.set(index++, entry);
+                }
+                return result;
+             }
+             LuaTable target = table.get(endpoint.table()).checktable();
+             LuaValue entries = target.get("GetEntries");
+             if (entries.isfunction()) {
+                return entries.invoke(LuaValue.varargsOf(new LuaValue[]{target,
+                   namespace == null ? LuaValue.NIL : LuaValue.valueOf(namespace)}));
+             }
+             LuaValue getIds = target.get("GetIds");
+             if (!getIds.isfunction()) {
+                throw new LuaError("[MLua] Registry category '" + category + "' does not support entry listing");
+             }
+             LuaTable ids = getIds.invoke(LuaValue.varargsOf(new LuaValue[]{target,
+                namespace == null ? LuaValue.NIL : LuaValue.valueOf(namespace)})).arg1().checktable();
+             LuaTable result = new LuaTable();
+             int resultIndex = 1;
+             for (int index = 1; index <= ids.length(); index++) {
+                LuaValue entry = MLuaRegistryService.this.registryEntryFor(endpoint, ids.get(index).checkjstring(), table);
+                if (!entry.isnil()) result.set(resultIndex++, entry);
+             }
+             return result;
           }
        });
        table.set("GetId", new VarArgFunction() {
@@ -1349,9 +1383,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        });
        table.set("GetEntry", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryKind kind = MLuaRegistryEntry.kind(args.checkjstring(2));
-             return MLuaRegistryEntry.create(MLuaRegistryService.this.context.mlua().registration(), kind,
-               MLuaRegistryService.this.registryId(args.checkjstring(3)));
+             RegistryEndpoint endpoint = resolveEndpoint(args.checkjstring(2), "category", table);
+             String id = MLuaRegistryService.this.registryId(args.checkjstring(3));
+             return MLuaRegistryService.this.registryEntryFor(endpoint, id, table);
           }
        });
        table.set("Exists", new VarArgFunction() {
@@ -1489,6 +1523,20 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    private LuaValue registryEntry(RegistryKind kind, String owner, String name) {
       return MLuaRegistryEntry.create(this.context.mlua().registration(), kind, owner + ":" + name);
+   }
+
+   private LuaValue registryEntryFor(RegistryEndpoint endpoint, String id, LuaTable registry) {
+      if (endpoint.registryKind() != null) {
+         return MLuaRegistryEntry.create(this.context.mlua().registration(), endpoint.registryKind(), id);
+      }
+      if (this.dynamicRegistry.category(endpoint.table()) != null) {
+         return MLuaRegistryDefinition.create(this.context.mlua().registration(), this.dynamicRegistry, endpoint.table(), id);
+      }
+      LuaTable target = registry.get(endpoint.table()).checktable();
+      LuaValue getter = target.get("GetEntry");
+      if (!getter.isfunction()) getter = target.get("Get");
+      if (!getter.isfunction()) return LuaValue.NIL;
+      return getter.invoke(LuaValue.varargsOf(new LuaValue[]{target, LuaValue.valueOf(id)})).arg1();
    }
 
    private void installDynamicCategory(LuaTable registry, MLuaDynamicRegistryCatalog.Category category) {
