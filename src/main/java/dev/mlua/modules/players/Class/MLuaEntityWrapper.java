@@ -4,11 +4,7 @@ import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
-import dev.mlua.minecraft.animation.MLuaAnimation;
 import dev.mlua.minecraft.animation.MLuaAnimationController;
-import dev.mlua.minecraft.animation.MLuaAnimationOptions;
-import dev.mlua.minecraft.animation.MLuaAnimationTrack;
-import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.binding.MLuaAnimationBindings;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
@@ -402,135 +398,7 @@ public final class MLuaEntityWrapper {
           return LuaValue.valueOf(((MCLivingEntityImpl)wrapped).inner().isSwimming());
        }));
        bindEntityDataMethods(table, entity);
-      MLuaClassMethods.setInstanceMethod(table, "LoadAnimation", varArg((args) -> {
-         LuaValue animVal = args.arg(2);
-         if (animVal.istable() && animVal.checktable().get("__bbmodel").toboolean()) {
-            int renderId = animVal.checktable().get("Id").checkint();
-            Object runtimeOwner = registration instanceof MLuaRuntime runtime ? runtime.session() : null;
-            var renderOwner = new dev.mlua.runtime.client.MLuaRenderOwnershipRegistry.Owner(
-                  runtimeOwner, animVal.checktable().get("__mluaOwnerModId").optjstring(""));
-            if (!MLuaClientRenderManager.attachToEntity(renderId, entity, renderOwner)) {
-               throw new LuaError("[MLua] BBModel render object belongs to another runtime");
-            }
-            return animVal;
-         }
-         MLuaAnimation anim;
-         if (animVal.istable()) {
-            LuaTable animTable = animVal.checktable();
-            LuaValue animClass = animTable.get("__class");
-            if ("Animation".equals(animClass.tojstring())) {
-               LuaValue getKeyframes = animTable.get("GetKeyframes");
-               if (getKeyframes.isfunction()) {
-                  LuaValue kfResult = getKeyframes.call();
-                  if (kfResult.istable()) {
-                     anim = MLuaAnimation.fromLuaTable(kfResult.checktable());
-                  } else {
-                     throw new LuaError("[MLua] Animation:GetKeyframes() must return a keyframe table");
-                  }
-               } else {
-                  throw new LuaError("[MLua] Invalid Animation object - missing GetKeyframes");
-               }
-            } else {
-               anim = MLuaAnimation.fromLuaTable(animTable);
-            }
-         } else {
-            throw new LuaError("[MLua] LoadAnimation expects an Animation or keyframe table");
-         }
-         LuaValue priorityVal = args.arg(3);
-         dev.mlua.common.enums.AnimationPriority priority = dev.mlua.common.enums.AnimationPriority.Idle;
-         if (!priorityVal.isnil()) {
-            if (priorityVal.istable()) {
-               priority = dev.mlua.modules.enums.MLuaEnumValue.toJava(
-                  priorityVal, dev.mlua.common.enums.AnimationPriority.class);
-               if (priority == null) {
-                  throw new LuaError("[MLua] LoadAnimation priority must be an Animation.AnimationPriority value.");
-               }
-            } else if (priorityVal.isstring()) {
-               try {
-                  priority = dev.mlua.common.enums.AnimationPriority.valueOf(priorityVal.tojstring());
-               } catch (IllegalArgumentException e) {
-                  throw new LuaError("[MLua] Unknown AnimationPriority: " + priorityVal.tojstring());
-               }
-            } else {
-               throw new LuaError("[MLua] LoadAnimation priority must be an AnimationPriority value or name.");
-            }
-         }
-         float fadeTime = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
-               args, 4, 0.0f, "Entity:LoadAnimation", "fadeTime");
-         MLuaAnimationTrack track = MLuaAnimationController.loadAnimation(entity, anim, priority, registration);
-         if (fadeTime > 0.001f) {
-            track.setFadeSpeed(1.0f / fadeTime);
-            track.fadeTo(1.0f);
-         }
-         return MLuaAnimationBindings.wrapTrack(track, registration);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "ResetAnimation", luaFn(() -> {
-         MLuaClientRenderManager.resetEntityModel(entity);
-         MLuaAnimationController.stopAll(entity, registration);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "LoadModel", table.get("LoadAnimation"));
-      MLuaClassMethods.setInstanceMethod(table, "ResetModel", table.get("ResetAnimation"));
-      MLuaClassMethods.setInstanceMethod(table, "PlayAnimation", varArg((args) -> {
-         String name = args.checkjstring(2);
-         MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "Entity:PlayAnimation");
-         MLuaClientRenderManager.playEntityAnimation(entity, name, options.loop(), options.speed());
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "StopAnimation", luaFn(() -> {
-         MLuaClientRenderManager.stopEntityAnimation(entity);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetPlayingAnimationTracks", luaFn(() -> {
-         LuaTable result = new LuaTable();
-         int i = 1;
-         for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
-            if (track.isPlaying()) result.set(i++, MLuaAnimationBindings.wrapTrack(track, registration));
-         }
-         return result;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetAnimationTracks", luaFn(() -> {
-         LuaTable result = new LuaTable();
-         int i = 1;
-         for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
-            result.set(i++, MLuaAnimationBindings.wrapTrack(track, registration));
-         }
-         return result;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "StopAllAnimations", luaFn(() -> {
-         MLuaAnimationController.stopAll(entity, registration);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetAnimator", luaFn(() -> {
-         if (registration.classTable("Animator") == null) {
-            throw new LuaError("[MLua] Entity:GetAnimator is available in client scripts only.");
-         }
-         return MLuaAnimationBindings.wrapAnimator(table, registration);
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "SetBonePose", varArg((args) -> {
-         String bone = args.checkjstring(2);
-         MLuaBonePose.setPose(entity, bone, MLuaCFrame.fromLua(args.arg(3)), registration);
-         return LuaValue.NONE;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetBonePose", varArg((args) -> {
-         MLuaCFrame pose = MLuaBonePose.getBonePose(entity, args.checkjstring(2), registration);
-         return pose != null ? pose.toLua() : LuaValue.NIL;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "GetBonePoses", luaFn(() -> {
-         LuaTable poses = new LuaTable();
-         for (Map.Entry<String, MLuaCFrame> entry : MLuaBonePose.getPose(entity, registration).entrySet()) {
-            poses.set(entry.getKey(), entry.getValue().toLua());
-         }
-         return poses;
-      }));
-      MLuaClassMethods.setInstanceMethod(table, "ClearBonePose", varArg((args) -> {
-         if (args.narg() >= 2 && !args.arg(2).isnil()) {
-            MLuaBonePose.clearBonePose(entity, args.checkjstring(2), registration);
-         } else {
-            MLuaBonePose.clearPose(entity, registration);
-         }
-         return LuaValue.NONE;
-      }));
+      MLuaAnimationBindings.bindEntityMethods(table, entity, registration);
       if (entity instanceof MLuaScriptedEntity scripted) scripted.attachLuaClass(table, registration);
       return attachEntityProperties(table);
    }

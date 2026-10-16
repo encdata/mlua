@@ -7,8 +7,15 @@ import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaAnimation;
 import dev.mlua.minecraft.animation.MLuaAnimationTrack;
 import dev.mlua.minecraft.animation.MLuaAnimationController;
+import dev.mlua.minecraft.animation.MLuaAnimationOptions;
+import dev.mlua.minecraft.animation.MLuaBonePose;
+import dev.mlua.core.MLuaRuntime;
+import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.modules.enums.MLuaEnumValue;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import net.minecraft.world.entity.LivingEntity;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -20,6 +27,149 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 public final class MLuaAnimationBindings {
 
     private MLuaAnimationBindings() {}
+
+    /** Binds the entity-facing animation API alongside the entity's other living methods. */
+    public static void bindEntityMethods(LuaTable table, LivingEntity entity, MLuaRegistration registration) {
+        MLuaClassMethods.setInstanceMethod(table, "LoadAnimation", varArg(args -> {
+            LuaValue animValue = args.arg(2);
+            if (animValue.istable() && animValue.checktable().get("__bbmodel").toboolean()) {
+                LuaTable model = animValue.checktable();
+                int renderId = model.get("Id").checkint();
+                Object runtimeOwner = registration instanceof MLuaRuntime runtime ? runtime.session() : null;
+                var owner = new dev.mlua.runtime.client.MLuaRenderOwnershipRegistry.Owner(
+                    runtimeOwner, model.get("__mluaOwnerModId").optjstring(""));
+                if (!MLuaClientRenderManager.attachToEntity(renderId, entity, owner)) {
+                    throw new LuaError("[MLua] BBModel render object belongs to another runtime");
+                }
+                return animValue;
+            }
+
+            MLuaAnimation animation;
+            if (animValue.istable()) {
+                LuaTable animationTable = animValue.checktable();
+                if ("Animation".equals(animationTable.get("__class").tojstring())) {
+                    LuaValue getKeyframes = animationTable.get("GetKeyframes");
+                    if (!getKeyframes.isfunction()) {
+                        throw new LuaError("[MLua] Invalid Animation object - missing GetKeyframes");
+                    }
+                    LuaValue keyframes = getKeyframes.call();
+                    if (!keyframes.istable()) {
+                        throw new LuaError("[MLua] Animation:GetKeyframes() must return a keyframe table");
+                    }
+                    animation = MLuaAnimation.fromLuaTable(keyframes.checktable());
+                } else {
+                    animation = MLuaAnimation.fromLuaTable(animationTable);
+                }
+            } else {
+                throw new LuaError("[MLua] LoadAnimation expects an Animation or keyframe table");
+            }
+
+            AnimationPriority priority = AnimationPriority.Idle;
+            LuaValue priorityValue = args.arg(3);
+            if (!priorityValue.isnil()) {
+                if (priorityValue.istable()) {
+                    priority = MLuaEnumValue.toJava(priorityValue, AnimationPriority.class);
+                    if (priority == null) {
+                        throw new LuaError("[MLua] LoadAnimation priority must be an Animation.AnimationPriority value.");
+                    }
+                } else if (priorityValue.isstring()) {
+                    try {
+                        priority = AnimationPriority.valueOf(priorityValue.tojstring());
+                    } catch (IllegalArgumentException error) {
+                        throw new LuaError("[MLua] Unknown AnimationPriority: " + priorityValue.tojstring());
+                    }
+                } else {
+                    throw new LuaError("[MLua] LoadAnimation priority must be an AnimationPriority value or name.");
+                }
+            }
+            float fadeTime = MLuaLuaArguments.optionalNonNegativeFiniteFloat(
+                args, 4, 0.0f, "Entity:LoadAnimation", "fadeTime");
+            MLuaAnimationTrack track = MLuaAnimationController.loadAnimation(entity, animation, priority, registration);
+            if (fadeTime > 0.001f) {
+                track.setFadeSpeed(1.0f / fadeTime);
+                track.fadeTo(1.0f);
+            }
+            return wrapTrack(track, registration);
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "ResetAnimation", luaFn(() -> {
+            MLuaClientRenderManager.resetEntityModel(entity);
+            MLuaAnimationController.stopAll(entity, registration);
+            return LuaValue.NONE;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "LoadModel", table.get("LoadAnimation"));
+        MLuaClassMethods.setInstanceMethod(table, "ResetModel", table.get("ResetAnimation"));
+        MLuaClassMethods.setInstanceMethod(table, "PlayAnimation", varArg(args -> {
+            String name = args.checkjstring(2);
+            MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "Entity:PlayAnimation");
+            MLuaClientRenderManager.playEntityAnimation(entity, name, options.loop(), options.speed());
+            return LuaValue.NONE;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "StopAnimation", luaFn(() -> {
+            MLuaClientRenderManager.stopEntityAnimation(entity);
+            return LuaValue.NONE;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "GetPlayingAnimationTracks", luaFn(() -> {
+            LuaTable tracks = new LuaTable();
+            int index = 1;
+            for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
+                if (track.isPlaying()) tracks.set(index++, wrapTrack(track, registration));
+            }
+            return tracks;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "GetAnimationTracks", luaFn(() -> {
+            LuaTable tracks = new LuaTable();
+            int index = 1;
+            for (MLuaAnimationTrack track : MLuaAnimationController.getTracks(entity, registration)) {
+                tracks.set(index++, wrapTrack(track, registration));
+            }
+            return tracks;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "StopAllAnimations", luaFn(() -> {
+            MLuaAnimationController.stopAll(entity, registration);
+            return LuaValue.NONE;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "GetAnimator", luaFn(() -> {
+            if (registration.classTable("Animator") == null) {
+                throw new LuaError("[MLua] Entity:GetAnimator is available in client scripts only.");
+            }
+            return wrapAnimator(table, registration);
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "SetBonePose", varArg(args -> {
+            MLuaBonePose.setPose(entity, args.checkjstring(2), MLuaCFrame.fromLua(args.arg(3)), registration);
+            return LuaValue.NONE;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "GetBonePose", varArg(args -> {
+            MLuaCFrame pose = MLuaBonePose.getBonePose(entity, args.checkjstring(2), registration);
+            return pose == null ? LuaValue.NIL : pose.toLua();
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "GetBonePoses", luaFn(() -> {
+            LuaTable poses = new LuaTable();
+            for (Map.Entry<String, MLuaCFrame> entry : MLuaBonePose.getPose(entity, registration).entrySet()) {
+                poses.set(entry.getKey(), entry.getValue().toLua());
+            }
+            return poses;
+        }));
+        MLuaClassMethods.setInstanceMethod(table, "ClearBonePose", varArg(args -> {
+            if (args.narg() >= 2 && !args.arg(2).isnil()) {
+                MLuaBonePose.clearBonePose(entity, args.checkjstring(2), registration);
+            } else {
+                MLuaBonePose.clearPose(entity, registration);
+            }
+            return LuaValue.NONE;
+        }));
+    }
+
+    private static LuaValue luaFn(Supplier<LuaValue> function) {
+        return new ZeroArgFunction() {
+            @Override public LuaValue call() { return function.get(); }
+        };
+    }
+
+    private static LuaValue varArg(Function<Varargs, LuaValue> function) {
+        return new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return function.apply(args); }
+        };
+    }
 
     public static void ensureRegisteredClasses(MLuaRegistration registration) {
         java.util.Objects.requireNonNull(registration, "registration");
