@@ -151,6 +151,7 @@ public class RegistryModule implements MLuaModule {
         globals.set("ScriptedEntity", registration.classTable("ScriptedEntity"));
         globals.set("RegistryEntry", registration.classTable("RegistryEntry"));
         globals.set("ContainerType", registration.classTable("ContainerType"));
+        globals.set("RegistryCategory", registration.classTable("RegistryCategory"));
         MLuaItemWrapper.attachCatalogs(itemGlobal, items);
     }
 
@@ -219,7 +220,7 @@ public class RegistryModule implements MLuaModule {
                 "services/registry.html"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Register a reusable container type",
                 "Register the layout once and keep its ContainerType instance. Its properties expose the namespaced id, row and slot counts, title, and allowed item ids. Reference the type from a scripted block with its id; an empty or omitted allowedItems list accepts every item. Lua-style lower-camel fields are canonical; Rows, Title, and AllowedItems are accepted aliases.",
-                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal crate = Registry.Containers:Register(\"supply_crate\", {\n    rows = 3,\n    title = \"Supply Crate\",\n    allowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})\n\nprint(crate.Id, crate.SlotCount, crate.AllowedItems[1])\nlocal registered = Registry.Containers:Get(crate.Id)"));
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal crate = Registry.Containers:Register(\"supply_crate\", {\n    rows = 3,\n    title = \"Supply Crate\",\n    allowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})\n\nprint(crate.Id, crate.SlotCount, crate.AllowedItems[1])\nprint(crate:AllowsItem(\"minecraft:torch\"))\nlocal registered = Registry.Containers:Get(crate.Id)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Attach the registered type to a block",
                 "The block definition stores the container type id. On interaction, MLua opens the vanilla container screen; the type sets its row count, title, and item rule. Add an onRightClick callback only when you need custom server logic before it opens.",
                 "Registry.Blocks:Register(\"supply_crate_block\", {\n    strength = 2,\n    container = crate.Id,\n})"));
