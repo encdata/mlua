@@ -42,50 +42,29 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(id);
       if (adv == null) return LuaValue.NIL;
-      LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
       var raw = ((MCAdvancementImpl)adv).inner();
-      info.set("Id", LuaValue.valueOf(raw.getId().toString()));
-      if (raw.getDisplay() != null) {
-         info.set("Title", LuaValue.valueOf(raw.getDisplay().getTitle().getString()));
-         info.set("Description", LuaValue.valueOf(raw.getDisplay().getDescription().getString()));
-      } else {
-         info.set("Title", LuaValue.valueOf(""));
-         info.set("Description", LuaValue.valueOf(""));
-      }
-      info.set("Parent", raw.getParent() != null ? LuaValue.valueOf(raw.getParent().getId().toString()) : LuaValue.NIL);
-      LuaTable requirements = new LuaTable();
+      var display = raw.getDisplay();
+      java.util.List<java.util.List<String>> groups = new java.util.ArrayList<>();
       String[][] reqs = raw.getRequirements();
       if (reqs != null) {
-         for (int i = 0; i < reqs.length; i++) {
-            LuaTable group = new LuaTable();
-            for (int j = 0; j < reqs[i].length; j++) group.set(j + 1, LuaValue.valueOf(reqs[i][j]));
-            requirements.set(i + 1, group);
-         }
+         for (String[] requirement : reqs) groups.add(java.util.Arrays.asList(requirement));
       }
-      info.set("Requirements", requirements);
-      return info;
+      return this.advancementInfo(raw.getId().toString(),
+         display == null ? "" : display.getTitle().getString(),
+         display == null ? "" : display.getDescription().getString(),
+         raw.getParent() == null ? LuaValue.NIL : LuaValue.valueOf(raw.getParent().getId().toString()), groups);
 //--endversion
 //--version 1.21.1,26.1
       var raw = this.resolveAdvancementHolder(id);
       if (raw == null) return LuaValue.NIL;
-      LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
-      info.set("Id", LuaValue.valueOf(MLuaResourceLocations.parse(id).toString()));
       var display = raw.display().orElse(null);
-      info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
-      info.set("Description", LuaValue.valueOf(display == null ? "" : display.getDescription().getString()));
-      info.set("Parent", raw.parent().isPresent()
-         ? LuaValue.valueOf(raw.parent().get().toString())
-         : LuaValue.NIL);
-      LuaTable requirements = new LuaTable();
+      java.util.List<java.util.List<String>> groups = new java.util.ArrayList<>();
       var reqs = raw.requirements().requirements();
-      for (int i = 0; i < reqs.size(); i++) {
-         LuaTable group = new LuaTable();
-         var requirementGroup = reqs.get(i);
-         for (int j = 0; j < requirementGroup.size(); j++) group.set(j + 1, LuaValue.valueOf(requirementGroup.get(j)));
-         requirements.set(i + 1, group);
-      }
-      info.set("Requirements", requirements);
-      return info;
+      for (var requirement : reqs) groups.add(java.util.List.copyOf(requirement));
+      return this.advancementInfo(MLuaResourceLocations.parse(id).toString(),
+         display == null ? "" : display.getTitle().getString(),
+         display == null ? "" : display.getDescription().getString(),
+         raw.parent().isPresent() ? LuaValue.valueOf(raw.parent().get().toString()) : LuaValue.NIL, groups);
 //--endversion
    }
 
@@ -286,49 +265,52 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
       advancements.sort(java.util.Comparator.comparing(advancement -> advancement.id().toString()));
 //--endversion
       for (var adv : advancements) {
-         LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
 //--version 1.20.1
-         info.set("Id", LuaValue.valueOf(adv.getId().toString()));
          var display = adv.getDisplay();
-         info.set("Title", LuaValue.valueOf(display == null ? "" : display.getTitle().getString()));
-         info.set("Description", LuaValue.valueOf(display == null ? "" : display.getDescription().getString()));
-         info.set("Parent", adv.getParent() == null ? LuaValue.NIL : LuaValue.valueOf(adv.getParent().getId().toString()));
-         LuaTable requirements = new LuaTable();
-         String[][] groups = adv.getRequirements();
-         if (groups != null) {
-            for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-               LuaTable group = new LuaTable();
-               for (int criterionIndex = 0; criterionIndex < groups[groupIndex].length; criterionIndex++) {
-                  group.set(criterionIndex + 1, LuaValue.valueOf(groups[groupIndex][criterionIndex]));
-               }
-               requirements.set(groupIndex + 1, group);
-            }
+         java.util.List<java.util.List<String>> groups = new java.util.ArrayList<>();
+         String[][] requirements = adv.getRequirements();
+         if (requirements != null) for (String[] requirement : requirements) {
+            groups.add(java.util.Arrays.asList(requirement));
          }
-         info.set("Requirements", requirements);
+         LuaTable info = this.advancementInfo(adv.getId().toString(),
+            display == null ? "" : display.getTitle().getString(),
+            display == null ? "" : display.getDescription().getString(),
+            adv.getParent() == null ? LuaValue.NIL : LuaValue.valueOf(adv.getParent().getId().toString()), groups);
 //--endversion
 //--version 1.21.1,26.1
-         info.set("Id", LuaValue.valueOf(adv.id().toString()));
          var advancement = adv.value();
          var display = advancement.display().orElse(null);
-         info.set("Title", LuaValue.valueOf(display != null ? display.getTitle().getString() : ""));
-         info.set("Description", LuaValue.valueOf(display != null ? display.getDescription().getString() : ""));
-         info.set("Parent", advancement.parent().isPresent()
-            ? LuaValue.valueOf(advancement.parent().get().toString()) : LuaValue.NIL);
-         LuaTable requirements = new LuaTable();
-         var groups = advancement.requirements().requirements();
-         for (int groupIndex = 0; groupIndex < groups.size(); groupIndex++) {
-            LuaTable group = new LuaTable();
-            var criteria = groups.get(groupIndex);
-            for (int criterionIndex = 0; criterionIndex < criteria.size(); criterionIndex++) {
-               group.set(criterionIndex + 1, LuaValue.valueOf(criteria.get(criterionIndex)));
-            }
-            requirements.set(groupIndex + 1, group);
-         }
-         info.set("Requirements", requirements);
+         java.util.List<java.util.List<String>> groups = new java.util.ArrayList<>();
+         var requirements = advancement.requirements().requirements();
+         for (var requirement : requirements) groups.add(java.util.List.copyOf(requirement));
+         LuaTable info = this.advancementInfo(adv.id().toString(),
+            display == null ? "" : display.getTitle().getString(),
+            display == null ? "" : display.getDescription().getString(),
+            advancement.parent().isPresent() ? LuaValue.valueOf(advancement.parent().get().toString()) : LuaValue.NIL, groups);
 //--endversion
          list.set(index++, info);
       }
       return list;
+   }
+
+   private LuaTable advancementInfo(String id, String title, String description, LuaValue parent,
+                                    java.util.List<java.util.List<String>> requirementGroups) {
+      LuaTable info = this.context.mlua().registration().createClassInstance("Advancement");
+      info.set("Id", LuaValue.valueOf(id));
+      info.set("Title", LuaValue.valueOf(title));
+      info.set("Description", LuaValue.valueOf(description));
+      info.set("Parent", parent);
+      LuaTable requirements = new LuaTable();
+      for (int groupIndex = 0; groupIndex < requirementGroups.size(); groupIndex++) {
+         LuaTable group = new LuaTable();
+         java.util.List<String> criteria = requirementGroups.get(groupIndex);
+         for (int criterionIndex = 0; criterionIndex < criteria.size(); criterionIndex++) {
+            group.set(criterionIndex + 1, LuaValue.valueOf(criteria.get(criterionIndex)));
+         }
+         requirements.set(groupIndex + 1, group);
+      }
+      info.set("Requirements", requirements);
+      return info;
    }
 
    private MCMinecraftServer server() {
