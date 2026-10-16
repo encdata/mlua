@@ -37,6 +37,7 @@ import dev.mlua.runtime.registry.MLuaTextureDescriptor;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
+import dev.mlua.minecraft.binding.MLuaContainerType;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
 import dev.mlua.minecraft.scripted.MLuaScriptedEntity;
@@ -391,9 +392,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.requireLocalRegistryName(MLuaRegistryService.this.context.mlua().ownerModId(),
                name, "Registry.Containers:Register");
             LuaTable definition = args.checktable(3);
-            int rows = MLuaLuaArguments.optionalWholeInt(definition.get("Rows"), 3,
+            int rows = MLuaLuaArguments.optionalWholeInt(containerProperty(definition, "rows", "Rows"), 3,
                "Registry.Containers:Register", "Rows");
-            String title = definition.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
+            LuaValue titleValue = containerProperty(definition, "title", "Title");
+            if (!titleValue.isnil() && !titleValue.isstring()) {
+               throw new LuaError("[MLua] Registry.Containers:Register title must be a string");
+            }
+            String title = titleValue.optjstring(MLuaRegistryNameHelper.displayName(name));
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String key = owner + ":" + name;
             MLuaBehaviorRegistry.ContainerDefinition container;
@@ -406,7 +411,45 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             }
             MLuaRegistryService.this.context.mlua().registration().trackRollback(() ->
                MLuaBehaviorRegistry.unregisterContainerType(key, container));
-            return LuaValue.NONE;
+            return MLuaContainerType.create(MLuaRegistryService.this.context.mlua().registration(), key, container);
+         }
+      });
+      containers.set("GetId", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return LuaValue.valueOf(MLuaRegistryService.this.registryId(args.checkjstring(2)));
+         }
+      });
+      containers.set("Get", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryService.this.containerType(
+               MLuaRegistryService.this.registryId(args.checkjstring(2)));
+         }
+      });
+      containers.set("GetAll", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaTable result = new LuaTable();
+            String namespace = optionalNamespace(args.arg(2));
+            MLuaBehaviorRegistry.getContainerTypes().entrySet().stream()
+               .filter(entry -> namespace == null || entry.getKey().startsWith(namespace + ":"))
+               .sorted(Map.Entry.comparingByKey())
+               .forEach(entry -> result.set(entry.getKey(), MLuaContainerType.create(
+                  MLuaRegistryService.this.context.mlua().registration(), entry.getKey(), entry.getValue())));
+            return result;
+         }
+      });
+      containers.set("GetIds", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            String namespace = optionalNamespace(args.arg(2));
+            List<String> ids = MLuaBehaviorRegistry.getContainerTypes().keySet().stream()
+               .filter(id -> namespace == null || id.startsWith(namespace + ":"))
+               .sorted().toList();
+            return stringArray(ids);
+         }
+      });
+      containers.set("Exists", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            String id = MLuaRegistryService.this.registryId(args.checkjstring(2));
+            return LuaValue.valueOf(MLuaBehaviorRegistry.getContainerType(id) != null);
          }
       });
       items.set("Register", new VarArgFunction() {
@@ -489,9 +532,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                if (!containerValue.isnil()) {
                   if (containerValue.istable()) {
                      LuaTable containerTable = containerValue.checktable();
-                     int rows = MLuaLuaArguments.optionalWholeInt(containerTable.get("Rows"), 3,
+                     int rows = MLuaLuaArguments.optionalWholeInt(containerProperty(containerTable, "rows", "Rows"), 3,
                         "Registry.Blocks:Register", "container.Rows");
-                     String title = containerTable.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
+                     LuaValue titleValue = containerProperty(containerTable, "title", "Title");
+                     if (!titleValue.isnil() && !titleValue.isstring()) {
+                        throw new LuaError("[MLua] Registry.Blocks:Register container.title must be a string");
+                     }
+                     String title = titleValue.optjstring(MLuaRegistryNameHelper.displayName(name));
                      try {
                         requestedContainer = MLuaBehaviorRegistry.validateContainerDefinition(
                            new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
@@ -1313,6 +1360,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
        }
        documentRegistryTable(table, "Registry");
        documentRegistryTable(contentTypes, "ContentTypes");
+      Map<String, String> containerDescriptions = new java.util.LinkedHashMap<>(METHOD_DESCRIPTIONS);
+      containerDescriptions.put("Register", "Registers a reusable container layout and returns its ContainerType instance.");
+      containerDescriptions.put("Get", "Returns the registered ContainerType for an id, or nil when it is unknown.");
+      containerDescriptions.put("GetAll", "Returns registered ContainerType instances keyed by namespaced id, optionally filtered by namespace.");
+      containerDescriptions.put("GetIds", "Returns sorted container type ids, optionally filtered by namespace.");
+      containerDescriptions.put("Exists", "Checks whether a container type id is registered.");
+      MLuaServiceMetadata.attachMethodDescriptions(containers, containerDescriptions);
       describeRegistryMethod(items, "Register", "Registers an item with this addon's namespace and returns its live RegistryEntry key.");
       describeRegistryMethod(blocks, "Register", "Registers a block and returns its live RegistryEntry key.");
       describeRegistryMethod(blocks, "RegisterItem", "Registers the block's item form and returns its live item RegistryEntry key.");
@@ -1384,6 +1438,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaValue metadata = target.rawget("__mlua_doc_methods");
       if (!metadata.istable() || !target.get(method).isfunction()) return;
       metadata.checktable().rawset(method, LuaValue.valueOf(description));
+   }
+
+   private LuaValue containerType(String id) {
+      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getContainerType(id);
+      if (definition == null) return LuaValue.NIL;
+      return MLuaContainerType.create(this.context.mlua().registration(), id, definition);
    }
 
    private Object projectileRuntimeOwner() {
@@ -2607,9 +2667,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private static java.util.Set<String> containerAllowedItems(String owner, LuaTable definition) {
-      LuaValue items = definition.get("AllowedItems");
-      if (items.isnil()) items = definition.get("allowedItems");
+      LuaValue items = containerProperty(definition, "allowedItems", "AllowedItems");
       if (items.isnil()) return java.util.Set.of();
+      if (items.istable() && items.checktable().length() == 0) return java.util.Set.of();
       java.util.LinkedHashSet<String> resolved = new java.util.LinkedHashSet<>();
       for (String item : stringValues(items, "Container AllowedItems")) {
          String candidate = item.trim();
@@ -2618,6 +2678,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          resolved.add(parsed.toString());
       }
       return java.util.Set.copyOf(resolved);
+   }
+
+   private static LuaValue containerProperty(LuaTable definition, String... aliases) {
+      LuaValue selected = LuaValue.NIL;
+      String selectedName = null;
+      for (String alias : aliases) {
+         LuaValue value = definition.get(alias);
+         if (value.isnil()) continue;
+         if (selectedName != null) {
+            throw new LuaError("[MLua] Container properties '" + selectedName + "' and '" + alias
+               + "' are aliases; provide only one.");
+         }
+         selected = value;
+         selectedName = alias;
+      }
+      return selected;
    }
 
    private static String qualifiedDataId(String owner, String value, boolean tag) {

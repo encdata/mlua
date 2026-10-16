@@ -193,6 +193,10 @@ public final class MLuaBehaviorRegistry {
 
    public static ContainerDefinition getContainerType(String key) { return CONTAINER_TYPES.get(key); }
 
+   public static Map<String, ContainerDefinition> getContainerTypes() {
+      return Map.copyOf(CONTAINER_TYPES);
+   }
+
    public static boolean unregisterContainerType(String key, ContainerDefinition expected) {
       return removeContainer(CONTAINER_TYPES, key, expected);
    }

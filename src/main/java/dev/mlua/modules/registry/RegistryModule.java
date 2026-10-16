@@ -7,6 +7,7 @@ import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaRegistryCatalogs;
 import dev.mlua.minecraft.binding.MLuaRegistryEntry;
+import dev.mlua.minecraft.binding.MLuaContainerType;
 import dev.mlua.minecraft.binding.MLuaTextureBindings;
 import dev.mlua.modules.registry.Service.MLuaRegistryService;
 import dev.mlua.runtime.registry.MLuaContentTypeRegistry;
@@ -89,6 +90,7 @@ public class RegistryModule implements MLuaModule {
             "The registered content key that selects this scripted mob's behavior definition.");
         MLuaBlockWrapper.classTable(registration);
         MLuaRegistryEntry.registerClass(registration);
+        MLuaContainerType.registerClass(registration);
     }
 
     @Override
@@ -103,6 +105,7 @@ public class RegistryModule implements MLuaModule {
         globals.set("Texture", MLuaTextureBindings.textureGlobal());
         globals.set("ScriptedEntity", registration.classTable("ScriptedEntity"));
         globals.set("RegistryEntry", registration.classTable("RegistryEntry"));
+        globals.set("ContainerType", registration.classTable("ContainerType"));
         MLuaItemWrapper.attachCatalogs(itemGlobal, items);
     }
 
@@ -155,8 +158,11 @@ public class RegistryModule implements MLuaModule {
                 "Registers addon content, generated data pack resources, Minecraft registry entries, and reusable inherited content types.",
                 "services/registry.html"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Register a reusable container type",
-                "Set chest rows and a title once, then reference the type from any scripted block. AllowedItems accepts item ids; an empty or omitted list accepts every item.",
-                "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry.Containers:Register(\"supply_crate\", {\n    Rows = 3,\n    Title = \"Supply Crate\",\n    AllowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})"));
+                "Register the layout once and keep its ContainerType instance. Its properties expose the namespaced id, row and slot counts, title, and allowed item ids. Reference the type from a scripted block with its id; an empty or omitted allowedItems list accepts every item. Lua-style lower-camel fields are canonical; Rows, Title, and AllowedItems are accepted aliases.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal crate = Registry.Containers:Register(\"supply_crate\", {\n    rows = 3,\n    title = \"Supply Crate\",\n    allowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})\n\nprint(crate.Id, crate.SlotCount, crate.AllowedItems[1])\nlocal registered = Registry.Containers:Get(crate.Id)"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Attach the registered type to a block",
+                "The block definition stores the container type id. On interaction, MLua opens the vanilla container screen; the type sets its row count, title, and item rule. Add an onRightClick callback only when you need custom server logic before it opens.",
+                "Registry.Blocks:Register(\"supply_crate_block\", {\n    strength = 2,\n    container = crate.Id,\n})"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Blocks", "Register a block and its item",
                 "Register the block first, then register its item form. Each call returns a RegistryEntry key you can keep for later lookup or to check registration state. The block definition accepts Minecraft block properties and scripted callbacks; the item definition accepts stack, durability, food, rarity, and item callbacks.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal block = Registry.Blocks:Register(\"signal_block\", {\n    strength = 3,\n    resistance = 6,\n    sound = \"stone\",\n    mapColor = \"stone\",\n    requiresCorrectTool = true,\n    onRightClick = function(context)\n        context.Player:SendMessage(\"The block answers with a quiet hum.\")\n        return true\n    end,\n})\n\nlocal item = Registry.Blocks:RegisterItem(\"signal_block\", {\n    maxStackSize = 16,\n    rarity = \"uncommon\",\n    description = \"A block that listens for a signal.\",\n})\n\nprint(block.Id, item.Id)\nprint(table.concat(Registry.Blocks:GetSounds(), \", \"))\nprint(table.concat(Registry.Items:GetRarities(), \", \"))"));
@@ -281,6 +287,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("RegistryEntry", "MLuaRegistryEntry",
                 "A live view of a namespaced key in one of MLua's supported Minecraft registries.",
                 "classes/registry-entry.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("ContainerType", "MLuaContainerType",
+                "A registered, reusable container layout with a namespaced id, title, row count, and item rules.",
+                "classes/container-type.html", "Instance"));
     }
 
     private static void contributeDefinitionSchemas(MLuaDocBuilder docs) {
@@ -416,6 +425,10 @@ public class RegistryModule implements MLuaModule {
         schema(docs, "WorldGenerationFeatureDefinition", "Adds one registered placed feature to selected biomes.",
             "feature", "string", "Placed feature identifier.", "biomes", "string|string[]", "Biome identifiers or #tag selectors.",
             "step", "Enum.GenerationStep.Decoration|string", "Native Minecraft decoration step enum or its name as a string.");
+        schema(docs, "ContainerDefinition", "Reusable inventory layout and optional item restrictions for a scripted block container.",
+            "rows?", "whole number (1–6)", "Number of nine-slot rows in the container; defaults to 3. Rows is an accepted alias.",
+            "title?", "string", "Title shown when a player opens the container; defaults to a display name based on its id. Title is an accepted alias.",
+            "allowedItems?", "string|string[]", "Allowed item ids. Omit this field or pass an empty array to allow every item. AllowedItems is an accepted alias.");
         schema(docs, "SpawnEggDefinition", "Appearance and item callbacks for a registered entity spawn egg.",
             "entity?", "string", "Valid namespaced entity type identifier spawned by the egg.", "primaryColor?", "integer", "Primary egg color from 0 to 16777215.",
             "secondaryColor?", "integer", "Secondary egg color from 0 to 16777215.", "description?", "string|string[]", "Tooltip description lines.",
@@ -490,6 +503,18 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Register(id: string, definition: ContainerDefinition)", "ContainerType"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetId(name: string)", "string"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Get(id: string)", "ContainerType|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetAll(namespace?: string)", "table<string, ContainerType>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetIds(namespace?: string)", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Exists(id: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetId()", "string"));
+        docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetRows()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetSlotCount()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetTitle()", "string"));
+        docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetAllowedItems()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:AllowsAllItems()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Register(id: string, props: EntityDefinition)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:RegisterSpawnEgg(id: string, props: SpawnEggDefinition)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Get(name: string)", "RegistryEntry"));
