@@ -24,9 +24,7 @@ public final class MLuaHumanoidPoseApplier {
         Map<String, String> adapter = MLuaModelAdapterRegistry.findMapping(self.getClass());
         java.util.Set<String> adapterBones = adapter == null ? java.util.Set.of() : adapter.keySet();
         Map<String, MLuaCFrame> pose = MLuaBonePose.getPose(scope);
-        if (pose == null || pose.isEmpty()) {
-            return;
-        }
+        if (pose == null) pose = Map.of();
         if (!adapterBones.isEmpty()) {
             Map<String, MLuaCFrame> remaining = new java.util.HashMap<>(pose);
             for (String bone : adapterBones) remaining.remove(bone);
