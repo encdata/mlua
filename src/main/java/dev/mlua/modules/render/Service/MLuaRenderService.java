@@ -829,6 +829,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         instance.rawset(OBJECT_ID, LuaValue.valueOf(id));
         instance.rawset(OBJECT_OPERATIONS, operations);
         LuaTable handle = context.mlua().registration().attachClassInstance(instance, requireObject(id).luaClassName(), null);
+        // Keep the immutable primitive query directly on the instance. It remains usable after
+        // destruction and avoids resolving the value through a mutable render manager handle.
+        handle.rawset("GetRenderType", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return renderTypeValue; }
+        });
         objectHandles.put(id, new ObjectHandleReference(id, handle, collectedObjectHandles));
         return handle;
     }
