@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.runtime.client.MLuaRenderCallbacks;
+import dev.mlua.runtime.client.MLuaRenderStateEntityResolver;
 import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;

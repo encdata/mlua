@@ -3,14 +3,22 @@ package dev.mlua.runtime.client.model;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.ScriptRootRef;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class MLuaBBModelLoader {
-   private static final Map<Path, CachedAsset> CACHE = new ConcurrentHashMap<>();
+   private static final int MAX_MODEL_BYTES = 8 * 1024 * 1024;
+   private static final int MAX_ANIMATION_BYTES = 8 * 1024 * 1024;
+   private static final int MAX_CACHED_ASSETS = 64;
+   private static final long MAX_CACHED_SOURCE_BYTES = 16L * 1024L * 1024L;
+   private static final LinkedHashMap<Path, CachedAsset> CACHE = new LinkedHashMap<>(16, 0.75F, true);
+   private static long cachedSourceBytes;
    private MLuaBBModelLoader() { }
 
    public static MLuaBBModelAsset load(String path) throws IOException {
@@ -31,17 +39,33 @@ public final class MLuaBBModelLoader {
 
    public static Map<String, MLuaBBModelAsset.Animation> loadAnimations(String path) throws IOException {
       Path file = resolve(path);
-      return MLuaBBModelAsset.parseAnimations(Files.readString(file, StandardCharsets.UTF_8));
+      return MLuaBBModelAsset.parseAnimations(readLimited(file, MAX_ANIMATION_BYTES));
    }
 
-   private static MLuaBBModelAsset cached(Path path) throws IOException {
+   private static synchronized MLuaBBModelAsset cached(Path path) throws IOException {
       Path normalized = path.toAbsolutePath().normalize();
-      long modified = Files.getLastModifiedTime(normalized).toMillis();
+      FileTime modified = Files.getLastModifiedTime(normalized);
+      long size = Files.size(normalized);
+      if (size > MAX_MODEL_BYTES) throw new IOException("[MLua] Blockbench model exceeds the 8 MiB source limit: " + normalized.getFileName());
       CachedAsset cached = CACHE.get(normalized);
-      if (cached != null && cached.modified == modified) return cached.asset;
+      if (cached != null && cached.modified == modified && cached.size == size) return cached.asset;
       MLuaBBModelAsset asset = parse(normalized);
-      CACHE.put(normalized, new CachedAsset(modified, asset));
+      if (cached != null) cachedSourceBytes -= cached.size;
+      CachedAsset replacement = new CachedAsset(modified, size, asset);
+      CACHE.put(normalized, replacement);
+      cachedSourceBytes += size;
+      trimCache();
       return asset;
+   }
+
+   private static void trimCache() {
+      Iterator<Map.Entry<Path, CachedAsset>> iterator = CACHE.entrySet().iterator();
+      while ((CACHE.size() > MAX_CACHED_ASSETS || cachedSourceBytes > MAX_CACHED_SOURCE_BYTES)
+            && iterator.hasNext()) {
+         Map.Entry<Path, CachedAsset> eldest = iterator.next();
+         cachedSourceBytes -= eldest.getValue().size;
+         iterator.remove();
+      }
    }
 
    private static Path resolve(String path) throws IOException {
@@ -59,8 +83,22 @@ public final class MLuaBBModelLoader {
    }
 
    private static MLuaBBModelAsset parse(Path path) throws IOException {
-      return MLuaBBModelAsset.parse(Files.readString(path, StandardCharsets.UTF_8));
+      return MLuaBBModelAsset.parse(readLimited(path, MAX_MODEL_BYTES));
    }
 
-   private record CachedAsset(long modified, MLuaBBModelAsset asset) { }
+   private static String readLimited(Path path, int maximumBytes) throws IOException {
+      long size = Files.size(path);
+      if (size > maximumBytes) throw new IOException("[MLua] Blockbench asset exceeds the "
+         + (maximumBytes / (1024 * 1024)) + " MiB source limit: " + path.getFileName());
+      try (InputStream input = Files.newInputStream(path)) {
+         byte[] bytes = input.readNBytes(maximumBytes + 1);
+         if (bytes.length > maximumBytes) {
+            throw new IOException("[MLua] Blockbench asset exceeds the "
+               + (maximumBytes / (1024 * 1024)) + " MiB source limit: " + path.getFileName());
+         }
+         return new String(bytes, StandardCharsets.UTF_8);
+      }
+   }
+
+   private record CachedAsset(FileTime modified, long size, MLuaBBModelAsset asset) { }
 }

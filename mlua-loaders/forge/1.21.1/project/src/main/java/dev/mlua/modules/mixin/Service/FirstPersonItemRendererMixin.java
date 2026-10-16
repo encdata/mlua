@@ -1,6 +1,7 @@
 package dev.mlua.mixin;
 
 import dev.mlua.minecraft.client.MLuaCameraController;
+import dev.mlua.runtime.client.MLuaRenderCallbacks;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -28,5 +29,7 @@ public abstract class FirstPersonItemRendererMixin {
         InteractionHand hand, float swingProgress, ItemStack stack, float equipProgress,
         PoseStack poseStack, MultiBufferSource buffers, int light, CallbackInfo callbackInfo) {
         MLuaCameraController.applyFirstPersonHandOffset(poseStack, player, hand, partialTick);
+        MLuaRenderCallbacks.renderFirstPersonItem(player, hand, stack, poseStack, buffers,
+            partialTick, pitch, swingProgress, equipProgress, light);
     }
 }

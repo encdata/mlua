@@ -4,6 +4,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
+import dev.mlua.minecraft.binding.MLuaBiomeWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
@@ -131,8 +132,7 @@ public final class MLuaChunkWrapper {
             Level world = level(args.arg1());
             BlockPos pos = requirePosition(args, 2, args.arg1());
             if (!ensureLoaded(world, args.arg1())) return LuaValue.NIL;
-            ResourceLocation id = biomeId(world, pos);
-            return id == null ? LuaValue.NIL : LuaValue.valueOf(id.toString());
+            return MLuaBiomeWrapper.wrap(world.getBiome(pos), world, pos, registration);
         });
         bind(chunk, "GetFluidAt", args -> {
             Level world = level(args.arg1());

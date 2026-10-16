@@ -8,13 +8,14 @@ import dev.mlua.api.registry.MLuaRegistry;
 
 /** Shared, thread-safe storage for Java-provided item and block implementations. */
 public final class MLuaRegisteredTypeCatalog<T> {
+    public static final int MAX_REGISTERED_TYPES = 4_096;
     private final MLuaRegistry<Entry<T>> entries = new MLuaRegistry<>();
 
-    public void register(String name, String description, T implementation, String kind) {
+    public synchronized void register(String name, String description, T implementation, String kind) {
         this.register("mlua", name, description, implementation, kind);
     }
 
-    public void register(String owner, String name, String description, T implementation, String kind) {
+    public synchronized void register(String owner, String name, String description, T implementation, String kind) {
         String key = normalizeName(name, kind);
         if (owner == null || owner.isBlank()) {
             throw new IllegalArgumentException("[MLua] " + kind + " type owner must be non-empty");
@@ -23,6 +24,12 @@ public final class MLuaRegisteredTypeCatalog<T> {
             throw new IllegalArgumentException("[MLua] " + kind + " type description must be non-empty");
         }
         Objects.requireNonNull(implementation, kind + " type implementation");
+        if (this.entries.contains(key)) {
+            throw new IllegalStateException("[MLua] " + kind + " type '" + key + "' is already registered");
+        }
+        if (this.entries.size() >= MAX_REGISTERED_TYPES) {
+            throw new IllegalStateException("[MLua] " + kind + " type limit reached (" + MAX_REGISTERED_TYPES + ")");
+        }
         Entry<T> entry = new Entry<>(description.trim(), implementation);
         if (!this.entries.register(owner.trim(), key, entry)) {
             throw new IllegalStateException("[MLua] " + kind + " type '" + key + "' is already registered");
@@ -39,13 +46,13 @@ public final class MLuaRegisteredTypeCatalog<T> {
         return this.entries.contains(normalizeName(name, kind));
     }
 
-    public boolean remove(String owner, String name, String kind) {
+    public synchronized boolean remove(String owner, String name, String kind) {
         String key = normalizeName(name, kind);
         if (owner == null || owner.isBlank()) return false;
         return this.entries.remove(owner.trim(), key);
     }
 
-    public int removeOwner(String owner) {
+    public synchronized int removeOwner(String owner) {
         return this.entries.removeOwner(owner);
     }
 

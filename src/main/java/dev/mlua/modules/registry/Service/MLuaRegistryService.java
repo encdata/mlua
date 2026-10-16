@@ -672,38 +672,24 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             if (blockState != null) {
                MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, blockState);
             }
-            if (propsTable != null) {
-               if (!propsTable.get("onRandomTick").isnil()) ((Map)props).put("randomTicks", true);
-
-               boolean hasBlockCallbacks = requestedContainer != null || !blockCallbacks.isEmpty();
-               if (hasBlockCallbacks) {
-                  MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
-                     return MLuaRegistryService.this.blockFactory.createScripted(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
-                  });
-                  MLuaRegistryService.this.updateVisualMetadata(RegistryKind.BLOCK, owner, name, previous ->
-                     new RegistryVisualMetadata(propsTable != null ? propsTable.get("copy").optjstring((String)null) : null,
-                        copyModel, MLuaRegistryService.descriptionList(propsTable), texture, model));
-                  MLuaRegistryService.this.registerMiningProperties(owner, name, mining);
-                  if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
-                  MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
-                  MLuaRegistryService.this.replaceBehaviors("block", key, blockCallbacks);
-                  MLuaRegistryService.this.registerContentClass("block_entity", key,
-                     "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
-                  MLuaRegistryService.this.registerContentClass("block", key, "Block".equals(className) ? null : className);
-                  return MLuaRegistryService.this.registryEntry(RegistryKind.BLOCK, owner, name);
-               }
+            if (propsTable != null && !propsTable.get("onRandomTick").isnil()) {
+               ((Map)props).put("randomTicks", true);
             }
-
+            boolean scripted = requestedContainer != null || !blockCallbacks.isEmpty();
             MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
-               return MLuaRegistryService.this.blockFactory.create(props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
+               return scripted
+                  ? MLuaRegistryService.this.blockFactory.createScripted(
+                     props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner))
+                  : MLuaRegistryService.this.blockFactory.create(
+                     props, key, MLuaLoaderRegistry.visualBlockEntitySupplier(owner));
             });
             MLuaRegistryService.this.updateVisualMetadata(RegistryKind.BLOCK, owner, name, previous ->
                new RegistryVisualMetadata(propsTable != null ? propsTable.get("copy").optjstring((String)null) : null,
                   copyModel, MLuaRegistryService.descriptionList(propsTable), texture, model));
             MLuaRegistryService.this.registerMiningProperties(owner, name, mining);
-            if (requestedContainer != null) MLuaRegistryService.this.registerBlockContainer(registration, key, requestedContainer);
+            MLuaRegistryService.this.replaceBlockContainer(registration, key, requestedContainer);
             MLuaRegistryService.this.replaceBehaviors("block_entity", key, blockEntityCallbacks);
-            MLuaRegistryService.this.replaceBehaviors("block", key, Map.of());
+            MLuaRegistryService.this.replaceBehaviors("block", key, blockCallbacks);
             MLuaRegistryService.this.registerContentClass("block_entity", key,
                "BlockEntity".equals(blockEntityClass) ? null : blockEntityClass);
             MLuaRegistryService.this.registerContentClass("block", key, "Block".equals(className) ? null : className);
@@ -2240,19 +2226,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          MLuaBehaviorRegistry.restoreEntityAIInterval(key, expected, previous));
    }
 
-   private void registerBlockContainer(dev.mlua.module.MLuaRegistration registration, String key,
-                                       MLuaBehaviorRegistry.ContainerDefinition requested) {
+   private void replaceBlockContainer(dev.mlua.module.MLuaRegistration registration, String key,
+                                      MLuaBehaviorRegistry.ContainerDefinition requested) {
       MLuaBehaviorRegistry.ContainerDefinition previous = MLuaBehaviorRegistry.getBlockContainer(key);
-      final MLuaBehaviorRegistry.ContainerDefinition installed;
-      try {
-         installed = MLuaBehaviorRegistry.registerBlockContainer(key, requested);
-      } catch (IllegalArgumentException | IllegalStateException invalid) {
-         throw new LuaError("[MLua] " + invalid.getMessage());
-      }
-      Runnable rollback = () -> {
-         if (MLuaBehaviorRegistry.unregisterBlockContainer(key, installed) && previous != null) {
-            MLuaBehaviorRegistry.registerBlockContainer(key, previous);
+      MLuaBehaviorRegistry.ContainerDefinition installed = null;
+      if (requested != null) {
+         try {
+            installed = MLuaBehaviorRegistry.registerBlockContainer(key, requested);
+         } catch (IllegalArgumentException | IllegalStateException invalid) {
+            throw new LuaError("[MLua] " + invalid.getMessage());
          }
+      } else if (previous != null) {
+         MLuaBehaviorRegistry.unregisterBlockContainer(key, previous);
+      }
+      MLuaBehaviorRegistry.ContainerDefinition expected = installed;
+      Runnable rollback = () -> {
+         MLuaBehaviorRegistry.restoreBlockContainer(key, expected, previous);
       };
       registration.trackRollback(rollback);
    }

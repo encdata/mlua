@@ -248,15 +248,34 @@ public final class CoreClassesModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.property("Color3", "Color3.R", "number", "The red component, from 0 to 1.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("Color3", "Color3.G", "number", "The green component, from 0 to 1.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("Color3", "Color3.B", "number", "The blue component, from 0 to 1.", "read:Read"));
-        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3.fromRGB(r, g, b)", "Creates a color from RGB values in the 0 to 255 range.", "red, green, and blue components", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3.new(r, g, b)", "Creates a color from normalized red, green, and blue channels. Values are clamped to 0 through 1.", "three normalized channel values", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3.fromRGB(r, g, b)", "Creates a color from RGB values in the 0 to 255 range. It also accepts a Vector3 containing those channel values.", "three byte-range channel values or one Vector3", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3.fromVector3(rgb)", "Creates a color from normalized RGB values stored in a Vector3.", "a Vector3 with channels from 0 to 1", "Color3", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3.fromHSV(h, s, v)", "Creates a color from hue, saturation, and value components in the 0 to 1 range.", "hue, saturation, and value", "Color3", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3.fromHex(hex)", "Creates a color from a hexadecimal string such as #ff0000.", "a hex color string", "Color3", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3:ToHex()", "Returns this color as a hexadecimal string.", null, "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3:ToHSV()", "Returns the hue, saturation, and value components.", null, "number, number, number", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3:ToVector3()", "Returns the normalized RGB channels as a Vector3.", null, "Vector3", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3:Lerp(other, alpha)", "Interpolates between this color and another.", "another Color3 and an interpolation value", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3 + other / Color3 - other", "Adds or subtracts matching color channels. Results stay in the 0 to 1 range.", "another Color3", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3 * number", "Scales each color channel by a number. The number can appear on either side.", "a number", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3 / number", "Divides each color channel by a non-zero number.", "a non-zero number", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3 * other", "Multiplies matching color channels.", "another Color3", "Color3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Color3", "Color3 / other", "Divides matching color channels. Division by a zero channel raises an error.", "another Color3 with non-zero channels", "Color3", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.guideStep("Color3", "Set a UI color",
             "Create a Color3 value and assign it to a UI object's color property.",
             "local panel = UIObject.new(\"Frame\", \"WarningPanel\")\npanel.BackgroundColor3 = Color3.fromRGB(150, 24, 32)"));
+
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.vec(x, y[, z[, w]])", "Creates a Vector2, Vector3, or Vec4 based on the number of supplied components.", "two, three, or four numbers", "Vector2, Vector3, or Vec4", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.rgbToInt(rgb) / vectors.rgbToInt(r, g, b)", "Packs normalized RGB channels into a 24-bit integer.", "a normalized Vector3 or three normalized channels", "number", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.intToRGB(color)", "Unpacks a 24-bit RGB integer into normalized Vector3 channels.", "a packed RGB integer", "Vector3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.hexToRGB(hex)", "Parses a three- or six-digit hex string into normalized RGB channels.", "a hex color string, with an optional # prefix", "Vector3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.hsvToRGB(h, s, v) / vectors.hsvToRGB(hsv)", "Converts normalized HSV channels into normalized RGB channels.", "three numbers or one Vector3", "Vector3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.rgbToHSV(r, g, b) / vectors.rgbToHSV(rgb)", "Converts normalized RGB channels into normalized HSV channels.", "three numbers or one Vector3", "Vector3", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Vector helpers", "vectors.rgbToHex(rgb)", "Converts normalized RGB channels into a #rrggbb string.", "a normalized Vector3 or three normalized channels", "string", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Vector helpers", "Convert color data for a Minecraft API",
+            "Use Color3 for APIs that expect a color object. Use the vector helpers when you need packed RGB data or normalized channels.",
+            "local tint = Color3.fromHex(\"#38a8e8\")\nlocal packed = vectors.rgbToInt(tint:ToVector3())\nlocal channels = vectors.intToRGB(packed)"));
 
         docs.register(MLuaDocBuilder.Registration.property("CFrame", "CFrame.Position", "Vector3", "The transform's position.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("CFrame", "CFrame.X / CFrame.Y / CFrame.Z", "number", "The position components.", "read:Read"));
@@ -373,7 +392,7 @@ public final class CoreClassesModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("Math", "math.clamp(value, min, max)", "Clamps a number between the supplied bounds.", "a value and minimum and maximum bounds", "number", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Math", "math.round(value)", "Rounds a number to the nearest integer.", "a number", "number", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Math", "math.sign(value)", "Returns -1, 0, or 1 based on the number's sign.", "a number", "number", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Math", "math.lerp(start, finish, alpha)", "Interpolates from start to finish by alpha.", "start and finish values and an interpolation value", "number", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Math", "math.lerp(start, finish, alpha)", "Interpolates numbers, vectors, colors, matrices, and CFrames. Vector and color interpolation is component-wise; CFrame interpolation blends its transform.", "matching endpoint types and an interpolation value", "the endpoint type", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Math", "math.inverseLerp(start, finish, value)", "Returns the relative position of value between two endpoints; values outside the interval remain outside 0 to 1.", "two different endpoints and a value", "number", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Math", "math.smoothstep(edge0, edge1, value)", "Maps a value between two edges to a clamped smooth curve from 0 to 1.", "two different edges and a value", "number", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Math", "math.wrap(value, min, max)", "Wraps a value into the half-open range from min up to max.", "a value and a finite increasing range", "number", "shared:Shared", null));

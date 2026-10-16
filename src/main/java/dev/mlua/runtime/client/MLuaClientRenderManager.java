@@ -3,6 +3,8 @@ package dev.mlua.runtime.client;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.core.MLuaLogger;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.runtime.client.model.MLuaBBModelAsset;
 import dev.mlua.runtime.client.model.MLuaAnimationPlayer;
 import dev.mlua.runtime.client.model.MLuaMeshDefinition;
@@ -258,10 +260,16 @@ public final class MLuaClientRenderManager {
     }
 
     public static int create(RenderType type, String resource, MLuaRenderOwnershipRegistry.Owner owner) {
+        java.util.Objects.requireNonNull(type, "Render type cannot be null");
         int id = NEXT_ID.getAndIncrement();
+        if (!OWNERS.tryRegister(id, owner, MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS,
+                MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS_PER_OWNER)) {
+            throw new IllegalStateException("[MLua] RenderService limit reached ("
+                + MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS_PER_OWNER + " live objects per addon runtime, "
+                + MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS + " total). Destroy unused render objects before creating more.");
+        }
         OBJECTS.put(id, new RenderObject(id, type, resource));
         invalidateDrawOrder();
-        OWNERS.register(id, owner);
         return id;
     }
 
@@ -281,10 +289,15 @@ public final class MLuaClientRenderManager {
 
     public static int createBBModel(MLuaBBModelAsset asset, MLuaRenderOwnershipRegistry.Owner owner) {
         int id = create(RenderType.BBMODEL, null, owner);
-        RenderObject object = OBJECTS.get(id);
-        object.bbmodel = asset;
-        object.resolvedTextures = registerEmbeddedTextures(asset);
-        return id;
+        try {
+            RenderObject object = OBJECTS.get(id);
+            object.bbmodel = asset;
+            object.resolvedTextures = registerEmbeddedTextures(asset);
+            return id;
+        } catch (RuntimeException failure) {
+            remove(id, owner);
+            throw failure;
+        }
     }
 
     private static List<ResourceLocation> registerEmbeddedTextures(MLuaBBModelAsset asset) {
@@ -880,9 +893,8 @@ public final class MLuaClientRenderManager {
         private boolean worldSpace = false;
         private boolean entityModelTarget;
         private String followBoneName;
-        private MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
-        private LuaValue followOffsetCallback = LuaValue.NIL;
-        private boolean followOffsetCallbackFailed;
+        private volatile MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
+        private volatile FollowOffsetBinding followOffsetBinding = FollowOffsetBinding.NONE;
         private double worldX = 0.0;
         private double worldY = 0.0;
         private double worldZ = 0.0;
@@ -1038,27 +1050,43 @@ public final class MLuaClientRenderManager {
         public void setFollowOffset(MLuaCFrame offset) {
             if (offset == null) throw new IllegalArgumentException("FollowOffset must be a CFrame");
             this.followOffset = offset;
-            this.followOffsetCallback = LuaValue.NIL;
-            this.followOffsetCallbackFailed = false;
+            this.followOffsetBinding = FollowOffsetBinding.NONE;
         }
-        public void setFollowOffsetCallback(LuaValue callback) {
+        public void setFollowOffsetCallback(LuaValue callback, MLuaContext context) {
             if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("FollowOffset callback must be a function");
-            this.followOffsetCallback = callback;
-            this.followOffsetCallbackFailed = false;
+            if (context == null) throw new IllegalArgumentException("FollowOffset callback needs its owning Lua context");
+            this.followOffsetBinding = new FollowOffsetBinding(callback, context);
         }
-        public LuaValue followOffsetValue() { return followOffsetCallback.isfunction() ? followOffsetCallback : followOffset.toLua(); }
+        public LuaValue followOffsetValue() {
+            FollowOffsetBinding binding = followOffsetBinding;
+            return binding.callback().isfunction() ? binding.callback() : followOffset.toLua();
+        }
         private void sampleFollowOffset() {
-            if (!followOffsetCallback.isfunction()) return;
+            FollowOffsetBinding binding = followOffsetBinding;
+            LuaValue callback = binding.callback();
+            MLuaContext context = binding.context();
+            if (!callback.isfunction() || context == null) return;
             try {
-                LuaValue result = followOffsetCallback.invoke(LuaValue.NONE).arg1();
-                followOffset = MLuaCFrame.fromLua(result);
-                followOffsetCallbackFailed = false;
-            } catch (RuntimeException failure) {
-                if (!followOffsetCallbackFailed) {
-                    MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; keeping its last valid CFrame", failure);
-                    followOffsetCallbackFailed = true;
+                synchronized (context.executionLock()) {
+                    if (followOffsetBinding != binding) return;
+                    MLuaLuaBindings.bindContext(context.globals(), context);
+                    LuaValue result = callback.invoke(LuaValue.NONE).arg1();
+                    MLuaCFrame resolved = MLuaCFrame.fromLua(result);
+                    // A script may replace the callback while it is executing from another thread.
+                    // Do not let the older result overwrite the newer value.
+                    if (followOffsetBinding == binding) followOffset = resolved;
                 }
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
+            } catch (RuntimeException failure) {
+                if (followOffsetBinding != binding) return;
+                followOffsetBinding = FollowOffsetBinding.NONE;
+                MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; disabled it and kept the last valid CFrame", failure);
             }
+        }
+
+        private record FollowOffsetBinding(LuaValue callback, MLuaContext context) {
+            private static final FollowOffsetBinding NONE = new FollowOffsetBinding(LuaValue.NIL, null);
         }
         private void applyFollowOffset(PoseStack pose) {
             pose.translate(followOffset.x(), followOffset.y(), followOffset.z());
@@ -1084,8 +1112,6 @@ public final class MLuaClientRenderManager {
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
             copy.followOffset = followOffset;
-            copy.followOffsetCallback = followOffsetCallback;
-            copy.followOffsetCallbackFailed = followOffsetCallbackFailed;
             copy.executionLock = executionLock;
             copy.worldX = worldX;
             copy.worldY = worldY;

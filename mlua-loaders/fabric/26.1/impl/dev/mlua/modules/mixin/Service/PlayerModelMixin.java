@@ -1,5 +1,6 @@
 package dev.mlua.modules.mixin.Service;
 
+import dev.mlua.runtime.client.MLuaRenderStateEntityResolver;
 import dev.mlua.runtime.client.MLuaHumanoidPoseApplier;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.player.PlayerModel;

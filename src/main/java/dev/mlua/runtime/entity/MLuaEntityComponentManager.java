@@ -3,6 +3,7 @@ package dev.mlua.runtime.entity;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaContext;
+import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaServiceProperties;
@@ -16,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
@@ -26,7 +29,12 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaEntityComponentManager {
+    public static final int MAX_COMPONENTS = 65_536;
+    public static final int MAX_COMPONENTS_PER_ENTITY = 128;
+    private static final int MAX_COMPONENT_ERROR_LENGTH = 512;
     private static final ConcurrentHashMap<EntityComponentsKey, EntityComponents> COMPONENTS = new ConcurrentHashMap<>();
+    private static final AtomicInteger ACTIVE_COMPONENTS = new AtomicInteger();
+    private static final AtomicLong NEXT_COMPONENT_ORDER = new AtomicLong();
 
     private MLuaEntityComponentManager() {
     }
@@ -49,15 +57,36 @@ public final class MLuaEntityComponentManager {
         validateSpec(name, spec);
         Object runtimeOwner = context != null ? context.session() : null;
         ComponentKey key = componentKey(runtimeOwner, ownerModId, name);
+        EntityComponentsKey entityKey = entityKey(entity, side);
         boolean[] created = {false};
-        ComponentInstance instance = components(entity, side).components.compute(key, (ignored, existing) -> {
-            if (existing != null) {
-                existing.callbacks = spec;
-                return existing;
+        ComponentInstance instance;
+        while (true) {
+            EntityComponents entityComponents = components(entity, side);
+            synchronized (entityComponents) {
+                if (COMPONENTS.get(entityKey) != entityComponents) continue;
+                instance = entityComponents.components.compute(key, (ignored, existing) -> {
+                    if (existing != null) {
+                        existing.replaceCallbacks(spec, context);
+                        return existing;
+                    }
+                    if (entityComponents.components.size() >= MAX_COMPONENTS_PER_ENTITY) {
+                        throw new LuaError("[MLua] Entity already has the maximum of " + MAX_COMPONENTS_PER_ENTITY
+                            + " MLua behavior components.");
+                    }
+                    reserveComponent();
+                    created[0] = true;
+                    try {
+                        return new ComponentInstance(entity, side, name, ownerModId, spec, context);
+                    } catch (RuntimeException | Error failure) {
+                        ACTIVE_COMPONENTS.decrementAndGet();
+                        created[0] = false;
+                        throw failure;
+                    }
+                });
+                if (created[0]) rebuildSnapshot(entityComponents);
+                break;
             }
-            created[0] = true;
-            return new ComponentInstance(entity, side, name, ownerModId, spec, context);
-        });
+        }
         if (created[0]) invokeCallback(instance, "OnAdded", "added", new LuaTable());
         return instance.handle;
     }
@@ -120,7 +149,7 @@ public final class MLuaEntityComponentManager {
         if (components == null) {
             return List.of();
         }
-        return components.components.values().stream()
+        return components.snapshot.stream()
                 .filter(instance -> (ownerModId == null || ownerModId.equals(instance.ownerModId))
                         && instance.runtimeOwner == runtimeOwner)
                 .map(instance -> instance.name)
@@ -131,7 +160,7 @@ public final class MLuaEntityComponentManager {
     public static List<LuaTable> handles(Entity entity, Side side, String ownerModId, Object runtimeOwner) {
         EntityComponents components = COMPONENTS.get(entityKey(entity, side));
         if (components == null) return List.of();
-        return components.components.values().stream()
+        return components.snapshot.stream()
                 .filter(instance -> (ownerModId == null || ownerModId.equals(instance.ownerModId))
                         && instance.runtimeOwner == runtimeOwner)
                 .sorted(java.util.Comparator.comparing(instance -> instance.name))
@@ -153,13 +182,11 @@ public final class MLuaEntityComponentManager {
             return false;
         }
         ComponentKey key = componentKey(runtimeOwner, ownerModId, name);
-        ComponentInstance instance = components.components.remove(key);
+        ComponentInstance instance = removeComponent(components, key, null);
         if (instance != null) {
-            invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
+            removeInstance(instance);
         }
-        if (components.components.isEmpty()) {
-            COMPONENTS.remove(entityKey(entity, side), components);
-        }
+        pruneIfEmpty(entityKey(entity, side), components);
         return instance != null;
     }
 
@@ -180,22 +207,20 @@ public final class MLuaEntityComponentManager {
             ComponentInstance instance = entry.getValue();
             if ((ownerModId == null || ownerModId.equals(instance.ownerModId))
                     && instance.runtimeOwner == runtimeOwner
-                    && current.components.remove(entry.getKey(), instance)) {
+                    && removeComponent(current, entry.getKey(), instance)) {
                 removed++;
-                invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
+                removeInstance(instance);
             }
         }
-        if (current.components.isEmpty()) COMPONENTS.remove(key, current);
+        pruneIfEmpty(key, current);
         return removed;
     }
 
     public static void clearAll() {
-        for (EntityComponents components : COMPONENTS.values()) {
-            for (ComponentInstance instance : components.components.values()) {
-                invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
-            }
+        for (Map.Entry<EntityComponentsKey, EntityComponents> entry : COMPONENTS.entrySet()) {
+            detachAll(entry.getKey(), entry.getValue())
+                .forEach(MLuaEntityComponentManager::removeInstance);
         }
-        COMPONENTS.clear();
     }
 
     public static void clearEntity(Entity entity) {
@@ -203,11 +228,8 @@ public final class MLuaEntityComponentManager {
         MLuaEntityScope scope = MLuaEntityScope.of(entity);
         for (Map.Entry<EntityComponentsKey, EntityComponents> entry : COMPONENTS.entrySet()) {
             if (!entry.getKey().scope().equals(scope)) continue;
-            EntityComponents components = entry.getValue();
-            if (!COMPONENTS.remove(entry.getKey(), components)) continue;
-            for (ComponentInstance instance : components.components.values()) {
-                invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
-            }
+            detachAll(entry.getKey(), entry.getValue())
+                .forEach(MLuaEntityComponentManager::removeInstance);
         }
     }
 
@@ -215,10 +237,8 @@ public final class MLuaEntityComponentManager {
         for (Map.Entry<EntityComponentsKey, EntityComponents> entry : COMPONENTS.entrySet()) {
             EntityComponents components = entry.getValue();
             if (side != Side.BOTH && components.side != side) continue;
-            for (ComponentInstance instance : components.components.values()) {
-                invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
-            }
-            COMPONENTS.remove(entry.getKey(), components);
+            detachAll(entry.getKey(), components)
+                .forEach(MLuaEntityComponentManager::removeInstance);
         }
     }
 
@@ -234,11 +254,11 @@ public final class MLuaEntityComponentManager {
             for (Map.Entry<ComponentKey, ComponentInstance> componentEntry : components.components.entrySet()) {
                 ComponentInstance instance = componentEntry.getValue();
                 if (!ownerModId.equals(instance.ownerModId) || instance.runtimeOwner != runtimeOwner) continue;
-                if (components.components.remove(componentEntry.getKey(), instance)) {
-                    invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
+                if (removeComponent(components, componentEntry.getKey(), instance)) {
+                    removeInstance(instance);
                 }
             }
-            if (components.components.isEmpty()) COMPONENTS.remove(entry.getKey(), components);
+            pruneIfEmpty(entry.getKey(), components);
         }
     }
 
@@ -250,11 +270,11 @@ public final class MLuaEntityComponentManager {
             for (Map.Entry<ComponentKey, ComponentInstance> componentEntry : components.components.entrySet()) {
                 ComponentInstance instance = componentEntry.getValue();
                 if (instance.runtimeOwner == runtimeOwner
-                        && components.components.remove(componentEntry.getKey(), instance)) {
-                    invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
+                        && removeComponent(components, componentEntry.getKey(), instance)) {
+                    removeInstance(instance);
                 }
             }
-            if (components.components.isEmpty()) COMPONENTS.remove(entry.getKey(), components);
+            pruneIfEmpty(entry.getKey(), components);
         }
     }
 
@@ -266,13 +286,11 @@ public final class MLuaEntityComponentManager {
             }
             Entity entity = components.entityRef.get();
             if (entity == null || !entity.isAlive() || !components.scope.equals(MLuaEntityScope.of(entity))) {
-                for (ComponentInstance instance : components.components.values()) {
-                    invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
-                }
-                COMPONENTS.remove(entry.getKey(), components);
+                detachAll(entry.getKey(), components)
+                    .forEach(MLuaEntityComponentManager::removeInstance);
                 continue;
             }
-            for (ComponentInstance instance : components.components.values()) {
+            for (ComponentInstance instance : orderedComponents(components)) {
                 if (!instance.enabled) {
                     continue;
                 }
@@ -283,6 +301,67 @@ public final class MLuaEntityComponentManager {
 
     public static void onHurt(Entity entity, LuaTable event) {
         dispatch(entity, Side.SERVER, "OnHurt", "hurt", event);
+    }
+
+    public static int activeComponentCount() {
+        return ACTIVE_COMPONENTS.get();
+    }
+
+    private static void reserveComponent() {
+        while (true) {
+            int current = ACTIVE_COMPONENTS.get();
+            if (current >= MAX_COMPONENTS) {
+                throw new LuaError("[MLua] MLua already has the maximum of " + MAX_COMPONENTS
+                    + " active entity behavior components; remove unused components before attaching more.");
+            }
+            if (ACTIVE_COMPONENTS.compareAndSet(current, current + 1)) return;
+        }
+    }
+
+    private static List<ComponentInstance> orderedComponents(EntityComponents components) {
+        return components.snapshot;
+    }
+
+    private static void rebuildSnapshot(EntityComponents components) {
+        components.snapshot = components.components.values().stream()
+            .sorted(java.util.Comparator.comparing((ComponentInstance instance) -> instance.ownerModId,
+                    java.util.Comparator.nullsFirst(String::compareTo))
+                .thenComparing(instance -> instance.name)
+                .thenComparingLong(instance -> instance.registrationOrder))
+            .toList();
+    }
+
+    private static boolean removeComponent(EntityComponents components, ComponentKey key,
+            ComponentInstance expected) {
+        synchronized (components) {
+            ComponentInstance removed = expected == null
+                ? components.components.remove(key)
+                : components.components.remove(key, expected) ? expected : null;
+            if (removed == null) return false;
+            rebuildSnapshot(components);
+            return true;
+        }
+    }
+
+    /**
+     * Removes a whole entity bucket under the same lock used by attach/remove, then returns its
+     * instances for callbacks outside the lock. An attach that captured this bucket will observe
+     * that it is no longer current and retry against a fresh bucket.
+     */
+    private static List<ComponentInstance> detachAll(EntityComponentsKey key, EntityComponents components) {
+        synchronized (components) {
+            if (!COMPONENTS.remove(key, components)) return List.of();
+            List<ComponentInstance> removed = components.snapshot;
+            components.components.clear();
+            components.snapshot = List.of();
+            return removed;
+        }
+    }
+
+    private static void pruneIfEmpty(EntityComponentsKey key, EntityComponents components) {
+        synchronized (components) {
+            if (components.components.isEmpty()) COMPONENTS.remove(key, components);
+        }
     }
 
     public static void onDeath(Entity entity, LuaTable event) {
@@ -334,7 +413,7 @@ public final class MLuaEntityComponentManager {
         if (components == null) {
             return;
         }
-        for (ComponentInstance instance : components.components.values()) {
+        for (ComponentInstance instance : orderedComponents(components)) {
             if (!instance.enabled) {
                 continue;
             }
@@ -343,25 +422,57 @@ public final class MLuaEntityComponentManager {
     }
 
     private static void invokeCallback(ComponentInstance instance, String callbackName, String eventName, LuaTable event) {
-        LuaValue callback = callback(instance.callbacks, callbackName);
-        if (!callback.isfunction()) {
-            return;
+        boolean removing = "OnRemoved".equals(callbackName);
+        if (!removing && (instance.removed || instance.failed)) return;
+        try {
+            if (instance.context == null) {
+                synchronized (instance) {
+                    if (!removing && (instance.removed || instance.failed)) return;
+                    invokeCallbackBody(instance, callbackName, eventName, event);
+                }
+            } else {
+                synchronized (instance.context.executionLock()) {
+                    if (!removing && (instance.removed || instance.failed)) return;
+                    MLuaLuaBindings.bindContext(instance.context.globals(), instance.context);
+                    invokeCallbackBody(instance, callbackName, eventName, event);
+                }
+            }
+        } catch (LuaError error) {
+            disableAfterFailure(instance, callbackName, eventName, error);
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            disableAfterFailure(instance, callbackName, eventName, error);
         }
+    }
+
+    private static void invokeCallbackBody(ComponentInstance instance, String callbackName,
+            String eventName, LuaTable event) {
+        LuaValue function = callback(instance.callbacks, callbackName);
+        if (!function.isfunction()) return;
         LuaTable payload = copy(event);
         payload.set("Event", LuaValue.valueOf(eventName));
-        payload.set("Entity", entityTable(instance.entity()));
+        Entity entity = instance.entityRef.get();
+        payload.set("Entity", entity == null ? LuaValue.NIL : entityTable(entity));
         payload.set("Component", instance.handle);
         payload.set("State", instance.state);
-        try {
-            if (instance.context != null) MLuaLuaBindings.bindContext(instance.context.globals(), instance.context);
-            callback.call(payload);
-        } catch (LuaError error) {
-            throw new LuaError(new RuntimeException("[MLua] Component '" + instance.name + "' callback '"
-                + callbackName + "' failed during " + eventName, error));
-        } catch (Exception error) {
-            throw new LuaError(new RuntimeException("[MLua] Component '" + instance.name + "' callback '"
-                + callbackName + "' failed during " + eventName, error));
-        }
+        function.call(payload);
+    }
+
+    private static void disableAfterFailure(ComponentInstance instance, String callbackName,
+            String eventName, Throwable failure) {
+        instance.failed = true;
+        instance.enabled = false;
+        String message = failure.getMessage();
+        if (message == null || message.isBlank()) message = failure.getClass().getSimpleName();
+        instance.errorMessage = message.length() <= MAX_COMPONENT_ERROR_LENGTH
+            ? message : message.substring(0, MAX_COMPONENT_ERROR_LENGTH - 1) + "…";
+        MLuaLogger.LOGGER.error("[MLua] Disabled entity component '{}' after its {} callback failed during {}",
+            instance.name, callbackName, eventName, failure);
+    }
+
+    private static void removeInstance(ComponentInstance instance) {
+        if (instance.markRemoved()) invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
     }
 
     private static LuaValue callback(LuaTable table, String name) {
@@ -422,6 +533,7 @@ public final class MLuaEntityComponentManager {
         private final Side side;
         private final MLuaEntityScope scope;
         private final ConcurrentHashMap<ComponentKey, ComponentInstance> components = new ConcurrentHashMap<>();
+        private volatile List<ComponentInstance> snapshot = List.of();
 
         private EntityComponents(Entity entity, Side side, MLuaEntityScope scope) {
             this.entityRef = new WeakReference<>(entity);
@@ -441,11 +553,15 @@ public final class MLuaEntityComponentManager {
         private final String name;
         private final String ownerModId;
         private final Object runtimeOwner;
-        private final MLuaContext context;
+        private volatile MLuaContext context;
         private final LuaTable state;
         private final LuaTable handle;
+        private final long registrationOrder = NEXT_COMPONENT_ORDER.getAndIncrement();
         private volatile LuaTable callbacks;
         private volatile boolean enabled = true;
+        private volatile boolean failed;
+        private volatile boolean removed;
+        private volatile String errorMessage;
 
         private ComponentInstance(Entity entity, Side side, String name, String ownerModId, LuaTable callbacks, MLuaContext context) {
             this.entityRef = new WeakReference<>(entity);
@@ -487,6 +603,30 @@ public final class MLuaEntityComponentManager {
             this.entityRef = new WeakReference<>(entity);
         }
 
+        private void replaceCallbacks(LuaTable replacement, MLuaContext replacementContext) {
+            MLuaContext currentContext = context;
+            Object lock = currentContext != null ? currentContext.executionLock()
+                : replacementContext != null ? replacementContext.executionLock() : this;
+            synchronized (lock) {
+                if (removed) return;
+                callbacks = replacement;
+                if (replacementContext != null) context = replacementContext;
+                if (failed) {
+                    failed = false;
+                    errorMessage = null;
+                    enabled = true;
+                }
+            }
+        }
+
+        private synchronized boolean markRemoved() {
+            if (removed) return false;
+            removed = true;
+            enabled = false;
+            ACTIVE_COMPONENTS.decrementAndGet();
+            return true;
+        }
+
         private LuaTable createHandle() {
             LuaTable table = new LuaTable();
             MLuaRegistration registration = context == null ? null : context.registration();
@@ -504,12 +644,15 @@ public final class MLuaEntityComponentManager {
                 return LuaValue.NONE;
             });
             bindHandleMethod(registration, typed, table, "GetEnabled", args -> LuaValue.valueOf(enabled));
+            bindHandleMethod(registration, typed, table, "GetFailed", args -> LuaValue.valueOf(failed));
+            bindHandleMethod(registration, typed, table, "GetError", args ->
+                errorMessage == null ? LuaValue.NIL : LuaValue.valueOf(errorMessage));
             bindHandleMethod(registration, typed, table, "SetEnabled", args -> {
-                enabled = args.checkboolean(2);
+                enabled = !removed && !failed && args.checkboolean(2);
                 return LuaValue.NONE;
             });
             bindHandleMethod(registration, typed, table, "Destroy", args -> {
-                remove(entity(), side, name, ownerModId, runtimeOwner);
+                MLuaEntityComponentManager.remove(entity(), side, name, ownerModId, runtimeOwner);
                 return LuaValue.NONE;
             });
             if (typed) registration.initializeClassInstance(table, "EntityComponent", null);

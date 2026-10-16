@@ -49,12 +49,16 @@ prepareRuntimeNeoForgeOverrideSources.configure {
     }
 }
 def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',
-    targetPathChain('mlua-versions/common/%s', targetVersion), is26Family ? [] : [
+    targetPathChain('mlua-versions/common/%s', targetVersion), is26Family ? [
+        'dev/mlua/runtime/client/MLuaRenderStateEntityResolver.java'
+    ] : [
         'dev/mlua/modules/world/Service/MLuaWorldService.java'
     ])
 def prepareRuntimeNeoForgeAdapterSources = registerMergedTree(project, 'prepareRuntimeNeoForgeAdapterSources',
     targetPathChain('mlua-loaders/neoforge/%s/impl', targetVersion), [
         'dev/mlua/modules/mixin/Service/FirstPersonItemRendererMixin.java',
+        'dev/mlua/mixin/EntityRenderDispatcherMixin.java',
+        'dev/mlua/mixin/ThirdPersonItemRendererMixin.java',
         (is26Family ? 'dev/mlua/runtime/client/MLuaClientSoundManager.java' : '__mlua_26_1_only__'),
         (is26Family ? 'dev/mlua/runtime/client/MLuaGeneratedAssetPack.java' : '__mlua_26_1_only__'),
         (is26Family ? 'dev/mlua/runtime/client/MLuaGuiRenderer.java' : '__mlua_26_1_only__'),

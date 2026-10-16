@@ -4,7 +4,10 @@ import dev.mlua.runtime.client.model.MLuaBBModelAsset;
 import dev.mlua.runtime.client.model.MLuaAnimationPlayer;
 import dev.mlua.runtime.client.model.MLuaMeshDefinition;
 import dev.mlua.math.MLuaCFrame;
+import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.core.MLuaLogger;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.registry.MLuaAssetResolver;
 import java.util.ArrayList;
@@ -12,6 +15,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -19,11 +23,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
 import dev.mlua.loaderapi.LoaderApi;
 import org.luaj.vm2.LuaValue;
+import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
 public final class MLuaClientRenderManager {
     private static final AtomicInteger NEXT_ID = new AtomicInteger(1);
@@ -35,6 +42,8 @@ public final class MLuaClientRenderManager {
     private static final Identifier ATTACHMENT_TEXTURE = Identifier.fromNamespaceAndPath(
         "minecraft", "textures/block/stone.png");
     private static boolean animationClockRegistered;
+    private static boolean worldModelSubmitRegistered;
+    private static final AtomicBoolean WORLD_MODEL_STAGE_WARNING_REPORTED = new AtomicBoolean();
 
     private MLuaClientRenderManager() {
     }
@@ -44,6 +53,16 @@ public final class MLuaClientRenderManager {
             animationClockRegistered = true;
             LoaderApi.lifecycle().onClientTickEnd(MLuaClientRenderManager::tickAnimations);
         }
+        if (!worldModelSubmitRegistered) {
+            worldModelSubmitRegistered = true;
+            NeoForge.EVENT_BUS.addListener((SubmitCustomGeometryEvent event) -> {
+                var state = event.getLevelRenderState().cameraRenderState;
+                Vec3 cameraPosition = state == null || state.pos == null
+                    ? Minecraft.getInstance().gameRenderer.getMainCamera().position() : state.pos;
+                renderWorldModelsSubmitted("AFTER_ENTITIES", event.getPoseStack(),
+                    event.getSubmitNodeCollector(), cameraPosition);
+            });
+        }
         LoaderApi.client().registerOverlay("mlua_render_service", graphics -> {
             if (graphics instanceof GuiGraphicsExtractor extractor) {
                 MLuaRenderCallbacks.renderHud(extractor, extractor.guiWidth(), extractor.guiHeight());
@@ -52,15 +71,18 @@ public final class MLuaClientRenderManager {
         });
         for (String stage : dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES) {
             LoaderApi.client().registerWorldRenderer(stage, context -> MLuaRenderCallbacks.renderWorld(stage,
-                context, invokeOptional(context, "getPoseStack", "poseStack", "matrixStack"), null,
+                context, invokeOptional(context, "getPoseStack", "poseStack", "matrixStack"),
+                invokeOptional(context, "consumers", "getConsumers", "getBufferSource", "bufferSource"),
                 invokeOptional(context, "getCamera", "camera")));
         }
     }
 
     private static void tickAnimations() {
         for (RenderObject object : OBJECTS.values()) {
-            if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
-            object.sampleFollowOffset();
+            synchronized (object.executionLock()) {
+                if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
+                object.sampleFollowOffset();
+            }
         }
     }
 
@@ -91,6 +113,54 @@ public final class MLuaClientRenderManager {
         return null;
     }
 
+    private static void renderWorldModelsSubmitted(String stage, PoseStack pose, SubmitNodeCollector collector,
+                                                   Vec3 cameraPosition) {
+        if (pose == null || collector == null || cameraPosition == null) return;
+        var lookVector = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
+        Vec3 look = new Vec3(lookVector.x(), lookVector.y(), lookVector.z());
+        for (RenderObject object : orderedRenderObjects()) {
+            synchronized (object.executionLock()) {
+                if (!object.visible || object.target() != RenderTarget.WORLD_MODEL) continue;
+                if (!object.renderStage.equals(stage)) {
+                    if (WORLD_MODEL_STAGE_WARNING_REPORTED.compareAndSet(false, true)) {
+                        MLuaLogger.LOGGER.warn("[MLua] NeoForge 26.1 submits WorldModel objects at its native custom-geometry point; only AFTER_ENTITIES is currently supported.");
+                    }
+                    continue;
+                }
+                Entity followed = resolveFollowEntity(object.followEntityScope);
+                if (object.followEntityScope != null && (followed == null || !followed.isAlive())) continue;
+                double x = object.worldX + (followed == null ? 0.0 : followed.getX());
+                double y = object.worldY + (followed == null ? 0.0 : followed.getY());
+                double z = object.worldZ + (followed == null ? 0.0 : followed.getZ());
+                Vec3 relative = new Vec3(x - cameraPosition.x, y - cameraPosition.y, z - cameraPosition.z);
+                double distanceSquared = relative.lengthSqr();
+                if (distanceSquared > 256.0 * 256.0) continue;
+                double radius = object.bbmodel != null ? 4.0 : 2.0;
+                if (distanceSquared > 0.01 && relative.dot(look) < -radius) continue;
+                pose.pushPose();
+                try {
+                    pose.translate(relative.x, relative.y, relative.z);
+                    object.applyFollowOffset(pose);
+                    pose.scale(object.modelScale, object.modelScale, object.modelScale);
+                    if (object.bbmodel != null) submitBBModelAttachment(pose, collector, object, 15728880);
+                    else if (object.mesh != null) submitMeshAttachment(pose, collector, object, 15728880);
+                } catch (RuntimeException failure) {
+                    MLuaLogger.LOGGER.error("[MLua] Failed to submit world render object {}", object.id, failure);
+                } finally {
+                    pose.popPose();
+                }
+            }
+        }
+    }
+
+    private static Entity resolveFollowEntity(MLuaEntityScope scope) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (scope == null || scope.side() != dev.mlua.common.enums.Side.CLIENT || minecraft.level == null
+                || !minecraft.level.dimension().location().toString().equals(scope.dimension())) return null;
+        Entity entity = minecraft.level.getEntity(scope.entityId());
+        return entity != null && entity.getUUID().equals(scope.uuid()) ? entity : null;
+    }
+
     /** Submits 3D render objects after Minecraft has posed a living entity model. */
     public static void renderEntityAttachments(Object model, MLuaEntityScope scope, PoseStack pose,
                                                SubmitNodeCollector collector, int light) {
@@ -99,26 +169,30 @@ public final class MLuaClientRenderManager {
         if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
         for (Integer renderId : attachedRenderIds) {
             RenderObject object = OBJECTS.get(renderId);
-            if (object == null || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
-                    || object.followBoneName == null) continue;
-            pose.pushPose();
-            if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) {
-                pose.popPose();
-                continue;
+            if (object == null) continue;
+            synchronized (object.executionLock()) {
+                if (!object.visible || object.target() != RenderTarget.ENTITY_MODEL
+                        || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;
+                pose.pushPose();
+                try {
+                    if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) continue;
+                    object.applyFollowOffset(pose);
+                    pose.translate(object.worldX, object.worldY, object.worldZ);
+                    if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
+                    if (object.bbmodel != null) submitBBModelAttachment(pose, collector, object, light);
+                    else if (object.mesh != null) submitMeshAttachment(pose, collector, object, light);
+                } finally {
+                    pose.popPose();
+                }
             }
-            object.applyFollowOffset(pose);
-            pose.translate(object.worldX, object.worldY, object.worldZ);
-            if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
-            if (object.bbmodel != null) submitBBModelAttachment(pose, collector, object, light);
-            else if (object.mesh != null) submitMeshAttachment(pose, collector, object, light);
-            pose.popPose();
         }
     }
 
     private static void submitMeshAttachment(PoseStack pose, SubmitNodeCollector collector,
                                              RenderObject object, int light) {
         var mesh = object.mesh;
-        collector.submitCustomGeometry(pose, RenderTypes.entityCutout(ATTACHMENT_TEXTURE), (matrix, vertices) -> {
+        Identifier texture = resolveWorldTexture(mesh.texture(), object.id);
+        collector.submitCustomGeometry(pose, RenderTypes.entityCutout(texture), (matrix, vertices) -> {
             for (int i = 0; i + 2 < mesh.indices().size(); i += 3) {
                 var a = mesh.vertices().get(mesh.indices().get(i));
                 var b = mesh.vertices().get(mesh.indices().get(i + 1));
@@ -130,6 +204,16 @@ public final class MLuaClientRenderManager {
         });
     }
 
+    private static Identifier resolveWorldTexture(String path, int renderId) {
+        if (path == null || path.isBlank()) return ATTACHMENT_TEXTURE;
+        var owner = OWNERS.ownerOf(renderId);
+        String candidate = path.indexOf(':') >= 0 || owner == null || owner.ownerModId().isBlank()
+            ? path : owner.ownerModId() + ":" + path;
+        Identifier location = MLuaResourceLocations.tryParseOrNull(candidate);
+        return location != null && Minecraft.getInstance().getResourceManager().getResource(location).isPresent()
+            ? location : ATTACHMENT_TEXTURE;
+    }
+
     private static void submitBBModelAttachment(PoseStack pose, SubmitNodeCollector collector,
                                                  RenderObject object, int light) {
         var asset = object.bbmodel;
@@ -139,27 +223,30 @@ public final class MLuaClientRenderManager {
         float[] animatedRotation = new float[3];
         for (var cube : asset.cubes()) {
             pose.pushPose();
-            for (var bone : asset.boneChainForCube(cube.uuid())) {
-                float[] pivot = bone.pivot();
-                float[] rotation = bone.rotation();
-                if (animation != null) {
-                    object.animationPlayer.sampleInto(animation, bone.uuid(), "position", animatedPosition);
-                    object.animationPlayer.sampleInto(animation, bone.uuid(), "rotation", animatedRotation);
-                    pose.translate(animatedPosition[0] / 16.0F, animatedPosition[1] / 16.0F, animatedPosition[2] / 16.0F);
+            try {
+                for (var bone : asset.boneChainForCube(cube.uuid())) {
+                    float[] pivot = bone.pivot();
+                    float[] rotation = bone.rotation();
+                    if (animation != null) {
+                        object.animationPlayer.sampleInto(animation, bone.uuid(), "position", animatedPosition);
+                        object.animationPlayer.sampleInto(animation, bone.uuid(), "rotation", animatedRotation);
+                        pose.translate(animatedPosition[0] / 16.0F, animatedPosition[1] / 16.0F, animatedPosition[2] / 16.0F);
+                    }
+                    pose.translate(pivot[0] / 16.0F, pivot[1] / 16.0F, pivot[2] / 16.0F);
+                    pose.mulPose(Axis.XP.rotationDegrees(rotation[0] + (animation == null ? 0.0F : animatedRotation[0])));
+                    pose.mulPose(Axis.YP.rotationDegrees(rotation[1] + (animation == null ? 0.0F : animatedRotation[1])));
+                    pose.mulPose(Axis.ZP.rotationDegrees(rotation[2] + (animation == null ? 0.0F : animatedRotation[2])));
+                    pose.translate(-pivot[0] / 16.0F, -pivot[1] / 16.0F, -pivot[2] / 16.0F);
                 }
-                pose.translate(pivot[0] / 16.0F, pivot[1] / 16.0F, pivot[2] / 16.0F);
-                pose.mulPose(Axis.XP.rotationDegrees(rotation[0] + (animation == null ? 0.0F : animatedRotation[0])));
-                pose.mulPose(Axis.YP.rotationDegrees(rotation[1] + (animation == null ? 0.0F : animatedRotation[1])));
-                pose.mulPose(Axis.ZP.rotationDegrees(rotation[2] + (animation == null ? 0.0F : animatedRotation[2])));
-                pose.translate(-pivot[0] / 16.0F, -pivot[1] / 16.0F, -pivot[2] / 16.0F);
+                for (var entry : cube.faces().entrySet()) {
+                    var face = entry.getValue();
+                    collector.submitCustomGeometry(pose, RenderTypes.entityCutout(attachmentTexture(object, face)),
+                        (matrix, vertices) -> submitBBFace(vertices, matrix, entry.getKey(), cube.from(), cube.to(),
+                            face, asset.textureWidth(), asset.textureHeight(), light));
+                }
+            } finally {
+                pose.popPose();
             }
-            for (var entry : cube.faces().entrySet()) {
-                var face = entry.getValue();
-                collector.submitCustomGeometry(pose, RenderTypes.entityCutout(attachmentTexture(object, face)),
-                    (matrix, vertices) -> submitBBFace(vertices, matrix, entry.getKey(), cube.from(), cube.to(),
-                        face, asset.textureWidth(), asset.textureHeight(), light));
-            }
-            pose.popPose();
         }
     }
 
@@ -246,10 +333,16 @@ public final class MLuaClientRenderManager {
     }
 
     public static int create(RenderType type, String resource, MLuaRenderOwnershipRegistry.Owner owner) {
+        java.util.Objects.requireNonNull(type, "Render type cannot be null");
         int id = NEXT_ID.getAndIncrement();
+        if (!OWNERS.tryRegister(id, owner, MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS,
+                MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS_PER_OWNER)) {
+            throw new IllegalStateException("[MLua] RenderService limit reached ("
+                + MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS_PER_OWNER + " live objects per addon runtime, "
+                + MLuaRenderOwnershipRegistry.MAX_RENDER_OBJECTS + " total). Destroy unused render objects before creating more.");
+        }
         OBJECTS.put(id, new RenderObject(id, type, resource));
         invalidateDrawOrder();
-        OWNERS.register(id, owner);
         return id;
     }
 
@@ -269,16 +362,21 @@ public final class MLuaClientRenderManager {
 
     public static int createBBModel(MLuaBBModelAsset asset, MLuaRenderOwnershipRegistry.Owner owner) {
         int id = create(RenderType.BBMODEL, null, owner);
-        RenderObject object = OBJECTS.get(id);
-        object.bbmodel = asset;
-        String namespace = owner == null ? "" : owner.ownerModId();
-        List<Identifier> textures = new ArrayList<>();
-        for (String path : asset.textures()) {
-            try { textures.add(MLuaAssetResolver.resolveTextureFile(namespace, path, "models")); }
-            catch (RuntimeException ignored) { textures.add(ATTACHMENT_TEXTURE); }
+        try {
+            RenderObject object = OBJECTS.get(id);
+            object.bbmodel = asset;
+            String namespace = owner == null ? "" : owner.ownerModId();
+            List<Identifier> textures = new ArrayList<>();
+            for (String path : asset.textures()) {
+                try { textures.add(MLuaAssetResolver.resolveTextureFile(namespace, path, "models")); }
+                catch (RuntimeException ignored) { textures.add(ATTACHMENT_TEXTURE); }
+            }
+            object.resolvedTextures = List.copyOf(textures);
+            return id;
+        } catch (RuntimeException failure) {
+            remove(id, owner);
+            throw failure;
         }
-        object.resolvedTextures = List.copyOf(textures);
-        return id;
     }
 
     public static RenderObject get(int id) {
@@ -467,7 +565,7 @@ public final class MLuaClientRenderManager {
         private String followBoneName;
         private MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
         private LuaValue followOffsetCallback = LuaValue.NIL;
-        private boolean followOffsetCallbackFailed;
+        private MLuaContext followOffsetContext;
         private double worldX = 0.0;
         private double worldY = 0.0;
         private double worldZ = 0.0;
@@ -620,23 +718,25 @@ public final class MLuaClientRenderManager {
             if (offset == null) throw new IllegalArgumentException("FollowOffset must be a CFrame");
             followOffset = offset;
             followOffsetCallback = LuaValue.NIL;
-            followOffsetCallbackFailed = false;
+            followOffsetContext = null;
         }
-        public void setFollowOffsetCallback(LuaValue callback) {
+        public void setFollowOffsetCallback(LuaValue callback, MLuaContext context) {
             if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("FollowOffset callback must be a function");
+            if (context == null) throw new IllegalArgumentException("FollowOffset callback needs its owning Lua context");
             followOffsetCallback = callback;
-            followOffsetCallbackFailed = false;
+            followOffsetContext = context;
         }
         private void sampleFollowOffset() {
             if (!followOffsetCallback.isfunction()) return;
             try {
-                followOffset = MLuaCFrame.fromLua(followOffsetCallback.invoke(LuaValue.NONE).arg1());
-                followOffsetCallbackFailed = false;
-            } catch (RuntimeException failure) {
-                if (!followOffsetCallbackFailed) {
-                    MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; keeping its last valid CFrame", failure);
-                    followOffsetCallbackFailed = true;
+                if (followOffsetContext != null) {
+                    MLuaLuaBindings.bindContext(followOffsetContext.globals(), followOffsetContext);
                 }
+                followOffset = MLuaCFrame.fromLua(followOffsetCallback.invoke(LuaValue.NONE).arg1());
+            } catch (RuntimeException failure) {
+                followOffsetCallback = LuaValue.NIL;
+                followOffsetContext = null;
+                MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; disabled it and kept the last valid CFrame", failure);
             }
         }
         private void applyFollowOffset(PoseStack pose) {
@@ -663,8 +763,6 @@ public final class MLuaClientRenderManager {
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
             copy.followOffset = followOffset;
-            copy.followOffsetCallback = followOffsetCallback;
-            copy.followOffsetCallbackFailed = followOffsetCallbackFailed;
             copy.worldX = worldX;
             copy.worldY = worldY;
             copy.worldZ = worldZ;

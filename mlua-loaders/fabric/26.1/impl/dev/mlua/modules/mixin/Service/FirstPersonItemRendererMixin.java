@@ -2,6 +2,7 @@ package dev.mlua.modules.mixin.Service;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mlua.minecraft.client.MLuaCameraController;
+import dev.mlua.runtime.client.MLuaRenderCallbacks;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -28,5 +29,7 @@ public abstract class FirstPersonItemRendererMixin {
         InteractionHand hand, float swingProgress, ItemStack stack, float equipProgress,
         PoseStack poseStack, SubmitNodeCollector collector, int light, CallbackInfo callbackInfo) {
         MLuaCameraController.applyFirstPersonHandOffset(poseStack, player, hand, partialTick);
+        MLuaRenderCallbacks.renderFirstPersonItem(player, hand, stack, poseStack, collector,
+            partialTick, pitch, swingProgress, equipProgress, light);
     }
 }

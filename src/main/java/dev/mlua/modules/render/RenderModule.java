@@ -10,17 +10,30 @@ import java.util.List;
 @dev.mlua.module.MLuaModuleSide(Side.CLIENT)
 public final class RenderModule implements MLuaModule {
     private static final String[][] CONTEXT_PROPERTIES = {
-        {"Target", "string", "Render callback target: EntityModel, World, or Hud."},
+        {"Target", "string", "Render callback target: EntityModel, Entity, FirstPersonItem, ThirdPersonItem, World, or Hud."},
         {"PoseStack", "Java object|nil", "The live pose stack when exposed by this render point."},
         {"BufferSource", "Java object|nil", "Minecraft's live buffer source or render collector when exposed."},
+        {"RenderCollector", "Java object|nil", "Minecraft's SubmitNodeCollector on render-pipeline versions that use one; nil on older versions."},
         {"Model", "Java object|nil", "The native entity model after Minecraft has applied its animation pose."},
-        {"PartialTick", "number", "Frame interpolation where provided by the render point."},
+        {"PartialTick", "number", "Frame interpolation value; check HasPartialTick before relying on it."},
+        {"HasPartialTick", "boolean", "Whether this render point supplied a real frame interpolation value. If false, PartialTick is zero."},
+        {"DeltaTime", "number", "Duration of the latest client render frame in seconds; this is separate from PartialTick."},
+        {"HasDeltaTime", "boolean", "Whether a client render-frame duration has been observed; false means DeltaTime is only the fallback value."},
         {"PackedLight", "number", "Minecraft packed light value when supplied."},
         {"PackedOverlay", "number", "Minecraft packed overlay value when supplied."},
         {"PassId", "string", "Namespaced id of the render pass receiving this context."},
         {"Stage", "WorldRenderStage|nil", "Canonical world render stage for world callbacks."},
         {"NativeContext", "Java object|nil", "The loader's native render event or context."},
+        {"Renderer", "Java object|nil", "The native entity renderer for entity draw passes when supplied."},
         {"Camera", "Java object|nil", "The native camera for world render callbacks."},
+        {"Player", "Player|nil", "The player whose first-person item is being rendered."},
+        {"ItemStack", "ItemStack|nil", "The live item stack for a first-person item callback."},
+        {"Hand", "string|nil", "The hand being rendered: MAIN_HAND or OFF_HAND."},
+        {"Arm", "string|nil", "The rendered model arm: LEFT or RIGHT, when this render point supplies one."},
+        {"DisplayContext", "string|nil", "The native item display context for third-person held-item passes."},
+        {"Pitch", "number|nil", "Player pitch supplied to a first-person item callback."},
+        {"SwingProgress", "number|nil", "Current hand swing progress."},
+        {"EquipProgress", "number|nil", "Current hand equip progress."},
         {"Graphics", "Java object|nil", "The live GuiGraphics for HUD callbacks."},
         {"Width", "number|nil", "HUD width in GUI-scaled pixels."},
         {"Height", "number|nil", "HUD height in GUI-scaled pixels."}
@@ -66,6 +79,14 @@ public final class RenderModule implements MLuaModule {
                 }
             }, org.luaj.vm2.LuaValue.NIL, property[1], "client:Client", property[2]);
         }
+        registration.registerClassFunction("RenderContext", "IsActive", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self) {
+                org.luaj.vm2.LuaValue scope = self.checktable().rawget("__mluaRenderFrameScope");
+                return org.luaj.vm2.LuaValue.valueOf(scope.isuserdata(
+                    dev.mlua.runtime.client.MLuaRenderFrameScope.View.class)
+                    && scope.touserdata(dev.mlua.runtime.client.MLuaRenderFrameScope.View.class).isActive());
+            }
+        }, "Returns whether this RenderContext belongs to a callback that is still running.");
     }
 
     @Override
@@ -78,7 +99,7 @@ public final class RenderModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.register(MLuaDocBuilder.Registration.service("RenderService", "MLuaRenderService",
-            "Client-side HUD and projected world-space renderables.",
+            "Client-side HUD and world renderables, entity model attachments, and first-person item passes. Each addon runtime may own up to 512 render objects; the client caps all live render objects at 8192. Meshes are limited to 16384 vertices and 49152 indices. Blockbench files are limited to 8 MiB, 8192 cubes, 2048 bones, 256 textures and animations, and 32768 keyframes per animation.",
             "services/render.html"));
         docs.register(MLuaDocBuilder.Registration.clazz("RenderObject", "MLuaRenderService",
             "A live client render instance with mutable screen-space or world-space properties and rendering methods.",
@@ -102,9 +123,15 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:Clear()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetAll()", "RenderObject[]"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterEntityRenderer(entityType: string, callback: function(Entity, RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterFirstPersonItemRenderer(itemId: string, callback: function(Player, RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterFirstPersonItemRenderPass(itemId: string, id: string, callback: function(Player, RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterEntityRenderer(entityType: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterEntityRenderPass(entityType: string, id: string, callback: function(Entity, RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterEntityDrawPass(entityType: string, id: string, callback: function(Entity, RenderContext))", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterFirstPersonItemRenderer(itemId: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterFirstPersonItemRenderPass(itemId: string, id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterEntityRenderPass(entityType: string, id: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterEntityDrawPass(entityType: string, id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterWorldRenderer(callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterWorldRenderer()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterWorldRendererAt(stage: string, callback: function(RenderContext))", "void"));
@@ -112,11 +139,17 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterWorldRenderPass(id: string, stage: WorldRenderStage, callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterWorldRenderPass(id: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetWorldRenderStages()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetRenderCallbackLimits()", "RenderCallbackLimits"));
+        docs.register(MLuaDocBuilder.Registration.type("RenderCallbackLimits", null, "Current active render callbacks and the shared capacity limits."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "Active", "number", "Number of active callbacks across all render targets and addons."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "MaxTotal", "number", "Maximum active callbacks across MLua."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "MaxPerTarget", "number", "Maximum callbacks for one entity type, item id, HUD layer, or world stage."));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterHudRenderer(callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderer()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterHudRenderPass(id: string, callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderPass(id: string)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.clazz("RenderContext", "RenderService", "Frame-scoped values supplied at a HUD, world, or living entity render point. All Java objects are frame-scoped; callbacks must not retain them or yield.", "classes/render-context.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("RenderContext", "RenderService", "Values supplied at HUD, world, living entity, or first-person item render points. Native Java references are valid only during the callback; Java bridge calls reject them after the callback returns or from another thread. Plain values such as stage names and dimensions can be retained.", "classes/render-context.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.method("RenderContext", "RenderContext:IsActive()", "Returns whether the render callback that created this context is still running.", null, "boolean", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.type("WorldRenderStage", null, "A shared stage name mapped to the closest supported native world-render event for the active loader and Minecraft version."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "BEFORE_ENTITIES", "string", "After opaque terrain and before entity rendering."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "AFTER_ENTITIES", "string", "After opaque entity and block-entity features."));
@@ -141,12 +174,12 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetFollowEntity(entity?: Entity|number)", "Attaches this render object to an entity or clears the attachment with nil.", "Optional live Entity instance or runtime id", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:ClearFollowEntity()", "Removes this object's entity attachment.", null, "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetFollowBone(bone?: string)", "Attaches this object to a named bone on the followed entity's registered model adapter.", "Registered bone name, or nil to clear", "void", "client:Client", null));
-        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetFollowOffset(offset: CFrame|function)", "Sets a local transform after the followed bone. A callback is sampled once per client tick and must return a CFrame.", "CFrame value or callback returning CFrame", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetFollowOffset(offset: CFrame|function)", "Sets a local transform after the followed bone. A callback is sampled once per client tick and must return a CFrame. If it fails, MLua disables it and keeps the last valid transform.", "CFrame value or callback returning CFrame", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:Destroy()", "Removes this render object and releases its owned render state.", null, "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.type("ModelAnimationOptions", null, "Playback options shared by entity-attached and standalone Blockbench models."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Loop", "boolean", "Whether playback repeats. Defaults to true."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Speed", "number", "Finite, non-negative playback speed. Defaults to one."));
-        docs.register(MLuaDocBuilder.Registration.type("MeshDefinition", null, "Vertex data, zero-based triangle indices, and optional texture for RenderService:CreateMesh."));
+        docs.register(MLuaDocBuilder.Registration.type("MeshDefinition", null, "Vertex data, zero-based triangle indices, and optional texture for RenderService:CreateMesh. A mesh may contain at most 16384 vertices and 49152 indices."));
         docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Vertices", "MeshVertex[]", "At least three vertices used by the mesh."));
         docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Indices", "number[]", "One or more complete triangles. Each zero-based index must refer to an entry in Vertices."));
         docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Texture?", "string", "Optional texture resource identifier."));
@@ -166,11 +199,23 @@ public final class RenderModule implements MLuaModule {
             "Register a subclass under RenderObject and pass its className in constructor properties. The handle keeps that class through GetAll, so addon methods and inherited properties remain available for the owned render object's lifetime.",
             "Minecraft:RegisterClass(\"WarningLabel\", \"RenderObject\", \"A warning label with a critical style.\")\nMinecraft:RegisterClassFunction(\"WarningLabel\", \"SetCriticalStyle\", function(self)\n    self:SetColor(0xFF3030)\n    self:SetZIndex(20)\nend, \"Applies the critical warning color and draw order.\")\n\nlocal Render = Minecraft:GetService(\"RenderService\")\nlocal label = Render:CreateText(\"Low health\", { ClassName = \"WarningLabel\", Position = Vector2.new(12, 12) })\nlabel:SetCriticalStyle()\nfor _, object in ipairs(Render:GetAll()) do\n    if object:IsA(\"WarningLabel\") then\n        print(object.ClassName, object.Text)\n    end\nend"));
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Attach a 3D model to an entity part",
-            "EntityModel draws a mesh or Blockbench model from a registered bone path after Minecraft has posed that entity. FollowOffset accepts a CFrame or a function returning a CFrame. MLua samples the function once per client tick and applies its returned position and rotation after the bone pose.",
+            "EntityModel draws a mesh or Blockbench model from a registered bone path after Minecraft has posed that entity. FollowOffset accepts a CFrame or a function returning a CFrame. MLua samples the function once per client tick and applies its returned position and rotation after the bone pose; if it fails, MLua disables the callback and keeps the last valid transform.",
             "local Models = Minecraft:GetService(\"ModelService\")\nlocal Render = Minecraft:GetService(\"RenderService\")\nlocal Players = Minecraft:GetService(\"Players\")\n\nModels:RegisterAdapter(\"net.minecraft.client.model.PlayerModel\", {\n    head = \"head\",\n})\n\nlocal hat = Render:LoadBBModel(\"myaddon:models/hat.bbmodel\")\nhat.Target = \"EntityModel\"\nhat.FollowEntity = Players.LocalPlayer\nhat.FollowBone = \"head\"\nlocal phase = 0\nhat.FollowOffset = function()\n    phase = phase + 0.1\n    return CFrame.new(0, 0.35 + math.sin(phase) * 0.02, 0)\n        * CFrame.Angles(0, math.sin(phase) * 0.08, 0)\nend\nhat.ModelScale = 1\nhat.Visible = true"));
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Hook a native entity render point",
             "RegisterEntityRenderer adds an addon-owned callback after Minecraft has posed a living entity's model and before its model is drawn. It follows the same render-point pattern as a native entity renderer, while the callback receives the real entity, PoseStack, buffer source, model, partial tick, light, and overlay. Use Java:Invoke or Java object proxies for native rendering calls. The render context is frame-scoped: do not save it, yield from the callback, or use it after the callback returns. A callback error disables that callback for the rest of the session.",
             "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterEntityRenderPass(\"myaddon:stalker\", \"myaddon:glow\", function(entity, context)\n    local pose = context.PoseStack\n    Java:Invoke(pose, \"pushPose\", \"()V\")\n    -- Use the live pose, model, and buffer source for a native render pass.\n    Java:Invoke(pose, \"popPose\", \"()V\")\nend)\n\n-- Remove just this pass; other passes for the same entity remain registered.\nRender:UnregisterEntityRenderPass(\"myaddon:stalker\", \"myaddon:glow\")"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Render a non-living entity",
+            "RegisterEntityDrawPass runs in the entity dispatcher for any registered EntityType, including projectiles and dropped items. Its pose is translated to the entity render origin before that entity's renderer runs. NativeContext contains the render state on 26.1 and is nil on older versions. Use RegisterEntityRenderPass when you need the prepared model and bone mappings of a living entity.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterEntityDrawPass(\"minecraft:arrow\", \"myaddon:arrow_glow\", function(entity, context)\n    local pose = context.PoseStack\n    local renderer = context.Renderer\n    Java:Invoke(pose, \"pushPose\", \"()V\")\n    -- Draw an effect at the arrow's world position before its renderer runs.\n    Java:Invoke(pose, \"popPose\", \"()V\")\nend)\n\nRender:UnregisterEntityDrawPass(\"minecraft:arrow\", \"myaddon:arrow_glow\")"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Add a first-person held-item render pass",
+            "Register a callback for one item id. MLua invokes it from the first-person item render hook and supplies the live player, item stack, hand, pose stack, buffer source or collector, swing and equip progress, and light. The callback and its frame-scoped values follow the same ownership and cleanup rules as other RenderService passes.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterFirstPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:glint\", function(player, context)\n    local pose = context.PoseStack\n    local stack = context.ItemStack\n    local renderSource = context.RenderCollector or context.BufferSource\n    if context.Hand == \"MAIN_HAND\" then\n        -- Use this frame's pose and render source for native drawing calls.\n        Java:Invoke(pose, \"pushPose\", \"()V\")\n        Java:Invoke(pose, \"popPose\", \"()V\")\n    end\nend)\n\nRender:UnregisterFirstPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:glint\")"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Add a third-person held-item render pass",
+            "MLua invokes this callback after the entity arm and vanilla item transforms are applied, immediately before the item is submitted. It works for player and mob equipment. HasPartialTick is false at this hook. The pose and other Minecraft render objects are valid only until the callback returns.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterThirdPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:glow\", function(entity, context)\n    local pose = context.PoseStack\n    if context.Hand == \"MAIN_HAND\" then\n        Java:Invoke(pose, \"pushPose\", \"()V\")\n        -- Add a render effect at the item's current hand transform.\n        Java:Invoke(pose, \"popPose\", \"()V\")\n    end\nend)\n\nRender:UnregisterThirdPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:glow\")"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderContext", "Use frame timing in an effect",
+            "DeltaTime is elapsed seconds from the latest client render-frame callback. PartialTick is Minecraft's interpolation fraction from zero to one. Use DeltaTime for time-based motion and PartialTick for interpolating entity state. Some loader hooks publish the frame duration after world rendering, so HasDeltaTime tells you whether any frame duration has been observed.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal phase = 0\n\nRender:RegisterHudRenderPass(\"myaddon:pulse\", function(context)\n    if context.HasDeltaTime then\n        phase = phase + context.DeltaTime * 2\n    end\n    local pulse = (math.sin(phase) + 1) / 2\n    -- Use pulse to update a render object or a Color3 value.\nend)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Attach a world or HUD render callback",
             "World callbacks run at one of the cross-loader stages exposed by GetWorldRenderStages(); MLua maps each name to that loader's nearest native render event. HUD callbacks run in MLua's registered GUI layer before MLua RenderObjects. Both callbacks receive a frame-scoped RenderContext. Use Java:Invoke or Java:Proxy to call Minecraft rendering APIs, and never retain frame objects or yield from a callback.",
             "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterHudRenderPass(\"myaddon:status\", function(context)\n    local graphics = context.Graphics\n    -- Call GuiGraphics methods here through Java:Invoke.\nend)\n\n-- World passes can run at a selected shared stage.\nRender:RegisterWorldRenderPass(\"myaddon:glow\", \"AFTER_TRANSLUCENT\", function(context)\n    local nativeEvent = context.NativeContext\n    local poseStack = context.PoseStack\n    local buffers = context.BufferSource\n    -- Use Java:Invoke for operations exposed by that loader/version.\nend)\n\nRender:UnregisterHudRenderPass(\"myaddon:status\")\nRender:UnregisterWorldRenderPass(\"myaddon:glow\")"));

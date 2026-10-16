@@ -7,9 +7,11 @@
   "client": [
     "CameraInvoker",
     "CameraMixin",
+    "EntityRenderDispatcherMixin",
     "MouseHandlerMixin",
     "HumanoidModelMixin",
     "LivingEntityRendererMixin",
+    "ThirdPersonItemRendererMixin",
     "PlayerModelMixin",
     "ScreenLayoutMixin",
     "ChatLineMixin",

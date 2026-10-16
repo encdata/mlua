@@ -6,8 +6,14 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 public final class MLuaVec4 {
+   private static final Set<LuaTable> VALUES = Collections.newSetFromMap(
+      Collections.synchronizedMap(new WeakHashMap<>()));
+
    private MLuaVec4() {
    }
 
@@ -128,7 +134,8 @@ public final class MLuaVec4 {
       });
       table.set("normalized", table.get("Normalized"));
       table.setmetatable(vec4Metatable());
-      return table;
+      VALUES.add(table);
+      return table.freeze();
    }
 
    private static LuaTable vec4Bare(double x, double y, double z, double w) {
@@ -145,7 +152,13 @@ public final class MLuaVec4 {
       double mag = Math.sqrt(x * x + y * y + z * z + w * w);
       table.set("Magnitude", mag);
       table.set("magnitude", mag);
-      return table;
+      table.setmetatable(vec4Metatable());
+      VALUES.add(table);
+      return table.freeze();
+   }
+
+   public static boolean isVec4(LuaValue value) {
+      return value.istable() && value.checktable().isfrozen() && VALUES.contains(value.checktable());
    }
 
    private static LuaTable vec4Metatable() {

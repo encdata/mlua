@@ -8,6 +8,7 @@ public final class MLuaClientEventHandlers {
     }
 
    public static void onRenderTickStart(MLuaRuntime runtime, double deltaTime) {
+      MLuaRenderCallbacks.setFrameDeltaTime(deltaTime);
       var session = runtime.session();
       MLuaModuleLoader.get().onRenderFrame(runtime, session, deltaTime);
       MLuaModuleLoader.get().afterRenderFrame(runtime, session, deltaTime);

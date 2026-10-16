@@ -15,6 +15,7 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
+import dev.mlua.minecraft.binding.MLuaBiomeWrapper;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.minecraft.binding.MLuaContainer;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
@@ -245,9 +246,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          double[] pos = positionArgs(args, 2);
          BlockPos blockPos = BlockPos.containing(pos[0], pos[1], pos[2]);
          if (!MLuaChunkWrapper.ensureLoaded(level, blockPos)) return LuaValue.NIL;
-         Biome biome = level.getBiome(blockPos).value();
-         ResourceLocation id = biomeId(level, biome);
-         return LuaValue.valueOf(id == null ? "unknown" : id.toString());
+         return MLuaBiomeWrapper.wrap(level.getBiome(blockPos), level, blockPos, context.mlua().registration());
       }));
       table.set("GetLightLevel", levelFn(supplier, (level, args) -> {
          double[] pos = positionArgs(args, 2);
@@ -387,6 +386,60 @@ public final class MLuaWorldService extends MLuaServiceBase {
          result.set("Position", dev.mlua.math.MLuaVector.vector3(nearestHit.x, nearestHit.y, nearestHit.z));
          result.set("Normal", dev.mlua.math.MLuaVector.vector3(nearestNormal.x, nearestNormal.y, nearestNormal.z));
          result.set("Distance", LuaValue.valueOf(Math.sqrt(nearestDistance)));
+         return result;
+      }));
+      table.set("RaycastAABB", levelFn(supplier, (level, args) -> {
+         double[] origin = positionArgs(args, 2);
+         int directionIndex = 2 + coordinateWidth(args, 2);
+         double[] direction = dev.mlua.math.MLuaVector.components3(args.arg(directionIndex));
+         int distanceIndex = directionIndex + coordinateWidth(args, directionIndex);
+         LuaValue distanceOrBounds = args.arg(distanceIndex);
+         double distance = distanceOrBounds.istable() ? 100.0 : MLuaLuaArguments.optionalFiniteNumber(
+            args, distanceIndex, 100.0, "World:RaycastAABB", "distance");
+         if (!Double.isFinite(distance) || distance < 0) {
+            throw new LuaError("[MLua] World:RaycastAABB distance must be finite and non-negative.");
+         }
+         for (double component : origin) if (!Double.isFinite(component))
+            throw new LuaError("[MLua] World:RaycastAABB origin must be finite.");
+         for (double component : direction) if (!Double.isFinite(component))
+            throw new LuaError("[MLua] World:RaycastAABB direction must be finite.");
+         LuaValue listValue = distanceOrBounds.istable() ? distanceOrBounds : args.arg(distanceIndex + 1);
+         if (!listValue.istable()) throw new LuaError("[MLua] World:RaycastAABB bounds must be an array of EntityBounds.");
+         Vec3 from = new Vec3(origin[0], origin[1], origin[2]);
+         double scale = Math.max(Math.abs(direction[0]), Math.max(Math.abs(direction[1]), Math.abs(direction[2])));
+         if (scale == 0) return LuaValue.NIL;
+         Vec3 rayDirection = new Vec3(direction[0] / scale, direction[1] / scale, direction[2] / scale).normalize();
+         Vec3 to = from.add(rayDirection.scale(distance));
+         if (!Double.isFinite(to.x) || !Double.isFinite(to.y) || !Double.isFinite(to.z))
+            throw new LuaError("[MLua] World:RaycastAABB endpoint must be finite.");
+         LuaTable boundsList = listValue.checktable();
+         AABB nearestBounds = null;
+         Vec3 nearestHit = null;
+         int nearestIndex = -1;
+         double nearestDistance = Double.POSITIVE_INFINITY;
+         for (int index = 1; index <= boundsList.length(); index++) {
+            LuaValue boundsValue = boundsList.get(index);
+            AABB bounds = entityBounds(boundsValue);
+            var hit = bounds.clip(from, to);
+            if (hit.isEmpty()) continue;
+            double hitDistance = from.distanceToSqr(hit.get());
+            if (hitDistance < nearestDistance) {
+               nearestBounds = bounds;
+               nearestHit = hit.get();
+               nearestIndex = index;
+               nearestDistance = hitDistance;
+            }
+         }
+         if (nearestBounds == null) return LuaValue.NIL;
+         LuaTable result = context.mlua().registration().createClassInstance("BoundsRaycastResult");
+         result.set("HitType", LuaValue.valueOf("bounds"));
+         result.set("Type", LuaValue.valueOf("bounds"));
+         result.set("Position", dev.mlua.math.MLuaVector.vector3(nearestHit.x, nearestHit.y, nearestHit.z));
+         Vec3 normal = rayHitNormal(nearestBounds, nearestHit);
+         result.set("Normal", dev.mlua.math.MLuaVector.vector3(normal.x, normal.y, normal.z));
+         result.set("Distance", LuaValue.valueOf(Math.sqrt(nearestDistance)));
+         result.set("Bounds", boundsList.get(nearestIndex));
+         result.set("BoundsIndex", LuaValue.valueOf(nearestIndex));
          return result;
       }));
 

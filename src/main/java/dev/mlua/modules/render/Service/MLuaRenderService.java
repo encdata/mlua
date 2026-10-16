@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -36,7 +37,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 
-@MLuaDescription("Client-side HUD and projected world-space renderables.")
+@MLuaDescription("Client-side HUD, world, all-entity draw, living model, and held-item rendering with addon-owned, frame-scoped callbacks.")
 public final class MLuaRenderService extends MLuaReflectiveService {
     private static final String OBJECT_OPERATIONS = "__mlua_render_object_operations";
     private static final String OBJECT_ID = "__mlua_render_object_id";
@@ -60,7 +61,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         new ObjectProperty("ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex"),
         new ObjectProperty("WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace"),
         new ObjectProperty("Target", "string", "Render stage: Hud, WorldOverlay, WorldModel, or EntityModel. GetTarget returns the same canonical spelling accepted by SetTarget.", "GetTarget", "SetTarget"),
-        new ObjectProperty("RenderStage", "string", "The cross-loader world render stage used by WorldModel objects. Defaults to AFTER_ENTITIES.", "GetRenderStage", "SetRenderStage"),
+        new ObjectProperty("RenderStage", "string", "The cross-loader world render stage used by WorldModel objects. Defaults to AFTER_ENTITIES; NeoForge 26.1 currently submits WorldModel objects at AFTER_ENTITIES only.", "GetRenderStage", "SetRenderStage"),
         new ObjectProperty("ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance"),
         new ObjectProperty("ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale"),
         new ObjectProperty("FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity"),
@@ -113,7 +114,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetFollowBone", "Returns the registered model bone used by this attachment, or nil."},
             {"SetFollowBone", "Attaches a 3D object to a model bone registered by ModelService."},
             {"GetFollowOffset", "Returns the local CFrame or callback used after the followed model bone."},
-            {"SetFollowOffset", "Sets a local CFrame or a function returning CFrame, sampled once per client tick."},
+            {"SetFollowOffset", "Sets a local CFrame or a function returning CFrame, sampled once per client tick. A failing function is disabled and the last valid transform is kept."},
             {"GetResource", "Returns the resource identifier for an image, item, or block object; otherwise nil."},
             {"SetResource", "Changes the resource identifier on image, item, or block objects."},
             {"GetText", "Returns displayed text on text objects; otherwise nil."},
@@ -246,12 +247,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return createObject(MLuaClientRenderManager.RenderType.BLOCK, blockId, optionalTable(properties));
     }
 
-    @MLuaDescription("Creates a mesh render object from vertices and indices.")
+    @MLuaDescription("Creates a mesh render object from vertices and indices. Meshes are limited to 16384 vertices and 49152 indices.")
     public LuaValue CreateMesh(LuaTable definition, Optional<LuaValue> properties) {
         return createMesh(definition, optionalTable(properties));
     }
 
-    @MLuaDescription("Loads a Blockbench model as a render object.")
+    @MLuaDescription("Loads a Blockbench model as a render object. Source files are limited to 8 MiB, with limits of 8192 cubes, 2048 bones, 256 textures and animations, and 32768 keyframes per animation.")
     public LuaValue LoadBBModel(String path, Optional<LuaValue> properties) {
         return loadBBModel(path, optionalTable(properties));
     }
@@ -292,12 +293,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         double[] startPosition = worldVector(start);
         double[] endPosition = worldVector(end);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.LINE, null, owner());
-        var object = requireObject(id);
-        object.setWorldSpace(true);
-        object.setWorldPosition(startPosition[0], startPosition[1], startPosition[2]);
-        object.setEndWorldPosition(endPosition[0], endPosition[1], endPosition[2]);
-        applyProps(object, optionalTable(properties));
-        return objectTable(id);
+        return configureObject(id, optionalTable(properties), object -> {
+            object.setWorldSpace(true);
+            object.setWorldPosition(startPosition[0], startPosition[1], startPosition[2]);
+            object.setEndWorldPosition(endPosition[0], endPosition[1], endPosition[2]);
+        });
     }
 
     @MLuaDescription("Creates a beam between two world positions.")
@@ -306,12 +306,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         double[] startPosition = worldVector(start);
         double[] endPosition = worldVector(end);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BEAM, null, owner());
-        var object = requireObject(id);
-        object.setWorldSpace(true);
-        object.setWorldPosition(startPosition[0], startPosition[1], startPosition[2]);
-        object.setEndWorldPosition(endPosition[0], endPosition[1], endPosition[2]);
-        applyProps(object, optionalTable(properties));
-        return objectTable(id);
+        return configureObject(id, optionalTable(properties), object -> {
+            object.setWorldSpace(true);
+            object.setWorldPosition(startPosition[0], startPosition[1], startPosition[2]);
+            object.setEndWorldPosition(endPosition[0], endPosition[1], endPosition[2]);
+        });
     }
 
     @MLuaDescription("Creates a box render object at a world position.")
@@ -323,13 +322,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             throw new LuaError("[MLua] World box size components must be non-negative.");
         }
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BOX, null, owner());
-        var object = requireObject(id);
-        object.setWorldSpace(true);
-        object.setWorldPosition(centerPosition[0], centerPosition[1], centerPosition[2]);
-        object.setSize(dimensions[0], dimensions[1]);
-        object.setDepth(dimensions[2]);
-        applyProps(object, optionalTable(properties));
-        return objectTable(id);
+        return configureObject(id, optionalTable(properties), object -> {
+            object.setWorldSpace(true);
+            object.setWorldPosition(centerPosition[0], centerPosition[1], centerPosition[2]);
+            object.setSize(dimensions[0], dimensions[1]);
+            object.setDepth(dimensions[2]);
+        });
     }
 
     @MLuaDescription("Removes render objects owned by the calling mod.")
@@ -371,6 +369,66 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     public boolean UnregisterEntityRenderPass(String entityType, String id) {
         this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, id, renderOwnerContext());
+    }
+
+    @MLuaDescription("Registers an entity-level render pass before Minecraft draws an entity renderer. It works for living and non-living entities, including projectiles and dropped items, and receives the live Entity plus the frame-scoped render pose, source, renderer, light, and native render state when the loader provides one.")
+    public void RegisterEntityDrawPass(String entityType, String id, LuaValue callback) {
+        this.requireClientSide(this.name());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerEntityDraw(entityType, id, callback, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes only the named entity-level render pass registered for this entity type.")
+    public boolean UnregisterEntityDrawPass(String entityType, String id) {
+        this.requireClientSide(this.name());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterEntityDraw(entityType, id, renderOwnerContext());
+    }
+
+    @MLuaDescription("Registers an owned callback while a matching item is rendered in the first-person hand. The callback receives the player and a frame-scoped RenderContext with the hand, item stack, pose stack, buffer source, and light value.")
+    public void RegisterFirstPersonItemRenderer(String itemId, LuaValue callback) {
+        this.requireClientSide(this.name());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerFirstPersonItem(itemId, callback, renderOwnerContext());
+    }
+
+    @MLuaDescription("Registers an independently owned first-person item render pass. Use a resource id so multiple addons or effects can coexist for the same item.")
+    public void RegisterFirstPersonItemRenderPass(String itemId, String id, LuaValue callback) {
+        this.requireClientSide(this.name());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerFirstPersonItem(itemId, id, callback, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes this addon's first-person item render callback for the given item.")
+    public boolean UnregisterFirstPersonItemRenderer(String itemId) {
+        this.requireClientSide(this.name());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterFirstPersonItem(itemId, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes only the named first-person item render pass for the given item.")
+    public boolean UnregisterFirstPersonItemRenderPass(String itemId, String id) {
+        this.requireClientSide(this.name());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterFirstPersonItem(itemId, id, renderOwnerContext());
+    }
+
+    @MLuaDescription("Registers a callback while a matching item is rendered in a living entity's third-person hand. It receives the living entity and a frame-scoped RenderContext with the translated item pose, item stack, arm, hand, display context, render source, and light. PartialTick is unavailable at this render point and HasPartialTick is false.")
+    public void RegisterThirdPersonItemRenderer(String itemId, LuaValue callback) {
+        this.requireClientSide(this.name());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerThirdPersonItem(itemId, callback, renderOwnerContext());
+    }
+
+    @MLuaDescription("Registers an independently owned third-person held-item render pass for an item. A resource id lets addons coexist and unregister one pass without removing others.")
+    public void RegisterThirdPersonItemRenderPass(String itemId, String id, LuaValue callback) {
+        this.requireClientSide(this.name());
+        dev.mlua.runtime.client.MLuaRenderCallbacks.registerThirdPersonItem(itemId, id, callback, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes this addon's third-person held-item callback for the given item.")
+    public boolean UnregisterThirdPersonItemRenderer(String itemId) {
+        this.requireClientSide(this.name());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterThirdPersonItem(itemId, renderOwnerContext());
+    }
+
+    @MLuaDescription("Removes only the named third-person held-item render pass for the given item.")
+    public boolean UnregisterThirdPersonItemRenderPass(String itemId, String id) {
+        this.requireClientSide(this.name());
+        return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterThirdPersonItem(itemId, id, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an addon-owned callback at the native world render point after Minecraft renders world entities and geometry.")
@@ -417,6 +475,15 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return stages;
     }
 
+    @MLuaDescription("Returns render callback capacity and current usage. MaxTotal is shared by all render callbacks; MaxPerTarget applies to each entity type, item, HUD layer, or world stage.")
+    public LuaTable GetRenderCallbackLimits() {
+        LuaTable limits = new LuaTable();
+        limits.set("Active", dev.mlua.runtime.client.MLuaRenderCallbacks.registeredCallbackCount());
+        limits.set("MaxTotal", dev.mlua.runtime.client.MLuaRenderCallbacks.MAX_CALLBACKS);
+        limits.set("MaxPerTarget", dev.mlua.runtime.client.MLuaRenderCallbacks.MAX_CALLBACKS_PER_TARGET);
+        return limits;
+    }
+
     @MLuaDescription("Registers an addon-owned callback in the HUD render layer, before MLua-managed RenderObjects are drawn.")
     public void RegisterHudRenderer(LuaValue callback) {
         this.requireClientSide(this.name());
@@ -448,17 +515,14 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     private LuaValue createObject(MLuaClientRenderManager.RenderType type, String resource, LuaTable props) {
         this.requireClientSide(this.name());
         int id = MLuaClientRenderManager.create(type, resource, owner());
-        var object = requireObject(id);
-        applyProps(object, props);
-        return objectTable(id);
+        return configureObject(id, props, null);
     }
 
     private LuaValue createMesh(LuaTable definition, LuaTable props) {
         this.requireClientSide(this.name());
         var mesh = MLuaMeshLuaParser.parse(definition);
         int id = MLuaClientRenderManager.createMesh(mesh, owner());
-        applyProps(requireObject(id), props);
-        return objectTable(id);
+        return configureObject(id, props, null);
     }
 
     private LuaValue loadBBModel(String path, LuaTable props) {
@@ -474,28 +538,33 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             }
             final MLuaBBModelAsset asset = loadedAsset;
             int id = MLuaClientRenderManager.createBBModel(asset, owner());
-            var object = requireObject(id);
-            applyProps(object, props, "AnimationPath", "AnimationsPath");
-            LuaTable table = objectTable(id);
-            table.set("__bbmodel", LuaValue.TRUE);
-            table.set("FormatVersion", asset.formatVersion());
-            table.set("ModelFormat", asset.modelFormat());
-            LuaTable operations = table.rawget(OBJECT_OPERATIONS).checktable();
-            operations.set("GetAnimations", fn(args -> {
-                LuaTable animations = new LuaTable();
-                int index = 1;
-                for (String name : asset.animations().keySet()) animations.set(index++, name);
-                return animations;
-            }));
-            operations.set("PlayAnimation", fn(args -> {
-                String name = args.checkjstring(2);
-                MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "RenderObject:PlayAnimation");
-                object.animationPlayer().play(name, asset, options.loop(), options.speed());
-                return LuaValue.NONE;
-            }));
-            operations.set("StopAnimation", fn(args -> { object.animationPlayer().stop(); return LuaValue.NONE; }));
-            operations.set("GetAnimationTime", fn(args -> LuaValue.valueOf(object.animationPlayer().time())));
-            return table;
+            try {
+                var object = requireObject(id);
+                applyProps(object, props, "AnimationPath", "AnimationsPath");
+                LuaTable table = objectTable(id);
+                table.set("__bbmodel", LuaValue.TRUE);
+                table.set("FormatVersion", asset.formatVersion());
+                table.set("ModelFormat", asset.modelFormat());
+                LuaTable operations = table.rawget(OBJECT_OPERATIONS).checktable();
+                operations.set("GetAnimations", fn(args -> {
+                    LuaTable animations = new LuaTable();
+                    int index = 1;
+                    for (String name : asset.animations().keySet()) animations.set(index++, name);
+                    return animations;
+                }));
+                operations.set("PlayAnimation", fn(args -> {
+                    String name = args.checkjstring(2);
+                    MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "RenderObject:PlayAnimation");
+                    object.animationPlayer().play(name, asset, options.loop(), options.speed());
+                    return LuaValue.NONE;
+                }));
+                operations.set("StopAnimation", fn(args -> { object.animationPlayer().stop(); return LuaValue.NONE; }));
+                operations.set("GetAnimationTime", fn(args -> LuaValue.valueOf(object.animationPlayer().time())));
+                return table;
+            } catch (RuntimeException failure) {
+                MLuaClientRenderManager.remove(id, owner());
+                throw failure;
+            }
         } catch (LuaError error) {
             throw error;
         } catch (IOException | RuntimeException exception) {
@@ -507,11 +576,23 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         this.requireClientSide(this.name());
         double[] position = worldVector(worldPosition);
         int id = MLuaClientRenderManager.create(type, resource, owner());
-        var object = requireObject(id);
-        object.setWorldSpace(true);
-        object.setWorldPosition(position[0], position[1], position[2]);
-        applyProps(object, props);
-        return objectTable(id);
+        return configureObject(id, props, object -> {
+            object.setWorldSpace(true);
+            object.setWorldPosition(position[0], position[1], position[2]);
+        });
+    }
+
+    /** Roll back a partially configured handle so validation failures never consume quota or retain textures. */
+    private LuaValue configureObject(int id, LuaTable props, Consumer<MLuaClientRenderManager.RenderObject> initialize) {
+        try {
+            MLuaClientRenderManager.RenderObject object = requireObject(id);
+            if (initialize != null) initialize.accept(object);
+            applyProps(object, props);
+            return objectTable(id);
+        } catch (RuntimeException failure) {
+            MLuaClientRenderManager.remove(id, owner());
+            throw failure;
+        }
     }
 
     private synchronized LuaTable objectTable(int id) {
@@ -523,11 +604,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
         MLuaRenderOwnershipRegistry.Owner renderOwner = owner();
         MLuaClientRenderManager.RenderObject renderObject = requireObject(id);
-        String renderType = renderObject.type().name().toLowerCase(java.util.Locale.ROOT);
+        MLuaClientRenderManager.RenderType primitive = java.util.Objects.requireNonNull(
+            renderObject.type(), "Render object " + id + " has no render primitive");
+        LuaValue renderTypeValue = LuaValue.valueOf(primitive.name().toLowerCase(java.util.Locale.ROOT));
         LuaTable operations = new LuaTable();
         operations.set("GetId", fn(args -> LuaValue.valueOf(id)));
         // The render primitive is immutable, so keep it readable on a destroyed handle.
-        operations.set("GetRenderType", fn(args -> LuaValue.valueOf(renderType)));
+        operations.set("GetRenderType", fn(args -> renderTypeValue));
         operations.set("Equals", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 LuaValue other = args.arg(2);
@@ -546,7 +629,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 LuaTable self = args.arg1().checktable();
                 String className = context.mlua().registration().classNameOf(self);
                 return LuaValue.valueOf((className == null ? "RenderObject" : className) + "["
-                    + renderType + ", " + renderOwner.ownerModId() + ":" + id + "]");
+                    + primitive.name().toLowerCase(java.util.Locale.ROOT) + ", " + renderOwner.ownerModId() + ":" + id + "]");
             }
         });
         operations.set("GetIsDestroyed", fn(args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, renderOwner) == null)));
@@ -703,7 +786,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         operations.set("SetFollowOffset", fn(args -> {
             LuaValue value = args.arg(2);
             try {
-                if (value.isfunction()) requireObject(id).setFollowOffsetCallback(value);
+                if (value.isfunction()) requireObject(id).setFollowOffsetCallback(value, context.mlua());
                 else requireObject(id).setFollowOffset(MLuaCFrame.fromLua(value));
             } catch (IllegalArgumentException | LuaError invalid) {
                 throw new LuaError("[MLua] FollowOffset must be a CFrame or a function returning CFrame: " + invalid.getMessage());

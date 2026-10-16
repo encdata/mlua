@@ -8,6 +8,7 @@ import dev.mlua.core.MLuaContextView;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
+import dev.mlua.minecraft.binding.MLuaBiomeWrapper;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule.ServiceEntry;
 import java.util.List;
@@ -38,7 +39,7 @@ public class WorldModule implements MLuaModule {
         Map.entry("GetBlockStateAt", "Loads this chunk if needed and returns the typed BlockState at a world position."),
         Map.entry("GetFluidStateAt", "Loads this chunk if needed and returns the typed FluidState at a world position."),
         Map.entry("GetBlockEntityAt", "Loads this chunk if needed and returns its block entity at a world position."),
-        Map.entry("GetBiomeAt", "Loads this chunk if needed and returns the biome identifier at a world position inside it."),
+        Map.entry("GetBiomeAt", "Loads this chunk if needed and returns a typed Biome instance at a world position inside it."),
         Map.entry("GetFluidAt", "Loads this chunk if needed and returns the fluid identifier at a world position inside it, or nil."),
         Map.entry("GetLightAt", "Loads this chunk if needed and returns the raw local light level at a world position inside it."),
         Map.entry("GetHeightAt", "Loads this chunk if needed and returns the first free Y coordinate above the selected heightmap at a world X/Z position."),
@@ -60,6 +61,7 @@ public class WorldModule implements MLuaModule {
         registerWorldProperties(registration);
         MLuaBlockStateWrapper.classTable(registration);
         MLuaFluidStateWrapper.classTable(registration);
+        MLuaBiomeWrapper.classTable(registration);
         registration.registerClass("Chunk", "Instance", "A dimension-scoped chunk handle whose data methods load the chunk when needed.");
         chunkMethods().forEach((name, description) ->
             MLuaClassMethods.registerInstanceMethod(registration, "Chunk", name, description));
@@ -87,6 +89,18 @@ public class WorldModule implements MLuaModule {
             "Entity", "shared:Shared", "The live entity intersected by the ray.");
         registration.registerClass("BlockRaycastResult", "RaycastResult",
             "The first colliding block and hit point returned by a world's block raycast.");
+        registration.registerClass("BoundsRaycastResult", "RaycastResult",
+            "The nearest custom EntityBounds hit returned by a world's bounds raycast.");
+        registration.registerClassFunction("BoundsRaycastResult", "GetBounds", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return self.checktable().get("Bounds"); }
+        }, "Returns the EntityBounds instance intersected by the ray.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BoundsRaycastResult", "Bounds", "GetBounds", null,
+            "EntityBounds", "shared:Shared", "The custom bounds instance intersected by the ray.");
+        registration.registerClassFunction("BoundsRaycastResult", "GetBoundsIndex", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) { return self.checktable().get("BoundsIndex"); }
+        }, "Returns the one-based position of the hit bounds in the input array.");
+        MLuaClassMethods.registerInstanceProperty(registration, "BoundsRaycastResult", "BoundsIndex", "GetBoundsIndex", null,
+            "number", "shared:Shared", "One-based index of the hit bounds in the input array.");
         String[][] blockRaycastProperties = {
             {"Block", "string", "The registered block identifier hit by the ray."},
             {"Face", "string", "The face of the block hit by the ray."}
@@ -231,7 +245,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("SetBlockState", "Places an immutable BlockState at a position, loading its chunk by default. Optional Minecraft update flags default to 3. This method is server-side only."),
             Map.entry("GetFluid", "Loads the position's chunk on the server if needed and returns the fluid identifier, or nil when empty or unavailable."),
             Map.entry("GetFluidState", "Loads the position's chunk on the server if needed and returns its live position-aware FluidState. Returns nil on a client when that chunk is not loaded."),
-            Map.entry("GetBiome", "Loads the position's chunk on the server if needed and returns its biome identifier. Returns nil on a client when that chunk is not loaded."),
+            Map.entry("GetBiome", "Loads the position's chunk on the server if needed and returns its typed Biome instance. Returns nil on a client when that chunk is not loaded."),
             Map.entry("GetLightLevel", "Loads the position's chunk on the server if needed and returns the maximum local light level. Returns nil on a client when that chunk is not loaded."),
             Map.entry("GetSkyLight", "Loads the position's chunk on the server if needed and returns the sky light level. Returns nil on a client when that chunk is not loaded."),
             Map.entry("GetBlockLight", "Loads the position's chunk on the server if needed and returns the block light level. Returns nil on a client when that chunk is not loaded."),
@@ -242,6 +256,7 @@ public class WorldModule implements MLuaModule {
             Map.entry("GetSurfaceY", "Loads the X/Z column's chunk on the server if needed and returns its motion-blocking surface height. Returns nil on a client when that chunk is not loaded."),
             Map.entry("Raycast", "Returns the first block hit by a ray from the given origin."),
             Map.entry("RaycastEntity", "Returns the nearest matching entity hit before a colliding block."),
+            Map.entry("RaycastAABB", "Returns the nearest custom EntityBounds hit along a ray."),
             Map.entry("GetPlayers", "Returns players currently in this dimension. On the client, this includes only players currently loaded by that client."),
             Map.entry("GetEntities", "Returns the entities currently in this world."),
             Map.entry("FindEntitiesInRadius", "Returns entities within a radius of a position."),
@@ -322,6 +337,7 @@ public class WorldModule implements MLuaModule {
         globals.set("World", context.registration().classTable("World"));
         globals.set("BlockState", context.registration().classTable("BlockState"));
         globals.set("FluidState", context.registration().classTable("FluidState"));
+        globals.set("Biome", context.registration().classTable("Biome"));
         globals.set("Chunk", context.registration().classTable("Chunk"));
     }
 
@@ -414,7 +430,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBlockStateAt(position: Vector3|CFrame)", "BlockState?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetFluidStateAt(position: Vector3|CFrame)", "FluidState?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBlockEntityAt(position: Vector3|CFrame)", "BlockEntity?"));
-        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBiomeAt(position: Vector3|CFrame)", "string?"));
+        docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetBiomeAt(position: Vector3|CFrame)", "Biome?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetFluidAt(position: Vector3|CFrame)", "string?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetLightAt(position: Vector3|CFrame)", "number?"));
         docs.register(MLuaDocBuilder.Registration.signature("Chunk", "Chunk:GetHeightAt(position: Vector3|CFrame, heightmap: string?)", "number?"));
@@ -463,7 +479,7 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBlock(position: Vector3|CFrame)", "Block"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:SetSpawnPosition(position: Vector3|CFrame, yaw: number?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetFluid(position: Vector3|CFrame)", "string?"));
-        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBiome(position: Vector3|CFrame)", "string"));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBiome(position: Vector3|CFrame)", "Biome?"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetLightLevel(position: Vector3|CFrame)", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetSkyLight(position: Vector3|CFrame)", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:GetBlockLight(position: Vector3|CFrame)", "number"));
@@ -497,6 +513,26 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:FindNearestEntity(position: Vector3|CFrame, maxDistance: number?, filters: string|EntityQuery?)", "Entity?"));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:Raycast(origin: Vector3|CFrame, direction: Vector3, distance: number?, includeFluids: boolean?): BlockRaycastResult?", null));
         docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:RaycastEntity(origin: Vector3|CFrame, direction: Vector3, distance: number?, filters: string|EntityQuery?): EntityRaycastResult?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:RaycastAABB(origin: Vector3|CFrame, direction: Vector3, distance: number?, bounds: EntityBounds[]): BoundsRaycastResult?", null));
+        docs.register(MLuaDocBuilder.Registration.signature("WorldService", "WorldService:RaycastAABB(origin: Vector3|CFrame, direction: Vector3, bounds: EntityBounds[]): BoundsRaycastResult?", null));
+        docs.register(MLuaDocBuilder.Registration.clazz("Biome", "WorldModule", "A read-only biome view sampled in a dimension at a block position.", "classes/biome.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.Id", "string", "The registered biome identifier.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.Position", "Vector3", "The position used to sample this biome.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.Temperature", "number", "The biome's base temperature.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.Precipitation", "string", "Precipitation at the sample position: rain, snow, or none.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.Tags", "string[]", "Registered tags for this biome.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.SkyColor", "Color3", "Biome sky color.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.FogColor", "Color3", "Biome fog color.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.WaterColor", "Color3", "Biome water color.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.WaterFogColor", "Color3", "Biome water fog color.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.FoliageColor", "Color3", "Biome foliage color.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.GrassColor", "Color3", "Biome grass color at the sample X/Z.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.IsCold", "boolean", "Whether Minecraft considers snow possible at the sample position.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("Biome", "Biome.IsHot", "boolean", "Whether base biome temperature is above one.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.method("Biome", "Biome:HasTag(tag: string): boolean", "Checks for a biome tag identifier.", null, "boolean", null, null));
+        docs.register(MLuaDocBuilder.Registration.clazz("BoundsRaycastResult", "WorldModule", "The nearest custom EntityBounds hit returned by a ray.", "classes/bounds-raycast-result.html", "RaycastResult"));
+        docs.register(MLuaDocBuilder.Registration.property("BoundsRaycastResult", "BoundsRaycastResult.Bounds", "EntityBounds", "The custom bounds instance hit by the ray.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.property("BoundsRaycastResult", "BoundsRaycastResult.BoundsIndex", "number", "One-based index of the hit bounds in the input list.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.clazz("RaycastResult", "WorldModule", "A world ray hit with a typed hit position, surface normal, and distance.", "classes/raycast-result.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("RaycastResult", "RaycastResult.HitType", "string", "The kind of ray hit.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.property("RaycastResult", "RaycastResult.Position", "Vector3", "The point where the ray intersects the hit bounds.", "read:Read"));
@@ -513,6 +549,9 @@ public class WorldModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("World", "Raycast from the player's view",
             "RaycastEntity finds the closest matching entity along the direction and stops at colliding blocks. Both block and entity results inherit RaycastResult; block hits also return the live block instance.",
             "local world = Minecraft:GetService(\"World\"):Current()\nlocal entityHit = world:RaycastEntity(player.EyePosition, player.LookVector, 32, { exclude = player })\nif entityHit then\n    print(entityHit:IsA(\"RaycastResult\"), entityHit.Entity.Name, entityHit.Distance, entityHit.Normal)\nend\n\nlocal blockHit = world:Raycast(player.EyePosition, player.LookVector, 32)\nif blockHit then\n    print(blockHit:IsA(\"BlockRaycastResult\"), blockHit.Block, blockHit.BlockInstance.Id, blockHit.Face, blockHit.Normal)\nend"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("World", "Raycast addon-defined hitboxes",
+            "Pass world-space EntityBounds instances to test custom shapes. This tests the supplied boxes directly, without consulting block collisions. The result identifies the closest intersected box and its one-based input index.",
+            "local world = Minecraft:GetService(\"World\"):Current()\nlocal boxes = {\n    EntityBounds.new(Vector3.new(4, 64, 8), Vector3.new(5, 66, 9)),\n    EntityBounds.new(Vector3.new(7, 64, 8), Vector3.new(8, 66, 9)),\n}\nlocal hit = world:RaycastAABB(player.EyePosition, player.LookVector, 32, boxes)\nif hit then\n    print(hit.BoundsIndex, hit.Bounds.Minimum, hit.Position, hit.Normal)\nend"));
         docs.register(MLuaDocBuilder.Registration.type("EntityQuery", null, "A table of filters accepted by world, EntityService, and entity instance searches. Pass a string when matching one registered entity type."));
         docs.register(MLuaDocBuilder.Registration.field("EntityQuery", "type", "string", "Match this registered entity type identifier."));
         docs.register(MLuaDocBuilder.Registration.field("EntityQuery", "types", "string[]", "Allow only these registered entity type identifiers; combines with type when both are set."));

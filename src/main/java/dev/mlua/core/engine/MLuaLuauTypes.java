@@ -30,7 +30,7 @@ public final class MLuaLuauTypes {
    private static final Random SHARED_RNG = new Random();
    private static final LuaTable UDIM_METATABLE = valueMetatable("UDim");
    private static final LuaTable UDIM2_METATABLE = valueMetatable("UDim2");
-   private static final LuaTable COLOR3_METATABLE = valueMetatable("Color3");
+   private static final LuaTable COLOR3_METATABLE = color3Metatable();
    private static final Set<LuaTable> UDIM_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
    private static final Set<LuaTable> UDIM2_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
    private static final Set<LuaTable> COLOR3_VALUES = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
@@ -42,7 +42,9 @@ public final class MLuaLuauTypes {
       globals.set("Vector2", vector2Library());
       LuaTable vector3 = vector3Library();
       globals.set("Vector3", vector3);
-      globals.set("vector", vectorAlias(vector3));
+      LuaTable vectors = vectorAlias(vector3);
+      globals.set("vector", vectors);
+      globals.set("vectors", vectors);
       globals.set("CFrame", MLuaCFrame.library());
       globals.set("Vec4", vec4Library());
       globals.set("Mat3", mat3Library());
@@ -74,6 +76,7 @@ public final class MLuaLuauTypes {
       return switch (type) {
          case "Vector2" -> MLuaVector.isVector2(value);
          case "Vector3" -> MLuaVector.isVector3(value);
+         case "Vec4" -> MLuaVec4.isVec4(value);
          case "CFrame" -> MLuaCFrame.isCFrame(value);
          case "UDim" -> isUDim(value);
          case "UDim2" -> isUDim2(value);
@@ -230,7 +233,84 @@ public final class MLuaLuauTypes {
       table.set("create", vector3.get("new"));
       table.set("zero", vector3.get("zero"));
       table.set("one", vector3.get("one"));
+      table.set("vec", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            if (args.narg() == 2) return vector2(args.checkdouble(1), args.checkdouble(2));
+            if (args.narg() == 3) return vector3(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3));
+            if (args.narg() == 4) return MLuaVec4.vec4(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3), args.checkdouble(4));
+            throw new LuaError("vectors.vec expects two, three, or four numbers");
+         }
+      });
+      table.set("vec2", vector2Library().get("new"));
+      table.set("vec3", vector3.get("new"));
+      table.set("vec4", vec4Library().get("new"));
+      table.set("rgbToInt", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            double[] rgb = normalizedRgb(args, "vectors.rgbToInt");
+            int red = (int)Math.round(clamp01(rgb[0]) * 255.0);
+            int green = (int)Math.round(clamp01(rgb[1]) * 255.0);
+            int blue = (int)Math.round(clamp01(rgb[2]) * 255.0);
+            return LuaValue.valueOf(red << 16 | green << 8 | blue);
+         }
+      });
+      table.set("intToRGB", new OneArgFunction() {
+         @Override public LuaValue call(LuaValue value) {
+            LuaTable color = color3FromArgb(value.checkint());
+            return color.get("ToVector3").call(color);
+         }
+      });
+      table.set("hexToRGB", new OneArgFunction() {
+         @Override public LuaValue call(LuaValue hex) {
+            LuaTable color = color3FromHex(hex.checkjstring());
+            return color.get("ToVector3").call(color);
+         }
+      });
+      table.set("hsvToRGB", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            double[] hsv = hsvValues(args, "vectors.hsvToRGB");
+            LuaTable color = colorFromHSV(hsv[0], hsv[1], hsv[2]);
+            return color.get("ToVector3").call(color);
+         }
+      });
+      table.set("rgbToHSV", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            double[] rgb = normalizedRgb(args, "vectors.rgbToHSV");
+            double[] hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+            return vector3(hsv[0], hsv[1], hsv[2]);
+         }
+      });
+      table.set("rgbToHex", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            double[] rgb = normalizedRgb(args, "vectors.rgbToHex");
+            LuaTable color = color3(rgb[0], rgb[1], rgb[2]);
+            return color.get("ToHex").call(color);
+         }
+      });
       return table;
+   }
+
+   private static double[] normalizedRgb(Varargs args, String function) {
+      double[] values = colorComponents(args, function);
+      for (int i = 0; i < values.length; i++) values[i] = clamp01(values[i]);
+      return values;
+   }
+
+   private static double[] hsvValues(Varargs args, String function) {
+      double[] values = colorComponents(args, function);
+      values[1] = clamp01(values[1]);
+      values[2] = clamp01(values[2]);
+      return values;
+   }
+
+   private static double[] colorComponents(Varargs args, String function) {
+      double[] values;
+      if (args.narg() == 1) values = MLuaVector.components3(args.arg1());
+      else if (args.narg() == 3) values = new double[] {args.checkdouble(1), args.checkdouble(2), args.checkdouble(3)};
+      else throw new LuaError(function + " expects a Vector3 or three numbers");
+      for (double value : values) {
+         if (!Double.isFinite(value)) throw new LuaError(function + " channel values must be finite");
+      }
+      return values;
    }
 
    private static LuaTable color3Library() {
@@ -242,7 +322,17 @@ public final class MLuaLuauTypes {
       });
       table.set("fromRGB", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
+            if (args.narg() == 1 && MLuaVector.isVector3(args.arg1())) {
+               double[] rgb = MLuaVector.components3(args.arg1());
+               return MLuaLuauTypes.color3(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0);
+            }
             return MLuaLuauTypes.color3(args.checkdouble(1) / 255.0, args.checkdouble(2) / 255.0, args.checkdouble(3) / 255.0);
+         }
+      });
+      table.set("fromVector3", new OneArgFunction() {
+         public LuaValue call(LuaValue value) {
+            double[] rgb = MLuaVector.components3(value);
+            return MLuaLuauTypes.color3(rgb[0], rgb[1], rgb[2]);
          }
       });
       table.set("fromHSV", new VarArgFunction() {
@@ -252,18 +342,7 @@ public final class MLuaLuauTypes {
       });
       table.set("fromHex", new OneArgFunction() {
          public LuaValue call(LuaValue hex) {
-            String h = hex.checkjstring().replace("#", "");
-            if (h.length() == 3) {
-               char var10000 = h.charAt(0);
-               h = "" + var10000 + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
-            }
-
-            if (h.length() != 6) {
-               throw new LuaError("[MLua] Color3.fromHex requires 3 or 6 hex digits");
-            } else {
-               int rgb = Integer.parseInt(h, 16);
-               return MLuaLuauTypes.color3((double)(rgb >> 16 & 255) / 255.0, (double)(rgb >> 8 & 255) / 255.0, (double)(rgb & 255) / 255.0);
-            }
+            return color3FromHex(hex.checkjstring());
          }
       });
       return table;
@@ -325,6 +404,9 @@ public final class MLuaLuauTypes {
       value.set("R", clamp01(r));
       value.set("G", clamp01(g));
       value.set("B", clamp01(b));
+      value.set("r", value.get("R"));
+      value.set("g", value.get("G"));
+      value.set("b", value.get("B"));
       value.set("ToHSV", new VarArgFunction() {
          public Varargs invoke(Varargs self) {
             LuaTable c = MLuaLuauTypes.requireColor3(self.arg1());
@@ -341,17 +423,107 @@ public final class MLuaLuauTypes {
             return LuaValue.valueOf(String.format("#%02x%02x%02x", rv, gv, bv));
          }
       });
-      value.set("Lerp", new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            LuaTable a = MLuaLuauTypes.requireColor3(args.arg(1));
-            LuaTable b = MLuaLuauTypes.requireColor3(args.arg(2));
-            double t = args.checkdouble(3);
-            return MLuaLuauTypes.color3(MLuaLuauTypes.lerp(a.get("R").todouble(), b.get("R").todouble(), t), MLuaLuauTypes.lerp(a.get("G").todouble(), b.get("G").todouble(), t), MLuaLuauTypes.lerp(a.get("B").todouble(), b.get("B").todouble(), t));
+      value.set("toHex", value.get("ToHex"));
+      value.set("ToVector3", new VarArgFunction() {
+         public Varargs invoke(Varargs self) {
+            LuaTable c = MLuaLuauTypes.requireColor3(self.arg1());
+            return MLuaVector.vector3(c.get("R").todouble(), c.get("G").todouble(), c.get("B").todouble());
          }
       });
+      value.set("toVector3", value.get("ToVector3"));
+      value.set("toHSV", value.get("ToHSV"));
+      value.set("Lerp", new VarArgFunction() {
+         public Varargs invoke(Varargs args) {
+            return MLuaLuauTypes.color3Lerp(args.arg(1), args.arg(2), args.checkdouble(3));
+         }
+      });
+      value.set("lerp", value.get("Lerp"));
       value.setmetatable(COLOR3_METATABLE);
       COLOR3_VALUES.add(value);
       return value.freeze();
+   }
+
+   private static LuaTable color3Metatable() {
+      LuaTable metatable = new LuaTable();
+      metatable.set("__metatable", LuaValue.valueOf("Color3"));
+      metatable.set(LuaValue.EQ, new TwoArgFunction() {
+         @Override public LuaValue call(LuaValue left, LuaValue right) {
+            if (!isColor3(left) || !isColor3(right)) return LuaValue.FALSE;
+            LuaTable a = left.checktable(), b = right.checktable();
+            return LuaValue.valueOf(a.get("R").eq_b(b.get("R"))
+               && a.get("G").eq_b(b.get("G")) && a.get("B").eq_b(b.get("B")));
+         }
+      });
+      metatable.set(LuaValue.ADD, colorBinary((r1, g1, b1, r2, g2, b2) ->
+         color3(r1 + r2, g1 + g2, b1 + b2)));
+      metatable.set(LuaValue.SUB, colorBinary((r1, g1, b1, r2, g2, b2) ->
+         color3(r1 - r2, g1 - g2, b1 - b2)));
+      metatable.set(LuaValue.MUL, new TwoArgFunction() {
+         @Override public LuaValue call(LuaValue left, LuaValue right) {
+            if (isColor3(left) && isColor3(right)) {
+               LuaTable a = left.checktable(), b = right.checktable();
+               return color3(a.get("R").todouble() * b.get("R").todouble(),
+                  a.get("G").todouble() * b.get("G").todouble(),
+                  a.get("B").todouble() * b.get("B").todouble());
+            }
+            LuaValue color = isColor3(left) ? left : right;
+            LuaValue scalar = color == left ? right : left;
+            if (!isColor3(color) || !scalar.isnumber()) throw new LuaError("Color3 multiplication expects another Color3 or a number");
+            LuaTable value = color.checktable();
+            double factor = scalar.checkdouble();
+            return color3(value.get("R").todouble() * factor,
+               value.get("G").todouble() * factor, value.get("B").todouble() * factor);
+         }
+      });
+      metatable.set(LuaValue.DIV, new TwoArgFunction() {
+         @Override public LuaValue call(LuaValue left, LuaValue right) {
+            if (isColor3(left) && isColor3(right)) {
+               LuaTable a = left.checktable(), b = right.checktable();
+               double r = b.get("R").todouble(), g = b.get("G").todouble(), blue = b.get("B").todouble();
+               if (r == 0.0 || g == 0.0 || blue == 0.0) throw new LuaError("Color3 division by zero component");
+               return color3(a.get("R").todouble() / r, a.get("G").todouble() / g, a.get("B").todouble() / blue);
+            }
+            if (!isColor3(left) || !right.isnumber()) throw new LuaError("Color3 division expects another Color3 or a number");
+            double divisor = right.checkdouble();
+            if (divisor == 0.0) throw new LuaError("Color3 division by zero");
+            LuaTable color = left.checktable();
+            return color3(color.get("R").todouble() / divisor,
+               color.get("G").todouble() / divisor, color.get("B").todouble() / divisor);
+         }
+      });
+      metatable.set("__tostring", new OneArgFunction() {
+         @Override public LuaValue call(LuaValue value) {
+            LuaTable color = requireColor3(value);
+            return LuaValue.valueOf(String.format("Color3(%.4f, %.4f, %.4f)",
+               color.get("R").todouble(), color.get("G").todouble(), color.get("B").todouble()));
+         }
+      });
+      return metatable.freeze();
+   }
+
+   private static VarArgFunction colorBinary(ColorOperation operation) {
+      return new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            LuaTable a = requireColor3(args.arg(1));
+            LuaTable b = requireColor3(args.arg(2));
+            return operation.apply(a.get("R").todouble(), a.get("G").todouble(), a.get("B").todouble(),
+               b.get("R").todouble(), b.get("G").todouble(), b.get("B").todouble());
+         }
+      };
+   }
+
+   @FunctionalInterface
+   private interface ColorOperation {
+      LuaValue apply(double r1, double g1, double b1, double r2, double g2, double b2);
+   }
+
+   private static LuaTable color3Lerp(LuaValue start, LuaValue end, double alpha) {
+      LuaTable a = requireColor3(start);
+      LuaTable b = requireColor3(end);
+      if (!Double.isFinite(alpha)) throw new LuaError("math.lerp alpha must be finite");
+      return color3(lerp(a.get("R").todouble(), b.get("R").todouble(), alpha),
+         lerp(a.get("G").todouble(), b.get("G").todouble(), alpha),
+         lerp(a.get("B").todouble(), b.get("B").todouble(), alpha));
    }
 
    private static LuaTable colorFromHSV(double h, double s, double v) {
@@ -389,6 +561,19 @@ public final class MLuaLuauTypes {
       }
 
       return color3(r + m, g + m, b + m);
+   }
+
+   private static LuaTable color3FromHex(String input) {
+      String hex = input.trim();
+      if (hex.startsWith("#")) hex = hex.substring(1);
+      if (hex.length() == 3) {
+         hex = "" + hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2);
+      }
+      if (hex.length() != 6 || !hex.matches("[0-9a-fA-F]{6}")) {
+         throw new LuaError("Color3.fromHex expects a three- or six-digit hex string, optionally prefixed with #");
+      }
+      int rgb = Integer.parseInt(hex, 16);
+      return color3((rgb >> 16 & 255) / 255.0, (rgb >> 8 & 255) / 255.0, (rgb & 255) / 255.0);
    }
 
    private static double[] rgbToHsv(double r, double g, double b) {
@@ -522,9 +707,62 @@ public final class MLuaLuauTypes {
             return LuaValue.valueOf(Double.compare(value.checkdouble(), 0.0));
          }
       });
-      math.set("lerp", new ThreeArgFunction() {
-         public LuaValue call(LuaValue a, LuaValue b, LuaValue t) {
-            return LuaValue.valueOf(MLuaLuauTypes.lerp(a.checkdouble(), b.checkdouble(), t.checkdouble()));
+      math.set("lerp", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            if (args.narg() != 3) throw new LuaError("math.lerp expects start, finish, and alpha");
+            LuaValue start = args.arg(1);
+            LuaValue finish = args.arg(2);
+            double alpha = args.checkdouble(3);
+            if (!Double.isFinite(alpha)) throw new LuaError("math.lerp alpha must be finite");
+            if (start.isnumber() && finish.isnumber()) {
+               return LuaValue.valueOf(MLuaLuauTypes.lerp(start.checkdouble(), finish.checkdouble(), alpha));
+            }
+            if (MLuaLuauTypes.isColor3(start) && MLuaLuauTypes.isColor3(finish)) {
+               return color3Lerp(start, finish, alpha);
+            }
+            if (MLuaVector.isVector2(start) && MLuaVector.isVector2(finish)) {
+               double[] a = MLuaVector.components2(start), b = MLuaVector.components2(finish);
+               return MLuaVector.vector2(lerp(a[0], b[0], alpha), lerp(a[1], b[1], alpha));
+            }
+            if (MLuaVector.isVector3(start) && MLuaVector.isVector3(finish)) {
+               double[] a = MLuaVector.components3(start), b = MLuaVector.components3(finish);
+               return MLuaVector.vector3(lerp(a[0], b[0], alpha), lerp(a[1], b[1], alpha), lerp(a[2], b[2], alpha));
+            }
+            if (MLuaVec4.isVec4(start) && MLuaVec4.isVec4(finish)) {
+               LuaTable a = start.checktable(), b = finish.checktable();
+               return MLuaVec4.vec4(lerp(a.get("X").checkdouble(), b.get("X").checkdouble(), alpha),
+                  lerp(a.get("Y").checkdouble(), b.get("Y").checkdouble(), alpha),
+                  lerp(a.get("Z").checkdouble(), b.get("Z").checkdouble(), alpha),
+                  lerp(a.get("W").checkdouble(), b.get("W").checkdouble(), alpha));
+            }
+            if (MLuaCFrame.isCFrame(start) && MLuaCFrame.isCFrame(finish)) {
+               return MLuaCFrame.fromLua(start).lerp(MLuaCFrame.fromLua(finish), alpha).toLua();
+            }
+            if (isMatrix(start, "Mat3") && isMatrix(finish, "Mat3")) {
+               LuaTable a = start.checktable(), b = finish.checktable();
+               return MLuaMat3.mat3(lerp(a.get("v11").checkdouble(), b.get("v11").checkdouble(), alpha),
+                  lerp(a.get("v12").checkdouble(), b.get("v12").checkdouble(), alpha),
+                  lerp(a.get("v13").checkdouble(), b.get("v13").checkdouble(), alpha),
+                  lerp(a.get("v21").checkdouble(), b.get("v21").checkdouble(), alpha),
+                  lerp(a.get("v22").checkdouble(), b.get("v22").checkdouble(), alpha),
+                  lerp(a.get("v23").checkdouble(), b.get("v23").checkdouble(), alpha),
+                  lerp(a.get("v31").checkdouble(), b.get("v31").checkdouble(), alpha),
+                  lerp(a.get("v32").checkdouble(), b.get("v32").checkdouble(), alpha),
+                  lerp(a.get("v33").checkdouble(), b.get("v33").checkdouble(), alpha));
+            }
+            if (isMatrix(start, "Mat4") && isMatrix(finish, "Mat4")) {
+               LuaTable a = start.checktable(), b = finish.checktable();
+               double[] values = new double[16];
+               for (int row = 1, i = 0; row <= 4; row++) {
+                  for (int column = 1; column <= 4; column++, i++) {
+                     String key = "v" + row + column;
+                     values[i] = lerp(a.get(key).checkdouble(), b.get(key).checkdouble(), alpha);
+                  }
+               }
+               return MLuaMat4.mat4(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7],
+                  values[8], values[9], values[10], values[11], values[12], values[13], values[14], values[15]);
+            }
+            throw new LuaError("math.lerp endpoints must have the same type: number, Vector2, Vector3, Vec4, Color3, Mat3, Mat4, or CFrame");
          }
       });
       math.set("inverseLerp", new ThreeArgFunction() {
@@ -934,6 +1172,11 @@ public final class MLuaLuauTypes {
    }
 
    private static double clamp01(double value) {
+      if (!Double.isFinite(value)) throw new LuaError("Color3 components must be finite numbers");
       return Math.max(0.0, Math.min(1.0, value));
+   }
+
+   private static boolean isMatrix(LuaValue value, String type) {
+      return value.istable() && type.equals(value.get("__type").optjstring(null));
    }
 }

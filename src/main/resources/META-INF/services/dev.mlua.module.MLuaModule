@@ -3,6 +3,7 @@ dev.mlua.modules.advancements.AdvancementsModule
 dev.mlua.modules.attribute.AttributeModule
 dev.mlua.modules.bossbar.BossBarModule
 dev.mlua.modules.camera.CameraModule
+dev.mlua.modules.client.ClientModule
 dev.mlua.modules.chat.ChatModule
 dev.mlua.modules.combat.CombatModule
 dev.mlua.modules.components.ComponentsModule

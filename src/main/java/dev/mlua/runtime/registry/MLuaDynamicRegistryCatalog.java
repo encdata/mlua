@@ -17,12 +17,22 @@ import org.luaj.vm2.Varargs;
  */
 public final class MLuaDynamicRegistryCatalog {
     private static final int MAX_TABLE_DEPTH = 64;
+    public static final int MAX_CATEGORIES = 256;
+    public static final int MAX_DEFINITIONS_PER_CATEGORY = 16_384;
+    public static final int MAX_TOTAL_DEFINITIONS = 65_536;
+    public static final int MAX_PENDING_PER_CATEGORY = 128;
+    public static final int MAX_TABLE_ENTRIES_PER_DEFINITION = 16_384;
     private final MLuaRegistry<Category> categories = new MLuaRegistry<>();
     private final Map<String, CategoryState> categoryStates = new HashMap<>();
+    private int definitionCount;
+    private int pendingDefinitionCount;
 
     public synchronized boolean register(Category category) {
         Objects.requireNonNull(category, "category");
         String key = key(category.name());
+        if (this.categories.size() >= MAX_CATEGORIES && this.categories.get(key) == null) {
+            throw new org.luaj.vm2.LuaError("[MLua] Dynamic registry category limit reached (" + MAX_CATEGORIES + ")");
+        }
         if (!this.categories.register(category.owner(), key, category)) return false;
         this.categoryStates.put(key, new CategoryState());
         return true;
@@ -39,7 +49,11 @@ public final class MLuaDynamicRegistryCatalog {
     public synchronized boolean unregister(String name, Category expected) {
         String key = key(name);
         if (!this.categories.remove(expected.owner(), key, expected)) return false;
-        this.categoryStates.remove(key);
+        CategoryState removed = this.categoryStates.remove(key);
+        if (removed != null) {
+            this.definitionCount -= removed.definitions.size();
+            this.pendingDefinitionCount -= removed.pending.size();
+        }
         return true;
     }
 
@@ -50,8 +64,21 @@ public final class MLuaDynamicRegistryCatalog {
         requireText(owner, "definition owner");
         CategoryState state = this.categoryStates.get(key);
         if (state == null || state.definitions.contains(id) || state.pending.containsKey(id)) return null;
+        if (state.definitions.size() + state.pending.size() >= MAX_DEFINITIONS_PER_CATEGORY) {
+            throw new org.luaj.vm2.LuaError("[MLua] Definition limit reached for registry category '"
+                + category + "' (" + MAX_DEFINITIONS_PER_CATEGORY + ")");
+        }
+        if (this.definitionCount + this.pendingDefinitionCount >= MAX_TOTAL_DEFINITIONS) {
+            throw new org.luaj.vm2.LuaError("[MLua] Dynamic registry definition limit reached ("
+                + MAX_TOTAL_DEFINITIONS + ")");
+        }
+        if (state.pending.size() >= MAX_PENDING_PER_CATEGORY) {
+            throw new org.luaj.vm2.LuaError("[MLua] Pending registration limit reached for registry category '"
+                + category + "' (" + MAX_PENDING_PER_CATEGORY + ")");
+        }
         DefinitionReservation reservation = new DefinitionReservation(key, id, owner);
         state.pending.put(id, reservation);
+        this.pendingDefinitionCount++;
         return reservation;
     }
 
@@ -59,7 +86,7 @@ public final class MLuaDynamicRegistryCatalog {
     public synchronized void cancelPendingDefinition(DefinitionReservation reservation) {
         if (reservation == null) return;
         CategoryState state = this.categoryStates.get(reservation.category());
-        if (state != null) state.pending.remove(reservation.id(), reservation);
+        if (state != null && state.pending.remove(reservation.id(), reservation)) this.pendingDefinitionCount--;
     }
 
     public synchronized DefinitionHandle registerDefinition(DefinitionReservation reservation, LuaTable definition) {
@@ -68,22 +95,35 @@ public final class MLuaDynamicRegistryCatalog {
         if (state == null || state.pending.get(reservation.id()) != reservation
             || state.definitions.contains(reservation.id())) return null;
         DefinitionHandle stored = new DefinitionHandle(reservation.owner(), copyTable(definition));
-        return state.definitions.register(reservation.owner(), reservation.id(), stored) ? stored : null;
+        if (!state.definitions.register(reservation.owner(), reservation.id(), stored)) return null;
+        this.definitionCount++;
+        return stored;
     }
 
     public synchronized void unregisterDefinition(String category, String id, DefinitionHandle expected) {
         CategoryState state = this.categoryStates.get(key(category));
-        if (state != null && expected != null) state.definitions.remove(expected.owner(), id, expected);
+        if (state != null && expected != null && state.definitions.remove(expected.owner(), id, expected)) {
+            this.definitionCount--;
+        }
     }
 
     public synchronized void unregisterOwner(String ownerModId) {
         this.categories.removeOwner(ownerModId);
         List<String> removedCategories = this.categoryStates.keySet().stream()
             .filter(key -> this.categories.get(key) == null).toList();
-        removedCategories.forEach(this.categoryStates::remove);
+        removedCategories.forEach(key -> {
+            CategoryState removed = this.categoryStates.remove(key);
+            if (removed != null) {
+                this.definitionCount -= removed.definitions.size();
+                this.pendingDefinitionCount -= removed.pending.size();
+            }
+        });
         this.categoryStates.values().forEach(state -> {
-            state.definitions.removeOwner(ownerModId);
+            this.definitionCount -= state.definitions.removeOwner(ownerModId);
+            int removedPending = (int) state.pending.values().stream()
+                .filter(reservation -> ownerModId.equals(reservation.owner())).count();
             state.pending.entrySet().removeIf(entry -> ownerModId.equals(entry.getValue().owner()));
+            this.pendingDefinitionCount -= removedPending;
         });
     }
 
@@ -116,20 +156,12 @@ public final class MLuaDynamicRegistryCatalog {
             .sorted().toList();
     }
 
-    public synchronized LuaTable definitions(String category, String namespace) {
-        LuaTable result = new LuaTable();
-        CategoryState state = this.categoryStates.get(key(category));
-        if (state != null) state.definitions.snapshot().entrySet().stream()
-            .filter(entry -> namespace == null || entry.getKey().startsWith(namespace + ":"))
-            .forEach(entry -> result.set(entry.getKey(), copyTable(entry.getValue().value())));
-        return result;
-    }
-
     public static LuaTable copyTable(LuaTable source) {
-        return copyTable(source, new java.util.IdentityHashMap<>(), 0);
+        return copyTable(source, new java.util.IdentityHashMap<>(), 0,
+            new CopyBudget(MAX_TABLE_ENTRIES_PER_DEFINITION));
     }
 
-    private static LuaTable copyTable(LuaTable source, Map<LuaTable, LuaTable> copies, int depth) {
+    private static LuaTable copyTable(LuaTable source, Map<LuaTable, LuaTable> copies, int depth, CopyBudget budget) {
         if (depth > MAX_TABLE_DEPTH) {
             throw new org.luaj.vm2.LuaError("[MLua] Registry definitions cannot be nested more than "
                 + MAX_TABLE_DEPTH + " tables deep");
@@ -143,9 +175,13 @@ public final class MLuaDynamicRegistryCatalog {
             Varargs entry = source.next(key);
             key = entry.arg1();
             if (key.isnil()) return copy;
+            if (--budget.remaining < 0) {
+                throw new org.luaj.vm2.LuaError("[MLua] Registry definition exceeds the table entry limit of "
+                    + MAX_TABLE_ENTRIES_PER_DEFINITION);
+            }
             LuaValue value = entry.arg(2);
-            LuaValue copiedKey = key.istable() ? copyTable(key.checktable(), copies, depth + 1) : key;
-            LuaValue copiedValue = value.istable() ? copyTable(value.checktable(), copies, depth + 1) : value;
+            LuaValue copiedKey = key.istable() ? copyTable(key.checktable(), copies, depth + 1, budget) : key;
+            LuaValue copiedValue = value.istable() ? copyTable(value.checktable(), copies, depth + 1, budget) : value;
             copy.rawset(copiedKey, copiedValue);
         }
     }
@@ -162,6 +198,14 @@ public final class MLuaDynamicRegistryCatalog {
     private static final class CategoryState {
         private final MLuaRegistry<DefinitionHandle> definitions = new MLuaRegistry<>();
         private final Map<String, DefinitionReservation> pending = new HashMap<>();
+    }
+
+    private static final class CopyBudget {
+        private int remaining;
+
+        private CopyBudget(int remaining) {
+            this.remaining = remaining;
+        }
     }
 
     /** Opaque ticket; only the catalog that created it can complete or cancel it. */

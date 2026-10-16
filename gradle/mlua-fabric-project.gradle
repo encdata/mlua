@@ -115,6 +115,8 @@ if (isUnobfuscated) {
 }
 if (is26Family) {
     rootExcludes += 'dev/mlua/modules/mixin/Service/LivingEntityRendererMixin.java'
+    rootExcludes += 'dev/mlua/modules/mixin/Service/ThirdPersonItemRendererMixin.java'
+    rootExcludes += 'dev/mlua/modules/mixin/Service/EntityRenderDispatcherMixin.java'
 }
 def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 

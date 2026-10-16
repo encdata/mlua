@@ -205,6 +205,19 @@ public final class MLuaBehaviorRegistry {
       return removeContainer(BLOCK_CONTAINERS, key, expected);
    }
 
+   /** Restores a block container only while the current value is still the registration being rolled back. */
+   public static boolean restoreBlockContainer(String key, ContainerDefinition expected,
+                                               ContainerDefinition previous) {
+      if (key == null || key.isBlank()) return false;
+      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
+      BLOCK_CONTAINERS.compute(key, (ignored, current) -> {
+         if (current != expected) return current;
+         restored.set(true);
+         return previous;
+      });
+      return restored.get();
+   }
+
    private static boolean removeContainer(ConcurrentMap<String, ContainerDefinition> containers,
                                           String key, ContainerDefinition expected) {
       if (key == null || expected == null) return false;

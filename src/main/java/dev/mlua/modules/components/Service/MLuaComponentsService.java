@@ -11,7 +11,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-@MLuaDescription("Attach reusable Lua behavior components to entities with tick and event callbacks.")
+@MLuaDescription("Attach reusable Lua behavior components to entities with ordered tick and event callbacks. MLua allows 128 components per entity and 65,536 active components globally.")
 public final class MLuaComponentsService extends MLuaReflectiveService {
     public MLuaComponentsService(Context context) {
         super(context);
@@ -83,6 +83,15 @@ public final class MLuaComponentsService extends MLuaReflectiveService {
         Entity entity = requireEntity(entityValue);
         return MLuaEntityComponentManager.clear(entity, this.context.side(),
             this.context.ownerModId(), this.context.mlua().session());
+    }
+
+    @MLuaDescription("Returns active entity component usage and the global and per-entity capacity limits.")
+    public LuaTable GetLimits() {
+        LuaTable limits = new LuaTable();
+        limits.set("Active", MLuaEntityComponentManager.activeComponentCount());
+        limits.set("MaxTotal", MLuaEntityComponentManager.MAX_COMPONENTS);
+        limits.set("MaxPerEntity", MLuaEntityComponentManager.MAX_COMPONENTS_PER_ENTITY);
+        return limits;
     }
 
     private Entity requireEntity(LuaValue value) {

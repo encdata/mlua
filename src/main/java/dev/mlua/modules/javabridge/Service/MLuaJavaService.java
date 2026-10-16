@@ -584,6 +584,16 @@ public final class MLuaJavaService extends MLuaServiceBase {
         if (value.isnil()) {
             return null;
         }
+        if (value.isuserdata()) {
+            Object userdata = value.touserdata();
+            if (userdata instanceof dev.mlua.runtime.java.MLuaScopedJavaReference scoped) {
+                try {
+                    return scoped.unwrap();
+                } catch (IllegalStateException invalidLifetime) {
+                    throw new LuaError("[MLua] " + invalidLifetime.getMessage());
+                }
+            }
+        }
         if (value.istable()) {
             LuaValue proxiedObject = javaProxyField(value, "__javaObject");
             if (!proxiedObject.isnil()) {

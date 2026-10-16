@@ -6,15 +6,26 @@ import dev.mlua.minecraft.animation.MLuaEntityScope;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.ModelPart;
 
 /** Lua-declared mappings from animation bone names to native model part paths. */
 public final class MLuaModelAdapterRegistry {
+    public static final int MAX_MODEL_CLASSES = 256;
+    public static final int MAX_PARTS_PER_MODEL = 512;
+    public static final int MAX_TOTAL_PARTS = 8192;
+    public static final int MAX_CLASS_NAME_LENGTH = 256;
+    public static final int MAX_BONE_NAME_LENGTH = 128;
+    public static final int MAX_PART_PATH_LENGTH = 512;
+    public static final int MAX_PART_PATH_DEPTH = 32;
+
     public record Owner(Object runtimeSession, String modId) {
         public Owner {
             modId = modId == null ? "" : modId;
@@ -23,16 +34,30 @@ public final class MLuaModelAdapterRegistry {
 
     private static final Owner LEGACY_OWNER = new Owner(null, "");
     private static final ConcurrentHashMap<String, Map<Owner, Map<String, String>>> ADAPTERS = new ConcurrentHashMap<>();
+    private static int registeredPartCount;
+    private static final ConcurrentMap<String, java.util.List<String>> PART_PATHS = new ConcurrentHashMap<>();
+    private static final ClassValue<ConcurrentMap<String, Optional<Field>>> MODEL_FIELDS = new ClassValue<>() {
+        @Override protected ConcurrentMap<String, Optional<Field>> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
     private static final Map<Class<?>, Map<String, String>> RESOLVED_MAPPINGS =
         Collections.synchronizedMap(new WeakHashMap<>());
 
     private MLuaModelAdapterRegistry() {}
 
-    public static void register(String modelClass, Map<String, String> parts, Owner owner) {
+    public static synchronized void register(String modelClass, Map<String, String> parts, Owner owner) {
         String className = normalizeClassName(modelClass);
         if (parts == null || parts.isEmpty()) throw new IllegalArgumentException("Adapter parts cannot be empty");
+        if (parts.size() > MAX_PARTS_PER_MODEL) {
+            throw new IllegalArgumentException("A model adapter can register at most " + MAX_PARTS_PER_MODEL + " bones");
+        }
         LinkedHashMap<String, String> copy = new LinkedHashMap<>();
-        parts.forEach((bone, path) -> {
+        ArrayList<Map.Entry<String, String>> orderedParts = new ArrayList<>(parts.entrySet());
+        orderedParts.sort(Map.Entry.comparingByKey(Comparator.nullsFirst(Comparator.naturalOrder())));
+        orderedParts.forEach(entry -> {
+            String bone = entry.getKey();
+            String path = entry.getValue();
             String normalizedBone = bone == null ? "" : bone.trim();
             String normalizedPath = path == null ? "" : path.trim();
             if (normalizedBone.isEmpty() || normalizedPath.isEmpty()) {
@@ -44,8 +69,13 @@ public final class MLuaModelAdapterRegistry {
             }
         });
         Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
-        Map<String, String> registeredParts = Map.copyOf(copy);
+        Map<String, String> registeredParts = orderedMap(copy);
+        int[] addedParts = {0};
         ADAPTERS.compute(className, (ignored, current) -> {
+            if (current == null && ADAPTERS.size() >= MAX_MODEL_CLASSES) {
+                throw new IllegalStateException("MLua already has the maximum of " + MAX_MODEL_CLASSES
+                    + " model adapter classes registered");
+            }
             LinkedHashMap<Owner, Map<String, String>> owners = current == null
                 ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
             LinkedHashMap<String, String> ownedParts = new LinkedHashMap<>(owners.getOrDefault(resolvedOwner, Map.of()));
@@ -59,50 +89,81 @@ public final class MLuaModelAdapterRegistry {
                     }
                 }
             }
+            int modelPartCount = owners.values().stream().mapToInt(Map::size).sum();
+            for (String bone : registeredParts.keySet()) {
+                if (!ownedParts.containsKey(bone)) addedParts[0]++;
+            }
+            if (modelPartCount + addedParts[0] > MAX_PARTS_PER_MODEL) {
+                throw new IllegalStateException("Model adapter '" + className + "' is limited to "
+                    + MAX_PARTS_PER_MODEL + " bones across all addons");
+            }
+            if (registeredPartCount + addedParts[0] > MAX_TOTAL_PARTS) {
+                throw new IllegalStateException("MLua already has the maximum of " + MAX_TOTAL_PARTS
+                    + " model adapter bones registered");
+            }
             ownedParts.putAll(registeredParts);
-            owners.put(resolvedOwner, Map.copyOf(ownedParts));
-            return Map.copyOf(owners);
+            owners.put(resolvedOwner, orderedMap(ownedParts));
+            return orderedMap(owners);
         });
-        RESOLVED_MAPPINGS.clear();
+        registeredPartCount += addedParts[0];
+        clearMappingCaches();
     }
 
-    public static boolean unregister(String modelClass, Owner owner) {
+    public static synchronized boolean unregister(String modelClass, Owner owner) {
         Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
         String className = normalizeClassName(modelClass);
         java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+        int[] removedParts = {0};
         ADAPTERS.computeIfPresent(className, (ignored, current) -> {
             if (!current.containsKey(resolvedOwner)) return current;
             LinkedHashMap<Owner, Map<String, String>> owners = new LinkedHashMap<>(current);
-            owners.remove(resolvedOwner);
+            removedParts[0] = owners.remove(resolvedOwner).size();
             removed.set(true);
-            return owners.isEmpty() ? null : Map.copyOf(owners);
+            return owners.isEmpty() ? null : orderedMap(owners);
         });
-        if (removed.get()) RESOLVED_MAPPINGS.clear();
+        registeredPartCount -= removedParts[0];
+        if (removed.get()) clearMappingCaches();
         return removed.get();
     }
 
-    public static void clearOwned(Owner owner) {
+    public static synchronized void clearOwned(Owner owner) {
         if (owner == null) return;
         boolean removed = removeOwned((registeredOwner) -> registeredOwner.equals(owner));
-        if (removed) RESOLVED_MAPPINGS.clear();
+        if (removed) clearMappingCaches();
     }
 
-    public static void clearRuntime(Object runtimeSession) {
+    public static synchronized void clearRuntime(Object runtimeSession) {
         if (runtimeSession == null) return;
         boolean removed = removeOwned((owner) -> owner.runtimeSession() == runtimeSession);
-        if (removed) RESOLVED_MAPPINGS.clear();
+        if (removed) clearMappingCaches();
     }
 
-    private static boolean removeOwned(java.util.function.Predicate<Owner> predicate) {
+    private static synchronized boolean removeOwned(java.util.function.Predicate<Owner> predicate) {
         java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+        int[] removedParts = {0};
         for (String className : ADAPTERS.keySet()) {
             ADAPTERS.computeIfPresent(className, (ignored, current) -> {
                 LinkedHashMap<Owner, Map<String, String>> owners = new LinkedHashMap<>(current);
-                if (owners.keySet().removeIf(predicate)) removed.set(true);
-                return owners.isEmpty() ? null : Map.copyOf(owners);
+                int before = owners.values().stream().mapToInt(Map::size).sum();
+                if (owners.keySet().removeIf(predicate)) {
+                    int remaining = owners.values().stream().mapToInt(Map::size).sum();
+                    removedParts[0] += before - remaining;
+                    removed.set(true);
+                }
+                return owners.isEmpty() ? null : orderedMap(owners);
             });
         }
+        registeredPartCount -= removedParts[0];
         return removed.get();
+    }
+
+    public static synchronized int registeredModelClassCount() { return ADAPTERS.size(); }
+
+    public static synchronized int registeredPartCount() { return registeredPartCount; }
+
+    private static void clearMappingCaches() {
+        RESOLVED_MAPPINGS.clear();
+        PART_PATHS.clear();
     }
 
     /** Called by loader render hooks; it reads registered data and never invokes Lua. */
@@ -142,7 +203,7 @@ public final class MLuaModelAdapterRegistry {
                     for (Map<String, String> parts : adapters.values()) merged.putAll(parts);
                 }
             }
-            Map<String, String> resolved = merged.isEmpty() ? Map.of() : Map.copyOf(merged);
+            Map<String, String> resolved = merged.isEmpty() ? Map.of() : orderedMap(merged);
             RESOLVED_MAPPINGS.put(modelClass, resolved);
             return resolved.isEmpty() ? null : resolved;
         }
@@ -163,7 +224,7 @@ public final class MLuaModelAdapterRegistry {
         String path = mapping == null ? null : mapping.get(boneName);
         if (path == null) return false;
         Object current = model;
-        for (String segment : path.split("\\.")) {
+        for (String segment : pathSegments(path)) {
             if (segment.isBlank()) return false;
             if (current instanceof ModelPart parent) {
                 try {
@@ -182,7 +243,7 @@ public final class MLuaModelAdapterRegistry {
 
     private static ModelPart resolvePath(Object root, String path) {
         Object current = root;
-        for (String segment : path.split("\\.")) {
+        for (String segment : pathSegments(path)) {
             if (segment.isBlank()) return null;
             if (current instanceof ModelPart part) {
                 try {
@@ -199,17 +260,32 @@ public final class MLuaModelAdapterRegistry {
     }
 
     private static Object readField(Object target, String name) {
-        for (Class<?> type = target.getClass(); type != null; type = type.getSuperclass()) {
+        Optional<Field> field = MODEL_FIELDS.get(target.getClass()).computeIfAbsent(name,
+            fieldName -> findField(target.getClass(), fieldName));
+        if (field.isEmpty()) return null;
+        try {
+            return field.get().get(target);
+        } catch (IllegalAccessException | RuntimeException inaccessible) {
+            return null;
+        }
+    }
+
+    private static Optional<Field> findField(Class<?> modelClass, String name) {
+        for (Class<?> type = modelClass; type != null; type = type.getSuperclass()) {
             try {
                 Field field = type.getDeclaredField(name);
                 field.setAccessible(true);
-                return field.get(target);
+                return Optional.of(field);
             } catch (NoSuchFieldException ignored) {
-            } catch (ReflectiveOperationException | RuntimeException inaccessible) {
-                return null;
+            } catch (RuntimeException inaccessible) {
+                return Optional.empty();
             }
         }
-        return null;
+        return Optional.empty();
+    }
+
+    private static java.util.List<String> pathSegments(String path) {
+        return PART_PATHS.computeIfAbsent(path, value -> java.util.List.of(value.split("\\.", -1)));
     }
 
     private static void applyPose(ModelPart part, MLuaCFrame cframe) {
@@ -225,6 +301,9 @@ public final class MLuaModelAdapterRegistry {
     private static String normalizeClassName(String value) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException("Model class name cannot be empty");
         String className = value.trim();
+        if (className.length() > MAX_CLASS_NAME_LENGTH) {
+            throw new IllegalArgumentException("Model class name cannot exceed " + MAX_CLASS_NAME_LENGTH + " characters");
+        }
         if (!className.contains(".")) {
             throw new IllegalArgumentException("Use the model class's full Java class name");
         }
@@ -241,8 +320,22 @@ public final class MLuaModelAdapterRegistry {
         return className;
     }
 
+    private static <K, V> Map<K, V> orderedMap(Map<K, V> values) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(values));
+    }
+
     private static void validatePartPath(String boneName, String path) {
-        for (String segment : path.split("\\.", -1)) {
+        if (boneName.length() > MAX_BONE_NAME_LENGTH) {
+            throw new IllegalArgumentException("Model adapter bone names cannot exceed " + MAX_BONE_NAME_LENGTH + " characters");
+        }
+        if (path.length() > MAX_PART_PATH_LENGTH) {
+            throw new IllegalArgumentException("Model part paths cannot exceed " + MAX_PART_PATH_LENGTH + " characters");
+        }
+        String[] segments = path.split("\\.", -1);
+        if (segments.length > MAX_PART_PATH_DEPTH) {
+            throw new IllegalArgumentException("Model part paths cannot exceed " + MAX_PART_PATH_DEPTH + " segments");
+        }
+        for (String segment : segments) {
             if (segment.isBlank()) {
                 throw new IllegalArgumentException("Model part path for bone '" + boneName
                     + "' must use non-empty dot-separated names");

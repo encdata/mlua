@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.luaj.vm2.LuaValue;
 
 public final class MLuaAnimationTrack {
+    /** Event callbacks are retained by their track until cleared or the track is released. */
+    public static final int MAX_EVENTS_PER_TRACK = 256;
     private static final int MAX_EVENT_CALLBACKS_PER_TICK = 1024;
     private final int trackId;
     private final int entityId;
@@ -21,6 +23,7 @@ public final class MLuaAnimationTrack {
     private boolean playing;
     private boolean paused;
     private boolean looped;
+    private boolean releaseWhenFaded;
     private boolean emitStartEvents;
     private float speed;
     private float time;
@@ -42,14 +45,16 @@ public final class MLuaAnimationTrack {
         this.animation = Objects.requireNonNull(animation, "animation");
         this.priority = Objects.requireNonNull(priority, "priority");
         this.speed = 1.0f;
-        this.weight = 1.0f;
-        this.targetWeight = 1.0f;
+        // Loading prepares a reusable track; it must not apply a pose before Play().
+        this.weight = 0.0f;
+        this.targetWeight = 0.0f;
         this.fadeSpeed = 2.0f;
         this.defaultFadeSpeed = 2.0f;
         this.timedFade = false;
         this.playing = false;
         this.paused = false;
         this.looped = false;
+        this.releaseWhenFaded = false;
         this.emitStartEvents = false;
         this.time = 0.0f;
         this.computedPose = new HashMap<>();
@@ -69,7 +74,7 @@ public final class MLuaAnimationTrack {
     public boolean isPlaying() { return playing; }
     public boolean isPaused() { return paused; }
     public boolean isLooped() { return looped; }
-    public boolean isAlive() { return playing || weight > 0.001f; }
+    public boolean isAlive() { return !releaseWhenFaded || playing || weight > 0.001f; }
     public boolean isFading() { return Math.abs(weight - targetWeight) > 0.001f; }
     public Map<String, MLuaCFrame> getComputedPose() { return Map.copyOf(computedPose); }
     Map<String, MLuaCFrame> sampledPoseView() { return sampledPose; }
@@ -87,6 +92,7 @@ public final class MLuaAnimationTrack {
     }
 
     public void play() {
+        releaseWhenFaded = false;
         playing = true;
         paused = false;
         time = 0.0f;
@@ -95,6 +101,7 @@ public final class MLuaAnimationTrack {
     }
 
     public void play(float fadeTime) {
+        releaseWhenFaded = false;
         fadeTo(0.0f, 0.0f);
         playing = true;
         paused = false;
@@ -104,14 +111,17 @@ public final class MLuaAnimationTrack {
     }
 
     public void stop() {
+        releaseWhenFaded = true;
         fadeTo(0.0f);
     }
 
     public void stop(float fadeTime) {
+        releaseWhenFaded = true;
         fadeTo(0.0f, fadeTime);
     }
 
     public void stopImmediate() {
+        releaseWhenFaded = true;
         playing = false;
         weight = 0.0f;
         targetWeight = 0.0f;
@@ -133,6 +143,7 @@ public final class MLuaAnimationTrack {
     }
 
     public void resumePlaying() {
+        releaseWhenFaded = false;
         playing = true;
         paused = false;
         fadeTo(1.0f);
@@ -140,6 +151,7 @@ public final class MLuaAnimationTrack {
 
     public void fadeTo(float target) {
         if (!Float.isFinite(target)) throw new IllegalArgumentException("Animation weight must be finite");
+        if (target > 0.001f) releaseWhenFaded = false;
         timedFade = false;
         fadeSpeed = defaultFadeSpeed;
         targetWeight = Math.max(0.0f, Math.min(1.0f, target));
@@ -153,6 +165,7 @@ public final class MLuaAnimationTrack {
         if (!Float.isFinite(fadeTime) || fadeTime < 0.0f) {
             throw new IllegalArgumentException("Animation fade time must be finite and non-negative");
         }
+        if (target > 0.001f) releaseWhenFaded = false;
         float clampedTarget = Math.max(0.0f, Math.min(1.0f, target));
         if (fadeTime == 0.0f) {
             fadeTo(clampedTarget);
@@ -193,6 +206,10 @@ public final class MLuaAnimationTrack {
             throw new IllegalArgumentException("Animation event callback must be a function");
         }
         synchronized (events) {
+            if (events.size() >= MAX_EVENTS_PER_TRACK) {
+                throw new IllegalStateException("Animation event limit reached for this track ("
+                    + MAX_EVENTS_PER_TRACK + ")");
+            }
             events.add(new AnimationEvent(triggerTime, callback));
             events.sort((a, b) -> Float.compare(a.triggerTime, b.triggerTime));
         }
@@ -210,6 +227,7 @@ public final class MLuaAnimationTrack {
             playing = false;
             weight = 0.0f;
             targetWeight = 0.0f;
+            releaseWhenFaded = true;
             computedPose.clear();
             sampledPose.clear();
             return;
@@ -342,7 +360,12 @@ public final class MLuaAnimationTrack {
         try {
             event.callback.invoke(LuaValue.valueOf(trackId), LuaValue.valueOf(event.triggerTime));
         } catch (Exception error) {
-            MLuaLogger.LOGGER.warn("[MLua] Animation event callback failed at t={}: {}", event.triggerTime, error.getMessage());
+            synchronized (events) {
+                events.remove(event);
+            }
+            MLuaLogger.LOGGER.warn("[MLua] Disabled animation event callback for track {} at t={} after it failed",
+                trackId, event.triggerTime, error);
+            return false;
         }
         return true;
     }

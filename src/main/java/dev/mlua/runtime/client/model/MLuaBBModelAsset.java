@@ -12,6 +12,13 @@ import java.util.Map;
 
 /** Normalized subset of Blockbench's versioned .bbmodel project format. */
 public final class MLuaBBModelAsset {
+   public static final int MAX_CUBES = 8_192;
+   public static final int MAX_BONES = 2_048;
+   public static final int MAX_TEXTURES = 256;
+   public static final int MAX_ANIMATIONS = 256;
+   public static final int MAX_BONE_DEPTH = 256;
+   public static final int MAX_JSON_CHARS = 8 * 1024 * 1024;
+   private static final int MAX_KEYFRAMES_PER_ANIMATION = 32_768;
    private final String formatVersion;
    private final String modelFormat;
    private final boolean flipY;
@@ -23,6 +30,7 @@ public final class MLuaBBModelAsset {
    private final List<Bone> bones;
    private final Map<String, String> cubeParents;
    private final Map<String, Animation> animations;
+   private final Map<String, List<Bone>> cubeBoneChains;
 
    private MLuaBBModelAsset(String formatVersion, String modelFormat, boolean flipY, int textureWidth, int textureHeight,
                             List<String> textures, List<String> embeddedTextures, List<Cube> cubes, List<Bone> bones, Map<String, String> cubeParents, Map<String, Animation> animations) {
@@ -37,9 +45,11 @@ public final class MLuaBBModelAsset {
       this.bones = List.copyOf(bones);
       this.cubeParents = Map.copyOf(cubeParents);
       this.animations = Map.copyOf(animations);
+      this.cubeBoneChains = resolveBoneChains(this.bones, this.cubeParents);
    }
 
    public static MLuaBBModelAsset parse(String json) {
+      if (json.length() > MAX_JSON_CHARS) throw new IllegalArgumentException("Blockbench model exceeds the 8 MiB source limit");
       JsonObject root = JsonParser.parseString(json).getAsJsonObject();
       JsonObject meta = object(root, "meta");
       String version = string(meta, "format_version", string(root, "format_version", "unknown"));
@@ -58,7 +68,10 @@ public final class MLuaBBModelAsset {
          if (!texture.isJsonObject()) continue;
          JsonObject value = texture.getAsJsonObject();
          String path = string(value, "relative_path", string(value, "path", string(value, "name", "")));
-         if (!path.isBlank()) textures.add(path);
+         if (!path.isBlank()) {
+            requireCapacity(textures.size(), MAX_TEXTURES, "textures");
+            textures.add(path);
+         }
          embeddedTextures.add(string(value, "data_url", string(value, "source", "")));
       }
       JsonArray elements = array(root, "elements");
@@ -66,6 +79,7 @@ public final class MLuaBBModelAsset {
          if (!element.isJsonObject()) continue;
          JsonObject value = element.getAsJsonObject();
          if (value.has("from") && value.has("to")) {
+            requireCapacity(cubes.size(), MAX_CUBES, "cubes");
             cubes.add(Cube.from(value));
          }
       }
@@ -81,11 +95,13 @@ public final class MLuaBBModelAsset {
          JsonArray bedrockBones = array(geometries.get(0).getAsJsonObject(), "bones");
          for (JsonElement entry : bedrockBones) {
             if (!entry.isJsonObject()) continue;
+            requireCapacity(bones.size(), MAX_BONES, "bones");
             JsonObject bone = entry.getAsJsonObject();
             String uuid = string(bone, "name", "bone_" + bones.size());
             bones.add(new Bone(uuid, uuid, string(bone, "parent", null), vectorOrZero(bone, "pivot"), vectorOrZero(bone, "rotation")));
             for (JsonElement rawCube : array(bone, "cubes")) {
                if (!rawCube.isJsonObject()) continue;
+               requireCapacity(cubes.size(), MAX_CUBES, "cubes");
                JsonObject cube = rawCube.getAsJsonObject();
                String cubeId = uuid + "#" + cubes.size();
                cubes.add(Cube.fromBedrock(cube, cubeId));
@@ -96,13 +112,14 @@ public final class MLuaBBModelAsset {
 
       JsonElement hierarchy = root.get("outliner");
       if (hierarchy != null && hierarchy.isJsonArray()) {
-         readOutliner(hierarchy.getAsJsonArray(), bones, cubeParents, null);
+         readOutliner(hierarchy.getAsJsonArray(), bones, cubeParents, null, 0);
       }
       if (bones.isEmpty()) {
          JsonArray groups = array(root, "groups");
          for (JsonElement group : groups) {
             if (group.isJsonObject()) {
                JsonObject value = group.getAsJsonObject();
+               requireCapacity(bones.size(), MAX_BONES, "bones");
                bones.add(Bone.from(value, null));
             }
          }
@@ -112,18 +129,24 @@ public final class MLuaBBModelAsset {
       JsonArray animationArray = array(root, "animations");
       for (JsonElement animation : animationArray) {
          if (!animation.isJsonObject()) continue;
+         requireCapacity(animations.size(), MAX_ANIMATIONS, "animations");
          JsonObject value = animation.getAsJsonObject();
          String name = string(value, "name", "animation_" + animations.size());
-         animations.put(name, Animation.from(value, version));
+         if (animations.putIfAbsent(name, Animation.from(value, version)) != null) {
+            throw new IllegalArgumentException("Blockbench model contains duplicate animation '" + name + "'");
+         }
       }
       while (embeddedTextures.size() < textures.size()) embeddedTextures.add("");
       if (flipY) flipY(cubes, bones);
       return new MLuaBBModelAsset(version, format, flipY, width, height, textures, embeddedTextures, cubes, bones, cubeParents, animations);
    }
 
-   private static void readOutliner(JsonArray entries, List<Bone> bones, Map<String, String> cubeParents, String parent) {
+   private static void readOutliner(JsonArray entries, List<Bone> bones, Map<String, String> cubeParents,
+                                    String parent, int depth) {
+      if (depth > MAX_BONE_DEPTH) throw new IllegalArgumentException("Blockbench bone hierarchy exceeds " + MAX_BONE_DEPTH + " levels");
       for (JsonElement entry : entries) {
          if (!entry.isJsonObject()) continue;
+         requireCapacity(bones.size(), MAX_BONES, "bones");
          JsonObject value = entry.getAsJsonObject();
          String uuid = string(value, "uuid", string(value, "name", "bone_" + bones.size()));
          String name = string(value, "name", uuid);
@@ -132,7 +155,7 @@ public final class MLuaBBModelAsset {
          for (JsonElement child : children) {
             if (child.isJsonPrimitive()) cubeParents.put(child.getAsString(), uuid);
          }
-         if (!children.isEmpty()) readOutliner(children, bones, cubeParents, uuid);
+         if (!children.isEmpty()) readOutliner(children, bones, cubeParents, uuid, depth + 1);
       }
    }
 
@@ -146,42 +169,88 @@ public final class MLuaBBModelAsset {
    public List<Cube> cubes() { return cubes; }
    public List<Bone> bones() { return bones; }
    public List<Bone> boneChainForCube(String cubeUuid) {
-      List<Bone> result = new ArrayList<>();
-      String current = cubeParents.get(cubeUuid);
-      while (current != null) {
-         Bone bone = null;
-         for (Bone value : bones) {
-            if (value.uuid().equals(current)) {
-               bone = value;
-               break;
-            }
-         }
-         if (bone == null) break;
-         result.add(0, bone);
-         current = bone.parent();
-      }
-      return result;
+      return cubeBoneChains.getOrDefault(cubeUuid, List.of());
    }
    public Map<String, Animation> animations() { return animations; }
 
    public MLuaBBModelAsset withAnimations(Map<String, Animation> additional) {
       Map<String, Animation> merged = new LinkedHashMap<>(animations);
-      merged.putAll(additional);
+      for (Map.Entry<String, Animation> entry : additional.entrySet()) {
+         if (!merged.containsKey(entry.getKey()) && merged.size() >= MAX_ANIMATIONS) {
+            throw new IllegalArgumentException("Combined Blockbench asset exceeds the limit of " + MAX_ANIMATIONS + " animations");
+         }
+         merged.put(entry.getKey(), entry.getValue());
+      }
       return new MLuaBBModelAsset(formatVersion, modelFormat, flipY, textureWidth, textureHeight,
          textures, embeddedTextures, cubes, bones, cubeParents, merged);
    }
 
    public static Map<String, Animation> parseAnimations(String json) {
+      if (json.length() > MAX_JSON_CHARS) throw new IllegalArgumentException("Blockbench animation file exceeds the 8 MiB source limit");
       JsonObject root = JsonParser.parseString(json).getAsJsonObject();
       String version = string(object(root, "meta"), "format_version", string(root, "format_version", "unknown"));
       Map<String, Animation> result = new LinkedHashMap<>();
-      for (JsonElement element : array(root, "animations")) {
+      JsonArray animationArray = array(root, "animations");
+      if (animationArray.size() > MAX_ANIMATIONS) {
+         throw new IllegalArgumentException("Blockbench animation file exceeds the limit of " + MAX_ANIMATIONS + " animations");
+      }
+      for (JsonElement element : animationArray) {
          if (!element.isJsonObject()) continue;
          JsonObject value = element.getAsJsonObject();
          String name = string(value, "name", "animation_" + result.size());
-         result.put(name, Animation.from(value, version));
+         if (result.putIfAbsent(name, Animation.from(value, version)) != null) {
+            throw new IllegalArgumentException("Blockbench animation file contains duplicate animation '" + name + "'");
+         }
       }
       return result;
+   }
+
+   private static Map<String, List<Bone>> resolveBoneChains(List<Bone> bones, Map<String, String> cubeParents) {
+      Map<String, Bone> byId = new LinkedHashMap<>();
+      for (Bone bone : bones) {
+         if (byId.putIfAbsent(bone.uuid(), bone) != null) {
+            throw new IllegalArgumentException("Blockbench model contains duplicate bone id '" + bone.uuid() + "'");
+         }
+      }
+      Map<String, List<Bone>> byBone = new LinkedHashMap<>();
+      java.util.Set<String> resolving = new java.util.HashSet<>();
+      for (String id : byId.keySet()) resolveBoneChain(id, byId, byBone, resolving, 0);
+      Map<String, List<Bone>> byCube = new LinkedHashMap<>();
+      cubeParents.forEach((cube, parent) -> {
+         List<Bone> chain = byBone.get(parent);
+         if (chain == null && parent != null) {
+            throw new IllegalArgumentException("Blockbench cube references missing bone '" + parent + "'");
+         }
+         byCube.put(cube, chain == null ? List.of() : chain);
+      });
+      return Map.copyOf(byCube);
+   }
+
+   private static List<Bone> resolveBoneChain(String id, Map<String, Bone> byId,
+         Map<String, List<Bone>> resolved, java.util.Set<String> resolving, int depth) {
+      List<Bone> cached = resolved.get(id);
+      if (cached != null) return cached;
+      if (depth >= MAX_BONE_DEPTH) {
+         throw new IllegalArgumentException("Blockbench bone hierarchy exceeds " + MAX_BONE_DEPTH + " levels");
+      }
+      if (!resolving.add(id)) throw new IllegalArgumentException("Blockbench bone hierarchy contains a cycle at '" + id + "'");
+      Bone bone = byId.get(id);
+      if (bone == null) throw new IllegalArgumentException("Blockbench bone references missing parent '" + id + "'");
+      List<Bone> chain = new ArrayList<>();
+      if (bone.parent() != null && !bone.parent().isBlank()) {
+         chain.addAll(resolveBoneChain(bone.parent(), byId, resolved, resolving, depth + 1));
+      }
+      chain.add(bone);
+      resolving.remove(id);
+      List<Bone> immutable = List.copyOf(chain);
+      resolved.put(id, immutable);
+      return immutable;
+   }
+
+   private static void requireCapacity(int current, int maximum, String field) {
+      if (current >= maximum) {
+         throw new IllegalArgumentException("Blockbench model exceeds the limit of " + maximum + " " + field);
+      }
    }
 
    public record Cube(String uuid, String name, float[] from, float[] to, Map<String, Face> faces) {
@@ -208,6 +277,7 @@ public final class MLuaBBModelAsset {
       static Animation from(JsonObject value, String version) {
          Map<String, Map<String, List<Keyframe>>> tracks = new LinkedHashMap<>();
          JsonObject animators = object(value, "animators");
+         int totalKeyframes = 0;
          for (Map.Entry<String, JsonElement> animator : animators.entrySet()) {
             if (!animator.getValue().isJsonObject()) continue;
             JsonObject channels = animator.getValue().getAsJsonObject();
@@ -215,7 +285,13 @@ public final class MLuaBBModelAsset {
             for (Map.Entry<String, JsonElement> channel : channels.entrySet()) {
                if (!channel.getValue().isJsonArray()) continue;
                List<Keyframe> keyframes = new ArrayList<>();
-               for (JsonElement keyframe : channel.getValue().getAsJsonArray()) {
+               JsonArray rawKeyframes = channel.getValue().getAsJsonArray();
+               totalKeyframes += rawKeyframes.size();
+               if (totalKeyframes > MAX_KEYFRAMES_PER_ANIMATION) {
+                  throw new IllegalArgumentException("Blockbench animation exceeds the limit of "
+                     + MAX_KEYFRAMES_PER_ANIMATION + " keyframes");
+               }
+               for (JsonElement keyframe : rawKeyframes) {
                   if (keyframe.isJsonObject()) keyframes.add(Keyframe.from(keyframe.getAsJsonObject(), version, channel.getKey()));
                }
                keyframes.sort(Comparator.comparingDouble(Keyframe::time));

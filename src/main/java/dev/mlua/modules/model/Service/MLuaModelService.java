@@ -19,7 +19,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-@MLuaDescription("Client-side model part overrides and Lua-registered bone adapters for living entity models.")
+@MLuaDescription("Client-side model part overrides and Lua-registered bone adapters for living entity models. Adapters have bounded class, bone, and path counts.")
 public final class MLuaModelService extends MLuaReflectiveService {
     public MLuaModelService(MLuaService.Context context) {
         super(context);
@@ -42,7 +42,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
         return MLuaClientModelManager.normalizePartName(name);
     }
 
-    @MLuaDescription("Registers named animation bones and model part paths for a Java model class. Addons can contribute different bones to the same class; duplicate bone names conflict. Subclasses inherit parent mappings and can override individual bone names. Use the full class name.")
+    @MLuaDescription("Registers named animation bones and model part paths for a Java model class. Addons can contribute different bones to the same class; duplicate bone names conflict. Subclasses inherit parent mappings and can override individual bone names. Use the full class name. Limits: 256 adapter classes, 512 bones per model class, 8192 bones total, 256 characters per class name, 128 per bone name, and 512 characters or 32 segments per part path.")
     public void RegisterAdapter(String modelClass, LuaTable parts) {
         this.requireClientSide(this.name());
         java.util.LinkedHashMap<String, String> mapping = new java.util.LinkedHashMap<>();
@@ -72,6 +72,22 @@ public final class MLuaModelService extends MLuaReflectiveService {
         } catch (IllegalArgumentException invalid) {
             throw new LuaError("[MLua] " + invalid.getMessage());
         }
+    }
+
+    @MLuaDescription("Returns current adapter usage and registration limits. Counts include adapters registered by all addons.")
+    public LuaTable GetAdapterLimits() {
+        this.requireClientSide(this.name());
+        LuaTable limits = new LuaTable();
+        limits.set("ActiveModels", MLuaModelAdapterRegistry.registeredModelClassCount());
+        limits.set("ActiveParts", MLuaModelAdapterRegistry.registeredPartCount());
+        limits.set("MaxModels", MLuaModelAdapterRegistry.MAX_MODEL_CLASSES);
+        limits.set("MaxPartsPerModel", MLuaModelAdapterRegistry.MAX_PARTS_PER_MODEL);
+        limits.set("MaxParts", MLuaModelAdapterRegistry.MAX_TOTAL_PARTS);
+        limits.set("MaxClassNameLength", MLuaModelAdapterRegistry.MAX_CLASS_NAME_LENGTH);
+        limits.set("MaxBoneNameLength", MLuaModelAdapterRegistry.MAX_BONE_NAME_LENGTH);
+        limits.set("MaxPathLength", MLuaModelAdapterRegistry.MAX_PART_PATH_LENGTH);
+        limits.set("MaxPathDepth", MLuaModelAdapterRegistry.MAX_PART_PATH_DEPTH);
+        return limits;
     }
 
     @MLuaDescription("Offsets a model part from Minecraft's prepared pose using a CFrame translation and rotation.")

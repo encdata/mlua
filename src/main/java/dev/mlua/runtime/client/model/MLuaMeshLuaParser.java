@@ -11,6 +11,9 @@ import org.luaj.vm2.Varargs;
 
 /** Converts the Lua-facing mesh definition into the immutable render representation. */
 public final class MLuaMeshLuaParser {
+    public static final int MAX_VERTICES = 16_384;
+    public static final int MAX_INDICES = 49_152;
+
     private MLuaMeshLuaParser() { }
 
     public static MLuaMeshDefinition parse(LuaTable definition) {
@@ -26,7 +29,7 @@ public final class MLuaMeshLuaParser {
     private static List<MLuaMeshVertex> parseVertices(LuaValue value) {
         if (!value.istable()) throw error("Vertices must be an array.");
         LuaTable table = value.checktable();
-        int count = denseArrayLength(table, "Vertices");
+        int count = denseArrayLength(table, "Vertices", MAX_VERTICES);
         List<MLuaMeshVertex> vertices = new ArrayList<>(count);
         for (int position = 1; position <= count; position++) {
             LuaValue vertexValue = table.get(position);
@@ -50,7 +53,7 @@ public final class MLuaMeshLuaParser {
     private static List<Integer> parseIndices(LuaValue value, int vertexCount) {
         if (!value.istable()) throw error("Indices must be an array.");
         LuaTable table = value.checktable();
-        int count = denseArrayLength(table, "Indices");
+        int count = denseArrayLength(table, "Indices", MAX_INDICES);
         List<Integer> indices = new ArrayList<>(count);
         for (int position = 1; position <= count; position++) {
             int index = wholeIndex(table.get(position), position);
@@ -65,7 +68,7 @@ public final class MLuaMeshLuaParser {
         return indices;
     }
 
-    private static int denseArrayLength(LuaTable table, String field) {
+    private static int denseArrayLength(LuaTable table, String field, int limit) {
         int count = 0;
         int maximum = 0;
         LuaValue key = LuaValue.NIL;
@@ -79,6 +82,7 @@ public final class MLuaMeshLuaParser {
                 throw error(field + " must use positive whole-number array indices.");
             }
             count++;
+            if (count > limit) throw error(field + " cannot contain more than " + limit + " entries.");
             maximum = Math.max(maximum, (int)index);
         }
         if (maximum != count) throw error(field + " must be a dense array without missing entries.");

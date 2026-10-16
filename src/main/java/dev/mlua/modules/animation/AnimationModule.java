@@ -90,15 +90,13 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetWeight()", "number"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "void"));
-        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "void"));
-        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddMarker(name: string, time: number, callback: function)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimation()", "Animation"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetPose()", "table<string, CFrame>"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetBonePose(bone: string)", "CFrame|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetEntity()", "LivingEntity"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimator()", "Animator"));
         docs.register(MLuaDocBuilder.Registration.signature("LivingEntity", "LivingEntity:GetAnimator()", "Animator"));
-        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "AnimationTrack"));
+        docs.register(MLuaDocBuilder.Registration.method("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "Creates an entity animation track owned by the calling script. Limits are 128 tracks per script and entity, and 8192 tracks across the client runtime. A track keeps its final pose after playback ends; call Stop or Animator:StopAll to release it, or let script unload clear it.", "animation, priority, fadeTime", "AnimationTrack", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetPlayingAnimationTracks()", "AnimationTrack[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetAnimationTracks()", "AnimationTrack[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetTracksByPriority(priority: AnimationPriority)", "AnimationTrack[]"));
@@ -111,8 +109,8 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Stop(fadeTime?: number)", "Stops playback and optionally fades the pose out over fadeTime seconds. Calling Stop() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "Fades the track toward weight (0 to 1), optionally over fadeTime seconds.", "weight, fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "Fades the track toward weight (0 to 1) over the specified duration in seconds. A duration of zero changes the weight immediately.", "weight, fadeTime", "void", "client:Client", ""));
-        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "Runs callback(track, time) when playback crosses the marker time in seconds. A marker at zero runs as soon as playback starts.", "", "void", "client:Client", ""));
-        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddMarker(name: string, time: number, callback: function)", "Runs callback(track, name, time) when playback crosses the named marker time. Marker names must not be empty; time is measured in seconds.", "marker name, time in seconds, callback", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "Runs callback(track, time) when playback crosses the marker time in seconds. A marker at zero runs as soon as playback starts. Each track accepts up to 256 event callbacks; a callback is removed after it throws.", "time in seconds, callback", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddMarker(name: string, time: number, callback: function)", "Runs callback(track, name, time) when playback crosses the named marker time. Marker names must not be empty; time is measured in seconds. Events and markers share the 256 callback limit per track, and a failing callback is removed.", "marker name, time in seconds, callback", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:ClearEvents()", "Removes all marker callbacks from this track.", "", "void", "client:Client", ""));
 
         docs.register(MLuaDocBuilder.Registration.service("Animation", "MLuaAnimationService",
