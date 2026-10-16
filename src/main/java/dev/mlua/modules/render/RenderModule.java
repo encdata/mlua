@@ -60,11 +60,11 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldLine(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldBeam(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldBox(center: Vector3|CFrame, size: Vector3, properties: RenderObjectProperties?)", "RenderObject"));
-        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", null));
-        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:GetTarget()", "Hud|WorldOverlay|WorldModel|EntityModel"));
-        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:SetTarget(target: string)", "Selects Hud, WorldOverlay, WorldModel, or EntityModel rendering; GetTarget returns the same canonical spelling."));
-        docs.register(MLuaDocBuilder.Registration.signature("RenderObject", "RenderObject:PlayAnimation(name: string, options: ModelAnimationOptions?)", "void"));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", "Sets this object's world position.", "Native Vector3 or CFrame", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", "Sets the endpoint used by world lines and beams.", "Native Vector3 or CFrame", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetTarget()", "Returns the canonical render target name.", null, "string", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetTarget(target: string)", "Selects where this object is drawn.", "Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:PlayAnimation(name: string, options: ModelAnimationOptions?)", "Plays a named Blockbench model animation.", "Animation name and optional playback settings", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.type("ModelAnimationOptions", null, "Playback options shared by entity-attached and standalone Blockbench models."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Loop", "boolean", "Whether playback repeats. Defaults to true."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Speed", "number", "Finite, non-negative playback speed. Defaults to one."));
