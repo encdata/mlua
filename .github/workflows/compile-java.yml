@@ -326,6 +326,7 @@ jobs:
           local service = Minecraft:GetService("CiSmokeService")
           assert(service.__type == "CiSmokeService", "Java registered service class was not attached")
           assert(service:GetSide() == "CLIENT", "Java service returned the wrong side")
+          assert(type(Animation.new) == "function", "Animation.new constructor was not exposed")
           local definition = Animation.new({
               { Time = 0, Data = { head = CFrame.identity } },
               { Time = 0.5, Data = { head = CFrame.Angles(0, math.rad(20), 0) } },

@@ -356,6 +356,7 @@ public final class MLuaAnimationBindings {
         animTable.set("Animation", animationClass);
         animTable.set("AnimationTrack", trackClass);
         animTable.set("Animator", animatorClass);
+        animTable.set("new", animationClass.get("new"));
 
         animTable.set("AnimationPriority", MLuaEnumValue.enumConstants(AnimationPriority.class, null));
         animTable.set("EasingStyle", MLuaEnumValue.enumConstants(dev.mlua.common.enums.EasingStyle.class, null));

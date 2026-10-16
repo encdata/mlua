@@ -42,7 +42,7 @@ public class RegistryModule implements MLuaModule {
     @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder registry = ServiceEntry.builder("Registry", MLuaRegistryService::new)
-            .description("Registers and queries addon content, generated data pack resources, Minecraft registries, and reusable inherited content types.");
+            .description("The central registry service for built-in Minecraft content and addon-owned categories.");
         MLuaRegistryService.serviceMethodDescriptions().forEach(registry::function);
         return List.of(registry.build());
     }
