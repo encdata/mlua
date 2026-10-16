@@ -1024,12 +1024,15 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Entities:RegisterSpawnEgg");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
 
             String entityName = propsTable != null ? propsTable.get("entity").optjstring(name) : name;
             if (!entityName.contains(":")) entityName = owner + ":" + entityName;
             var entityId = MLuaResourceLocations.tryParseOrNull(entityName);
-            if (entityId == null) throw new LuaError("[MLua] Registry.Entities:RegisterSpawnEgg entity must be a valid namespaced entity id.");
+            if (entityId == null || !entityId.toString().equals(entityName)) {
+               throw new LuaError("[MLua] Registry.Entities:RegisterSpawnEgg entity must be a valid lowercase namespaced entity id.");
+            }
 
             int primaryColor = MLuaRegistryService.colorProperty(propsTable, "primaryColor", 16777215);
             int secondaryColor = MLuaRegistryService.colorProperty(propsTable, "secondaryColor", 0);
