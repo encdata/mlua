@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.function.Supplier;
+import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.enums.Side;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -31,6 +32,13 @@ public abstract class MLuaServiceBase implements MLuaService {
    /** Enforces a service's declared runtime side with one consistent Lua error. */
    protected final void requireServerSide(String apiName) {
       this.requireSide(Side.SERVER, apiName);
+   }
+
+   /** Applies the same phase gate to registration and event services. */
+   protected final void requirePhase(RegistrationPhase required, String message) {
+      Objects.requireNonNull(required, "required");
+      if (this.context.mlua().isPhase(required)) return;
+      throw new LuaError("[MLua] " + Objects.requireNonNull(message, "message"));
    }
 
    private void requireSide(Side required, String apiName) {

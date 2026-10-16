@@ -242,9 +242,8 @@ public final class MLuaEventsService extends MLuaReflectiveService {
    }
 
    private void requireRegistryPhase() {
-      if (this.context.mlua().phase() != RegistrationPhase.REGISTRY) {
-         throw new org.luaj.vm2.LuaError("[MLua] Event signals can only be registered or removed from registry scripts.");
-      }
+      this.requirePhase(RegistrationPhase.REGISTRY,
+         "Event signals can only be registered or removed from registry scripts.");
    }
 
    private dev.mlua.module.MLuaRegistration thisOwnerRegistration() {

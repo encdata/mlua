@@ -30,10 +30,8 @@ public final class MLuaCommandsService extends MLuaReflectiveService {
 
    @MLuaDescription("Registers a command definition during the command registration phase.")
    public void Register(String name, LuaTable definitionTable) {
-      if (!this.context.isPhase(RegistrationPhase.COMMANDS)) {
-         throw new LuaError("[MLua] Cannot register command '" + name
-            + "': commands must be registered during run_commands(ctx) / RegisterCommandsEvent.");
-      }
+      this.requirePhase(RegistrationPhase.COMMANDS, "Cannot register command '" + name
+         + "': commands must be registered during run_commands(ctx) / RegisterCommandsEvent.");
       MLuaCommandDefinition definition = MLuaCommandRegistry.fromLua(name, definitionTable);
       if (this.context.isClient()) {
          MLuaCommandRegistry.get().registerClientCallback(name, definition.clientCallback(), this.context.registration());

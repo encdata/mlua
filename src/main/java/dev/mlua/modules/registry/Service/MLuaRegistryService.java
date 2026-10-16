@@ -1797,9 +1797,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private void ensureRegistryPhase() {
-      if (this.context.mlua().phase() != RegistrationPhase.REGISTRY) {
-         throw new LuaError("[MLua] Cannot register content after registries are frozen. Put this in a .registry.lua script.");
-      }
+      this.requirePhase(RegistrationPhase.REGISTRY,
+         "Cannot register content after registries are frozen. Put this in a .registry.lua script.");
    }
 
    private void registerTag(String kind, String name, LuaValue definition) {
