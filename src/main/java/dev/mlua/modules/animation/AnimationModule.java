@@ -83,6 +83,14 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimation()", "Animation"));
+        docs.register(MLuaDocBuilder.Registration.signature("Entity", "Entity:GetAnimator()", "Animator"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:LoadAnimation(animation: Animation|KeyframeDefinition[], priority?: AnimationPriority, fadeTime?: number)", "AnimationTrack"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetPlayingAnimationTracks()", "AnimationTrack[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:StopAll()", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:SetBonePose(bone: string, transform: CFrame)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetBonePose(bone: string)", "CFrame|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:ClearPose()", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("Animator", "Animator:GetEntity()", "Entity"));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Play(fadeTime?: number)", "Starts playback and optionally fades from zero to full weight over fadeTime seconds. Calling Play() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:Stop(fadeTime?: number)", "Stops playback and optionally fades the pose out over fadeTime seconds. Calling Stop() uses the track's default fade speed.", "fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "Fades the track toward weight (0 to 1), optionally over fadeTime seconds.", "weight, fadeTime", "void", "client:Client", ""));
@@ -99,6 +107,9 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("AnimationTrack", "MLuaAnimationBindings",
                 "A live animation playback instance returned by an entity animation controller.",
                 "classes/animation-track.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Animator", "MLuaAnimationBindings",
+                "The animation controller owned by one entity. It loads immutable Animation definitions into playback tracks.",
+                "classes/animator.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("Animation", "Animation.Length", "number",
             "The animation duration in seconds.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Animation", "Animation",
@@ -121,6 +132,8 @@ public class AnimationModule implements MLuaModule {
             "Whether playback repeats. Readable and writable.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("AnimationTrack", "AnimationTrack.Weight", "number",
             "The current blend weight from zero to one. Assigning it fades toward the new weight.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("Animator", "Animator.Entity", "Entity",
+            "The entity controlled by this animator.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.type("KeyframeDefinition", null, "A pose at a point in an animation. Time and Data are required; the easing values are optional."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "Time", "number", "Position in seconds. Keyframes are sorted by this value and duplicate times are rejected."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "Data", "table<string, CFrame>", "Maps each registered bone name to its pose at this keyframe."));
@@ -128,7 +141,7 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "EasingDirection?", "EasingDirection", "Optional Enum.EasingDirection value, or its exact name, used to interpolate from the previous keyframe into this one. Defaults to In."));
         docs.register(MLuaDocBuilder.Registration.guideStep("AnimationTrack", "React to animation markers",
             "AddEvent invokes callback(track, time) when playback crosses its time in seconds. A marker at zero runs as soon as the track starts. ClearEvents removes callbacks that have not fired yet.",
-            "local Animations = Minecraft:GetService(\"Animation\")\nlocal animation = Animations:GetAnimation(\"myaddon:reload\")\nlocal track = entity:LoadAnimation(animation)\n\ntrack:AddEvent(0, function(activeTrack, time)\n    print(\"Reload started on track\", activeTrack:GetTrackId(), time)\nend)\ntrack:AddEvent(0.65, function(activeTrack, time)\n    print(\"Insert the magazine at\", time)\nend)\ntrack:Play()\n\n-- Remove marker callbacks when they are no longer needed.\ntrack:ClearEvents()"));
+            "local Animations = Minecraft:GetService(\"Animation\")\nlocal animator = entity:GetAnimator()\nlocal animation = Animations:GetAnimation(\"myaddon:reload\")\nlocal track = animator:LoadAnimation(animation, Animation.AnimationPriority.Action)\n\ntrack:AddEvent(0, function(activeTrack, time)\n    print(\"Reload started on track\", activeTrack.TrackId, time)\nend)\ntrack:AddEvent(0.65, function(activeTrack, time)\n    print(\"Insert the magazine at\", time)\nend)\ntrack:Play()\n\n-- Remove marker callbacks when they are no longer needed.\ntrack:ClearEvents()"));
     }
 
     @Override

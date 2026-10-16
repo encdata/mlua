@@ -143,8 +143,19 @@ public class RegistryModule implements MLuaModule {
     @Override
     public void contributeGlobals(Globals globals, MLuaContextView context) {
         var registration = context.registration();
-        globals.set("Block", registration.classTable("Block"));
+        LuaTable blockGlobal = registration.classTable("Block");
+        blockGlobal.set("Properties", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call() {
+                return MLuaRegistryProperties.create(registration, "BlockProperties");
+            }
+        });
+        globals.set("Block", blockGlobal);
         LuaTable itemGlobal = MLuaItemWrapper.itemGlobal(registration);
+        itemGlobal.set("Properties", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public org.luaj.vm2.LuaValue call() {
+                return MLuaRegistryProperties.create(registration, "ItemProperties");
+            }
+        });
         globals.set("Item", itemGlobal);
         LuaTable items = MLuaRegistryCatalogs.items();
         globals.set("Items", items);
@@ -218,7 +229,7 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:GetIsRandomlyTicking()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("Block", "Block:Set(blockId: string, properties: BlockStateProperties?)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.service("Registry", "MLuaRegistryService",
-                "Registers addon content, generated data pack resources, Minecraft registry entries, and reusable inherited content types.",
+                "Registers and queries addon content, generated data pack resources, Minecraft registries, and reusable inherited content types.",
                 "services/registry.html"));
         docs.register(MLuaDocBuilder.Registration.clazz("RegistryProperties", "Registry", "Shared chainable settings for registered Minecraft content.", "classes/registry-properties.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.clazz("ItemProperties", "Registry", "Item settings matching Minecraft Item.Properties, plus MLua's scripted item callbacks.", "classes/item-properties.html", "RegistryProperties"));
@@ -235,7 +246,7 @@ public class RegistryModule implements MLuaModule {
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal block = Registry.Blocks:Register(\"signal_block\", {\n    strength = 3,\n    resistance = 6,\n    sound = \"stone\",\n    mapColor = \"stone\",\n    requiresCorrectTool = true,\n    onRightClick = function(context)\n        context.Player:SendMessage(\"The block answers with a quiet hum.\")\n        return true\n    end,\n})\n\nlocal item = Registry.Blocks:RegisterItem(\"signal_block\", {\n    maxStackSize = 16,\n    rarity = \"uncommon\",\n    description = \"A block that listens for a signal.\",\n})\n\nprint(block.Id, item.Id)\nprint(table.concat(Registry.Blocks:GetSounds(), \", \"))\nprint(table.concat(Registry.Items:GetRarities(), \", \"))"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Items", "Use Minecraft-style property chains",
                 "ItemProperties and BlockProperties are real Lua classes with inherited common settings. Their chainable methods map to native Minecraft properties, and the same instances can be passed directly to Register. Build returns a plain table when you need to add or inspect fields yourself.",
-                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal sword = Registry.Items:Properties()\n    :Kind(\"sword\")\n    :Tier(\"iron\")\n    :Durability(420)\n    :AttackDamage(7)\n    :AttackSpeed(1.4)\n    :Rarity(\"uncommon\")\n    :OnUse(function(context)\n        context.Player:SendMessage(\"The blade answers.\")\n    end)\n\nRegistry.Items:Register(\"signal_sword\", sword)\n\nlocal block = Registry.Blocks:Properties()\n    :Strength(3, 6)\n    :Sound(\"stone\")\n    :RequiresCorrectToolForDrops(true)\n    :OnRightClick(function(context)\n        context.Player:SendMessage(\"The block answers.\")\n        return true\n    end)\n\nRegistry.Blocks:Register(\"signal_block\", block)"));
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal sword = Item.Properties()\n    :Kind(\"sword\")\n    :Tier(\"iron\")\n    :Durability(420)\n    :AttackDamage(7)\n    :AttackSpeed(1.4)\n    :Rarity(\"uncommon\")\n    :OnUse(function(context)\n        context.Player:SendMessage(\"The blade answers.\")\n    end)\n\nRegistry.Items:Register(\"signal_sword\", sword)\n\nlocal block = Block.Properties()\n    :Strength(3, 6)\n    :Sound(\"stone\")\n    :RequiresCorrectToolForDrops(true)\n    :OnRightClick(function(context)\n        context.Player:SendMessage(\"The block answers.\")\n        return true\n    end)\n\nRegistry.Blocks:Register(\"signal_block\", block)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry", "Use the shared registration entry point",
                 "Registry:Register routes definitions through the typed registries for items, blocks, entities, effects, potions, particles, containers, projectiles, world generation, tabs, recipes, loot, tags, common config, and damage sources. Use block_item after registering its block; register a tag as Registry:Register(\"tag\", kind, name, definition). RegisterType defines reusable addon-scoped defaults for each category. Items select them with kind, blocks with type, and other categories with RegistryType. Use Registry.ContentTypes for reusable defaults in your own data domains. GetRegistered returns IDs visible for a Minecraft registry kind.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nRegistry:Register(\"item\", \"flare_gun\", {\n    kind = \"firearm\",\n    maxStackSize = 1,\n    onUse = function(context)\n        -- Use the live player and projectile services here.\n    end,\n})\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\")) do\n    print(id)\nend"));
@@ -554,6 +565,8 @@ public class RegistryModule implements MLuaModule {
     }
 
     private static void contributeSignatures(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.signature("Item", "Item.Properties()", "ItemProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("Block", "Block.Properties()", "BlockProperties"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Get(category: string, id: string)", "RegistryEntry|ProjectileType|table|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(category: string, namespace?: string)", "table<string, RegistryEntry|ProjectileType|table>"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(category: string, namespace?: string)", "string[]"));

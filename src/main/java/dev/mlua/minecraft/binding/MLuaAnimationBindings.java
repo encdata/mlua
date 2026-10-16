@@ -25,14 +25,17 @@ public final class MLuaAnimationBindings {
         java.util.Objects.requireNonNull(registration, "registration");
         boolean missingAnimation = registration.classTable("Animation") == null;
         boolean missingTrack = registration.classTable("AnimationTrack") == null;
+        boolean missingAnimator = registration.classTable("Animator") == null;
         if (missingAnimation) registerAnimationClass(registration);
         if (missingTrack) registerAnimationTrackClass(registration);
-        if (missingAnimation || missingTrack) registerInstanceMethods(registration);
+        if (missingAnimator) registerAnimatorClass(registration);
+        if (missingAnimation || missingTrack || missingAnimator) registerInstanceMethods(registration);
     }
 
     public static void registerClasses(MLuaRegistration registration) {
         registerAnimationClass(registration);
         registerAnimationTrackClass(registration);
+        registerAnimatorClass(registration);
         registerInstanceMethods(registration);
     }
 
@@ -58,7 +61,33 @@ public final class MLuaAnimationBindings {
         }, "Rejects direct construction because tracks are created by entity:LoadAnimation.");
     }
 
+    private static void registerAnimatorClass(MLuaRegistration registration) {
+        registration.registerClass("Animator", registration.requireInstanceBaseClassName(),
+            "Entity-scoped animation controller that loads and manages playback tracks.");
+        registration.registerClassFunction("Animator", "new", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                throw new LuaError("[MLua] Animator instances are created by Entity:GetAnimator().");
+            }
+        }, "Rejects direct construction because each Animator belongs to one live entity.");
+    }
+
     private static void registerInstanceMethods(MLuaRegistration registration) {
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "LoadAnimation",
+            "Loads an animation for this entity and returns a controllable AnimationTrack.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetPlayingAnimationTracks",
+            "Returns the tracks currently owned by this entity animator.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "StopAll",
+            "Stops every animation track owned by this entity animator.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "SetBonePose",
+            "Sets a CFrame pose override for one registered model bone.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetBonePose",
+            "Returns the current CFrame pose for one bone, or nil when no pose is set.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "ClearPose",
+            "Clears custom pose overrides owned by this animator.");
+        MLuaClassMethods.registerInstanceMethod(registration, "Animator", "GetEntity",
+            "Returns the entity controlled by this animator.");
+        MLuaClassMethods.registerInstanceProperty(registration, "Animator", "Entity", "GetEntity", null,
+            "Entity", "client:Client", "The entity controlled by this animator.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetLength",
             "Returns the total duration of this animation in seconds.");
         MLuaClassMethods.registerInstanceMethod(registration, "Animation", "GetKeyframes",
@@ -176,6 +205,53 @@ public final class MLuaAnimationBindings {
             }
         });
         return table;
+    }
+
+    /** Creates the Java-style per-entity animation controller exposed by Entity:GetAnimator(). */
+    public static LuaTable wrapAnimator(LuaTable entity, MLuaRegistration registration) {
+        LuaValue cached = entity.rawget("__mlua_animator");
+        if (cached.istable() && registration.isInstanceOf(cached, "Animator")) return cached.checktable();
+        LuaTable fields = new LuaTable();
+        fields.rawset("__entity", entity.rawget("__entity"));
+        LuaTable animator = createClassInstance(registration, "Animator", fields);
+        bindForwarder(animator, entity, "LoadAnimation");
+        bindForwarder(animator, entity, "GetPlayingAnimationTracks");
+        bindForwarder(animator, entity, "SetBonePose");
+        bindForwarder(animator, entity, "GetBonePose");
+        MLuaClassMethods.setInstanceMethod(animator, "StopAll", new ZeroArgFunction() {
+            @Override public LuaValue call() {
+                LuaValue stop = entity.get("StopAllAnimations");
+                if (!stop.isfunction()) throw new LuaError("[MLua] Entity animation methods are unavailable.");
+                stop.invoke(LuaValue.varargsOf(new LuaValue[]{entity}));
+                return LuaValue.NONE;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(animator, "GetEntity", new ZeroArgFunction() {
+            @Override public LuaValue call() { return entity; }
+        });
+        MLuaClassMethods.setInstanceMethod(animator, "ClearPose", new ZeroArgFunction() {
+            @Override public LuaValue call() {
+                LuaValue clear = entity.get("ClearBonePose");
+                if (!clear.isfunction()) throw new LuaError("[MLua] Entity pose methods are unavailable.");
+                clear.invoke(LuaValue.varargsOf(new LuaValue[]{entity}));
+                return LuaValue.NONE;
+            }
+        });
+        entity.rawset("__mlua_animator", animator);
+        return animator;
+    }
+
+    private static void bindForwarder(LuaTable animator, LuaTable entity, String methodName) {
+        MLuaClassMethods.setInstanceMethod(animator, methodName, new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue method = entity.get(methodName);
+                if (!method.isfunction()) throw new LuaError("[MLua] Entity:" + methodName + " is unavailable.");
+                LuaValue[] forwarded = new LuaValue[args.narg()];
+                forwarded[0] = entity;
+                for (int index = 1; index < forwarded.length; index++) forwarded[index] = args.arg(index + 1);
+                return method.invoke(LuaValue.varargsOf(forwarded));
+            }
+        });
     }
 
     public static LuaTable wrapTrack(MLuaAnimationTrack track, MLuaRegistration registration) {

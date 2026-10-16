@@ -239,14 +239,14 @@ jobs:
           @'
           local Registry = Minecraft:GetService("Registry")
 
-          local item = Registry.Items:Properties()
+          local item = Item.Properties()
               :StacksTo(1)
               :Rarity("rare")
               :OnUse(function(context)
                   return true
               end)
           assert(item:Build().maxStackSize == 1, "ItemProperties:Build lost StacksTo")
-          assert(not pcall(function() Registry.Items:Properties():OnUse("not a function") end),
+          assert(not pcall(function() Item.Properties():OnUse("not a function") end),
               "ItemProperties accepted a non-function callback")
           assert(not pcall(function() Registry.Items:Register("ci_wrong_property_class", Registry.Blocks:Properties()) end),
               "Registry.Items:Register accepted BlockProperties")
@@ -254,13 +254,13 @@ jobs:
           Registry.Items:RegisterType("ci_property_item_kind", {
               Base = "item",
               Description = "CI item defaults built from ItemProperties.",
-              Defaults = Registry.Items:Properties():StacksTo(4):Rarity("uncommon"),
+              Defaults = Item.Properties():StacksTo(4):Rarity("uncommon"),
           })
           local inherited = Registry.Items:ResolveType({ kind = "ci_property_item_kind" })
           assert(inherited.maxStackSize == 4, "content type did not copy ItemProperties defaults")
           Registry.Items:Register("ci_property_typed_item", { kind = "ci_property_item_kind" })
 
-          local block = Registry.Blocks:Properties()
+          local block = Block.Properties()
               :Strength(2, 4)
               :RequiresCorrectToolForDrops(true)
               :OnRightClick(function(context)
@@ -271,7 +271,7 @@ jobs:
           Registry.Blocks:RegisterType("ci_property_block_kind", {
               Base = "default",
               Description = "CI block defaults built from BlockProperties.",
-              Defaults = Registry.Blocks:Properties():Strength(1, 2),
+              Defaults = Block.Properties():Strength(1, 2),
           })
           local inheritedBlock = Registry.Blocks:ResolveType({ type = "ci_property_block_kind" })
           assert(inheritedBlock.strength == 1, "content type did not copy BlockProperties defaults")

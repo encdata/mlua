@@ -486,6 +486,12 @@ public final class MLuaEntityWrapper {
          MLuaAnimationController.stopAll(entity, registration);
          return LuaValue.NONE;
       }));
+      MLuaClassMethods.setInstanceMethod(table, "GetAnimator", luaFn(() -> {
+         if (registration.classTable("Animator") == null) {
+            throw new LuaError("[MLua] Entity:GetAnimator is available in client scripts only.");
+         }
+         return MLuaAnimationBindings.wrapAnimator(table, registration);
+      }));
       MLuaClassMethods.setInstanceMethod(table, "SetBonePose", varArg((args) -> {
          String bone = args.checkjstring(2);
          MLuaBonePose.setPose(entity, bone, MLuaCFrame.fromLua(args.arg(3)), registration);
