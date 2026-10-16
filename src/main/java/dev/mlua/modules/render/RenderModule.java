@@ -51,6 +51,11 @@ public final class RenderModule implements MLuaModule {
             "classes/render-object.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateRect(properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateText(text: string, properties: RenderObjectProperties?)", "RenderObject"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateImage(resource: string, properties: RenderObjectProperties?)", "RenderObject"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateItem(itemId: string, properties: RenderObjectProperties?)", "RenderObject"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateBlock(blockId: string, properties: RenderObjectProperties?)", "RenderObject"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateMesh(definition: MeshDefinition, properties: RenderObjectProperties?)", "RenderObject"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:LoadBBModel(path: string, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldRect(position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldText(text: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldImage(resource: string, position: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
@@ -60,6 +65,8 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldLine(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldBeam(start: Vector3|CFrame, finish: Vector3|CFrame, properties: RenderObjectProperties?)", "RenderObject"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:CreateWorldBox(center: Vector3|CFrame, size: Vector3, properties: RenderObjectProperties?)", "RenderObject"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:Clear()", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetAll()", "RenderObject[]"));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetWorldPosition(position: Vector3|CFrame)", "Sets this object's world position.", "Native Vector3 or CFrame", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", "Sets the endpoint used by world lines and beams.", "Native Vector3 or CFrame", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetTarget()", "Returns the canonical render target name.", null, "string", "client:Client", null));
@@ -77,6 +84,14 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.type("ModelAnimationOptions", null, "Playback options shared by entity-attached and standalone Blockbench models."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Loop", "boolean", "Whether playback repeats. Defaults to true."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAnimationOptions", "Speed", "number", "Finite, non-negative playback speed. Defaults to one."));
+        docs.register(MLuaDocBuilder.Registration.type("MeshDefinition", null, "Vertex data, zero-based triangle indices, and optional texture for RenderService:CreateMesh."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Vertices", "MeshVertex[]", "At least three vertices used by the mesh."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Indices", "number[]", "One or more complete triangles. Each zero-based index must refer to an entry in Vertices."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Texture?", "string", "Optional texture resource identifier."));
+        docs.register(MLuaDocBuilder.Registration.type("MeshVertex", null, "One mesh vertex with a world position, optional texture coordinate, and optional packed color."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshVertex", "Position", "Vector3|CFrame", "Finite position in mesh-local space, relative to RenderObject.WorldPosition."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshVertex", "UV?", "Vector2", "Optional texture coordinate."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshVertex", "Color?", "number", "Optional packed 32-bit vertex color. Defaults to opaque white."));
         docs.register(MLuaDocBuilder.Registration.type("RenderObjectProperties", null, "Initial properties accepted when a render object is created. Use the RenderObject property names in PascalCase or lower camel case."));
         MLuaRenderService.contributeRenderObjectPropertyDocs(docs);
         docs.register(MLuaDocBuilder.Registration.field("RenderObjectProperties", "ClassName", "string", "Registered RenderObject subclass to attach to this instance. The class and its inherited properties are preserved by RenderService:GetAll()."));

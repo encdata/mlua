@@ -328,23 +328,94 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     private LuaValue createMesh(LuaTable definition, LuaTable props) {
         ensureClient();
         List<MLuaMeshVertex> vertices = new ArrayList<>();
-        LuaTable rawVertices = definition.get("Vertices").checktable();
-        for (int i = 1; !rawVertices.get(i).isnil(); i++) {
-            LuaTable vertex = rawVertices.get(i).checktable();
+        LuaValue verticesValue = definition.get("Vertices");
+        if (!verticesValue.istable()) throw new LuaError("[MLua] RenderService:CreateMesh Vertices must be an array.");
+        LuaTable rawVertices = verticesValue.checktable();
+        int vertexCount = denseArrayLength(rawVertices, "Vertices");
+        for (int i = 1; i <= vertexCount; i++) {
+            LuaValue vertexValue = rawVertices.get(i);
+            if (!vertexValue.istable()) throw new LuaError("[MLua] RenderService:CreateMesh Vertices[" + i + "] must be a table.");
+            LuaTable vertex = vertexValue.checktable();
             double[] position = worldVector(vertex.get("Position"));
             LuaValue uvValue = vertex.get("UV");
             double[] uv = uvValue.isnil() ? new double[]{0.0, 0.0} : screenVector(uvValue);
-            int color = vertex.get("Color").isnil() ? 0xFFFFFFFF : vertex.get("Color").toint();
-            vertices.add(new MLuaMeshVertex((float)position[0], (float)position[1], (float)position[2],
-                (float)uv[0], (float)uv[1], color));
+            int color = vertex.get("Color").isnil() ? 0xFFFFFFFF : packedColor(vertex.get("Color"));
+            vertices.add(new MLuaMeshVertex(meshFloat(position[0], "vertex position X"),
+                meshFloat(position[1], "vertex position Y"), meshFloat(position[2], "vertex position Z"),
+                meshFloat(uv[0], "vertex UV X"), meshFloat(uv[1], "vertex UV Y"), color));
+        }
+        if (vertices.size() < 3) {
+            throw new LuaError("[MLua] RenderService:CreateMesh requires at least three vertices.");
         }
         List<Integer> indices = new ArrayList<>();
-        LuaTable rawIndices = definition.get("Indices").checktable();
-        for (int i = 1; !rawIndices.get(i).isnil(); i++) indices.add(rawIndices.get(i).toint());
-        String texture = definition.get("Texture").isnil() ? null : definition.get("Texture").tojstring();
+        LuaValue indicesValue = definition.get("Indices");
+        if (!indicesValue.istable()) throw new LuaError("[MLua] RenderService:CreateMesh Indices must be an array.");
+        LuaTable rawIndices = indicesValue.checktable();
+        int indexCount = denseArrayLength(rawIndices, "Indices");
+        for (int i = 1; i <= indexCount; i++) {
+            int index = meshIndex(rawIndices.get(i), i);
+            if (index < 0 || index >= vertices.size()) {
+                throw new LuaError("[MLua] RenderService:CreateMesh index " + index
+                    + " is outside the zero-based vertex range 0.." + (vertices.size() - 1) + ".");
+            }
+            indices.add(index);
+        }
+        if (indices.isEmpty() || indices.size() % 3 != 0) {
+            throw new LuaError("[MLua] RenderService:CreateMesh indices must contain one or more complete triangles (groups of three zero-based vertex indices).");
+        }
+        LuaValue textureValue = definition.get("Texture");
+        if (!textureValue.isnil() && !textureValue.isstring()) {
+            throw new LuaError("[MLua] RenderService:CreateMesh Texture must be a resource identifier string.");
+        }
+        String texture = textureValue.isnil() ? null : textureValue.tojstring();
         int id = MLuaClientRenderManager.createMesh(new MLuaMeshDefinition(vertices, indices, texture), owner());
         applyProps(requireObject(id), props);
         return objectTable(id);
+    }
+
+    private static int denseArrayLength(LuaTable table, String field) {
+        int count = 0;
+        int maximum = 0;
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            if (!key.isnumber()) {
+                throw new LuaError("[MLua] RenderService:CreateMesh " + field + " must use positive whole-number array indices.");
+            }
+            double numericIndex = key.todouble();
+            if (!Double.isFinite(numericIndex) || numericIndex < 1 || numericIndex != Math.rint(numericIndex)
+                    || numericIndex > Integer.MAX_VALUE) {
+                throw new LuaError("[MLua] RenderService:CreateMesh " + field + " must use positive whole-number array indices.");
+            }
+            count++;
+            maximum = Math.max(maximum, (int)numericIndex);
+        }
+        if (maximum != count) {
+            throw new LuaError("[MLua] RenderService:CreateMesh " + field + " must be a dense array without missing entries.");
+        }
+        return count;
+    }
+
+    private static int meshIndex(LuaValue value, int position) {
+        if (!value.isnumber()) {
+            throw new LuaError("[MLua] RenderService:CreateMesh Indices[" + position + "] must be a zero-based whole-number vertex index.");
+        }
+        double number = value.todouble();
+        if (!Double.isFinite(number) || number != Math.rint(number)
+                || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+            throw new LuaError("[MLua] RenderService:CreateMesh Indices[" + position + "] must be a zero-based whole-number vertex index.");
+        }
+        return (int)number;
+    }
+
+    private static float meshFloat(double value, String field) {
+        if (!Double.isFinite(value) || Math.abs(value) > Float.MAX_VALUE) {
+            throw new LuaError("[MLua] RenderService:CreateMesh " + field
+                + " must be finite and representable by the render vertex format.");
+        }
+        return (float)value;
     }
 
     private LuaValue loadBBModel(String path, LuaTable props) {
