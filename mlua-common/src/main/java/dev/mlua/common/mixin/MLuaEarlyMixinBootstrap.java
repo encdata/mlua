@@ -61,55 +61,42 @@ public final class MLuaEarlyMixinBootstrap {
    }
 
    private static Path resolveGameDir() {
-      Path fabricGameDir = resolveFabricGameDir();
-      if (fabricGameDir != null) {
-         LOGGER.info("[MLua] Early bootstrap using Fabric gameDir {}", fabricGameDir);
-         return fabricGameDir;
+      Path configuredGameDir = resolveGameDirValue(System.getProperty("fabric.gameDir"));
+      if (configuredGameDir != null) {
+         LOGGER.info("[MLua] Early bootstrap using configured gameDir {}", configuredGameDir);
+         return configuredGameDir;
       }
-
-      Path launchArgGameDir = resolveGameDirFromLaunchArgs();
+      Path launchArgGameDir = resolveGameDirFromCommand();
       if (launchArgGameDir != null) {
          LOGGER.info("[MLua] Early bootstrap using launch argument gameDir {}", launchArgGameDir);
          return launchArgGameDir;
       }
-
       Path workingDir = Paths.get("").toAbsolutePath().normalize();
-      LOGGER.info("[MLua] Early bootstrap falling back to working directory {}", workingDir);
+      LOGGER.info("[MLua] Early bootstrap using working directory as gameDir {}", workingDir);
       return workingDir;
    }
 
-   private static Path resolveFabricGameDir() {
-      try {
-         Class<?> loaderClass = Class.forName("net.fabricmc.loader.api.FabricLoader", false, MLuaEarlyMixinBootstrap.class.getClassLoader());
-         Object loader = loaderClass.getMethod("getInstance").invoke(null);
-         Object gameDir = loaderClass.getMethod("getGameDir").invoke(loader);
-         if (gameDir instanceof Path path) {
-            return path.toAbsolutePath().normalize();
-         }
-      } catch (Throwable ignored) {
+   private static Path resolveGameDirFromCommand() {
+      String command = System.getProperty("sun.java.command");
+      if (command == null || command.isBlank()) return null;
+      java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
+         "(?:^|\\s)--gameDir(?:=|\\s+)(?:\"([^\"]*)\"|'([^']*)'|(\\S+))").matcher(command);
+      if (!matcher.find()) return null;
+      for (int group = 1; group <= matcher.groupCount(); group++) {
+         String value = matcher.group(group);
+         if (value != null && !value.isBlank()) return resolveGameDirValue(value);
       }
-
       return null;
    }
 
-   private static Path resolveGameDirFromLaunchArgs() {
+   private static Path resolveGameDirValue(String value) {
+      if (value == null || value.isBlank()) return null;
       try {
-         Class<?> loaderClass = Class.forName("net.fabricmc.loader.api.FabricLoader", false, MLuaEarlyMixinBootstrap.class.getClassLoader());
-         Object loader = loaderClass.getMethod("getInstance").invoke(null);
-         Object launchArgsValue = loaderClass.getMethod("getLaunchArguments", boolean.class).invoke(loader, true);
-         if (!(launchArgsValue instanceof String[] launchArgs)) {
-            return null;
-         }
-
-         for (int i = 0; i + 1 < launchArgs.length; i++) {
-            if ("--gameDir".equals(launchArgs[i]) && launchArgs[i + 1] != null && !launchArgs[i + 1].isBlank()) {
-               return Paths.get(launchArgs[i + 1]).toAbsolutePath().normalize();
-            }
-         }
-      } catch (Throwable ignored) {
+         return Paths.get(value).toAbsolutePath().normalize();
+      } catch (RuntimeException invalidPath) {
+         LOGGER.debug("[MLua] Ignoring invalid gameDir value '{}': {}", value, invalidPath.getMessage());
+         return null;
       }
-
-      return null;
    }
 
    private static void setupEarlyEnvironment(Globals globals) {
