@@ -8,8 +8,7 @@ import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
 import dev.mlua.modules.world.MLuaBlockUpdateFlags;
 import dev.mlua.modules.entity.MLuaEntityQuery;
-import dev.mlua.loaderapi.RegistryHandle;
-import dev.mlua.loaderapi.RegistryKind;
+import dev.mlua.modules.entity.MLuaEntitySpawner;
 import dev.mlua.mc.impl.container.MCContainerImpl;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
@@ -23,7 +22,6 @@ import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.runtime.data.MLuaDataManager;
-import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -548,30 +546,9 @@ public final class MLuaWorldService extends MLuaServiceBase {
          int rotationIndex = 3 + coordinateWidth(args, 3);
          float yaw = MLuaLuaArguments.optionalFiniteFloat(args, rotationIndex, 0.0f, "World:SpawnEntity", "yaw");
          float pitch = MLuaLuaArguments.optionalFiniteFloat(args, rotationIndex + 1, 0.0f, "World:SpawnEntity", "pitch");
-         if (!entityId.contains(":")) {
-            entityId = this.context.mlua().ownerModId() + ":" + entityId;
-         }
-         String[] parts = entityId.split(":", 2);
-         RegistryHandle<EntityType<?>> handle = MLuaLoaderRegistry.get(RegistryKind.ENTITY, parts[0], parts[1]);
-         if (handle == null) {
-            throw new LuaError("[MLua] Unknown entity: " + entityId);
-         }
-         EntityType<?> entityType = handle.get();
-         if (entityType == null) {
-            throw new LuaError("[MLua] Entity type not yet available: " + entityId);
-         }
-         BlockPos spawnPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
-         if (!ensureChunkLoaded(level, spawnPosition, true)) return LuaValue.NIL;
-         Entity entity = entityType.create(level);
-         if (entity == null) {
-            throw new LuaError("[MLua] Failed to spawn entity: " + entityId);
-         }
-         entity.setPos(pos[0], pos[1], pos[2]);
-         entity.setYRot(yaw);
-         entity.setXRot(pitch);
-         entity.setYHeadRot(yaw);
-         entity.setYBodyRot(yaw);
-         if (!level.addFreshEntity(entity)) return LuaValue.NIL;
+         EntityType<?> entityType = MLuaEntitySpawner.resolveType(this.context.mlua().ownerModId(), entityId);
+         if (entityType == null) throw new LuaError("[MLua] Unknown entity: " + entityId);
+         Entity entity = MLuaEntitySpawner.spawn(level, entityType, pos[0], pos[1], pos[2], yaw, pitch);
          return wrapEntity(entity);
       }));
       table.set("DropItem", serverLevelFn(supplier, (level, args) -> {

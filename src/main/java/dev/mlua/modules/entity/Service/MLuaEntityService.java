@@ -1,19 +1,18 @@
 package dev.mlua.modules.entity.Service;
 
 import dev.mlua.common.enums.Side;
-import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.modules.entity.MLuaEntityQuery;
+import dev.mlua.modules.entity.MLuaEntitySpawner;
 import dev.mlua.minecraft.entity.MLuaEntityLookup;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -99,30 +98,12 @@ public final class MLuaEntityService extends MLuaReflectiveService {
         } else {
             level = resolveServerLevel(worldValue);
         }
-        BlockPos blockPosition = BlockPos.containing(pos[0], pos[1], pos[2]);
-        level.getChunk(blockPosition.getX() >> 4, blockPosition.getZ() >> 4);
-        EntityType<?> type = (EntityType<?>) MCApiRuntime.lookupRegistry("entity_type", typeId);
+        EntityType<?> type = MLuaEntitySpawner.resolveType(context.mlua().ownerModId(), typeId);
         if (type == null) {
             throw new LuaError("[MLua] Unknown entity type: " + typeId);
         }
-        //--version 26.1
-        Entity entity = type.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
-        //--endversion
-        //--version 1.20.1,1.21.1
-        Entity entity = type.create(level);
-        //--endversion
-        if (entity == null) {
-            throw new LuaError("[MLua] Failed to create entity: " + typeId);
-        }
-        //--version 26.1
-        entity.setPos(pos[0], pos[1], pos[2]);
-        entity.setYRot(0.0F);
-        entity.setXRot(0.0F);
-        //--endversion
-        //--version 1.20.1,1.21.1
-        entity.moveTo(pos[0], pos[1], pos[2], 0.0F, 0.0F);
-        //--endversion
-        if (!level.addFreshEntity(entity)) return LuaValue.NIL;
+        Entity entity = MLuaEntitySpawner.spawn(level, type, pos[0], pos[1], pos[2], 0.0F, 0.0F);
+        if (entity == null) return LuaValue.NIL;
         return wrap(entity);
     }
 
