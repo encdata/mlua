@@ -12,6 +12,8 @@ import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -219,7 +221,7 @@ public final class MLuaConfigRegistry {
             Object loaded = resolveJsonValue(data, entry.getKey());
             if (loaded != null) {
                Object converted = coerceJsonValue(loaded, entry.getValue().typeName());
-               if (converted != null) {
+               if (converted != null && entry.getValue().isAllowedValue(converted)) {
                   entry.getValue().set(converted);
                }
             }
@@ -240,8 +242,18 @@ public final class MLuaConfigRegistry {
             this.setJsonValue(data, entry.getKey(), entry.getValue().get());
          }
 
-         try (Writer writer = Files.newBufferedWriter(filePath)) {
-            GSON.toJson(data, writer);
+         Path temporaryFile = Files.createTempFile(filePath.getParent(), "mlua-config-", ".tmp");
+         try {
+            try (Writer writer = Files.newBufferedWriter(temporaryFile)) {
+               GSON.toJson(data, writer);
+            }
+            try {
+               Files.move(temporaryFile, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+               Files.move(temporaryFile, filePath, StandardCopyOption.REPLACE_EXISTING);
+            }
+         } finally {
+            Files.deleteIfExists(temporaryFile);
          }
       } catch (IOException e) {
          throw new RuntimeException("[MLua] Failed to write config for '" + set.ownerModId() + "'", e);
@@ -367,7 +379,7 @@ public final class MLuaConfigRegistry {
                   double numeric = number.doubleValue();
                   yield Double.isFinite(numeric) ? numeric : null;
                }
-               case "string" -> value instanceof String ? value : null;
+               case "string", "enum" -> value instanceof String ? value : null;
                default -> null;
             };
          } catch (Exception ignored) {
@@ -413,6 +425,10 @@ public final class MLuaConfigRegistry {
       if (defaultValue instanceof Number && !Double.isFinite(((Number)converted).doubleValue())) {
          throw new LuaError("[MLua] Config '" + path + "' must be finite.");
       }
+      if (!configValue.isAllowedValue(converted)) {
+         throw new LuaError("[MLua] Config '" + path + "' must be one of: "
+            + String.join(", ", configValue.options()) + ".");
+      }
       return configValue.clampToRange(converted);
    }
 
@@ -449,7 +465,7 @@ public final class MLuaConfigRegistry {
          } else {
             ConfigDescriptor descriptor = descriptorFor(value, childPath);
             values.put(String.join(".", childPath), new ConfigValue(descriptor.typeName(), descriptor.defaultValue(),
-               descriptor.minimum(), descriptor.maximum()));
+               descriptor.minimum(), descriptor.maximum(), descriptor.options()));
          }
       }
    }
@@ -487,25 +503,29 @@ public final class MLuaConfigRegistry {
          if (defaultValue.isnil()) {
             throw new LuaError("[MLua] Config '" + String.join(".", path) + "' is missing a default value.");
          } else {
-            String typeName = readTypeName(table, defaultValue, path);
+            List<String> options = readOptions(table, path);
+            LuaValue explicitType = first(table, "type", "Type");
+            String typeName = explicitType.isnil() && !options.isEmpty()
+               ? "enum" : readTypeName(table, defaultValue, path);
             Object converted = convertDefault(defaultValue, path, typeName);
             Double min = readOptionalNumber(table, "min", "Min");
             Double max = readOptionalNumber(table, "max", "Max");
             validateRangeUsage(path, typeName, min, max);
+            validateOptions(path, typeName, converted, options);
             if (!isWithinRange(converted, min, max)) {
                throw new LuaError("[MLua] Config '" + String.join(".", path)
                   + "' default must be " + rangeDescription(min, max) + ".");
             }
-            return new ConfigDescriptor(path, typeName, converted, min, max);
+            return new ConfigDescriptor(path, typeName, converted, min, max, options);
          }
       } else {
          String typeName = inferTypeName(value, path);
-         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName), null, null);
+         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName), null, null, List.of());
       }
    }
 
    private static void validateRangeUsage(List<String> path, String typeName, Double min, Double max) {
-      if ((min != null || max != null) && ("boolean".equals(typeName) || "string".equals(typeName))) {
+      if ((min != null || max != null) && !List.of("int", "long", "double").contains(typeName)) {
          throw new LuaError("[MLua] Config '" + String.join(".", path) + "' only supports Min/Max on numeric types.");
       }
       if (min != null && max != null && min > max) {
@@ -540,6 +560,45 @@ public final class MLuaConfigRegistry {
       double number = value.checkdouble();
       if (!Double.isFinite(number)) throw new LuaError("[MLua] Config Min and Max values must be finite numbers.");
       return number;
+   }
+
+   private static List<String> readOptions(LuaTable definition, List<String> path) {
+      LuaValue value = first(definition, "options", "Options");
+      if (value.isnil()) return List.of();
+      if (!value.istable()) throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Options must be a string array.");
+      LuaTable table = value.checktable();
+      int length = table.length();
+      if (length == 0) throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Options must not be empty.");
+      List<String> options = new ArrayList<>(length);
+      java.util.HashSet<String> unique = new java.util.HashSet<>();
+      for (int index = 1; index <= length; index++) {
+         LuaValue option = table.get(index);
+         if (!option.isstring() || option.tojstring().isBlank()) {
+            throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Options must contain non-empty strings.");
+         }
+         String text = option.tojstring();
+         if (!unique.add(text)) throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Options contains duplicate '" + text + "'.");
+         options.add(text);
+      }
+      if (table.keys().length != length) {
+         throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Options must be a dense string array.");
+      }
+      return List.copyOf(options);
+   }
+
+   private static void validateOptions(List<String> path, String typeName, Object defaultValue, List<String> options) {
+      if (options.isEmpty()) {
+         if ("enum".equals(typeName)) {
+            throw new LuaError("[MLua] Config '" + String.join(".", path) + "' enum values require Options.");
+         }
+         return;
+      }
+      if (!"enum".equals(typeName)) {
+         throw new LuaError("[MLua] Config '" + String.join(".", path) + "' Options require Type = 'enum'.");
+      }
+      if (!(defaultValue instanceof String text) || !options.contains(text)) {
+         throw new LuaError("[MLua] Config '" + String.join(".", path) + "' default must match one of its Options.");
+      }
    }
 
    private static boolean isWithinRange(Object value, Double minimum, Double maximum) {
@@ -602,6 +661,12 @@ public final class MLuaConfigRegistry {
             }
             yield value.tojstring();
          }
+         case "enum" -> {
+            if (!value.isstring()) {
+               throw new LuaError("[MLua] Config '" + String.join(".", path) + "' expects a string enum default.");
+            }
+            yield value.tojstring();
+         }
          default -> throw new LuaError("[MLua] Unsupported config type '" + typeName + "' for '" + String.join(".", path) + "'.");
       };
    }
@@ -632,6 +697,7 @@ public final class MLuaConfigRegistry {
          case "long" -> "long";
          case "float", "double", "number" -> "double";
          case "string" -> "string";
+         case "enum" -> "enum";
          default -> throw new LuaError("[MLua] Config '" + String.join(".", path) + "' has unknown Type '" + raw + "'.");
       };
    }
@@ -682,11 +748,12 @@ public final class MLuaConfigRegistry {
          case CLIENT -> "client";
          case COMMON -> "common";
          case SERVER -> "server";
+         default -> type.name().toLowerCase(Locale.ROOT);
       };
    }
 
    private static record ConfigDescriptor(List<String> path, String typeName, Object defaultValue,
-                                         Double minimum, Double maximum) {
+                                         Double minimum, Double maximum, List<String> options) {
    }
 
    public static final class ConfigValue {
@@ -694,13 +761,15 @@ public final class MLuaConfigRegistry {
       private final Object defaultValue;
       private final Double minimum;
       private final Double maximum;
+      private final List<String> options;
       private Object value;
 
-      ConfigValue(String typeName, Object defaultValue, Double minimum, Double maximum) {
+      ConfigValue(String typeName, Object defaultValue, Double minimum, Double maximum, List<String> options) {
          this.typeName = typeName;
          this.defaultValue = defaultValue;
          this.minimum = minimum;
          this.maximum = maximum;
+         this.options = options;
          this.value = defaultValue;
       }
 
@@ -715,6 +784,8 @@ public final class MLuaConfigRegistry {
       public Double minimum() { return this.minimum; }
 
       public Double maximum() { return this.maximum; }
+
+      public List<String> options() { return this.options; }
 
       public boolean isWithinRange(Object candidate) {
          return MLuaConfigRegistry.isWithinRange(candidate, this.minimum, this.maximum);
@@ -731,6 +802,10 @@ public final class MLuaConfigRegistry {
          return numeric;
       }
 
+      public boolean isAllowedValue(Object candidate) {
+         return this.options.isEmpty() || candidate instanceof String text && this.options.contains(text);
+      }
+
       public String rangeDescription() {
          if (this.minimum != null && this.maximum != null) return "between " + this.minimum + " and " + this.maximum;
          if (this.minimum != null) return "at least " + this.minimum;
@@ -743,6 +818,9 @@ public final class MLuaConfigRegistry {
       }
 
       public void set(Object value) {
+         if (!this.isAllowedValue(value)) {
+            throw new LuaError("[MLua] Config value must be one of: " + String.join(", ", this.options) + ".");
+         }
          this.value = this.clampToRange(value);
       }
    }
