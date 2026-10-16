@@ -97,6 +97,7 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PackedLight", "number", "Minecraft packed light value when supplied by the entity render hook."));
         docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PackedOverlay", "number", "Minecraft packed overlay value when supplied by the entity render hook."));
         docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Target", "string", "Render callback target: EntityModel, World, or Hud."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderContext", "PassId", "string", "Namespaced id of the registered render pass currently receiving this context."));
         docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Stage", "WorldRenderStage|nil", "Canonical world render stage for world callbacks."));
         docs.register(MLuaDocBuilder.Registration.field("RenderContext", "NativeContext", "Java object|nil", "The loader's native render event/context for world render callbacks."));
         docs.register(MLuaDocBuilder.Registration.field("RenderContext", "Camera", "Java object|nil", "The native render camera for world render callbacks."));

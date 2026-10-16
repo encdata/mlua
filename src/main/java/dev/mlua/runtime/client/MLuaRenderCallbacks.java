@@ -33,7 +33,7 @@ public final class MLuaRenderCallbacks {
         String id = normalizeId(entityId);
         HookKey key = new HookKey(owner(context), normalizeId(passId));
         ENTITY_HOOKS.computeIfAbsent(id, ignored -> new ConcurrentHashMap<>())
-            .put(key, new Hook(callback, context, "entity pass '" + key.id() + "' for " + id));
+            .put(key, new Hook(callback, context, "entity pass '" + key.id() + "' for " + id, key.id()));
     }
 
     public static boolean unregister(String entityId, MLuaContext context) {
@@ -62,7 +62,7 @@ public final class MLuaRenderCallbacks {
         String key = normalizeId(id);
         WORLD_HOOKS.computeIfAbsent(normalized, ignored -> new ConcurrentHashMap<>())
             .put(new HookKey(owner(context), key), new Hook(requireCallback(callback), context,
-                "world pass '" + key + "' at " + normalized));
+                "world pass '" + key + "' at " + normalized, key));
     }
 
     public static boolean unregisterWorld(String stage, MLuaContext context) {
@@ -93,7 +93,8 @@ public final class MLuaRenderCallbacks {
 
     public static void registerHud(String id, LuaValue callback, MLuaContext context) {
         String key = normalizeId(id);
-        HUD_HOOKS.put(new HookKey(owner(context), key), new Hook(requireCallback(callback), context, "HUD pass '" + key + "'"));
+        HUD_HOOKS.put(new HookKey(owner(context), key), new Hook(requireCallback(callback), context,
+            "HUD pass '" + key + "'", key));
     }
 
     public static boolean unregisterHud(MLuaContext context) {
@@ -199,6 +200,8 @@ public final class MLuaRenderCallbacks {
         if (hook.failed) return;
         MLuaContext context = hook.context;
         try {
+            int contextIndex = args.length > 1 && args[1].istable() ? 1 : 0;
+            if (args[contextIndex].istable()) args[contextIndex].set("PassId", LuaValue.valueOf(hook.id));
             synchronized (context.executionLock()) {
                 MLuaLuaBindings.bindContext(context.globals(), context);
                 hook.callback.invoke(LuaValue.varargsOf(args));
@@ -247,12 +250,14 @@ public final class MLuaRenderCallbacks {
         private final LuaValue callback;
         private final MLuaContext context;
         private final String target;
+        private final String id;
         private volatile boolean failed;
 
-        private Hook(LuaValue callback, MLuaContext context, String target) {
+        private Hook(LuaValue callback, MLuaContext context, String target, String id) {
             this.callback = callback;
             this.context = context;
             this.target = target;
+            this.id = id;
         }
     }
 }
