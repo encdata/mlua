@@ -1719,7 +1719,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          return MLuaRegistryEntry.create(this.context.mlua().registration(), endpoint.registryKind(), id);
       }
       if (this.dynamicRegistry.category(endpoint.table()) != null) {
-         return MLuaRegistryDefinition.create(this.context.mlua().registration(), this.dynamicRegistry, endpoint.table(), id);
+         LuaValue entry = MLuaRegistryDefinition.create(
+            this.context.mlua().registration(), this.dynamicRegistry, endpoint.table(), id);
+         return entry == null ? LuaValue.NIL : entry;
       }
       LuaTable target = registry.get(endpoint.table()).checktable();
       LuaValue getter = target.get("GetEntry");
