@@ -53,6 +53,10 @@ public final class SoundModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "SoundHandle?"));
         docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "SoundHandle?"));
         docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:GetCategories()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:GetId()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:Equals(other: SoundHandle)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:GetHashCode()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:ToString()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:SetPosition(position: Vector3|CFrame)", null));
         docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:SetFollowOffset(offset: Vector3)", null));
         docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null));

@@ -26,12 +26,12 @@ import org.luaj.vm2.lib.TwoArgFunction;
 
 @MLuaDescription("Client-side sound playback with loop, stop, and entity-follow handles.")
 public final class MLuaSoundService extends MLuaReflectiveService {
-    private static final String HANDLE_OPERATIONS = "__sound_handle_operations";
-    private static final String HANDLE_ID = "__sound_handle_id";
+    private static final String HANDLE_OPERATIONS = "__mlua_sound_handle_operations";
+    private static final String HANDLE_ID = "__mlua_sound_handle_id";
     public static void registerSoundHandleClass(MLuaRegistration registration) {
         String description = "A live client sound instance returned by SoundService playback functions. It exposes playback state, position, looping, volume, pitch, and entity-follow settings.";
         registration.registerClass("SoundHandle", registration.requireInstanceBaseClassName(), description);
-        registerHandleProperty(registration, "Id", "number", "The sound's runtime identifier.", "", null);
+        registerHandleProperty(registration, "Id", "number", "The sound's runtime identifier.", "GetId", null);
         registerHandleProperty(registration, "IsPlaying", "boolean", "Whether this sound is currently playing.", "GetIsPlaying", null);
         registerHandleProperty(registration, "IsDestroyed", "boolean", "Whether this sound has been removed.", "GetIsDestroyed", null);
         registerHandleProperty(registration, "Looped", "boolean", "Whether playback repeats after reaching the end.", "GetLooped", "SetLooped");
@@ -42,6 +42,10 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         registerHandleProperty(registration, "FollowOffset", "Vector3", "The finite offset from the followed entity.", "GetFollowOffset", "SetFollowOffset");
         registerHandleMethod(registration, "Stop", "Stops playback of this sound.");
         registerHandleMethod(registration, "Destroy", "Stops playback and removes this sound handle.");
+        registerHandleMethod(registration, "GetId", "Returns this sound's runtime identifier.");
+        registerHandleMethod(registration, "Equals", "Compares this handle with another handle for the same owned sound instance.");
+        registerHandleMethod(registration, "GetHashCode", "Returns a hash derived from this handle's owner and runtime identifier.");
+        registerHandleMethod(registration, "ToString", "Returns the runtime class, owner, and sound identifier.");
         registerHandleMethod(registration, "GetIsPlaying", "Returns whether this sound is currently playing.");
         registerHandleMethod(registration, "GetIsDestroyed", "Returns whether this sound has been removed.");
         registerHandleMethod(registration, "GetLooped", "Returns whether playback repeats after reaching the end.");
@@ -64,7 +68,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
                                               String description, String getter, String setter) {
         LuaValue get = new OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
-                return name.equals("Id") ? self.checktable().rawget(HANDLE_ID) : invokeHandleOperation(self, getter).arg1();
+                return invokeHandleOperation(self, getter).arg1();
             }
         };
         LuaValue set = setter == null ? LuaValue.NIL : new TwoArgFunction() {
@@ -211,6 +215,28 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     private LuaTable soundTable(int id, MLuaSoundOwnershipRegistry.Owner owner) {
         LuaTable operations = new LuaTable();
+        String ownerModId = owner.ownerModId();
+        operations.set("GetId", fn(args -> LuaValue.valueOf(id)));
+        operations.set("Equals", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue other = args.arg(2);
+                if (!other.istable() || !context.mlua().registration().isInstanceOf(other, "SoundHandle")) {
+                    return LuaValue.FALSE;
+                }
+                LuaTable otherHandle = other.checktable();
+                return LuaValue.valueOf(id == otherHandle.rawget(HANDLE_ID).optint(-1)
+                    && ownerModId.equals(otherHandle.rawget("__mluaOwnerModId").optjstring("")));
+            }
+        });
+        operations.set("GetHashCode", fn(args -> LuaValue.valueOf(java.util.Objects.hash(ownerModId, id))));
+        operations.set("ToString", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                LuaValue self = args.arg1();
+                String className = context.mlua().registration().classNameOf(self);
+                return LuaValue.valueOf((className == null ? "SoundHandle" : className)
+                    + "[" + ownerModId + ":" + id + "]");
+            }
+        });
         operations.set("Stop", fn(args -> {
             MLuaClientSoundManager.stop(id, owner);
             return LuaValue.NONE;
@@ -270,6 +296,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         LuaTable instance = new LuaTable();
         instance.rawset(HANDLE_ID, LuaValue.valueOf(id));
         instance.rawset(HANDLE_OPERATIONS, operations);
+        instance.rawset("__mluaOwnerModId", LuaValue.valueOf(ownerModId));
         return context.mlua().registration().attachClassInstance(instance, "SoundHandle", null);
     }
 
