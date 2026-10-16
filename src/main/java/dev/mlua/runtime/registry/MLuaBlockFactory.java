@@ -17,6 +17,8 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockBehaviour.Properties;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.material.PushReaction;
+import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 
 public final class MLuaBlockFactory {
    private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
@@ -107,7 +109,8 @@ public final class MLuaBlockFactory {
       validateNumber(properties, "friction", 0.0, Float.MAX_VALUE, false);
       validateNumber(properties, "speedFactor", 0.0, Float.MAX_VALUE, false);
       validateNumber(properties, "jumpFactor", 0.0, Float.MAX_VALUE, false);
-      for (String property : new String[]{"requiresCorrectTool", "collision", "noCollision", "noOcclusion", "randomTicks"}) {
+      for (String property : new String[]{"requiresCorrectTool", "collision", "noCollision", "noOcclusion",
+            "randomTicks", "ignitedByLava", "replaceable"}) {
          Object value = properties.get(property);
          if (value != null && !(value instanceof Boolean)) {
             throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a boolean");
@@ -124,6 +127,8 @@ public final class MLuaBlockFactory {
       }
       if (properties.get("sound") instanceof String name) sound(name);
       if (properties.get("mapColor") instanceof String name) mapColor(name);
+      validateEnumProperty(properties, "pushReaction", PushReaction.class);
+      validateEnumProperty(properties, "instrument", NoteBlockInstrument.class);
    }
 
    private static void validateNumber(Map<String, Object> properties, String name,
@@ -202,6 +207,15 @@ public final class MLuaBlockFactory {
       if (Boolean.TRUE.equals(properties.get("randomTicks"))) {
          props.randomTicks();
       }
+
+      if (Boolean.TRUE.equals(properties.get("ignitedByLava"))) props.ignitedByLava();
+      if (Boolean.TRUE.equals(properties.get("replaceable"))) props.replaceable();
+
+      Object pushReaction = properties.get("pushReaction");
+      if (pushReaction instanceof String name) props.pushReaction(pushReaction(name));
+
+      Object instrument = properties.get("instrument");
+      if (instrument instanceof String name) props.instrument(instrument(name));
 
       Object light = properties.get("lightLevel");
       if (light instanceof Number lightValue) {
@@ -521,6 +535,32 @@ public final class MLuaBlockFactory {
       }
 
       return var10000;
+   }
+
+   private static PushReaction pushReaction(String name) {
+      return enumValue(name, PushReaction.class, "pushReaction");
+   }
+
+   private static NoteBlockInstrument instrument(String name) {
+      return enumValue(name, NoteBlockInstrument.class, "instrument");
+   }
+
+   private static <T extends Enum<T>> T enumValue(String name, Class<T> enumType, String property) {
+      try {
+         return Enum.valueOf(enumType, name.trim().toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException invalid) {
+         throw new IllegalArgumentException("[MLua] Invalid block " + property + " '" + name
+            + "'. Use Registry.Blocks:Get" + (property.equals("instrument") ? "Instruments" : "PushReactions") + "() to list valid values.", invalid);
+      }
+   }
+
+   private static <T extends Enum<T>> void validateEnumProperty(Map<String, Object> properties, String property,
+                                                                  Class<T> enumType) {
+      Object value = properties.get(property);
+      if (value != null && (!(value instanceof String name) || name.isBlank())) {
+         throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a non-empty string");
+      }
+      if (value instanceof String name) enumValue(name, enumType, property);
    }
 
    private static MapColor mapColor(String name) {

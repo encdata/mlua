@@ -121,6 +121,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       descriptions.put("GetEntry", "Creates a live RegistryEntry view for a registry kind and addon-local or namespaced identifier.");
       descriptions.put("Exists", "Checks whether an identifier currently resolves in its registry.");
       descriptions.put("RegisterItem", "Registers an item form for a previously registered block.");
+      descriptions.put("GetPushReactions", "Lists the piston reactions supported by this Minecraft version.");
+      descriptions.put("GetInstruments", "Lists the note block instruments supported by this Minecraft version.");
       descriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       descriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step.");
       descriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step.");
@@ -552,6 +554,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:RegisterItem");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             Map<String, Object> props = propsTable != null ? MLuaLuaBindings.mapFromLua(propsTable) : Map.of();
+            try {
+               MLuaRegistryService.this.itemFactory.validateItemProperties(props);
+            } catch (IllegalArgumentException invalid) {
+               throw new LuaError("[MLua] " + invalid.getMessage());
+            }
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
             String className = MLuaRegistryService.requireContentClass(registration, propsTable, "BlockItem");
@@ -570,7 +577,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                });
             } else {
                MLuaLoaderRegistry.register(RegistryKind.ITEM, owner, name, () -> {
-                  return new dev.mlua.runtime.registry.MLuaNamedBlockItem((Block)blockRO.get(), new net.minecraft.world.item.Item.Properties(), key);
+                  return new dev.mlua.runtime.registry.MLuaNamedBlockItem((Block)blockRO.get(),
+                     MLuaRegistryService.this.itemFactory.makeProperties(props), key);
                });
             }
 
@@ -581,6 +589,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.registerContentClass("item", key, className);
 
             return LuaValue.NONE;
+         }
+      });
+      blocks.set("GetPushReactions", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return enumNames(net.minecraft.world.level.material.PushReaction.values());
+         }
+      });
+      blocks.set("GetInstruments", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return enumNames(net.minecraft.world.level.block.state.properties.NoteBlockInstrument.values());
          }
       });
       tabs.set("Register", new VarArgFunction() {
@@ -1454,6 +1472,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable result = new LuaTable();
       for (int index = 0; index < values.size(); index++) result.set(index + 1, LuaValue.valueOf(values.get(index)));
       return result;
+   }
+
+   private static LuaTable enumNames(Enum<?>[] values) {
+      List<String> names = java.util.Arrays.stream(values)
+         .map(value -> value.name().toLowerCase(java.util.Locale.ROOT)).toList();
+      return stringArray(names);
    }
 
    private String registryId(String name) {

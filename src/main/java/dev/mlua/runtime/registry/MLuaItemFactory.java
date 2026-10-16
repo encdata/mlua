@@ -84,14 +84,22 @@ public final class MLuaItemFactory {
 
    /** Validate a Lua definition while its Register call can still report a useful error. */
    public void validateTypeDefinition(Map<String, Object> properties) {
-      validateCopyDefinition(properties);
       RegisteredType extension = registeredType(properties);
-      if (extension != null) return;
+      if (extension != null) {
+         validateItemProperties(properties);
+         return;
+      }
       Object kind = properties.get("kind");
       if (kind != null && !(kind instanceof String)) {
          throw new IllegalArgumentException("[MLua] Item kind must be a string");
       }
       this.definition(properties);
+      validateItemProperties(properties);
+   }
+
+   /** Validate the Java Item.Properties portion shared by items and block items. */
+   public void validateItemProperties(Map<String, Object> properties) {
+      validateCopyDefinition(properties);
       validateFoodProperty(properties);
       validateStackProperties(properties);
       validateCommonProperties(properties);
@@ -740,10 +748,7 @@ public final class MLuaItemFactory {
    }
 
    public Item.Properties makeProperties(Map<String, Object> properties) {
-      validateCopyDefinition(properties);
-      validateFoodProperty(properties);
-      validateStackProperties(properties);
-      validateCommonProperties(properties);
+      validateItemProperties(properties);
       Item.Properties item;
       item = this.copyProperties(properties);
       Object durability = properties.get("durability");

@@ -363,6 +363,10 @@ public class RegistryModule implements MLuaModule {
             "noCollision?", "boolean", "Whether the block has no collision.",
             "noOcclusion?", "boolean", "Whether the block does not occlude neighboring faces.",
             "randomTicks?", "boolean", "Whether the block receives random ticks.",
+            "ignitedByLava?", "boolean", "Set true to make lava ignite the block.",
+            "replaceable?", "boolean", "Set true to allow replacement by placement or fluid updates.",
+            "pushReaction?", "string", "Piston reaction enum name; call Registry.Blocks:GetPushReactions() for values supported by the running Minecraft version.",
+            "instrument?", "string", "Note block instrument enum name; call Registry.Blocks:GetInstruments() for values supported by the running Minecraft version.",
             "sound?", "string", "Minecraft block sound family.",
             "mapColor?", "string", "Minecraft map color.",
             "mineableWith?", "string", "Required tool group.",
@@ -376,8 +380,20 @@ public class RegistryModule implements MLuaModule {
             "onUnload?", "fun(self: BlockEntity, context: table)", "Runs on the server when Minecraft removes the block entity. The context includes live Block, BlockEntity, and World instances plus a Vector3 Position.");
         schema(docs, "BlockItemDefinition", "Options and callbacks for a block's item form.",
             "className?", "string", "Registered Lua class inheriting from BlockItem.",
+            "maxStackSize?", "whole number", "Maximum stack size from 1 to 64; durable block items must have a stack size of one.",
+            "durability?", "positive whole number", "Item durability; cannot be combined with maxStackSize above one.",
+            "fireResistant?", "boolean", "Whether the item form is immune to fire and lava destruction.",
+            "rarity?", "string", "Item rarity: common, uncommon, rare, or epic.",
+            "craftRemainder?", "string", "Item identifier left behind after crafting.",
+            "copy?", "string", "Registered item whose stack, durability, rarity, food, and remainder properties are copied.",
+            "food?", "FoodDefinition", "Food properties for edible block items.",
+            "description?", "string|string[]", "Additional tooltip description lines.",
             "onUse?", "fun(context: ItemUseContext): boolean", "Runs when a player uses this block item.",
-            "onUseOnBlock?", "fun(context: ItemUseOnBlockContext): boolean", "Runs when this item is used on a block.");
+            "onUseOnBlock?", "fun(context: ItemUseOnBlockContext): boolean", "Runs when this item is used on a block.",
+            "onInventoryTick?", "fun(context: ItemInventoryTickContext)", "Runs while the block item is in an inventory.",
+            "onCrafted?", "fun(context: ItemCraftedContext)", "Runs when the block item is crafted.",
+            "onConsume?", "fun(context: ItemConsumeContext)", "Runs when the edible block item is consumed.",
+            "onAttackEntity?", "fun(context: ItemAttackEntityContext): boolean?", "Runs when the block item attacks an entity.");
         schema(docs, "EntityDefinition", "Properties, callbacks, and scripted AI for a registered entity.",
             "onTick?", "fun(entity: Entity)", "Runs on an entity tick.",
             "onHurt?", "fun(self: Entity, amount: number, source: string)", "Runs after damage is accepted.",
@@ -453,6 +469,8 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Register(id: string, props: BlockDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterItem(id: string, definition?: BlockItemDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterState(id: string, blockState: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetPushReactions()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetInstruments()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetId(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Register(id: string, props: EntityDefinition)", null));
