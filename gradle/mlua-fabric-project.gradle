@@ -183,11 +183,6 @@ if (isUnobfuscated) {
                         .replace('net.minecraft.client.model.PlayerModel', 'net.minecraft.client.model.player.PlayerModel')
                         .replace('net.minecraft.client.renderer.RenderType', 'net.minecraft.client.renderer.rendertype.RenderType')
                         .replace('net.minecraft.world.level.GameRules', 'net.minecraft.world.level.gamerules.GameRules')
-                        .replace('.getAsDouble()', '.doubleValue()')
-                        .replace('.getAsInt()', '.intValue()')
-                        .replace('.getAsLong()', '.longValue()')
-                        .replace('.getAsFloat()', '.floatValue()')
-                        .replace('.getAsString()', '.toString()')
                         .replace('.getAllKeys()', '.keySet()')
                         .replace('.getString(key)', '.getStringOr(key, "")')
                         .replace('.getString(index)', '.getStringOr(index, "")')
@@ -198,6 +193,10 @@ if (isUnobfuscated) {
                         .replace('.getDouble(key)', '.getDoubleOr(key, 0.0D)')
                         .replace('.contains(key, type)', '.contains(key)')
                         .replace('.contains(key, 10)', '.contains(key)')
+                    if (source.name == 'MLuaNbtWrapper.java') {
+                        text = text.replace('numericTag.getAsDouble()', 'numericTag.doubleValue()')
+                            .replace('numericTag.getAsLong()', 'numericTag.longValue()')
+                    }
                     if (source.name == 'MLuaGeneratedAssetPack.java') {
                         text = text.replace('MetadataSectionSerializer', 'MetadataSectionType')
                     }
