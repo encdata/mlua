@@ -1097,8 +1097,15 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              }
              Object runtimeOwner = MLuaRegistryService.this.context.mlua().registration() instanceof dev.mlua.core.MLuaRuntime runtime ? runtime.session() : null;
              String ownerModId = MLuaRegistryService.this.context.mlua().ownerModId();
-             MLuaProjectileDefinition.register(runtimeOwner, ownerModId, name, props,
+             MLuaProjectileDefinition.ProjectileDef definition = MLuaProjectileDefinition.register(runtimeOwner, ownerModId, name, props,
                    MLuaLuaBindings.boundContext(MLuaRegistryService.this.context.mlua().globals()));
+             try {
+                MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                   MLuaProjectileDefinition.unregister(runtimeOwner, ownerModId, name, definition));
+             } catch (RuntimeException | Error failure) {
+                MLuaProjectileDefinition.unregister(runtimeOwner, ownerModId, name, definition);
+                throw failure;
+             }
              return MLuaProjectileDefinition.createTypeLuaTable(runtimeOwner, ownerModId, name,
                 MLuaRegistryService.this.context.mlua().registration());
           }
