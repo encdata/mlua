@@ -925,9 +925,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private void ensureClient() {
-        if (context.mlua().side() != Side.CLIENT) {
-            throw new LuaError("[MLua] RenderService is client-side only.");
-        }
+        this.requireClientSide(this.name());
     }
 
     private static boolean supportsResource(MLuaClientRenderManager.RenderType type) {

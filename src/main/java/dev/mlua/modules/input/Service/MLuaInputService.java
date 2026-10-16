@@ -132,9 +132,7 @@ public final class MLuaInputService extends MLuaReflectiveService {
    }
 
    private void ensureClient() {
-      if (this.context.mlua().side() != Side.CLIENT) {
-         throw new LuaError("[MLua] InputService is client-side only. Use it from a .client.lua script.");
-      }
+      this.requireClientSide(this.name());
    }
 
    private LuaTable keybindTable(String ownerModId, String name, MLuaTaskSchedulerView scheduler, Side side) {

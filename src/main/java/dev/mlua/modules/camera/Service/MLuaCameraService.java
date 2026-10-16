@@ -181,9 +181,7 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    }
 
    private void ensureClient() {
-      if (this.context.mlua().side() != Side.CLIENT) {
-         throw new LuaError("[MLua] Camera is client-side only. Use Minecraft:GetService(\"Camera\") from a .client.lua script. Server camera control needs a future networked player.Camera API.");
-      }
+      this.requireClientSide(this.name());
    }
 
    private dev.mlua.runtime.client.MLuaHandPoseRegistry.Owner owner() {

@@ -298,9 +298,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
    }
 
    private void requireServer() {
-      if (this.context.mlua().side() != Side.SERVER) {
-         throw new LuaError("[MLua] Advancement service methods are server-side only");
-      }
+      this.requireServerSide(this.name());
    }
 
    private MCMinecraftServer server() {

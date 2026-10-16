@@ -236,9 +236,7 @@ public final class MLuaScoreboardService extends MLuaReflectiveService {
     }
 
     private void requireServer() {
-        if (this.context.mlua().side() != Side.SERVER) {
-            throw new LuaError("[MLua] Scoreboard service methods are server-side only");
-        }
+        this.requireServerSide(this.name());
     }
 
     private net.minecraft.server.MinecraftServer rawServer() {

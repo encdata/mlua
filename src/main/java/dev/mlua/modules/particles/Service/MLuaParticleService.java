@@ -329,9 +329,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     }
 
     private void ensureClient() {
-        if (context.mlua().side() != Side.CLIENT) {
-            throw new LuaError("[MLua] ParticleService is client-side only.");
-        }
+        this.requireClientSide(this.name());
     }
 
     private MLuaParticleOwnershipRegistry.Owner owner() {

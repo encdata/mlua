@@ -143,8 +143,6 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
     }
 
     private void ensureServer() {
-        if (this.context.side() != Side.SERVER) {
-            throw new LuaError("[MLua] Inventory mutation is server-only.");
-        }
+        this.requireServerSide(this.name());
     }
 }

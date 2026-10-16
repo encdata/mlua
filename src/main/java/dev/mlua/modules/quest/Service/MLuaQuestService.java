@@ -182,9 +182,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     }
 
     private void requireServer() {
-        if (this.context.mlua().side() != Side.SERVER) {
-            throw new LuaError("[MLua] Quest service methods are server-side only");
-        }
+        this.requireServerSide(this.name());
     }
 
     private Object runtimeOwner() { return this.context.mlua().session(); }

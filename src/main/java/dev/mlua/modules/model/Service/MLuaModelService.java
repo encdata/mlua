@@ -167,9 +167,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
     }
 
     private void ensureClient() {
-        if (context.mlua().side() != Side.CLIENT) {
-            throw new LuaError("[MLua] ModelService is client-side only.");
-        }
+        this.requireClientSide(this.name());
     }
 
     private MLuaClientModelManager.Owner owner() {

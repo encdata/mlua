@@ -31,9 +31,7 @@ public final class MLuaToastService extends MLuaReflectiveService {
 
     @MLuaDescription("Adds a native Minecraft system toast and wraps long messages to fit; title and message accept strings or Java Components.")
     public void Show(LuaValue title, LuaValue message) {
-        if (context.side() != Side.CLIENT) {
-            throw new LuaError("[MLua] Toast:Show is client-side only.");
-        }
+        this.requireClientSide(this.name());
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null) {
             throw new LuaError("[MLua] Minecraft client is not available.");

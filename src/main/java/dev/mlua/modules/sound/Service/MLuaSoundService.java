@@ -271,9 +271,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     }
 
     private void ensureClient() {
-        if (context.mlua().side() != Side.CLIENT) {
-            throw new LuaError("[MLua] SoundService is client-side only.");
-        }
+        this.requireClientSide(this.name());
     }
 
     private MLuaSoundOwnershipRegistry.Owner owner() {

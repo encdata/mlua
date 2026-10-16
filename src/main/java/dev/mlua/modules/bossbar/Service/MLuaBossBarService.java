@@ -201,9 +201,7 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
     }
 
     private void requireServer() {
-        if (this.context.mlua().side() != Side.SERVER) {
-            throw new LuaError("[MLua] BossBar service methods are server-side only");
-        }
+        this.requireServerSide(this.name());
     }
 
     private Object runtimeOwner() {

@@ -204,8 +204,6 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
 //--endversion
 
    private void requireServer() {
-      if (this.context.mlua().side() != Side.SERVER) {
-         throw new LuaError("[MLua] Attribute service methods are server-side only");
-      }
+      this.requireServerSide(this.name());
    }
 }

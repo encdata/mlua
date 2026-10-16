@@ -72,9 +72,7 @@ public final class MLuaTitleService extends MLuaReflectiveService {
     }
 
     private void requireServer() {
-        if (this.context.side() != Side.SERVER) {
-            throw new LuaError("[MLua] Title service methods are server-side only");
-        }
+        this.requireServerSide(this.name());
     }
 
     private ServerPlayer extractPlayer(LuaValue playerValue) {

@@ -1029,9 +1029,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaValue serverLevelFn(Supplier<Level> supplier, ServerLevelFunction fn) {
       return varArg((args) -> {
-         if (this.context.mlua().side() != Side.SERVER) {
-            throw new LuaError("[MLua] World mutation methods are server-side only");
-         }
+         this.requireServerSide("World mutation methods");
          Level level = supplier.get();
          if (!(level instanceof ServerLevel serverLevel)) {
             throw new LuaError("[MLua] This world is not a server world");

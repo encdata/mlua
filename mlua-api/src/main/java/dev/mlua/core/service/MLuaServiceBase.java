@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.function.Supplier;
+import dev.mlua.common.enums.Side;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -19,6 +21,23 @@ public abstract class MLuaServiceBase implements MLuaService {
 
    protected final <T> T sharedState(String key, Class<T> stateType, Supplier<? extends T> factory) {
       return this.context.sharedState(this.name(), key, stateType, factory);
+   }
+
+   /** Enforces a service's declared runtime side with one consistent Lua error. */
+   protected final void requireClientSide(String apiName) {
+      this.requireSide(Side.CLIENT, apiName);
+   }
+
+   /** Enforces a service's declared runtime side with one consistent Lua error. */
+   protected final void requireServerSide(String apiName) {
+      this.requireSide(Side.SERVER, apiName);
+   }
+
+   private void requireSide(Side required, String apiName) {
+      if (this.context.mlua().side() == required) return;
+      String scriptType = required == Side.CLIENT ? ".client.lua" : ".server.lua";
+      throw new LuaError("[MLua] " + apiName + " is " + required.name().toLowerCase(java.util.Locale.ROOT)
+         + "-side only. Use it from a " + scriptType + " script.");
    }
 
    /**
