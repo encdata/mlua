@@ -3,6 +3,7 @@ package dev.mlua.modules.network.Service;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import dev.mlua.common.enums.Side;
@@ -16,6 +17,7 @@ import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.minecraft.network.MLuaRemoteEvent;
+import dev.mlua.modules.network.MLuaJsonNull;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -23,6 +25,7 @@ import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,6 +39,10 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 @MLuaDescription("Provides client-server remote events, HTTP requests, and JSON conversion.")
 public final class MLuaNetworkService extends MLuaReflectiveService {
+   private static final Gson GSON = new Gson();
+   private static final int MAX_JSON_DEPTH = 64;
+   private static final int MAX_JSON_NODES = 100_000;
+   private static final int MAX_JSON_SOURCE_LENGTH = 1_048_576;
    private static final HttpClient HTTP;
    private final Map<String, LuaTable> remoteTables = new HashMap();
 
@@ -110,15 +117,27 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
       });
    }
 
-   @MLuaDescription("Encodes a Lua value as JSON.")
+   @MLuaDescription("Encodes nil, JSONNull, booleans, finite numbers, strings, dense arrays, or string-keyed tables as JSON. Empty tables encode as arrays; cycles, sparse arrays, and other Lua or Java values are rejected.")
    public String JSONEncode(LuaValue value) {
-      return new Gson().toJson(MLuaLuaBindings.javaValue(value));
+      try {
+         JsonElement json = this.luaToJson(value, new IdentityHashMap<>(), 0, new int[]{0});
+         return GSON.toJson(json);
+      } catch (IllegalArgumentException failure) {
+         throw new LuaError("[MLua] Network:JSONEncode " + failure.getMessage());
+      }
    }
 
-   @MLuaDescription("Decodes a JSON string into Lua values.")
+   @MLuaDescription("Decodes JSON into Lua values. JSON null is returned as the JSONNull singleton so array slots and object fields are preserved.")
    public LuaValue JSONDecode(String text) {
+      if (text == null) throw new LuaError("[MLua] Network:JSONDecode expects a JSON string");
+      if (text.isBlank()) throw new LuaError("[MLua] Network:JSONDecode received empty JSON input");
+      if (text.length() > MAX_JSON_SOURCE_LENGTH) {
+         throw new LuaError("[MLua] Network:JSONDecode input exceeds the maximum size of "
+            + MAX_JSON_SOURCE_LENGTH + " characters");
+      }
+      validateJsonNesting(text);
       try {
-         return this.jsonToLua(com.google.gson.JsonParser.parseString(text));
+         return this.jsonToLua(com.google.gson.JsonParser.parseString(text), 0, new int[]{0});
       } catch (JsonParseException | IllegalStateException failure) {
          throw new LuaError("[MLua] Network JSONDecode received invalid JSON: " + failure.getMessage());
       }
@@ -170,33 +189,140 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
       }
    }
 
-   private LuaValue jsonToLua(JsonElement value) {
-      return jsonToLua(value, 0);
-   }
-
-   private LuaValue jsonToLua(JsonElement value, int depth) {
-      if (depth > 64) throw new LuaError("[MLua] Network JSONDecode table nesting exceeds 64 levels");
-      if (value == null || value.isJsonNull()) return LuaValue.NIL;
+   private LuaValue jsonToLua(JsonElement value, int depth, int[] nodes) {
+      countJsonNode(depth, nodes, "JSONDecode");
+      if (value == null || value.isJsonNull()) return LuaValue.userdataOf(MLuaJsonNull.INSTANCE);
       if (value.isJsonPrimitive()) {
          var primitive = value.getAsJsonPrimitive();
          if (primitive.isBoolean()) return LuaValue.valueOf(primitive.getAsBoolean());
-         if (primitive.isNumber()) return LuaValue.valueOf(primitive.getAsDouble());
+         if (primitive.isNumber()) {
+            double number = primitive.getAsDouble();
+            if (!Double.isFinite(number)) throw new LuaError("[MLua] Network:JSONDecode number is outside Lua's finite number range");
+            return LuaValue.valueOf(number);
+         }
          return LuaValue.valueOf(primitive.getAsString());
       }
       if (value.isJsonArray()) {
          JsonArray array = value.getAsJsonArray();
          LuaTable result = new LuaTable(array.size(), 0);
          for (int index = 0; index < array.size(); index++) {
-            result.set(index + 1, jsonToLua(array.get(index), depth + 1));
+            result.set(index + 1, jsonToLua(array.get(index), depth + 1, nodes));
          }
          return result;
       }
       JsonObject object = value.getAsJsonObject();
       LuaTable result = new LuaTable(0, object.size());
       for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
-         result.set(entry.getKey(), jsonToLua(entry.getValue(), depth + 1));
+         result.set(entry.getKey(), jsonToLua(entry.getValue(), depth + 1, nodes));
       }
       return result;
+   }
+
+   private JsonElement luaToJson(LuaValue value, IdentityHashMap<LuaTable, Boolean> active,
+         int depth, int[] nodes) {
+      countJsonNode(depth, nodes, "JSONEncode");
+      if (value == null || value.isnil()) return JsonNull.INSTANCE;
+      int valueType = value.type();
+      if (valueType == LuaValue.TUSERDATA && value.isuserdata(MLuaJsonNull.class)) return JsonNull.INSTANCE;
+      if (valueType == LuaValue.TBOOLEAN) return new com.google.gson.JsonPrimitive(value.toboolean());
+      if (valueType == LuaValue.TNUMBER) {
+         double number = value.todouble();
+         if (!Double.isFinite(number)) throw new IllegalArgumentException("cannot encode a non-finite number");
+         return new com.google.gson.JsonPrimitive(number);
+      }
+      if (valueType == LuaValue.TSTRING) return new com.google.gson.JsonPrimitive(value.tojstring());
+      if (valueType != LuaValue.TTABLE) {
+         throw new IllegalArgumentException("cannot encode Lua " + value.typename()
+            + "; expected nil, JSONNull, boolean, finite number, string, or table");
+      }
+
+      LuaTable table = value.checktable();
+      if (active.put(table, Boolean.TRUE) != null) {
+         throw new IllegalArgumentException("cannot encode a cyclic Lua table");
+      }
+      try {
+         boolean numericKeys = true;
+         int count = 0;
+         int largestIndex = 0;
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            count++;
+            if (count > MAX_JSON_NODES) {
+               throw new IllegalArgumentException("table exceeds the maximum of " + MAX_JSON_NODES + " entries");
+            }
+            if (key.type() != LuaValue.TNUMBER) {
+               numericKeys = false;
+               continue;
+            }
+            double number = key.todouble();
+            if (!Double.isFinite(number) || number < 1 || number > Integer.MAX_VALUE
+                  || number != Math.rint(number)) {
+               throw new IllegalArgumentException("table numeric keys must be positive consecutive integers");
+            }
+            largestIndex = Math.max(largestIndex, (int)number);
+         }
+
+         if (count == 0 || numericKeys && count == largestIndex) {
+            JsonArray array = new JsonArray();
+            for (int index = 1; index <= largestIndex; index++) {
+               array.add(luaToJson(table.rawget(index), active, depth + 1, nodes));
+            }
+            return array;
+         }
+         if (numericKeys) {
+            throw new IllegalArgumentException("array table keys must be consecutive integers starting at 1");
+         }
+
+         JsonObject object = new JsonObject();
+         key = LuaValue.NIL;
+         while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            if (key.type() != LuaValue.TSTRING) {
+               throw new IllegalArgumentException("object table keys must all be strings");
+            }
+            object.add(key.tojstring(), luaToJson(entry.arg(2), active, depth + 1, nodes));
+         }
+         return object;
+      } finally {
+         active.remove(table);
+      }
+   }
+
+   private static void countJsonNode(int depth, int[] nodes, String operation) {
+      if (depth > MAX_JSON_DEPTH) {
+         throw new LuaError("[MLua] Network:" + operation + " nesting exceeds " + MAX_JSON_DEPTH + " levels");
+      }
+      if (++nodes[0] > MAX_JSON_NODES) {
+         throw new LuaError("[MLua] Network:" + operation + " exceeds " + MAX_JSON_NODES + " values");
+      }
+   }
+
+   private static void validateJsonNesting(String text) {
+      int depth = 0;
+      boolean inString = false;
+      boolean escaped = false;
+      for (int index = 0; index < text.length(); index++) {
+         char current = text.charAt(index);
+         if (inString) {
+            if (escaped) escaped = false;
+            else if (current == '\\') escaped = true;
+            else if (current == '"') inString = false;
+            continue;
+         }
+         if (current == '"') inString = true;
+         else if (current == '{' || current == '[') {
+            if (++depth > MAX_JSON_DEPTH) {
+               throw new LuaError("[MLua] Network:JSONDecode nesting exceeds " + MAX_JSON_DEPTH + " levels");
+            }
+         } else if ((current == '}' || current == ']') && depth > 0) {
+            depth--;
+         }
+      }
    }
 
    private LuaTable remoteTable(final MLuaRemoteEvent remote, final MLuaContextView mlua) {

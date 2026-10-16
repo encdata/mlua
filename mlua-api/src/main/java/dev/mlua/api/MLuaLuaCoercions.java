@@ -96,15 +96,14 @@ public final class MLuaLuaCoercions {
    }
 
    private static Object javaValue(LuaValue value, IdentityHashMap<LuaTable, Boolean> active, int depth) {
-      if (!value.istable()) {
-         if (value.isboolean()) {
-            return value.toboolean();
-         } else if (value.isnumber()) {
-            return value.todouble();
-         } else {
-            return value.isstring() ? value.tojstring() : null;
-         }
-      } else {
+      if (value == null || value.isnil()) return null;
+      Object proxiedJavaObject = proxiedJavaObject(value);
+      if (proxiedJavaObject != null) return proxiedJavaObject;
+      if (value.type() == LuaValue.TBOOLEAN) return value.toboolean();
+      if (value.type() == LuaValue.TNUMBER) return value.todouble();
+      if (value.type() == LuaValue.TSTRING) return value.tojstring();
+      if (value.type() == LuaValue.TUSERDATA) return value.touserdata();
+      if (value.istable()) {
          LuaTable table = value.checktable();
          enterTable(table, active, depth);
          try {
@@ -122,6 +121,7 @@ public final class MLuaLuaCoercions {
             active.remove(table);
          }
       }
+      throw new IllegalArgumentException("Cannot convert Lua " + value.typename() + " to a Java value");
    }
 
    private static Map<String, Object> mapFromLua(LuaTable table,
@@ -134,7 +134,7 @@ public final class MLuaLuaCoercions {
             Varargs next = table.next(key);
             key = next.arg1();
             if (key.isnil()) return values;
-            if (!key.isstring()) {
+            if (key.type() != LuaValue.TSTRING) {
                throw new IllegalArgumentException("Lua table for a Java map must use string keys; got " + key.typename());
             }
             values.put(key.tojstring(), javaValue(next.arg(2), active, depth + 1));
@@ -161,7 +161,7 @@ public final class MLuaLuaCoercions {
          Varargs entry = table.next(key);
          key = entry.arg1();
          if (key.isnil()) break;
-         if (!key.isnumber()) return false;
+         if (key.type() != LuaValue.TNUMBER) return false;
          double numericKey = key.todouble();
          if (!Double.isFinite(numericKey) || numericKey < 1 || numericKey > Integer.MAX_VALUE
             || numericKey != Math.rint(numericKey)) return false;

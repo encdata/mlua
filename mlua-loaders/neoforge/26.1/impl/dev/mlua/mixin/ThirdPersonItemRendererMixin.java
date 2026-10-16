@@ -37,7 +37,7 @@ public abstract class ThirdPersonItemRendererMixin {
                 arm == HumanoidArm.LEFT
                     ? net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_LEFT_HAND
                     : net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND,
-                poseStack, collector, packedLight);
+                poseStack, collector, packedLight, MLuaRenderStateEntityResolver.findPartialTick(state));
         }
     }
 }

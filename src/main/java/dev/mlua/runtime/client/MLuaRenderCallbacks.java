@@ -175,6 +175,12 @@ public final class MLuaRenderCallbacks {
     public static void renderThirdPersonItem(LivingEntity entity, ItemStack stack,
             net.minecraft.world.entity.HumanoidArm arm, net.minecraft.world.item.ItemDisplayContext displayContext,
             Object poseStack, Object bufferSource, int packedLight) {
+        renderThirdPersonItem(entity, stack, arm, displayContext, poseStack, bufferSource, packedLight, null);
+    }
+
+    public static void renderThirdPersonItem(LivingEntity entity, ItemStack stack,
+            net.minecraft.world.entity.HumanoidArm arm, net.minecraft.world.item.ItemDisplayContext displayContext,
+            Object poseStack, Object bufferSource, int packedLight, Float partialTick) {
         if (entity == null || stack == null || stack.isEmpty()) return;
         var itemKey = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (itemKey == null) return;
@@ -184,8 +190,9 @@ public final class MLuaRenderCallbacks {
         LuaValue entityValue = MLuaEntityWrapper.entityTable(entity);
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {entityValue, renderContext(hook, "ThirdPersonItem",
-                poseStack, bufferSource, null, 0.0F, packedLight, 0, null,
-                "HasPartialTick", LuaValue.FALSE,
+                poseStack, bufferSource, null, partialTick == null ? 0.0F : partialTick,
+                packedLight, 0, null,
+                "HasPartialTick", LuaValue.valueOf(partialTick != null),
                 "ItemStack", userdata(stack), "Hand", LuaValue.valueOf(hand),
                 "Arm", LuaValue.valueOf(arm.name()),
                 "DisplayContext", LuaValue.valueOf(displayContext.name()))};

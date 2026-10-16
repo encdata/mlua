@@ -40,9 +40,10 @@ public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.en
             var entity = level == null ? null : level.getEntity(entityId);
             if (!(entity instanceof net.minecraft.world.entity.LivingEntity livingEntity)) return;
             MLuaEntityScope scope = MLuaEntityScope.of(livingEntity);
+            Float partialTick = MLuaRenderStateEntityResolver.findPartialTick(state);
             MLuaModelAdapterRegistry.apply(model, scope);
             MLuaRenderCallbacks.render(livingEntity, model, poseStack, collector,
-                0.0F, state.lightCoords, 0, false);
+                partialTick == null ? 0.0F : partialTick, state.lightCoords, 0, partialTick != null);
             MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, collector, state.lightCoords);
         }
     }

@@ -21,7 +21,7 @@ public abstract class EntityRenderDispatcherMixin {
     @Inject(method = "extractEntity", remap = false, at = @At(value = "RETURN", remap = false))
     private void mlua$associateRenderState(Entity entity, float partialTick,
             CallbackInfoReturnable<EntityRenderState> callbackInfo) {
-        MLuaRenderStateEntityResolver.associate(callbackInfo.getReturnValue(), entity);
+        MLuaRenderStateEntityResolver.associate(callbackInfo.getReturnValue(), entity, partialTick);
     }
 
     @Inject(
@@ -41,6 +41,7 @@ public abstract class EntityRenderDispatcherMixin {
         Entity entity = MLuaRenderStateEntityResolver.findEntity(state);
         if (entity == null) return;
         EntityRenderer<?, ?> renderer = ((EntityRenderDispatcher) (Object) this).getRenderer(state);
-        MLuaRenderCallbacks.renderEntityDraw(entity, renderer, poseStack, collector, null, state.lightCoords, state);
+        MLuaRenderCallbacks.renderEntityDraw(entity, renderer, poseStack, collector,
+            MLuaRenderStateEntityResolver.findPartialTick(state), state.lightCoords, state);
     }
 }

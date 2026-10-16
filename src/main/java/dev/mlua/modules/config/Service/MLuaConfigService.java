@@ -60,7 +60,7 @@ public final class MLuaConfigService extends MLuaReflectiveService {
          Varargs entry = values.next(key);
          key = entry.arg1();
          if (key.isnil()) break;
-         if (!key.isstring()) throw new LuaError("[MLua] Config:SetMany expects string config paths as table keys.");
+         if (key.type() != LuaValue.TSTRING) throw new LuaError("[MLua] Config:SetMany expects string config paths as table keys.");
          updates.put(key.tojstring(), MLuaLuaBindings.javaValue(entry.arg(2)));
       }
       if (updates.isEmpty()) return 0;

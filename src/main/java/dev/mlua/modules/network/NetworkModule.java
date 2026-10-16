@@ -6,10 +6,17 @@ import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;
 import dev.mlua.module.MLuaRegistration;
 import java.util.List;
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 
 public class NetworkModule implements MLuaModule {
     @Override
     public String id() { return "network"; }
+
+    @Override
+    public void contributeGlobals(Globals globals) {
+        globals.set("JSONNull", LuaValue.userdataOf(MLuaJsonNull.INSTANCE));
+    }
 
     @Override
     public void registerClasses(MLuaRegistration registration) {
@@ -46,6 +53,9 @@ public class NetworkModule implements MLuaModule {
 
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.dataType("JSONNull",
+            "A singleton global value representing JSON null. JSONDecode returns it for null values, and JSONEncode writes it as null without removing an array slot or object field. Empty Lua tables encode as JSON arrays; use string-keyed tables for JSON objects.",
+            "types/json-null.html"));
         docs.register(MLuaDocBuilder.Registration.clazz("RemoteEvent", "MLuaRemoteEvent", "A named client-server event channel that sends serialized Lua values.", "classes/remote-event.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.property("RemoteEvent", "RemoteEvent.Name", "string", "This remote event's registered name.", "shared:Shared"));
         docs.register(MLuaDocBuilder.Registration.property("RemoteEvent", "RemoteEvent.OnServerEvent", "Signal", "Fires on the server when a client sends data.", "server:Server"));
