@@ -207,7 +207,7 @@ public final class MLuaBlockFactory {
         return BlockBehaviour.Properties.ofFullCopy(Blocks.STONE);
     }
 
-    private SoundType sound(String name) {
+    private static SoundType sound(String name) {
         SoundType value = SOUNDS.get(normalizeValue(name));
         if (value == null) value = SOUNDS.get(normalizeValue(name).replace("_", ""));
         if (value == null) throw new IllegalArgumentException("[MLua] Unknown block sound: " + name
@@ -215,7 +215,7 @@ public final class MLuaBlockFactory {
         return value;
     }
 
-    private MapColor color(String name) {
+    private static MapColor color(String name) {
         String normalized = normalizeValue(name);
         MapColor value = MAP_COLORS.get(normalized);
         if (value == null) value = MAP_COLORS.get(normalized.replace("_", ""));
