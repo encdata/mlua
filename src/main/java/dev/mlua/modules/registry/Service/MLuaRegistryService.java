@@ -1198,7 +1198,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                LuaTable resolved = MLuaRegistryService.this.context.mlua().registration()
                   .resolveContentType(active.domain(), MLuaRegistryService.this.context.mlua().ownerModId(), definition);
                Varargs result = active.register().invoke(LuaValue.varargsOf(
-                  new LuaValue[]{LuaValue.valueOf(id), resolved}));
+                  new LuaValue[]{LuaValue.valueOf(id), copyLuaTable(resolved, new java.util.IdentityHashMap<>())}));
                String owner = MLuaRegistryService.this.context.mlua().ownerModId();
                RegisteredDefinition stored = MLuaRegistryService.this.dynamicRegistry
                   .registerDefinition(categoryKey, id, owner, resolved);
