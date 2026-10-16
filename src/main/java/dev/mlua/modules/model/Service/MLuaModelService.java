@@ -5,6 +5,7 @@ import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.math.MLuaCFrame;
+import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
@@ -146,12 +147,17 @@ public final class MLuaModelService extends MLuaReflectiveService {
         for (Map.Entry<String, MLuaClientModelManager.PartState> entry : MLuaClientModelManager.getState(scope, owner()).entrySet()) {
             LuaTable part = new LuaTable();
             if (entry.getValue().cframe() != null) part.set("CFrame", entry.getValue().cframe().toLua());
-            if (entry.getValue().offset() != null) part.set("Offset", entry.getValue().offset());
-            if (entry.getValue().scale() != null) part.set("Scale", entry.getValue().scale());
+            if (entry.getValue().offset() != null) part.set("Offset", copyVector3(entry.getValue().offset()));
+            if (entry.getValue().scale() != null) part.set("Scale", copyVector3(entry.getValue().scale()));
             if (entry.getValue().visible() != null) part.set("Visible", LuaValue.valueOf(entry.getValue().visible()));
             result.set(entry.getKey(), part);
         }
         return result;
+    }
+
+    private static LuaTable copyVector3(LuaValue value) {
+        double[] components = MLuaVector.components3(value);
+        return MLuaVector.vector3(components[0], components[1], components[2]);
     }
 
     @MLuaDescription("Returns the model part names supported by the active renderer.")
