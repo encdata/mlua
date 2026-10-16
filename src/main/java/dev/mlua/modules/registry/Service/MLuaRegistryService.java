@@ -1948,7 +1948,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          }
          result.put(id.toString(), value.todouble());
       }
-      return Map.copyOf(result);
+      return java.util.Collections.unmodifiableMap(result);
    }
 
    private static void addEntityAttribute(AttributeSupplier.Builder builder, String name, double value) {
@@ -1986,11 +1986,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private static void requireLocalRegistryName(String owner, String name, String operation) {
-      var id = MLuaResourceLocations.tryParseOrNull(owner + ":" + name);
-      if (id == null || !owner.equals(MLuaResourceLocations.namespace(id))
-            || !name.equals(MLuaResourceLocations.path(id))) {
+      try {
+         dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(owner);
+         dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(name);
+      } catch (IllegalArgumentException invalid) {
          throw new LuaError("[MLua] " + operation
-            + " name must be a valid lowercase registry path without a namespace.");
+            + " name must be a valid lowercase registry path without a namespace: " + invalid.getMessage());
       }
    }
 
