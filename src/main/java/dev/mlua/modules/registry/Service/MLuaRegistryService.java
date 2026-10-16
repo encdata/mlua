@@ -385,9 +385,22 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                "Registry.Containers:Register", "Rows");
             String title = definition.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
-            MLuaBehaviorRegistry.registerContainerType(owner + ":" + name,
-               new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
-                  MLuaRegistryService.containerAllowedItems(owner, definition)));
+            String key = owner + ":" + name;
+            MLuaBehaviorRegistry.ContainerDefinition container;
+            try {
+               container = MLuaBehaviorRegistry.registerContainerType(key,
+                  new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
+                     MLuaRegistryService.containerAllowedItems(owner, definition)));
+            } catch (IllegalArgumentException | IllegalStateException invalid) {
+               throw new LuaError("[MLua] " + invalid.getMessage());
+            }
+            try {
+               MLuaRegistryService.this.context.mlua().registration().onRegistrationRollback(() ->
+                  MLuaBehaviorRegistry.unregisterContainerType(key, container));
+            } catch (RuntimeException failure) {
+               MLuaBehaviorRegistry.unregisterContainerType(key, container);
+               throw failure;
+            }
             return LuaValue.NONE;
          }
       });
@@ -457,24 +470,35 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                LuaValue containerValue = propsTable.get("container");
                if (containerValue.isnil()) containerValue = propsTable.get("Container");
                if (!containerValue.isnil()) {
+                  MLuaBehaviorRegistry.ContainerDefinition requestedContainer;
                   if (containerValue.istable()) {
                      LuaTable containerTable = containerValue.checktable();
                      int rows = MLuaLuaArguments.optionalWholeInt(containerTable.get("Rows"), 3,
                         "Registry.Blocks:Register", "container.Rows");
                      String title = containerTable.get("Title").optjstring(MLuaRegistryNameHelper.displayName(name));
-                     MLuaBehaviorRegistry.registerBlockContainer(key,
-                        new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
-                           MLuaRegistryService.containerAllowedItems(owner, containerTable)));
+                     requestedContainer = new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
+                        MLuaRegistryService.containerAllowedItems(owner, containerTable));
                   } else if (containerValue.isstring()) {
                      String typeName = containerValue.checkjstring();
                      String typeKey = typeName.contains(":") ? typeName : owner + ":" + typeName;
-                     MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getContainerType(typeKey);
-                     if (definition == null) throw new LuaError("[MLua] Block Container references unregistered container type '" + typeName + "'");
-                     MLuaBehaviorRegistry.registerBlockContainer(key, definition);
+                     requestedContainer = MLuaBehaviorRegistry.getContainerType(typeKey);
+                     if (requestedContainer == null) throw new LuaError("[MLua] Block Container references unregistered container type '" + typeName + "'");
                   } else {
                      throw new LuaError("[MLua] Block Container must be a registered type name or a table with Rows and optional Title");
                   }
-                  containerDefinition = MLuaBehaviorRegistry.getBlockContainer(key);
+                  try {
+                     containerDefinition = MLuaBehaviorRegistry.registerBlockContainer(key, requestedContainer);
+                  } catch (IllegalArgumentException | IllegalStateException invalid) {
+                     throw new LuaError("[MLua] " + invalid.getMessage());
+                  }
+                  MLuaBehaviorRegistry.ContainerDefinition registeredContainer = containerDefinition;
+                  try {
+                     registration.onRegistrationRollback(() ->
+                        MLuaBehaviorRegistry.unregisterBlockContainer(key, registeredContainer));
+                  } catch (RuntimeException failure) {
+                     MLuaBehaviorRegistry.unregisterBlockContainer(key, registeredContainer);
+                     throw failure;
+                  }
                }
             }
             boolean copyModel = MLuaRegistryService.booleanProperty(propsTable, "copyModel", "CopyModel");

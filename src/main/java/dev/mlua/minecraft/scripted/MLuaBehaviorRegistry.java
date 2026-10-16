@@ -121,22 +121,47 @@ public final class MLuaBehaviorRegistry {
       registerBlockContainer(key, new ContainerDefinition(rows, title));
    }
 
-   public static void registerBlockContainer(String key, ContainerDefinition definition) {
+   public static ContainerDefinition registerBlockContainer(String key, ContainerDefinition definition) {
       if (key == null || key.isBlank()) throw new IllegalArgumentException("Scripted container block key must be non-empty");
-      BLOCK_CONTAINERS.put(key, validateContainerDefinition(definition));
+      ContainerDefinition registered = validateContainerDefinition(definition);
+      BLOCK_CONTAINERS.put(key, registered);
+      return registered;
    }
 
    public static void registerContainerType(String key, int rows, String title) {
-      if (key == null || key.isBlank()) throw new IllegalArgumentException("Scripted container type key must be non-empty");
-      CONTAINER_TYPES.put(key, validateContainerDefinition(new ContainerDefinition(rows, title)));
+      registerContainerType(key, new ContainerDefinition(rows, title));
    }
 
-   public static void registerContainerType(String key, ContainerDefinition definition) {
+   public static ContainerDefinition registerContainerType(String key, ContainerDefinition definition) {
       if (key == null || key.isBlank()) throw new IllegalArgumentException("Scripted container type key must be non-empty");
-      CONTAINER_TYPES.put(key, validateContainerDefinition(definition));
+      ContainerDefinition registered = validateContainerDefinition(definition);
+      if (CONTAINER_TYPES.putIfAbsent(key, registered) != null) {
+         throw new IllegalStateException("Scripted container type is already registered: " + key);
+      }
+      return registered;
    }
 
    public static ContainerDefinition getContainerType(String key) { return CONTAINER_TYPES.get(key); }
+
+   public static boolean unregisterContainerType(String key, ContainerDefinition expected) {
+      return removeContainer(CONTAINER_TYPES, key, expected);
+   }
+
+   public static boolean unregisterBlockContainer(String key, ContainerDefinition expected) {
+      return removeContainer(BLOCK_CONTAINERS, key, expected);
+   }
+
+   private static boolean removeContainer(ConcurrentMap<String, ContainerDefinition> containers,
+                                          String key, ContainerDefinition expected) {
+      if (key == null || expected == null) return false;
+      java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+      containers.computeIfPresent(key, (ignored, current) -> {
+         if (current != expected) return current;
+         removed.set(true);
+         return null;
+      });
+      return removed.get();
+   }
 
    private static ContainerDefinition validateContainerDefinition(ContainerDefinition definition) {
       if (definition == null) throw new IllegalArgumentException("Scripted container definition is required");
