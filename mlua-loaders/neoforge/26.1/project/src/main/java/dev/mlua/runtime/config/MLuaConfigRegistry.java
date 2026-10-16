@@ -132,6 +132,13 @@ public final class MLuaConfigRegistry {
       return this.getValue(ownerModId, scopeName(type), path);
    }
 
+   public synchronized Map<String, Object> getValues(String ownerModId, String scope) {
+      InstalledConfigSet set = this.requiredSet(ownerModId, scopeFromString(scope));
+      Map<String, Object> snapshot = new LinkedHashMap<>();
+      set.values().forEach((path, value) -> snapshot.put(path, value.get()));
+      return java.util.Collections.unmodifiableMap(snapshot);
+   }
+
    public synchronized void setValue(String ownerModId, String scope, String path, Object value) {
       InstalledConfigSet set = this.requiredSet(ownerModId, scopeFromString(scope));
       ConfigValue configValue = set.values().get(path);
@@ -466,7 +473,7 @@ public final class MLuaConfigRegistry {
          } else {
             ConfigDescriptor descriptor = descriptorFor(value, childPath);
             values.put(String.join(".", childPath), new ConfigValue(descriptor.typeName(), descriptor.defaultValue(),
-               descriptor.minimum(), descriptor.maximum(), descriptor.options()));
+               descriptor.minimum(), descriptor.maximum(), descriptor.options(), descriptor.description()));
          }
       }
    }
@@ -505,6 +512,7 @@ public final class MLuaConfigRegistry {
             throw new LuaError("[MLua] Config '" + String.join(".", path) + "' is missing a default value.");
          } else {
             List<String> options = readOptions(table, path);
+            String description = readOptionalString(table, "description", "Description");
             LuaValue explicitType = first(table, "type", "Type");
             String typeName = explicitType.isnil() && !options.isEmpty()
                ? "enum" : readTypeName(table, defaultValue, path);
@@ -517,11 +525,11 @@ public final class MLuaConfigRegistry {
                throw new LuaError("[MLua] Config '" + String.join(".", path)
                   + "' default must be " + rangeDescription(min, max) + ".");
             }
-            return new ConfigDescriptor(path, typeName, converted, min, max, options);
+            return new ConfigDescriptor(path, typeName, converted, min, max, options, description);
          }
       } else {
          String typeName = inferTypeName(value, path);
-         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName), null, null, List.of());
+         return new ConfigDescriptor(path, typeName, convertDefault(value, path, typeName), null, null, List.of(), null);
       }
    }
 
@@ -561,6 +569,14 @@ public final class MLuaConfigRegistry {
       double number = value.checkdouble();
       if (!Double.isFinite(number)) throw new LuaError("[MLua] Config Min and Max values must be finite numbers.");
       return number;
+   }
+
+   private static String readOptionalString(LuaTable table, String... keys) {
+      LuaValue value = first(table, keys);
+      if (value.isnil()) return null;
+      if (!value.isstring()) throw new LuaError("[MLua] Config Description must be a string.");
+      String description = value.tojstring();
+      return description.isBlank() ? null : description;
    }
 
    private static List<String> readOptions(LuaTable definition, List<String> path) {
@@ -754,7 +770,8 @@ public final class MLuaConfigRegistry {
    }
 
    private static record ConfigDescriptor(List<String> path, String typeName, Object defaultValue,
-                                         Double minimum, Double maximum, List<String> options) {
+                                         Double minimum, Double maximum, List<String> options,
+                                         String description) {
    }
 
    public static final class ConfigValue {
@@ -763,14 +780,17 @@ public final class MLuaConfigRegistry {
       private final Double minimum;
       private final Double maximum;
       private final List<String> options;
+      private final String description;
       private Object value;
 
-      ConfigValue(String typeName, Object defaultValue, Double minimum, Double maximum, List<String> options) {
+      ConfigValue(String typeName, Object defaultValue, Double minimum, Double maximum,
+                  List<String> options, String description) {
          this.typeName = typeName;
          this.defaultValue = defaultValue;
          this.minimum = minimum;
          this.maximum = maximum;
          this.options = options;
+         this.description = description;
          this.value = defaultValue;
       }
 
@@ -787,6 +807,8 @@ public final class MLuaConfigRegistry {
       public Double maximum() { return this.maximum; }
 
       public List<String> options() { return this.options; }
+
+      public String description() { return this.description; }
 
       public boolean isWithinRange(Object candidate) {
          return MLuaConfigRegistry.isWithinRange(candidate, this.minimum, this.maximum);

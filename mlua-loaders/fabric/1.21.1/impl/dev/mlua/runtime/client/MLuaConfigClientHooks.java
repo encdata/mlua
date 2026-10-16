@@ -11,6 +11,7 @@ import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -184,23 +185,29 @@ public final class MLuaConfigClientHooks {
             int widgetX = this.width - 160;
             int widgetWidth = 140;
             if ("boolean".equals(entry.valueType())) {
-                this.addRenderableWidget(Button.builder(Component.literal(Boolean.TRUE.equals(entry.value()) ? "On" : "Off"), (button) -> {
+                Button toggle = Button.builder(Component.literal(Boolean.TRUE.equals(entry.value()) ? "On" : "Off"), (button) -> {
                     boolean newValue = !Boolean.TRUE.equals(entry.value());
                     this.pendingValues.put(entryKey(entry), newValue);
                     this.refreshSections();
                     this.rebuildEditor();
-                }).bounds(widgetX, y, widgetWidth, 20).build());
+                }).bounds(widgetX, y, widgetWidth, 20).build();
+                applyDescriptionTooltip(toggle, entry);
+                this.addRenderableWidget(toggle);
             } else if ("enum".equals(entry.valueType())) {
                 List<String> options = entry.configValue().options();
-                this.addRenderableWidget(Button.builder(Component.literal(String.valueOf(entry.value())), (button) -> {
+                Button choice = Button.builder(Component.literal(String.valueOf(entry.value())), (button) -> {
                     int current = options.indexOf(String.valueOf(entry.value()));
                     String next = options.get((current + 1 + options.size()) % options.size());
                     this.pendingValues.put(entryKey(entry), next);
                     this.refreshSections();
                     this.rebuildEditor();
-                }).bounds(widgetX, y, widgetWidth, 20).build()).active = !options.isEmpty();
+                }).bounds(widgetX, y, widgetWidth, 20).build();
+                choice.active = !options.isEmpty();
+                applyDescriptionTooltip(choice, entry);
+                this.addRenderableWidget(choice);
             } else {
                 ConfigEditBox editBox = new ConfigEditBox(this, entry, widgetX, y, widgetWidth, 20);
+                applyDescriptionTooltip(editBox, entry);
                 String key = entryKey(entry);
                 editBox.setValue(this.drafts.getOrDefault(key, String.valueOf(entry.value())));
                 editBox.setFilter((text) -> {
@@ -330,7 +337,12 @@ public final class MLuaConfigClientHooks {
         }
     }
 
-    private static boolean filterValue(String type, String text) {
+    private static void applyDescriptionTooltip(net.minecraft.client.gui.components.AbstractWidget widget, ConfigEntry entry) {
+      String description = entry.configValue().description();
+      if (description != null) widget.setTooltip(Tooltip.create(Component.literal(description)));
+   }
+
+   private static boolean filterValue(String type, String text) {
         switch (type) {
             case "int":
                 return text.matches("-?\\d*");
