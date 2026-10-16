@@ -188,8 +188,8 @@ public class RegistryModule implements MLuaModule {
                 "Registry.Recipes:Register accepts a Lua table or a JSON string. Use it for vanilla recipe types that do not have a dedicated Recipe builder; keep the fields aligned with the Minecraft version you target.",
                 "local Recipes = Minecraft:GetService(\"Registry\").Recipes\n\nRecipes:Register(\"armor_trim\", {\n    type = \"minecraft:smithing_trim\",\n    template = { item = \"minecraft:coast_armor_trim_smithing_template\" },\n    base = { tag = \"minecraft:trimmable_armor\" },\n    addition = { tag = \"minecraft:trim_materials\" },\n})"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry", "Work with registry entries generically",
-                "Native registry tables and Registry:GetEntry/Exists share the same addon-local ID resolver for items, blocks, entities, effects, potions, particles, and creative tabs. Registry:GetRegistered returns MLua-registered IDs; GetEntries returns those same registrations as live RegistryEntry instances. Both accept an optional namespace filter. RegistryEntry.new takes a full namespaced identifier and returns the same class.",
-                "local Registry = Minecraft:GetService(\"Registry\")\nlocal bow = Registry.Items:GetEntry(\"bow\")\nlocal rootBow = Registry:GetEntry(\"items\", \"bow\")\nlocal stone = Registry.Blocks:GetEntry(\"minecraft:stone\")\nlocal fullyQualified = RegistryEntry.new(\"items\", bow.Id)\n\nprint(Registry.Items:GetId(\"bow\"))\nprint(bow.Kind, bow.Id, Registry:Exists(\"items\", \"bow\"))\nprint(rootBow:Equals(fullyQualified))\nif stone.IsRegistered then\n    print(stone.Namespace, stone.Path)\nend\n\nfor _, id in ipairs(Registry:GetRegistered(\"items\", \"myaddon\")) do\n    print(id)\nend\nfor _, entry in ipairs(Registry.Items:GetEntries(\"myaddon\")) do\n    print(entry.Id, entry.IsRegistered)\nend\n\nfor _, kind in ipairs(Registry:GetKinds()) do\n    print(kind)\nend"));
+                "Built-in category tables and the root Registry lookup share the same addon-local ID resolver. Get returns one live RegistryEntry; GetAll returns an ID-keyed map and GetIds returns a sorted array. GetRegistered and GetEntries remain available when you want explicit names. RegistryEntry.new takes a full namespaced identifier and returns the same class.",
+                "local Registry = Minecraft:GetService(\"Registry\")\nlocal bow = Registry.Items:Get(\"bow\")\nlocal rootBow = Registry:Get(\"items\", \"bow\")\nlocal stone = Registry.Blocks:Get(\"minecraft:stone\")\nlocal fullyQualified = RegistryEntry.new(\"items\", bow.Id)\n\nprint(Registry.Items:GetId(\"bow\"))\nprint(bow.Kind, bow.Id, Registry:Exists(\"items\", \"bow\"))\nprint(rootBow:Equals(fullyQualified))\nif stone.IsRegistered then\n    print(stone.Namespace, stone.Path)\nend\n\nfor _, id in ipairs(Registry:GetIds(\"items\", \"myaddon\")) do\n    print(id)\nend\nfor id, entry in pairs(Registry:GetAll(\"items\", \"myaddon\")) do\n    print(id, entry.IsRegistered)\nend\n\nfor _, kind in ipairs(Registry:GetKinds()) do\n    print(kind)\nend"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Attach storage to a scripted block",
                 "The block entity keeps its slots on the server and opens a vanilla chest screen when the player interacts. AllowedItems is an optional allowlist applied to inventory slot insertion.",
                 "Registry.Blocks:Register(\"supply_crate\", {\n    Container = \"supply_crate\",\n    onRightClick = function(context)\n        local container = context.Block:GetContainer()\n        if container and container:IsEmpty() then\n            container:SetSlot(1, { Id = \"minecraft:torch\", Count = 1 })\n        end\n    end,\n})"));
@@ -466,10 +466,16 @@ public class RegistryModule implements MLuaModule {
     }
 
     private static void contributeSignatures(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:Get(category: string, id: string)", "RegistryEntry|table?"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetAll(category: string, namespace?: string)", "table<string, RegistryEntry|table>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry", "Registry:GetIds(category: string, namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Register(id: string, props: ItemDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetTiers()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetRarities()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetId(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Items", "Registry.Items:Exists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Register(id: string, props: BlockDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:RegisterItem(id: string, definition?: BlockItemDefinition)", null));
@@ -479,10 +485,28 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetSounds()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetMapColors()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetId(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Register(id: string, props: EntityDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:RegisterSpawnEgg(id: string, props: SpawnEggDefinition)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Exists(name: string)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Effects", "Registry.Effects:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Effects", "Registry.Effects:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Effects", "Registry.Effects:GetIds(namespace?: string)", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Potions", "Registry.Potions:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Potions", "Registry.Potions:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Potions", "Registry.Potions:GetIds(namespace?: string)", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Particles", "Registry.Particles:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Particles", "Registry.Particles:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Particles", "Registry.Particles:GetIds(namespace?: string)", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Tabs", "Registry.Tabs:Get(name: string)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Tabs", "Registry.Tabs:GetAll(namespace?: string)", "table<string, RegistryEntry>"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Tabs", "Registry.Tabs:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Effects", "Registry.Effects:Register(id: string, props: EffectDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Potions", "Registry.Potions:Register(id: string, props: PotionDefinition)", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Particles", "Registry.Particles:Register(id: string, props: ParticleDefinition)", null));
