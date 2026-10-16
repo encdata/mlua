@@ -237,6 +237,39 @@ jobs:
           })
           '@ | Set-Content "$template/run/mlua/scripts/ci_smoke.mixin.lua"
           @'
+          local Registry = Minecraft:GetService("Registry")
+
+          local item = Registry.Items:Properties()
+              :StacksTo(1)
+              :Rarity("rare")
+              :OnUse(function(context)
+                  return true
+              end)
+          assert(item:Build().maxStackSize == 1, "ItemProperties:Build lost StacksTo")
+          Registry.Items:Register("ci_property_item", item)
+
+          local block = Registry.Blocks:Properties()
+              :Strength(2, 4)
+              :RequiresCorrectToolForDrops(true)
+              :OnRightClick(function(context)
+                  return true
+              end)
+          assert(block:Build().strength == 2, "BlockProperties:Build lost Strength")
+          Registry.Blocks:Register("ci_property_block", block)
+
+          local entity = Registry.Entities:Properties()
+              :Category("monster")
+              :Size(0.7, 1.9)
+              :TrackingRange(10)
+              :MaxHealth(24)
+              :MovementSpeed(0.25)
+              :OnTick(function(self)
+              end)
+          assert(entity:Build().attributes.maxHealth == 24, "EntityProperties:Build lost MaxHealth")
+          Registry.Entities:Register("ci_property_entity", entity)
+          print("MLUA_CI_REGISTRY_PROPERTIES_OK")
+          '@ | Set-Content "$template/run/mlua/scripts/ci_registry_properties.registry.lua"
+          @'
           local stacks = Minecraft:GetService("ItemStackService")
           local first = stacks:Empty()
           local second = stacks:Empty()
@@ -283,7 +316,7 @@ jobs:
             -Task runClient `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK') `
             -LogFile 'client-smoke.log' `
             -TimeoutSeconds 480
 
@@ -304,7 +337,7 @@ jobs:
             -Task runServer `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_SERVER_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK', 'MLUA_CI_SERVER_SERVICE_SCRIPT_OK') `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK', 'MLUA_CI_SERVER_SERVICE_SCRIPT_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK') `
             -LogFile 'server-smoke.log' `
             -TimeoutSeconds 600
 
