@@ -999,7 +999,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             String name = args.checkjstring(2);
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Entities:Register");
-            LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
+            LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
+               args.arg(3), "EntityProperties", "Registry.Entities:Register");
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
             String className = MLuaRegistryService.requireContentClass(registration, propsTable, "ScriptedEntity");
@@ -1094,6 +1095,11 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              MLuaRegistryService.this.setEntityAIInterval(key, Math.max(1, Math.min(120, aiInterval)));
              MLuaLogger.LOGGER.info("Registered MLua scripted entity '{}' with AI callback={}", key, !onAI.isnil());
              return MLuaRegistryService.this.registryEntry(RegistryKind.ENTITY, owner, name);
+         }
+      });
+      entities.set("Properties", new VarArgFunction() {
+         @Override public Varargs invoke(Varargs args) {
+            return MLuaRegistryProperties.create(MLuaRegistryService.this.context.mlua().registration(), "EntityProperties");
          }
       });
       entities.set("RegisterSpawnEgg", new VarArgFunction() {
@@ -1387,6 +1393,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       describeRegistryMethod(blocks, "RegisterItem", "Registers the block's item form and returns its live item RegistryEntry key.");
       describeRegistryMethod(blocks, "Properties", "Creates a chainable BlockProperties instance matching Minecraft BlockBehaviour.Properties.");
       describeRegistryMethod(entities, "Register", "Registers a scripted entity type and returns its live RegistryEntry key.");
+      describeRegistryMethod(entities, "Properties", "Creates a chainable EntityProperties instance for a scripted mob type.");
       describeRegistryMethod(entities, "RegisterSpawnEgg", "Registers a spawn egg for a registered entity and returns its item RegistryEntry key.");
       describeRegistryMethod(effects, "Register", "Registers a scripted mob effect and returns its live RegistryEntry key.");
       describeRegistryMethod(potions, "Register", "Registers a potion and returns its live RegistryEntry key.");

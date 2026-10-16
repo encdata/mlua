@@ -223,6 +223,7 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("RegistryProperties", "Registry", "Shared chainable settings for registered Minecraft content.", "classes/registry-properties.html", "Instance"));
         docs.register(MLuaDocBuilder.Registration.clazz("ItemProperties", "Registry", "Item settings matching Minecraft Item.Properties, plus MLua's scripted item callbacks.", "classes/item-properties.html", "RegistryProperties"));
         docs.register(MLuaDocBuilder.Registration.clazz("BlockProperties", "Registry", "Block settings matching Minecraft BlockBehaviour.Properties, plus MLua's scripted block callbacks.", "classes/block-properties.html", "RegistryProperties"));
+        docs.register(MLuaDocBuilder.Registration.clazz("EntityProperties", "Registry", "Entity dimensions, attributes, tracking settings, and scripted behavior callbacks.", "classes/entity-properties.html", "RegistryProperties"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Containers", "Register a reusable container type",
                 "Register the layout once and keep its ContainerType instance. Its properties expose the namespaced id, row and slot counts, title, and allowed item ids. Reference the type from a scripted block with its id; an empty or omitted allowedItems list accepts every item. Lua-style lower-camel fields are canonical; Rows, Title, and AllowedItems are accepted aliases.",
                 "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal crate = Registry.Containers:Register(\"supply_crate\", {\n    rows = 3,\n    title = \"Supply Crate\",\n    allowedItems = { \"minecraft:torch\", \"minecraft:lantern\" },\n})\n\nprint(crate.Id, crate.SlotCount, crate.AllowedItems[1])\nprint(crate:AllowsItem(\"minecraft:torch\"))\nlocal registered = Registry.Containers:Get(crate.Id)"));
@@ -289,6 +290,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Entities", "Choose the mob's type settings",
                 "Start with a Lua definition for the shared entity type. Each spawned mob is a separate live ScriptedEntity instance.",
                 "local stalkerDefinition = {\n    category = \"monster\",\n    attributes = { maxHealth = 30, movementSpeed = 0.28, attackDamage = 4 }\n}"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Entities", "Build a mob type with chained settings",
+                "EntityProperties uses the same chainable style as the item and block property classes. Attribute methods write into the entity's native attribute set; AI and lifecycle methods attach the scripted behavior used by each spawned mob.",
+                "local Registry = Minecraft:GetService(\"Registry\")\n\nlocal stalker = Registry.Entities:Properties()\n    :Category(\"monster\")\n    :Size(0.7, 2.1)\n    :TrackingRange(12)\n    :MaxHealth(36)\n    :MovementSpeed(0.28)\n    :AttackDamage(5)\n    :AI({\n        initial = \"Search\",\n        states = {\n            Search = {\n                update = function(self)\n                    local player = self:FindNearestPlayer(16, true)\n                    if player then\n                        self:AttackTarget(player)\n                        return \"Chase\"\n                    end\n                end\n            },\n            Chase = {\n                update = function(self)\n                    local target = self:GetTarget()\n                    if not target then return \"Search\" end\n                    self:LookAt(target.Position)\n                    self:MoveTo(target.Position, 1.0)\n                end\n            }\n        }\n    })\n\nRegistry.Entities:Register(\"stalker\", stalker)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Registry.Entities", "Give each mob an inherited Lua class",
                 "Define a class that extends ScriptedEntity, then set className on the entity definition. Every spawned mob of that type receives the registered subclass, so its methods and mixins are available to AI and lifecycle callbacks.",
                 "Minecraft:RegisterClass(\"Stalker\", \"ScriptedEntity\", \"A scripted stalker mob.\")\nMinecraft:RegisterClassFunction(\"Stalker\", \"Investigate\", function(self, position)\n    return self:MoveTo(position, 1.1)\nend, \"Moves the stalker to investigate a position.\")\n\nlocal stalkerDefinition = {\n    className = \"Stalker\",\n    AI = {\n        initial = \"Search\",\n        states = {\n            Search = {\n                update = function(self)\n                    local target = self:FindNearestPlayer(16, true)\n                    if target then\n                        self:Investigate(target.Position)\n                        return \"Chase\"\n                    end\n                end\n            }\n        }\n    }\n}\n\nRegistry.Entities:Register(\"stalker\", stalkerDefinition)"));
@@ -577,10 +581,13 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:GetIds(namespace?: string)", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Blocks", "Registry.Blocks:Exists(name: string)", null));
         docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Build()", "table"));
-        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Description(text: string)", "RegistryProperties"));
-        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Copy(id: string)", "RegistryProperties"));
-        docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:CopyModel(enabled: boolean)", "RegistryProperties"));
         docs.register(MLuaDocBuilder.Registration.signature("RegistryProperties", "RegistryProperties:Class(className: string)", "RegistryProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("ItemProperties", "ItemProperties:Description(text: string)", "ItemProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("ItemProperties", "ItemProperties:Copy(id: string)", "ItemProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("ItemProperties", "ItemProperties:CopyModel(enabled: boolean)", "ItemProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("BlockProperties", "BlockProperties:Description(text: string)", "BlockProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("BlockProperties", "BlockProperties:Copy(id: string)", "BlockProperties"));
+        docs.register(MLuaDocBuilder.Registration.signature("BlockProperties", "BlockProperties:CopyModel(enabled: boolean)", "BlockProperties"));
         String[] itemPropertyMethods = {"StacksTo(size: number)", "Durability(maxDamage: number)", "Rarity(name: string)",
             "FireResistant(enabled: boolean)", "CraftRemainder(item: string)", "Kind(name: string)", "Tier(name: string)",
             "AttackDamage(amount: number)", "AttackSpeed(amount: number)", "Food(properties: table)",
@@ -604,6 +611,17 @@ public class RegistryModule implements MLuaModule {
         for (String method : blockPropertyMethods) {
             docs.register(MLuaDocBuilder.Registration.signature("BlockProperties", "BlockProperties:" + method, "BlockProperties"));
         }
+        String[] entityPropertyMethods = {"Category(name: string)", "Size(width: number, height: number)",
+            "TrackingRange(chunks: number)", "UpdateInterval(ticks: number)", "ShadowRadius(radius: number)",
+            "Texture(resource: string)", "Model(resource: string)", "Attributes(values: table)",
+            "MaxHealth(value: number)", "MovementSpeed(value: number)", "AttackDamage(value: number)",
+            "Armor(value: number)", "ArmorToughness(value: number)", "AttackSpeed(value: number)",
+            "KnockbackResistance(value: number)", "FollowRange(value: number)", "AI(callback: function|table)",
+            "OnTick(callback: function)", "OnHurt(callback: function)", "OnDeath(callback: function)",
+            "OnSpawn(callback: function)", "OnInteract(callback: function)", "OnRemove(callback: function)"};
+        for (String method : entityPropertyMethods) {
+            docs.register(MLuaDocBuilder.Registration.signature("EntityProperties", "EntityProperties:" + method, "EntityProperties"));
+        }
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Register(id: string, definition: ContainerDefinition)", "ContainerType"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:GetId(name: string)", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Containers", "Registry.Containers:Get(id: string)", "ContainerType|nil"));
@@ -620,6 +638,7 @@ public class RegistryModule implements MLuaModule {
             "Checks whether an item id or live Item instance is allowed by this container type. An unqualified id uses the container type's namespace.",
             "Namespaced item id or live Item instance", "boolean", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Register(id: string, props: EntityDefinition)", "RegistryEntry"));
+        docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Properties()", "EntityProperties"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:RegisterSpawnEgg(id: string, props: SpawnEggDefinition)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Get(name: string)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:GetAll(namespace?: string)", "table<string, RegistryEntry>"));

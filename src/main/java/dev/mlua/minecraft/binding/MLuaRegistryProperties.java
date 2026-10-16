@@ -20,13 +20,15 @@ public final class MLuaRegistryProperties {
          "Item settings corresponding to Minecraft Item.Properties.");
       registration.registerClass("BlockProperties", "RegistryProperties",
          "Block settings corresponding to Minecraft BlockBehaviour.Properties.");
-      common(registration, "Description", "description", "Sets the item or block tooltip description.");
-      common(registration, "Copy", "copy", "Copies native defaults from an existing Minecraft item or block id.");
-      common(registration, "CopyModel", "copyModel", "Copies the model from the selected native item or block.");
-      common(registration, "Class", "className", "Selects a registered Lua class that extends the native item or block class.");
+      registration.registerClass("EntityProperties", "RegistryProperties",
+         "Entity type settings and scripted behavior callbacks for a registered mob.");
+      common(registration, "Class", "className", "Selects a registered Lua class derived from the content's Minecraft class.");
       method(registration, "RegistryProperties", "Build", (properties, args) -> copy(properties.values),
          "Returns a plain property table that can be passed to a Registry:Register method.");
 
+      content(registration, "Description", "description", "Sets the content tooltip description.");
+      content(registration, "Copy", "copy", "Copies native defaults from an existing Minecraft item or block id.");
+      content(registration, "CopyModel", "copyModel", "Copies the model from the selected native item or block.");
       item(registration, "StacksTo", "maxStackSize", "Sets the maximum stack size.");
       item(registration, "Durability", "durability", "Sets item durability and forces a maximum stack size of one.");
       item(registration, "Rarity", "rarity", "Sets the Minecraft item rarity.");
@@ -65,7 +67,7 @@ public final class MLuaRegistryProperties {
          }
          return properties.instance;
       }, "Sets block hardness and optionally its explosion resistance.");
-      block(registration, "Resistance", "resistance", "Sets explosion resistance; call Strength first to provide hardness.");
+      block(registration, "Resistance", "resistance", "Sets explosion resistance; Minecraft also requires a hardness value.");
       block(registration, "RequiresCorrectToolForDrops", "requiresCorrectTool", "Requires the correct tool to drop this block's item.");
       block(registration, "NoCollision", "noCollision", "Removes the block's collision shape.");
       block(registration, "NoOcclusion", "noOcclusion", "Prevents the block from occluding neighboring faces.");
@@ -91,10 +93,46 @@ public final class MLuaRegistryProperties {
       block(registration, "OnTick", "onTick", "Registers the scheduled block tick callback.");
       block(registration, "OnFallOn", "onFallOn", "Registers the entity fall-on callback.");
       block(registration, "OnProjectileHit", "onProjectileHit", "Registers the projectile hit callback.");
+
+      entity(registration, "Category", "category", "Sets the Minecraft mob category.");
+      entity(registration, "TrackingRange", "trackingRange", "Sets the entity tracking range in chunks.");
+      entity(registration, "UpdateInterval", "updateInterval", "Sets the entity network update interval in ticks.");
+      entity(registration, "ShadowRadius", "shadowRadius", "Sets the entity shadow radius.");
+      entity(registration, "Texture", "texture", "Sets the entity texture resource.");
+      entity(registration, "Model", "model", "Sets the entity model resource.");
+      method(registration, "EntityProperties", "Size", (properties, args) -> {
+         LuaValue width = args.arg(2);
+         LuaValue height = args.arg(3);
+         if (!width.isnumber() || !height.isnumber()) throw new LuaError("[MLua] EntityProperties:Size expects numeric width and height.");
+         properties.values.set("width", width);
+         properties.values.set("height", height);
+         return properties.instance;
+      }, "Sets the entity's bounding box width and height in blocks.");
+      method(registration, "EntityProperties", "Attributes", (properties, args) -> {
+         LuaValue attributes = args.arg(2);
+         if (!attributes.istable()) throw new LuaError("[MLua] EntityProperties:Attributes expects an attribute table.");
+         properties.values.set("attributes", copy(attributes.checktable()));
+         return properties.instance;
+      }, "Sets the entity's base Minecraft attributes.");
+      String[] attributeNames = {"MaxHealth", "MovementSpeed", "AttackDamage", "Armor", "ArmorToughness",
+         "AttackSpeed", "KnockbackResistance", "FollowRange"};
+      String[] attributeKeys = {"maxHealth", "movementSpeed", "attackDamage", "armor", "armorToughness",
+         "attackSpeed", "knockbackResistance", "followRange"};
+      for (int index = 0; index < attributeNames.length; index++) {
+         attribute(registration, attributeNames[index], attributeKeys[index]);
+      }
+      entity(registration, "AI", "AI", "Registers scripted AI behavior for this entity.");
+      entity(registration, "OnTick", "onTick", "Registers the entity tick callback.");
+      entity(registration, "OnHurt", "onHurt", "Registers the entity hurt callback.");
+      entity(registration, "OnDeath", "onDeath", "Registers the entity death callback.");
+      entity(registration, "OnSpawn", "onSpawn", "Registers the entity spawn callback.");
+      entity(registration, "OnInteract", "onInteract", "Registers the entity interaction callback.");
+      entity(registration, "OnRemove", "onRemove", "Registers the entity removal callback.");
    }
 
    public static LuaTable create(MLuaRegistration registration, String className) {
-      if (!"ItemProperties".equals(className) && !"BlockProperties".equals(className)) {
+      if (!"ItemProperties".equals(className) && !"BlockProperties".equals(className)
+         && !"EntityProperties".equals(className)) {
          throw new LuaError("[MLua] Unsupported registry property class '" + className + "'.");
       }
       LuaTable instance = registration.createClassInstance(className);
@@ -124,8 +162,29 @@ public final class MLuaRegistryProperties {
       method(registration, "ItemProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
    }
 
+   private static void content(MLuaRegistration registration, String name, String key, String description) {
+      method(registration, "ItemProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+      method(registration, "BlockProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
    private static void block(MLuaRegistration registration, String name, String key, String description) {
       method(registration, "BlockProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
+   private static void entity(MLuaRegistration registration, String name, String key, String description) {
+      method(registration, "EntityProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
+   private static void attribute(MLuaRegistration registration, String name, String key) {
+      method(registration, "EntityProperties", name, (properties, args) -> {
+         LuaValue value = args.arg(2);
+         if (!value.isnumber()) throw new LuaError("[MLua] EntityProperties:" + name + " expects a numeric value.");
+         LuaValue attributes = properties.values.get("attributes");
+         LuaTable target = attributes.istable() ? attributes.checktable() : new LuaTable();
+         target.set(key, value);
+         properties.values.set("attributes", target);
+         return properties.instance;
+      }, "Sets the entity's " + key + " attribute.");
    }
 
    private static LuaValue set(State state, String key, LuaValue value) {
