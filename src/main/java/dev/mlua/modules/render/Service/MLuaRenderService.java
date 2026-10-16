@@ -503,12 +503,12 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (cached != null) return cached;
         if (reference != null) objectHandles.remove(id, reference);
 
+        MLuaClientRenderManager.RenderObject renderObject = requireObject(id);
+        String renderType = renderObject.type().name().toLowerCase(java.util.Locale.ROOT);
         LuaTable operations = new LuaTable();
         operations.set("GetId", fn(args -> LuaValue.valueOf(id)));
-        operations.set("GetType", fn(args -> {
-            var object = requireObject(id);
-            return LuaValue.valueOf(object.type().name().toLowerCase());
-        }));
+        // Type is immutable identity, so keep it readable on a destroyed handle.
+        operations.set("GetType", fn(args -> LuaValue.valueOf(renderType)));
         operations.set("GetIsDestroyed", fn(args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, owner()) == null)));
         operations.set("GetPosition", fn(args -> {
             var object = requireObject(id);

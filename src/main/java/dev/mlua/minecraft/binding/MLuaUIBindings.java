@@ -448,6 +448,14 @@ public final class MLuaUIBindings {
     }
 
     private static void registerCommonInstanceMethods(MLuaRegistration registration) {
+        registration.registerClassFunction("GuiBase", "GetIsDestroyed", new org.luaj.vm2.lib.OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(isDestroyedGui(self));
+            }
+        }, "Returns whether this UI instance has been destroyed.");
+        dev.mlua.core.classes.MLuaClassMethods.registerInstanceProperty(registration, "GuiBase", "IsDestroyed",
+            "GetIsDestroyed", null, "boolean", "client:Client",
+            "Whether this UI instance has been destroyed.");
         registerGuiBaseMethod(registration, "AddChild", "Parents a live UI instance to this instance and returns the child.",
             new VarArgFunction() {
                 @Override public Varargs invoke(Varargs args) {
