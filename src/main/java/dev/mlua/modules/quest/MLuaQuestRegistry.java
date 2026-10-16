@@ -1,6 +1,7 @@
 package dev.mlua.modules.quest;
 
 import java.util.concurrent.ConcurrentHashMap;
+import dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog;
 import org.luaj.vm2.LuaTable;
 
 /** Quest definitions partitioned by runtime session and owning mod. */
@@ -10,11 +11,12 @@ public final class MLuaQuestRegistry {
     private MLuaQuestRegistry() {}
 
     public static void put(Object runtimeOwner, String ownerModId, String id, LuaTable definition) {
-        QUESTS.put(new Key(runtimeOwner, ownerModId, id), definition);
+        QUESTS.put(new Key(runtimeOwner, ownerModId, id), MLuaDynamicRegistryCatalog.copyTable(definition));
     }
 
     public static LuaTable get(Object runtimeOwner, String ownerModId, String id) {
-        return QUESTS.get(new Key(runtimeOwner, ownerModId, id));
+        LuaTable definition = QUESTS.get(new Key(runtimeOwner, ownerModId, id));
+        return definition == null ? null : MLuaDynamicRegistryCatalog.copyTable(definition);
     }
 
     public static void remove(Object runtimeOwner, String ownerModId, String id) {
@@ -24,7 +26,9 @@ public final class MLuaQuestRegistry {
     public static ConcurrentHashMap<Key, LuaTable> snapshot(Object runtimeOwner, String ownerModId) {
         ConcurrentHashMap<Key, LuaTable> result = new ConcurrentHashMap<>();
         QUESTS.forEach((key, value) -> {
-            if (key.runtimeOwner == runtimeOwner && key.ownerModId.equals(ownerModId)) result.put(key, value);
+            if (key.runtimeOwner == runtimeOwner && key.ownerModId.equals(ownerModId)) {
+                result.put(key, MLuaDynamicRegistryCatalog.copyTable(value));
+            }
         });
         return result;
     }

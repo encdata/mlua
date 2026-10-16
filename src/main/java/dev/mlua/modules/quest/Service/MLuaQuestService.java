@@ -65,7 +65,10 @@ public final class MLuaQuestService extends MLuaReflectiveService {
     public LuaTable GetQuests() {
         this.requireServerSide(this.name());
         LuaTable result = new LuaTable();
-        for (Map.Entry<MLuaQuestRegistry.Key, LuaTable> entry : MLuaQuestRegistry.snapshot(runtimeOwner(), ownerModId()).entrySet()) {
+        java.util.List<Map.Entry<MLuaQuestRegistry.Key, LuaTable>> quests = new java.util.ArrayList<>(
+            MLuaQuestRegistry.snapshot(runtimeOwner(), ownerModId()).entrySet());
+        quests.sort(java.util.Comparator.comparing(entry -> entry.getKey().id()));
+        for (Map.Entry<MLuaQuestRegistry.Key, LuaTable> entry : quests) {
             result.set(entry.getKey().id(), entry.getValue());
         }
         return result;
