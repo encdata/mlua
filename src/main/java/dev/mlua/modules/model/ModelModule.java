@@ -56,13 +56,13 @@ public final class ModelModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:RegisterAdapter(modelClass: string, parts: table<string, string>)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:UnregisterAdapter(modelClass: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.type("ModelPartProperties", null, "Overrides applied together to one model part."));
-        docs.register(MLuaDocBuilder.Registration.field("ModelPartProperties", "CFrame", "CFrame?", "Position and rotation override."));
-        docs.register(MLuaDocBuilder.Registration.field("ModelPartProperties", "Offset", "Vector3?", "Translation offset."));
+        docs.register(MLuaDocBuilder.Registration.field("ModelPartProperties", "CFrame", "CFrame?", "Translation and rotation offset from Minecraft's prepared pose; translation uses block units."));
+        docs.register(MLuaDocBuilder.Registration.field("ModelPartProperties", "Offset", "Vector3?", "Additional translation offset in block units, added to the CFrame translation when both are set."));
         docs.register(MLuaDocBuilder.Registration.field("ModelPartProperties", "Scale", "Vector3?", "Per-axis scale."));
         docs.register(MLuaDocBuilder.Registration.field("ModelPartProperties", "Visible", "boolean?", "Whether the part is rendered."));
         docs.register(MLuaDocBuilder.Registration.type("ModelPartState", null, "The active override state for one model part."));
-        docs.register(MLuaDocBuilder.Registration.field("ModelPartState", "CFrame", "CFrame?", "Active position and rotation override."));
-        docs.register(MLuaDocBuilder.Registration.field("ModelPartState", "Offset", "Vector3?", "Active translation offset."));
+        docs.register(MLuaDocBuilder.Registration.field("ModelPartState", "CFrame", "CFrame?", "Active translation and rotation offset from Minecraft's prepared pose."));
+        docs.register(MLuaDocBuilder.Registration.field("ModelPartState", "Offset", "Vector3?", "Additional active translation offset in block units."));
         docs.register(MLuaDocBuilder.Registration.field("ModelPartState", "Scale", "Vector3?", "Active per-axis scale."));
         docs.register(MLuaDocBuilder.Registration.field("ModelPartState", "Visible", "boolean?", "Active visibility override."));
         docs.register(MLuaDocBuilder.Registration.guideStep("ModelService", "Apply typed model transforms",

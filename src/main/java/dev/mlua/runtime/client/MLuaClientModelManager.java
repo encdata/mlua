@@ -219,15 +219,21 @@ public final class MLuaClientModelManager {
 
         if (state.cframe != null) {
             double[] euler = state.cframe.toEulerAnglesXYZ();
+            // CFrame translation is expressed in blocks; model part pivots use pixels.
+            // Keep it relative to the pose prepared by Minecraft, like animation poses.
+            part.x += (float) (state.cframe.x() * 16.0);
+            part.y += (float) (state.cframe.y() * 16.0);
+            part.z += (float) (state.cframe.z() * 16.0);
             part.xRot = (float) euler[0];
             part.yRot = (float) euler[1];
             part.zRot = (float) euler[2];
         }
 
         if (state.offset != null) {
-            part.x = (float) component(state.offset, "X");
-            part.y = (float) component(state.offset, "Y");
-            part.z = (float) component(state.offset, "Z");
+            // Script vectors use block units while ModelPart pivots use pixels.
+            part.x += (float) (component(state.offset, "X") * 16.0);
+            part.y += (float) (component(state.offset, "Y") * 16.0);
+            part.z += (float) (component(state.offset, "Z") * 16.0);
         }
 
         if (state.visible != null) {

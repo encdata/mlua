@@ -73,7 +73,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
         }
     }
 
-    @MLuaDescription("Sets a model part transform override.")
+    @MLuaDescription("Offsets a model part from Minecraft's prepared pose using a CFrame translation and rotation.")
     public void SetPartCFrame(LuaValue entity, String part, LuaValue cframe) {
         ensureClient();
         MLuaClientModelManager.setCFrame(resolveEntityScope(entity), part, MLuaCFrame.fromLua(cframe), owner());
