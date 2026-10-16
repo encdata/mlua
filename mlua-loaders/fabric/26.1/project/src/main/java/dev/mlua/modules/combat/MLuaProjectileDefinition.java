@@ -29,11 +29,11 @@ public class MLuaProjectileDefinition {
 
    private MLuaProjectileDefinition() {}
 
-   public static void register(String name, LuaTable props) {
-      register(null, "", name, props, null);
+   public static ProjectileDef register(String name, LuaTable props) {
+      return register(null, "", name, props, null);
    }
 
-   public static void register(Object runtimeOwner, String ownerModId, String name, LuaTable props, MLuaContext context) {
+   public static ProjectileDef register(Object runtimeOwner, String ownerModId, String name, LuaTable props, MLuaContext context) {
       if (name == null || name.isBlank()) {
          throw new LuaError("[MLua] Projectile name cannot be empty");
       }
@@ -41,6 +41,8 @@ public class MLuaProjectileDefinition {
          throw new LuaError("[MLua] Projectile '" + name + "' requires a properties table");
       }
       ownerModId = ownerModId == null ? "" : ownerModId;
+      if (!ownerModId.isBlank()) dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(ownerModId);
+      dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(name);
       Key key = new Key(runtimeOwner, ownerModId, name);
       double speed = props.get("Speed").optdouble(60.0);
       double damage = props.get("Damage").optdouble(10.0);
@@ -72,6 +74,21 @@ public class MLuaProjectileDefinition {
          throw new LuaError("[MLua] Projectile '" + name + "' is already registered");
       }
       MLuaLogger.LOGGER.info("Registered projectile '{}'", name);
+      return definition;
+   }
+
+   public static boolean unregister(Object runtimeOwner, String ownerModId, String name, ProjectileDef expected) {
+      if (expected == null) return false;
+      Key key = new Key(runtimeOwner, ownerModId == null ? "" : ownerModId, name);
+      final boolean[] removed = {false};
+      DEFINITIONS.computeIfPresent(key, (ignored, current) -> {
+         if (current == expected) {
+            removed[0] = true;
+            return null;
+         }
+         return current;
+      });
+      return removed[0];
    }
 
    public static ProjectileDef get(String name) {
