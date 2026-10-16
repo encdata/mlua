@@ -86,6 +86,7 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "void"));
+        docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:AddMarker(name: string, time: number, callback: function)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetAnimation()", "Animation"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetPose()", "table<string, CFrame>"));
         docs.register(MLuaDocBuilder.Registration.signature("AnimationTrack", "AnimationTrack:GetBonePose(bone: string)", "CFrame|nil"));
@@ -102,6 +103,7 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:SetWeight(weight: number, fadeTime?: number)", "Fades the track toward weight (0 to 1), optionally over fadeTime seconds.", "weight, fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AdjustWeight(weight: number, fadeTime: number)", "Fades the track toward weight (0 to 1) over the specified duration in seconds. A duration of zero changes the weight immediately.", "weight, fadeTime", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddEvent(time: number, callback: function)", "Runs callback(track, time) when playback crosses the marker time in seconds. A marker at zero runs as soon as playback starts.", "", "void", "client:Client", ""));
+        docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:AddMarker(name: string, time: number, callback: function)", "Runs callback(track, name, time) when playback crosses the named marker time. Marker names must not be empty; time is measured in seconds.", "marker name, time in seconds, callback", "void", "client:Client", ""));
         docs.register(MLuaDocBuilder.Registration.method("AnimationTrack", "AnimationTrack:ClearEvents()", "Removes all marker callbacks from this track.", "", "void", "client:Client", ""));
 
         docs.register(MLuaDocBuilder.Registration.service("Animation", "MLuaAnimationService",
@@ -149,8 +151,8 @@ public class AnimationModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "EasingStyle?", "EasingStyle", "Optional Enum.EasingStyle value, or its exact name, used to interpolate from the previous keyframe into this one. Defaults to Linear."));
         docs.register(MLuaDocBuilder.Registration.field("KeyframeDefinition", "EasingDirection?", "EasingDirection", "Optional Enum.EasingDirection value, or its exact name, used to interpolate from the previous keyframe into this one. Defaults to In."));
         docs.register(MLuaDocBuilder.Registration.guideStep("AnimationTrack", "React to animation markers",
-            "AddEvent invokes callback(track, time) when playback crosses its time in seconds. A marker at zero runs as soon as the track starts. ClearEvents removes callbacks that have not fired yet.",
-            "local Animations = Minecraft:GetService(\"Animation\")\nlocal animator = entity:GetAnimator()\nlocal animation = Animations:GetAnimation(\"myaddon:reload\")\nlocal track = animator:LoadAnimation(animation, Animation.AnimationPriority.Action)\n\ntrack:AddEvent(0, function(activeTrack, time)\n    print(\"Reload started on track\", activeTrack.TrackId, time)\nend)\ntrack:AddEvent(0.65, function(activeTrack, time)\n    print(\"Insert the magazine at\", time)\nend)\ntrack:Play()\n\n-- Remove marker callbacks when they are no longer needed.\ntrack:ClearEvents()"));
+            "AddMarker invokes callback(track, name, time) when playback crosses its named time in seconds. AddEvent remains useful for unnamed timing callbacks. A marker at zero runs as soon as playback starts. ClearEvents removes callbacks that have not fired yet.",
+            "local Animations = Minecraft:GetService(\"Animation\")\nlocal animator = entity:GetAnimator()\nlocal animation = Animations:GetAnimation(\"myaddon:reload\")\nlocal track = animator:LoadAnimation(animation, Animation.AnimationPriority.Action)\n\ntrack:AddMarker(\"reload_start\", 0, function(activeTrack, name, time)\n    print(name, activeTrack.TrackId, time)\nend)\ntrack:AddMarker(\"magazine_inserted\", 0.65, function(activeTrack, name, time)\n    print(name, time)\nend)\ntrack:Play()\n\n-- Remove marker callbacks when they are no longer needed.\ntrack:ClearEvents()"));
     }
 
     @Override

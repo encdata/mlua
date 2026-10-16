@@ -337,6 +337,8 @@ jobs:
           assert(definition:GetBoneNames()[1] == "head", "Animation bone names are not exposed")
           assert(definition:Sample(0.25).head ~= nil, "Animation sampling did not return its interpolated bone pose")
           assert(type(Animation.Animator.new) == "function", "Animator class was not registered")
+          assert(type(Animation.Animator.LoadAnimation) == "function", "Animator methods were not registered")
+          assert(type(Animation.AnimationTrack.AddMarker) == "function", "AnimationTrack marker API was not registered")
           print("MLUA_CI_ANIMATION_API_OK")
           print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_java_service.client.lua"

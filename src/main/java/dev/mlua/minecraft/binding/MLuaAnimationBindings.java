@@ -138,6 +138,8 @@ public final class MLuaAnimationBindings {
             "Fades this animation track toward a blend weight over an optional duration in seconds.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AddEvent",
             "Runs a callback when playback crosses a time in seconds. Time zero runs when playback starts.");
+        MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "AddMarker",
+            "Registers a named callback marker at a time in seconds; the callback receives the track, marker name, and time.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "ClearEvents",
             "Removes all marker callbacks from this track.");
         MLuaClassMethods.registerInstanceMethod(registration, "AnimationTrack", "GetAnimation",
@@ -439,6 +441,26 @@ public final class MLuaAnimationBindings {
                     });
                 } catch (IllegalArgumentException error) {
                     throw new LuaError("[MLua] AnimationTrack:AddEvent: " + error.getMessage());
+                }
+                return LuaValue.NONE;
+            }
+        });
+        MLuaClassMethods.setInstanceMethod(table, "AddMarker", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                String marker = args.checkjstring(2).trim();
+                if (marker.isEmpty()) throw new LuaError("[MLua] AnimationTrack:AddMarker name cannot be empty.");
+                float triggerTime = MLuaLuaArguments.finiteNonNegativeFloat(
+                    args.arg(3), "AnimationTrack:AddMarker", "time");
+                LuaValue callback = args.checkfunction(4);
+                try {
+                    track.addEvent(triggerTime, new VarArgFunction() {
+                        @Override public Varargs invoke(Varargs eventArgs) {
+                            return callback.invoke(LuaValue.varargsOf(new LuaValue[]{table,
+                                LuaValue.valueOf(marker), eventArgs.arg(2)}));
+                        }
+                    });
+                } catch (IllegalArgumentException error) {
+                    throw new LuaError("[MLua] AnimationTrack:AddMarker: " + error.getMessage());
                 }
                 return LuaValue.NONE;
             }
