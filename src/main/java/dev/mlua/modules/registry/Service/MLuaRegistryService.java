@@ -1613,11 +1613,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       String description = stringProperty(definition, "description", "Description");
       LuaValue defaultsValue = definition.get("defaults");
       if (defaultsValue.isnil()) defaultsValue = definition.get("Defaults");
-      if (!defaultsValue.isnil() && !defaultsValue.istable()) {
-         throw new LuaError("[MLua] Content type Defaults must be a property table");
-      }
+      LuaTable defaults = MLuaRegistryProperties.optionalTable(this.context.mlua().registration(), defaultsValue,
+         domain, "Registry content type Defaults");
       this.context.mlua().registration().registerContentType(domain, this.context.mlua().ownerModId(), name,
-         base, description, defaultsValue.istable() ? defaultsValue.checktable() : null);
+         base, description, defaults);
    }
 
    private void installContentTypeApi(LuaTable target, String domain,

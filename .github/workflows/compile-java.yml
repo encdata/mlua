@@ -247,6 +247,14 @@ jobs:
               end)
           assert(item:Build().maxStackSize == 1, "ItemProperties:Build lost StacksTo")
           Registry.Items:Register("ci_property_item", item)
+          Registry.Items:RegisterType("ci_property_item_kind", {
+              Base = "item",
+              Description = "CI item defaults built from ItemProperties.",
+              Defaults = Registry.Items:Properties():StacksTo(4):Rarity("uncommon"),
+          })
+          local inherited = Registry.Items:ResolveType({ kind = "ci_property_item_kind" })
+          assert(inherited.maxStackSize == 4, "content type did not copy ItemProperties defaults")
+          Registry.Items:Register("ci_property_typed_item", { kind = "ci_property_item_kind" })
 
           local block = Registry.Blocks:Properties()
               :Strength(2, 4)
@@ -256,6 +264,14 @@ jobs:
               end)
           assert(block:Build().strength == 2, "BlockProperties:Build lost Strength")
           Registry.Blocks:Register("ci_property_block", block)
+          Registry.Blocks:RegisterType("ci_property_block_kind", {
+              Base = "default",
+              Description = "CI block defaults built from BlockProperties.",
+              Defaults = Registry.Blocks:Properties():Strength(1, 2),
+          })
+          local inheritedBlock = Registry.Blocks:ResolveType({ type = "ci_property_block_kind" })
+          assert(inheritedBlock.strength == 1, "content type did not copy BlockProperties defaults")
+          Registry.Blocks:Register("ci_property_typed_block", { type = "ci_property_block_kind" })
 
           local entity = Registry.Entities:Properties()
               :Category("monster")
@@ -267,6 +283,15 @@ jobs:
               end)
           assert(entity:Build().attributes.maxHealth == 24, "EntityProperties:Build lost MaxHealth")
           Registry.Entities:Register("ci_property_entity", entity)
+          Registry.Entities:RegisterType("ci_property_entity_kind", {
+              Base = "entity",
+              Description = "CI entity defaults built from EntityProperties.",
+              Defaults = Registry.Entities:Properties():Size(0.6, 1.8):MaxHealth(18),
+          })
+          local inheritedEntity = Registry.Entities:ResolveType({ RegistryType = "ci_property_entity_kind" })
+          assert(inheritedEntity.width == 0.6 and inheritedEntity.attributes.maxHealth == 18,
+              "content type did not copy EntityProperties defaults")
+          Registry.Entities:Register("ci_property_typed_entity", { RegistryType = "ci_property_entity_kind" })
           print("MLUA_CI_REGISTRY_PROPERTIES_OK")
           '@ | Set-Content "$template/run/mlua/scripts/ci_registry_properties.registry.lua"
           @'

@@ -154,6 +154,25 @@ public final class MLuaRegistryProperties {
       return value.checktable();
    }
 
+   /** Allows reusable registered content types to snapshot a matching fluent properties instance. */
+   public static LuaTable optionalTable(MLuaRegistration registration, LuaValue value, String domain, String method) {
+      if (value.isnil()) return null;
+      String expectedClass = switch (domain.toLowerCase(java.util.Locale.ROOT)) {
+         case "item" -> "ItemProperties";
+         case "block" -> "BlockProperties";
+         case "entity" -> "EntityProperties";
+         default -> null;
+      };
+      if (registration.isInstanceOf(value, "RegistryProperties")) {
+         if (expectedClass == null) {
+            throw new LuaError("[MLua] " + method + " does not accept a " + registration.classNameOf(value) + " instance for domain '" + domain + "'.");
+         }
+         return table(registration, value, expectedClass, method);
+      }
+      if (!value.istable()) throw new LuaError("[MLua] " + method + " expects a property table.");
+      return value.checktable();
+   }
+
    private static void common(MLuaRegistration registration, String name, String key, String description) {
       method(registration, "RegistryProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
    }
