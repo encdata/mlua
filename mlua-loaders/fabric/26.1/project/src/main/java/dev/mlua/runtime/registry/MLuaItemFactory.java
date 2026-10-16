@@ -32,6 +32,14 @@ import org.luaj.vm2.Varargs;
 public final class MLuaItemFactory {
     private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
 
+    public static java.util.List<String> tierNames() {
+        return reflectedFieldNames("net.minecraft.world.item.Tiers", "net.minecraft.world.item.Tier");
+    }
+
+    public static java.util.List<String> rarityNames() {
+        return reflectedEnumNames("net.minecraft.world.item.Rarity");
+    }
+
     public static void registerType(String name, String description, TypeProvider provider) {
         String key = normalizeTypeName(name);
         if (Set.of("item", "generic", "bow").contains(key)) throw new IllegalArgumentException("[MLua] Item type '" + key + "' is reserved by MLua");
@@ -51,11 +59,63 @@ public final class MLuaItemFactory {
     }
 
     public void validateTypeDefinition(Map<String, Object> properties) {
+        validateItemProperties(properties);
         Object raw = properties == null ? null : properties.get("kind");
         if (raw != null && !(raw instanceof String)) throw new IllegalArgumentException("[MLua] Item kind must be a string");
         if (raw instanceof String name && !Set.of("item", "generic", "bow").contains(normalizeTypeName(name))
             && !REGISTERED_TYPES.containsKey(normalizeTypeName(name))) {
             throw new IllegalArgumentException("[MLua] Unknown item kind: " + name);
+        }
+    }
+
+    public void validateItemProperties(Map<String, Object> properties) {
+        if (properties == null) return;
+        int maxStack = positiveWholeNumber(properties.get("maxStackSize"), "maxStackSize", 64, 64);
+        int durability = positiveWholeNumber(properties.get("durability"), "durability", Integer.MAX_VALUE, -1);
+        if (durability > 0 && maxStack > 1) {
+            throw new IllegalArgumentException("[MLua] Item property 'durability' cannot be combined with maxStackSize > 1");
+        }
+        Object fireResistant = properties.get("fireResistant");
+        if (fireResistant != null && !(fireResistant instanceof Boolean)) {
+            throw new IllegalArgumentException("[MLua] Item property 'fireResistant' must be a boolean");
+        }
+        Object rarity = properties.get("rarity");
+        if (rarity != null && (!(rarity instanceof String value) || value.isBlank())) {
+            throw new IllegalArgumentException("[MLua] Item property 'rarity' must be a non-empty string");
+        }
+    }
+
+    private static int positiveWholeNumber(Object raw, String name, int maximum, int missing) {
+        if (raw == null) return missing;
+        if (!(raw instanceof Number number)) throw new IllegalArgumentException("[MLua] Item property '" + name + "' must be a whole number from 1 to " + maximum);
+        double value = number.doubleValue();
+        if (!Double.isFinite(value) || value != Math.rint(value) || value < 1 || value > maximum) {
+            throw new IllegalArgumentException("[MLua] Item property '" + name + "' must be a whole number from 1 to " + maximum);
+        }
+        return (int)value;
+    }
+
+    private static java.util.List<String> reflectedEnumNames(String className) {
+        try {
+            Class<?> type = Class.forName(className);
+            if (!type.isEnum()) return java.util.List.of();
+            Object[] constants = type.getEnumConstants();
+            return java.util.Arrays.stream(constants).map(value -> ((Enum<?>)value).name().toLowerCase(Locale.ROOT)).sorted().toList();
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return java.util.List.of();
+        }
+    }
+
+    private static java.util.List<String> reflectedFieldNames(String className, String expectedTypeName) {
+        try {
+            Class<?> owner = Class.forName(className);
+            Class<?> expectedType = Class.forName(expectedTypeName);
+            return java.util.Arrays.stream(owner.getFields())
+                .filter(field -> java.lang.reflect.Modifier.isStatic(field.getModifiers()))
+                .filter(field -> expectedType.isAssignableFrom(field.getType()))
+                .map(field -> field.getName().toLowerCase(Locale.ROOT)).sorted().toList();
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return java.util.List.of();
         }
     }
 
@@ -75,9 +135,10 @@ public final class MLuaItemFactory {
         return itemProperties(properties);
     }
     private Item.Properties itemProperties(Map<String, Object> properties) {
+        validateItemProperties(properties);
         Item.Properties result = new Item.Properties();
         Object maxStack = properties == null ? null : properties.get("maxStackSize");
-        if (maxStack instanceof Number number) result.stacksTo(Math.max(1, number.intValue()));
+        if (maxStack instanceof Number number) result.stacksTo(number.intValue());
         Object durability = properties == null ? null : properties.get("durability");
         if (durability instanceof Number number && number.intValue() > 0) result.durability(number.intValue());
         return result;

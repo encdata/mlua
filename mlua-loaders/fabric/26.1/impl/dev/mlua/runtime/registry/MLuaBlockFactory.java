@@ -5,6 +5,9 @@ import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
 import dev.mlua.runtime.client.MLuaVisualBlockEntity;
 import java.util.Locale;
 import java.util.Map;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Collections;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -20,6 +23,16 @@ import net.minecraft.world.level.material.MapColor;
 /** Dedicated 26.1 block-property adapter. */
 public final class MLuaBlockFactory {
     private static final ConcurrentMap<String, RegisteredType> REGISTERED_TYPES = new ConcurrentHashMap<>();
+    private static final Map<String, SoundType> SOUNDS = namedValues(SoundType.class, SoundType.class);
+    private static final Map<String, MapColor> MAP_COLORS = mapColors();
+
+    public static java.util.List<String> soundNames() {
+        return SOUNDS.keySet().stream().sorted().toList();
+    }
+
+    public static java.util.List<String> mapColorNames() {
+        return MAP_COLORS.keySet().stream().sorted().toList();
+    }
 
     public static void registerType(String name, String description, TypeProvider provider) {
         String key = normalizeTypeName(name);
@@ -41,6 +54,55 @@ public final class MLuaBlockFactory {
         String name = selectedType(properties);
         if (name != null && !"default".equals(name) && !REGISTERED_TYPES.containsKey(name))
             throw new IllegalArgumentException("[MLua] Unknown block type: " + name);
+        if (properties == null) return;
+        validateNumber(properties, "strength", -1.0, Float.MAX_VALUE);
+        validateNumber(properties, "hardness", -1.0, Float.MAX_VALUE);
+        validateNumber(properties, "resistance", 0.0, Float.MAX_VALUE);
+        validateNumber(properties, "explosionResistance", 0.0, Float.MAX_VALUE);
+        validateNumber(properties, "lightLevel", 0.0, 15.0);
+        for (String property : new String[]{"requiresCorrectTool", "collision", "noCollision", "noOcclusion", "randomTicks"}) {
+            Object value = properties.get(property);
+            if (value != null && !(value instanceof Boolean))
+                throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a boolean");
+        }
+        if (properties.get("sound") instanceof String value) sound(value);
+        if (properties.get("mapColor") instanceof String value) color(value);
+    }
+
+    private static void validateNumber(Map<String, Object> properties, String name, double minimum, double maximum) {
+        Object raw = properties.get(name);
+        if (raw == null) return;
+        if (!(raw instanceof Number number) || !Double.isFinite(number.doubleValue())
+            || number.doubleValue() < minimum || number.doubleValue() > maximum) {
+            throw new IllegalArgumentException("[MLua] Block property '" + name + "' must be a finite number from " + minimum + " to " + maximum);
+        }
+    }
+
+    private static Map<String, MapColor> mapColors() {
+        Map<String, MapColor> values = new TreeMap<>(namedValues(MapColor.class, MapColor.class));
+        for (Map.Entry<String, MapColor> entry : new java.util.ArrayList<>(values.entrySet())) {
+            String name = entry.getKey();
+            if (name.startsWith("color_")) values.putIfAbsent(name.substring("color_".length()), entry.getValue());
+            if (name.startsWith("terracotta_")) values.putIfAbsent(name.substring("terracotta_".length()) + "_terracotta", entry.getValue());
+            if (name.endsWith("_nylium")) values.putIfAbsent(name.substring(0, name.length() - "_nylium".length()), entry.getValue());
+        }
+        MapColor lime = values.get("color_light_green");
+        if (lime != null) values.putIfAbsent("lime", lime);
+        return Collections.unmodifiableMap(values);
+    }
+
+    private static <T> Map<String, T> namedValues(Class<?> owner, Class<T> valueType) {
+        Map<String, T> values = new TreeMap<>();
+        for (Field field : owner.getFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) || !valueType.isAssignableFrom(field.getType())) continue;
+            try {
+                Object value = field.get(null);
+                if (value != null) values.put(field.getName().toLowerCase(Locale.ROOT), valueType.cast(value));
+            } catch (IllegalAccessException ignored) {
+                // Omit inaccessible fields from the current version's supported values.
+            }
+        }
+        return Collections.unmodifiableMap(values);
     }
 
     public Block create(Map<String, Object> properties, String registryName,
@@ -60,8 +122,8 @@ public final class MLuaBlockFactory {
     public BlockBehaviour.Properties makeProperties(Map<String, Object> properties) {
         if (properties == null) properties = Map.of();
         BlockBehaviour.Properties props = copyProperties(properties);
-        Object strength = properties.get("strength");
-        Object resistance = properties.get("explosionResistance");
+        Object strength = properties.containsKey("hardness") ? properties.get("hardness") : properties.get("strength");
+        Object resistance = properties.containsKey("resistance") ? properties.get("resistance") : properties.get("explosionResistance");
         if (strength instanceof Number s && resistance instanceof Number r) props.strength(s.floatValue(), r.floatValue());
         else if (strength instanceof Number s) props.strength(s.floatValue());
         if (Boolean.TRUE.equals(properties.get("requiresCorrectTool"))) props.requiresCorrectToolForDrops();
@@ -116,30 +178,23 @@ public final class MLuaBlockFactory {
     }
 
     private SoundType sound(String name) {
-        return switch (name.toLowerCase(Locale.ROOT)) {
-            case "wood" -> SoundType.WOOD;
-            case "glass" -> SoundType.GLASS;
-            case "metal" -> SoundType.METAL;
-            case "sand" -> SoundType.SAND;
-            case "snow", "powder_snow", "powdersnow" -> SoundType.SNOW;
-            case "wool" -> SoundType.WOOL;
-            case "gravel" -> SoundType.GRAVEL;
-            default -> SoundType.STONE;
-        };
+        SoundType value = SOUNDS.get(normalizeValue(name));
+        if (value == null) value = SOUNDS.get(normalizeValue(name).replace("_", ""));
+        if (value == null) throw new IllegalArgumentException("[MLua] Unknown block sound: " + name
+            + ". Use Registry.Blocks:GetSounds() to list values available in this Minecraft version.");
+        return value;
     }
 
     private MapColor color(String name) {
-        return switch (name.toLowerCase(Locale.ROOT)) {
-            case "grass" -> MapColor.GRASS;
-            case "sand" -> MapColor.SAND;
-            case "wood" -> MapColor.WOOD;
-            case "water" -> MapColor.WATER;
-            case "metal", "gold" -> MapColor.METAL;
-            case "red" -> MapColor.COLOR_RED;
-            case "blue" -> MapColor.COLOR_BLUE;
-            case "green" -> MapColor.COLOR_GREEN;
-            case "white", "snow" -> MapColor.SNOW;
-            default -> MapColor.STONE;
-        };
+        String normalized = normalizeValue(name);
+        MapColor value = MAP_COLORS.get(normalized);
+        if (value == null) value = MAP_COLORS.get(normalized.replace("_", ""));
+        if (value == null) throw new IllegalArgumentException("[MLua] Unknown block mapColor: " + name
+            + ". Use Registry.Blocks:GetMapColors() to list values available in this Minecraft version.");
+        return value;
+    }
+
+    private static String normalizeValue(String value) {
+        return value.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
     }
 }
