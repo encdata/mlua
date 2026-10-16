@@ -191,6 +191,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private void registerGeneratedDataResource(String owner, String resourceType, String id, JsonObject definition) {
+      this.validateGeneratedResourceName(owner, id, "data pack " + resourceType);
       JsonObject contribution = definition.deepCopy();
       MLuaLoaderRegistry.registerGeneratedDataResource(owner, resourceType, id, contribution);
       Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedDataResource(
@@ -216,6 +217,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private void registerGeneratedAsset(GeneratedAssetKind kind, String owner, String name, JsonObject definition) {
+      this.validateGeneratedResourceName(owner, name, kind.name().toLowerCase(java.util.Locale.ROOT));
       JsonObject snapshot = definition.deepCopy();
       MLuaLoaderRegistry.registerGeneratedAsset(kind, owner, name, snapshot);
       Runnable rollback = () -> MLuaLoaderRegistry.unregisterGeneratedAsset(kind, owner, name, snapshot);
@@ -224,6 +226,16 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       } catch (RuntimeException | Error failure) {
          rollback.run();
          throw failure;
+      }
+   }
+
+   private void validateGeneratedResourceName(String owner, String name, String resourceKind) {
+      try {
+         dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(owner);
+         dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(name);
+      } catch (IllegalArgumentException invalid) {
+         throw new LuaError("[MLua] Registry generated " + resourceKind
+            + " name must be a valid lowercase addon-local resource path: " + invalid.getMessage());
       }
    }
 
@@ -693,7 +705,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.this.ensureRegistryPhase();
             String owner = MLuaRegistryService.this.context.mlua().ownerModId();
             String entityName = args.checkjstring(2);
-            String lootName = "entities/" + entityName;
+            String entityId = entityName.contains(":") ? entityName : owner + ":" + entityName;
+            var parsedEntityId = MLuaResourceLocations.tryParseOrNull(entityId);
+            if (parsedEntityId == null || !parsedEntityId.toString().equals(entityId)) {
+               throw new LuaError("[MLua] Registry.Loot:RegisterEntity entity must be a valid lowercase namespaced id.");
+            }
+            String lootName = "entities/" + MLuaResourceLocations.path(parsedEntityId);
             MLuaRegistryService.this.registerGeneratedAsset(GeneratedAssetKind.LOOT_TABLE, owner, lootName, MLuaRegistryService.jsonObjectArg(args.arg(3), "entity loot table"));
             return LuaValue.NONE;
          }
