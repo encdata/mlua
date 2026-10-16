@@ -124,7 +124,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     @MLuaDescription("Spawns one or more particles by registry identifier at a position.")
     public void SpawnLocal(String particleId, LuaValue position, Optional<Integer> requestedCount,
                            Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
-        ensureClient();
+        this.requireClientSide(this.name());
         double[] coordinates = position(position);
         MLuaClientParticleManager.spawnOnce(particleId, coordinates[0], coordinates[1], coordinates[2], requestedCount.orElse(1),
             requestedSpread.orElse(0.2), requestedSpeed.orElse(0.0));
@@ -133,7 +133,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     @MLuaDescription("Spawns particles from a typed particle specification.")
     public void Spawn(LuaValue specValue, LuaValue position, Optional<Integer> requestedCount,
                       Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         double[] coordinates = position(position);
         MLuaClientParticleManager.spawnOnce(spec, coordinates[0], coordinates[1], coordinates[2],
@@ -143,7 +143,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
 
     @MLuaDescription("Spawns a burst of particles with spread and velocity options.")
     public void SpawnBurst(LuaValue specValue, LuaValue position, Optional<LuaValue> properties) {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         LuaTable props = properties.orElse(LuaValue.NIL).opttable(new LuaTable());
         int count = MLuaLuaArguments.optionalWholeInt(firstNonNil(props.get("Count"), props.get("count")),
@@ -168,7 +168,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     @MLuaDescription("Spawns particles in a ring around a position.")
     public void SpawnRing(LuaValue specValue, LuaValue position, Optional<Integer> requestedCount,
                           Optional<Double> requestedRadius, Optional<Double> requestedSpeed) {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         double[] coordinates = position(position);
         MLuaClientParticleManager.spawnRing(spec, coordinates[0], coordinates[1], coordinates[2],
@@ -180,7 +180,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     public void SpawnCone(LuaValue specValue, LuaValue position, LuaValue direction,
                           Optional<Integer> requestedCount, Optional<Double> requestedAngle,
                           Optional<Double> requestedSpeed) {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         double[] coordinates = position(position);
         double[] directionVector = vector3(direction, "Direction");
@@ -192,7 +192,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     @MLuaDescription("Creates a persistent emitter using a particle identifier.")
     public LuaTable CreateEmitter(String particleId, LuaValue position, Optional<Double> requestedRate,
                                   Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
-        ensureClient();
+        this.requireClientSide(this.name());
         double[] coordinates = position(position);
         int id = MLuaClientParticleManager.createEmitter(particleId, coordinates[0], coordinates[1],
             coordinates[2], requestedRate.orElse(8.0),
@@ -203,7 +203,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     @MLuaDescription("Creates a persistent emitter from a typed particle specification.")
     public LuaTable CreateTypedEmitter(LuaValue specValue, LuaValue position, Optional<Double> requestedRate,
                                        Optional<Double> requestedSpread, Optional<Double> requestedSpeed) {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientParticleManager.ParticleSpec spec = specFromLua(specValue);
         double[] coordinates = position(position);
         int id = MLuaClientParticleManager.createEmitter(spec, coordinates[0], coordinates[1],
@@ -214,7 +214,7 @@ public final class MLuaParticleService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes particle emitters owned by the calling mod.")
     public void Clear() {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientParticleManager.clearOwned(owner());
     }
 
@@ -326,10 +326,6 @@ public final class MLuaParticleService extends MLuaReflectiveService {
             throw new LuaError("[MLua] Particle emitter no longer exists");
         }
         return emitter;
-    }
-
-    private void ensureClient() {
-        this.requireClientSide(this.name());
     }
 
     private MLuaParticleOwnershipRegistry.Owner owner() {

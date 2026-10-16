@@ -235,12 +235,8 @@ public final class MLuaScoreboardService extends MLuaReflectiveService {
         return table;
     }
 
-    private void requireServer() {
-        this.requireServerSide(this.name());
-    }
-
     private net.minecraft.server.MinecraftServer rawServer() {
-        requireServer();
+        this.requireServerSide(this.name());
         net.minecraft.server.MinecraftServer server = this.context.mlua().server();
         if (server == null) {
             throw new LuaError("[MLua] Scoreboard requires an active server");

@@ -124,7 +124,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     @MLuaDescription("Plays a non-spatial sound and returns its live SoundHandle. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue PlayLocal(String soundId, Optional<Double> volume, Optional<Double> pitch) {
-        ensureClient();
+        this.requireClientSide(this.name());
         float checkedVolume = MLuaLuaArguments.finiteNonNegativeFloat(
             volume.orElse(1.0), "SoundService:PlayLocal", "volume");
         float checkedPitch = MLuaLuaArguments.finiteNonNegativeFloat(
@@ -135,7 +135,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     @MLuaDescription("Plays a sound at the local player's position and returns its live SoundHandle. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue PlayAtPlayer(String soundId, Optional<Double> volume, Optional<Double> pitch) {
-        ensureClient();
+        this.requireClientSide(this.name());
         float checkedVolume = MLuaLuaArguments.finiteNonNegativeFloat(
             volume.orElse(1.0), "SoundService:PlayAtPlayer", "volume");
         float checkedPitch = MLuaLuaArguments.finiteNonNegativeFloat(
@@ -146,7 +146,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings. Volume and pitch default to one and must be finite and non-negative.")
     public LuaValue Play(String soundId, Optional<LuaValue> properties) {
-        ensureClient();
+        this.requireClientSide(this.name());
         LuaValue propertiesValue = properties.orElse(LuaValue.NIL);
         if (!propertiesValue.isnil() && !propertiesValue.istable()) {
             throw new LuaError("[MLua] SoundService:Play properties must be a table when provided.");
@@ -194,7 +194,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     @MLuaDescription("Stops sounds owned by the calling mod.")
     public void Clear() {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientSoundManager.clearOwned(owner());
     }
 
@@ -268,10 +268,6 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             throw new LuaError("[MLua] Sound handle no longer exists");
         }
         return sound;
-    }
-
-    private void ensureClient() {
-        this.requireClientSide(this.name());
     }
 
     private MLuaSoundOwnershipRegistry.Owner owner() {

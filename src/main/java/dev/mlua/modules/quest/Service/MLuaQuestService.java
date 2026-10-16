@@ -39,7 +39,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Creates a quest definition for the calling mod.")
     public LuaTable CreateQuest(String questId, String title, String description) {
-        requireServer();
+        this.requireServerSide(this.name());
         LuaTable definition = new LuaTable();
         definition.set("Id", questId);
         definition.set("Title", title);
@@ -50,20 +50,20 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes a quest definition owned by the calling mod.")
     public void RemoveQuest(String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         MLuaQuestRegistry.remove(runtimeOwner(), ownerModId(), questId);
     }
 
     @MLuaDescription("Returns a quest definition by identifier.")
     public LuaValue GetQuest(String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         LuaTable definition = MLuaQuestRegistry.get(runtimeOwner(), ownerModId(), questId);
         return definition == null ? LuaValue.NIL : definition;
     }
 
     @MLuaDescription("Returns quest definitions registered by the calling mod.")
     public LuaTable GetQuests() {
-        requireServer();
+        this.requireServerSide(this.name());
         LuaTable result = new LuaTable();
         for (Map.Entry<MLuaQuestRegistry.Key, LuaTable> entry : MLuaQuestRegistry.snapshot(runtimeOwner(), ownerModId()).entrySet()) {
             result.set(entry.getKey().id(), entry.getValue());
@@ -73,7 +73,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Adds or updates an objective in a quest.")
     public void SetObjective(LuaValue playerValue, String questId, String objectiveKey, LuaValue progress) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag playerQuests = getCompound(persistentData, NBT_KEY);
@@ -89,7 +89,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns one objective from a quest.")
     public LuaValue GetObjective(LuaValue playerValue, String questId, String objectiveKey) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag quest = questData(player, persistentData, getCompound(persistentData, NBT_KEY), questId, false);
@@ -100,7 +100,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns all objectives for a quest.")
     public LuaTable GetObjectives(LuaValue playerValue, String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag quest = questData(player, persistentData, getCompound(persistentData, NBT_KEY), questId, false);
@@ -115,7 +115,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Marks a quest as started for a player.")
     public boolean StartQuest(LuaValue playerValue, String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         if (MLuaQuestRegistry.get(runtimeOwner(), ownerModId(), questId) == null) return false;
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
@@ -129,7 +129,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Marks a quest as completed for a player.")
     public boolean CompleteQuest(LuaValue playerValue, String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         if (MLuaQuestRegistry.get(runtimeOwner(), ownerModId(), questId) == null) return false;
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
@@ -143,7 +143,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns whether a player has started a quest.")
     public boolean IsQuestStarted(LuaValue playerValue, String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag quest = questData(player, persistentData, getCompound(persistentData, NBT_KEY), questId, false);
@@ -152,7 +152,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns whether a player has completed a quest.")
     public boolean IsQuestCompleted(LuaValue playerValue, String questId) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag quest = questData(player, persistentData, getCompound(persistentData, NBT_KEY), questId, false);
@@ -161,7 +161,7 @@ public final class MLuaQuestService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns quest progress recorded for a player.")
     public LuaTable GetPlayerQuests(LuaValue playerValue) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         CompoundTag persistentData = MLuaDataManager.playerPersistentTag(player);
         CompoundTag allQuests = getCompound(persistentData, NBT_KEY);
@@ -179,10 +179,6 @@ public final class MLuaQuestService extends MLuaReflectiveService {
             result.set(questId, progress);
         }
         return result;
-    }
-
-    private void requireServer() {
-        this.requireServerSide(this.name());
     }
 
     private Object runtimeOwner() { return this.context.mlua().session(); }

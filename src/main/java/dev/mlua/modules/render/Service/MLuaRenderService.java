@@ -285,7 +285,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Creates a line between two world positions.")
     public LuaValue CreateWorldLine(LuaValue start, LuaValue end, Optional<LuaValue> properties) {
-        ensureClient();
+        this.requireClientSide(this.name());
         double[] startPosition = worldVector(start);
         double[] endPosition = worldVector(end);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.LINE, null, owner());
@@ -299,7 +299,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Creates a beam between two world positions.")
     public LuaValue CreateWorldBeam(LuaValue start, LuaValue end, Optional<LuaValue> properties) {
-        ensureClient();
+        this.requireClientSide(this.name());
         double[] startPosition = worldVector(start);
         double[] endPosition = worldVector(end);
         int id = MLuaClientRenderManager.create(MLuaClientRenderManager.RenderType.BEAM, null, owner());
@@ -313,7 +313,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Creates a box render object at a world position.")
     public LuaValue CreateWorldBox(LuaValue center, LuaValue size, Optional<LuaValue> properties) {
-        ensureClient();
+        this.requireClientSide(this.name());
         double[] centerPosition = worldVector(center);
         double[] dimensions = worldVector(size);
         if (dimensions[0] < 0.0 || dimensions[1] < 0.0 || dimensions[2] < 0.0) {
@@ -331,7 +331,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes render objects owned by the calling mod.")
     public void Clear() {
-        ensureClient();
+        this.requireClientSide(this.name());
         MLuaClientRenderManager.clearOwned(owner());
         objectHandles.clear();
     }
@@ -348,61 +348,61 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Registers a Lua callback at the living entity renderer for this entity type. The callback receives the live Entity and a RenderContext containing Minecraft's PoseStack, BufferSource, model, partial tick, light, and overlay values.")
     public void RegisterEntityRenderer(String entityType, LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an independently owned callback at the living renderer for an entity type. Use a resource id so multiple passes can coexist and be removed separately.")
     public void RegisterEntityRenderPass(String entityType, String id, LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.register(entityType, id, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from an entity type's living entity renderer.")
     public boolean UnregisterEntityRenderer(String entityType) {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, renderOwnerContext());
     }
 
     @MLuaDescription("Removes only the named callback registered for this entity type.")
     public boolean UnregisterEntityRenderPass(String entityType, String id) {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregister(entityType, id, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an addon-owned callback at the native world render point after Minecraft renders world entities and geometry.")
     public void RegisterWorldRenderer(LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(callback, renderOwnerContext());
     }
 
     @MLuaDescription("Registers a callback at a cross-loader world stage: BEFORE_ENTITIES, AFTER_ENTITIES, AFTER_TRANSLUCENT, or AFTER_LEVEL. MLua maps the stage to the nearest native Fabric, Forge, or NeoForge render event; the callback receives that native event/context in RenderContext.")
     public void RegisterWorldRendererAt(String stage, LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(stage, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an independently owned world render pass by resource id. The id can be removed without affecting other passes from this addon.")
     public void RegisterWorldRenderPass(String id, String stage, LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(id, stage, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from the native world render point.")
     public boolean UnregisterWorldRenderer() {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from the selected world render stage.")
     public boolean UnregisterWorldRendererAt(String stage) {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorld(stage, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's world render pass with the given resource id, regardless of its registered stage.")
     public boolean UnregisterWorldRenderPass(String id) {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterWorldPass(id, renderOwnerContext());
     }
 
@@ -416,25 +416,25 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Registers an addon-owned callback in the HUD render layer, before MLua-managed RenderObjects are drawn.")
     public void RegisterHudRenderer(LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(callback, renderOwnerContext());
     }
 
     @MLuaDescription("Registers an independently owned HUD render pass by resource id, before MLua-managed RenderObjects are drawn.")
     public void RegisterHudRenderPass(String id, LuaValue callback) {
-        ensureClient();
+        this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerHud(id, callback, renderOwnerContext());
     }
 
     @MLuaDescription("Removes this addon's callback from the HUD render layer.")
     public boolean UnregisterHudRenderer() {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHud(renderOwnerContext());
     }
 
     @MLuaDescription("Removes only the HUD render pass registered with this id.")
     public boolean UnregisterHudRenderPass(String id) {
-        ensureClient();
+        this.requireClientSide(this.name());
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterHudPass(id, renderOwnerContext());
     }
 
@@ -443,7 +443,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private LuaValue createObject(MLuaClientRenderManager.RenderType type, String resource, LuaTable props) {
-        ensureClient();
+        this.requireClientSide(this.name());
         int id = MLuaClientRenderManager.create(type, resource, owner());
         var object = requireObject(id);
         applyProps(object, props);
@@ -451,7 +451,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private LuaValue createMesh(LuaTable definition, LuaTable props) {
-        ensureClient();
+        this.requireClientSide(this.name());
         var mesh = MLuaMeshLuaParser.parse(definition);
         int id = MLuaClientRenderManager.createMesh(mesh, owner());
         applyProps(requireObject(id), props);
@@ -459,7 +459,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private LuaValue loadBBModel(String path, LuaTable props) {
-        ensureClient();
+        this.requireClientSide(this.name());
         try {
             if (!property(props, "AnimationPath").isnil() && !property(props, "AnimationsPath").isnil()) {
                 throw new LuaError("[MLua] RenderObject properties AnimationPath and AnimationsPath are aliases; provide only one.");
@@ -501,7 +501,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     }
 
     private LuaValue createWorldObject(MLuaClientRenderManager.RenderType type, String resource, LuaValue worldPosition, LuaTable props) {
-        ensureClient();
+        this.requireClientSide(this.name());
         double[] position = worldVector(worldPosition);
         int id = MLuaClientRenderManager.create(type, resource, owner());
         var object = requireObject(id);
@@ -922,10 +922,6 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     private MLuaRenderOwnershipRegistry.Owner owner() {
         Object runtimeOwner = context.mlua().registration() instanceof MLuaRuntime runtime ? runtime.session() : null;
         return new MLuaRenderOwnershipRegistry.Owner(runtimeOwner, context.mlua().ownerModId());
-    }
-
-    private void ensureClient() {
-        this.requireClientSide(this.name());
     }
 
     private static boolean supportsResource(MLuaClientRenderManager.RenderType type) {

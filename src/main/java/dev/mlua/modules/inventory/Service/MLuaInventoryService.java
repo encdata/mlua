@@ -45,7 +45,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     @MLuaDescription("Sets an item in the same live Slot exposed by Player.Inventory:GetSlot(index).")
     public boolean SetSlot(LuaValue playerValue, int slotIndex, LuaValue itemValue) {
-        ensureServer();
+        this.requireServerSide(this.name());
         LuaTable inventory = playerInventory(player(playerValue));
         LuaValue slotInstance = invokeInstanceMethod(inventory, "GetSlot", LuaValue.valueOf(slotIndex));
         if (!slotInstance.istable()) return false;
@@ -55,7 +55,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     @MLuaDescription("Adds an item stack to a player's inventory.")
     public boolean AddItem(LuaValue playerValue, LuaValue itemValue) {
-        ensureServer();
+        this.requireServerSide(this.name());
         return player(playerValue).getInventory().add(MLuaItemWrapper.toItemStack(itemValue, context.mlua().registration()));
     }
 
@@ -74,7 +74,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes up to the requested item count from a player's inventory and returns the amount removed.")
     public int RemoveItem(LuaValue playerValue, String itemId, int count) {
-        ensureServer();
+        this.requireServerSide(this.name());
         LuaTable inventory = playerInventory(player(playerValue));
         return invokeInstanceMethod(inventory, "RemoveItem", LuaValue.valueOf(itemId),
             LuaValue.valueOf(count)).checkint();
@@ -82,7 +82,7 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes all items from a player's inventory.")
     public void Clear(LuaValue playerValue) {
-        ensureServer();
+        this.requireServerSide(this.name());
         invokeInstanceMethod(playerInventory(player(playerValue)), "Clear");
     }
 
@@ -140,9 +140,5 @@ public final class MLuaInventoryService extends MLuaReflectiveService {
         arguments[0] = instance;
         System.arraycopy(methodArguments, 0, arguments, 1, methodArguments.length);
         return method.invoke(LuaValue.varargsOf(arguments)).arg1();
-    }
-
-    private void ensureServer() {
-        this.requireServerSide(this.name());
     }
 }

@@ -33,14 +33,14 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Registers one keybind for the calling mod.")
    public LuaTable RegisterKeybind(String name, Optional<LuaValue> properties) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       LuaTable props = properties.isPresent() ? properties.get().checktable() : null;
       return this.registerKeybind(this.context.mlua().ownerModId(), name, props);
    }
 
    @MLuaDescription("Registers several keybinds from a keyed definition table.")
    public LuaTable RegisterKeybinds(LuaTable definitions) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       LuaTable result = new LuaTable();
       int index = 1;
       LuaValue key = LuaValue.NIL;
@@ -61,7 +61,7 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns the change signal for a keybind registered by this mod.")
    public LuaTable ListenForKeybind(String name) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       String owner = this.context.mlua().ownerModId();
       if (!MLuaKeybindController.hasLocalKeybind(owner, name)) {
          throw new LuaError("[MLua] ListenForKeybind only works for MLua-registered keybinds.");
@@ -72,7 +72,7 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns whether a registered or Minecraft keybind is currently pressed.")
    public boolean IsKeyDown(String name) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       String owner = this.context.mlua().ownerModId();
       if (MLuaKeybindController.hasLocalKeybind(owner, name)) return MLuaKeybindController.isDown(owner, name);
       KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);
@@ -81,13 +81,13 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Changes the key assigned to a registered keybind.")
    public void SetKeybind(String name, LuaValue key) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       MLuaKeybindController.setKey(this.context.mlua().ownerModId(), name, key);
    }
 
    @MLuaDescription("Returns the live keybind record for a registered or Minecraft keybind.")
    public LuaValue GetKeybind(String name) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       String owner = this.context.mlua().ownerModId();
       if (MLuaKeybindController.hasLocalKeybind(owner, name)) {
          return keybindTable(owner, name, this.context.mlua().scheduler(), this.context.mlua().side());
@@ -98,7 +98,7 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns keybinds registered by the calling mod and available Minecraft keybinds.")
    public LuaTable GetKeybinds() {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       LuaTable result = new LuaTable();
       int index = 1;
       for (Map.Entry<String, String> entry : MLuaKeybindController.allKeys(this.context.mlua().ownerModId()).entrySet()) {
@@ -113,7 +113,7 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns a Minecraft keybind by name, or nil when missing.")
    public LuaValue GetMinecraftKeybind(String name) {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
          if (MLuaKeybindController.name(mapping).equals(name)) return mcKeybindTable(mapping);
       }
@@ -122,17 +122,13 @@ public final class MLuaInputService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns the available Minecraft keybinds.")
    public LuaTable GetMinecraftKeybinds() {
-      this.ensureClient();
+      this.requireClientSide(this.name());
       LuaTable result = new LuaTable();
       int index = 1;
       for (KeyMapping mapping : MLuaKeybindController.minecraftKeybinds()) {
          result.set(index++, mcKeybindTable(mapping));
       }
       return result;
-   }
-
-   private void ensureClient() {
-      this.requireClientSide(this.name());
    }
 
    private LuaTable keybindTable(String ownerModId, String name, MLuaTaskSchedulerView scheduler, Side side) {

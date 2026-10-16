@@ -44,7 +44,7 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns an entity attribute value by registered attribute name.")
    public LuaValue GetAttribute(LuaValue entityValue, String attributeId) {
-      requireServer();
+      this.requireServerSide(this.name());
       LivingEntity entity = extractEntity(entityValue);
 //--version 1.20.1
       Attribute attribute = resolveAttribute(attributeId);
@@ -69,7 +69,7 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
 
    @MLuaDescription("Sets an entity attribute's base value.")
    public boolean SetBaseValue(LuaValue entityValue, String attributeId, double value) {
-      requireServer();
+      this.requireServerSide(this.name());
       LivingEntity entity = extractEntity(entityValue);
 //--version 1.20.1
       Attribute attribute = resolveAttribute(attributeId);
@@ -86,7 +86,7 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns the modifiers currently applied to an entity attribute.")
    public LuaTable GetModifiers(LuaValue entityValue, String attributeId) {
-      requireServer();
+      this.requireServerSide(this.name());
       LivingEntity entity = extractEntity(entityValue);
 //--version 1.20.1
       Attribute attribute = resolveAttribute(attributeId);
@@ -121,7 +121,7 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
    @MLuaDescription("Adds or replaces a modifier on an entity attribute.")
    public boolean AddModifier(LuaValue entityValue, String attributeId, String name, double amount,
                               Optional<Integer> operationValue) {
-      requireServer();
+      this.requireServerSide(this.name());
       LivingEntity entity = extractEntity(entityValue);
 //--version 1.20.1
       Attribute attribute = resolveAttribute(attributeId);
@@ -148,7 +148,7 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
 
    @MLuaDescription("Removes an attribute modifier by identifier.")
    public boolean RemoveModifier(LuaValue entityValue, String attributeId, String name) {
-      requireServer();
+      this.requireServerSide(this.name());
       LivingEntity entity = extractEntity(entityValue);
 //--version 1.20.1
       Attribute attribute = resolveAttribute(attributeId);
@@ -202,8 +202,4 @@ public final class MLuaAttributeService extends MLuaReflectiveService {
       return key == null ? null : BuiltInRegistries.ATTRIBUTE.get(key).orElse(null);
    }
 //--endversion
-
-   private void requireServer() {
-      this.requireServerSide(this.name());
-   }
 }

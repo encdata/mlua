@@ -62,7 +62,7 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
 
     @MLuaDescription("Creates a boss bar with a title.")
     public LuaTable Create(String name, String title) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerBossEvent event = new ServerBossEvent(
             //--version 26.1
             UUID.randomUUID(),
@@ -79,7 +79,7 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns a live boss bar handle by identifier, or nil when missing.")
     public LuaValue Get(String name) {
-        requireServer();
+        this.requireServerSide(this.name());
         MLuaBossBarRegistry.Key key = key(name);
         ServerBossEvent event = bossBars.get(key);
         return event == null ? LuaValue.NIL : createHandle(key, event);
@@ -87,14 +87,14 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
 
     @MLuaDescription("Removes a boss bar by identifier.")
     public void Remove(String name) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerBossEvent event = bossBars.remove(key(name));
         if (event != null) event.removeAllPlayers();
     }
 
     @MLuaDescription("Returns the live handles for boss bars owned by the calling mod.")
     public LuaTable GetAll() {
-        requireServer();
+        this.requireServerSide(this.name());
         LuaTable result = new LuaTable();
         int index = 1;
         for (var entry : bossBars.snapshot(runtimeOwner(), ownerModId()).entrySet()) {
@@ -112,19 +112,19 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
         this.registration.attachClassInstance(handle, "BossBarHandle", null);
 
         MLuaClassMethods.setInstanceMethod(handle, "SetTitle", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             event.setName(Component.literal(args.checkjstring(2)));
             return LuaValue.NONE;
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "SetHealth", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             event.setProgress((float) args.checkdouble(2));
             return LuaValue.NONE;
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "SetColor", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             String colorName = args.checkjstring(2);
             try {
                 event.setColor(BossEvent.BossBarColor.valueOf(colorName.toUpperCase()));
@@ -135,7 +135,7 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "SetStyle", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             String styleName = args.checkjstring(2);
             try {
                 event.setOverlay(BossEvent.BossBarOverlay.valueOf(styleName.toUpperCase()));
@@ -146,62 +146,58 @@ public final class MLuaBossBarService extends MLuaReflectiveService {
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "SetVisible", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             event.setVisible(args.checkboolean(2));
             return LuaValue.NONE;
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "GetTitle", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             return LuaValue.valueOf(event.getName().getString());
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "GetHealth", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             return LuaValue.valueOf(event.getProgress());
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "GetColor", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             return LuaValue.valueOf(event.getColor().name());
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "GetStyle", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             return LuaValue.valueOf(event.getOverlay().name());
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "IsVisible", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             return LuaValue.valueOf(event.isVisible());
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "AddPlayer", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             ServerPlayer player = extractPlayer(args.arg(2));
             event.addPlayer(player);
             return LuaValue.NONE;
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "RemovePlayer", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             ServerPlayer player = extractPlayer(args.arg(2));
             event.removePlayer(player);
             return LuaValue.NONE;
         }));
 
         MLuaClassMethods.setInstanceMethod(handle, "Remove", fn((args) -> {
-            requireServer();
+            this.requireServerSide(this.name());
             event.removeAllPlayers();
             bossBars.remove(key, event);
             return LuaValue.NONE;
         }));
 
         return handle;
-    }
-
-    private void requireServer() {
-        this.requireServerSide(this.name());
     }
 
     private Object runtimeOwner() {

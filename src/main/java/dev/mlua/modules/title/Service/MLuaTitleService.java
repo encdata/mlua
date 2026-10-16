@@ -65,14 +65,10 @@ public final class MLuaTitleService extends MLuaReflectiveService {
     }
 
     private void send(LuaValue playerValue, net.minecraft.network.protocol.Packet<?> packet) {
-        requireServer();
+        this.requireServerSide(this.name());
         ServerPlayer player = extractPlayer(playerValue);
         if (player.connection == null) throw new LuaError("[MLua] Player is not connected");
         player.connection.send(packet);
-    }
-
-    private void requireServer() {
-        this.requireServerSide(this.name());
     }
 
     private ServerPlayer extractPlayer(LuaValue playerValue) {

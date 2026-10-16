@@ -44,17 +44,17 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    }
 
    @MLuaDescription("Returns the current camera transform.")
-   public LuaTable GetCFrame() { ensureClient(); return MLuaCameraController.getCFrame().toLua(); }
+   public LuaTable GetCFrame() { this.requireClientSide(this.name()); return MLuaCameraController.getCFrame().toLua(); }
 
    @MLuaDescription("Sets the scriptable camera transform.")
-   public void SetCFrame(LuaValue value) { ensureClient(); MLuaCameraController.setCFrame(MLuaCFrame.fromLua(value)); }
+   public void SetCFrame(LuaValue value) { this.requireClientSide(this.name()); MLuaCameraController.setCFrame(MLuaCFrame.fromLua(value)); }
 
    @MLuaDescription("Returns the current camera position.")
-   public LuaValue GetPosition() { ensureClient(); return MLuaCameraController.getCFrame().toLua().get("Position"); }
+   public LuaValue GetPosition() { this.requireClientSide(this.name()); return MLuaCameraController.getCFrame().toLua().get("Position"); }
 
    @MLuaDescription("Sets the scriptable camera position while keeping its current look direction.")
    public void SetPosition(LuaValue value) {
-      ensureClient();
+      this.requireClientSide(this.name());
       double[] position = MLuaCFrame.vector(value);
       MLuaCFrame current = MLuaCameraController.getCFrame();
       double[] look = current.lookVector();
@@ -63,34 +63,34 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    }
 
    @MLuaDescription("Returns the current camera forward direction.")
-   public LuaValue GetLookVector() { ensureClient(); return MLuaCameraController.getCFrame().toLua().get("LookVector"); }
+   public LuaValue GetLookVector() { this.requireClientSide(this.name()); return MLuaCameraController.getCFrame().toLua().get("LookVector"); }
 
    @MLuaDescription("Turns the camera toward a position or entity.")
    public void LookAt(LuaValue value) {
-      ensureClient();
+      this.requireClientSide(this.name());
       MLuaCFrame current = MLuaCameraController.getCFrame();
       double[] target = MLuaEntityWrapper.targetPosition(value);
       MLuaCameraController.setCFrame(MLuaCFrame.lookAt(current.x(), current.y(), current.z(), target[0], target[1], target[2]));
    }
 
    @MLuaDescription("Returns the camera field of view.")
-   public double GetFOV() { ensureClient(); return MLuaCameraController.getFov(); }
+   public double GetFOV() { this.requireClientSide(this.name()); return MLuaCameraController.getFov(); }
 
    @MLuaDescription("Sets the camera field of view.")
-   public void SetFOV(double value) { ensureClient(); MLuaCameraController.setFov(value); }
+   public void SetFOV(double value) { this.requireClientSide(this.name()); MLuaCameraController.setFov(value); }
 
    @MLuaDescription("Returns the current field-of-view multiplier.")
-   public double GetFOVMultiplier() { ensureClient(); return MLuaCameraController.getFovMultiplier(); }
+   public double GetFOVMultiplier() { this.requireClientSide(this.name()); return MLuaCameraController.getFovMultiplier(); }
 
    @MLuaDescription("Sets the field-of-view multiplier.")
-   public void SetFOVMultiplier(double value) { ensureClient(); MLuaCameraController.setFovMultiplier(value); }
+   public void SetFOVMultiplier(double value) { this.requireClientSide(this.name()); MLuaCameraController.setFovMultiplier(value); }
 
    @MLuaDescription("Multiplies the current field of view by a value.")
-   public void MultiplyFOV(double value) { ensureClient(); MLuaCameraController.setFovMultiplier(MLuaCameraController.getFovMultiplier() * value); }
+   public void MultiplyFOV(double value) { this.requireClientSide(this.name()); MLuaCameraController.setFovMultiplier(MLuaCameraController.getFovMultiplier() * value); }
 
    @MLuaDescription("Returns the camera subject, if one is set.")
    public LuaValue GetSubject() {
-      ensureClient();
+      this.requireClientSide(this.name());
       Entity entity = MLuaCameraController.getSubject();
       if (!(entity instanceof LivingEntity living)) return LuaValue.NIL;
       if (living instanceof LocalPlayer local) {
@@ -101,7 +101,7 @@ public final class MLuaCameraService extends MLuaReflectiveService {
 
    @MLuaDescription("Sets the camera subject to an entity or player, or resets it to the local player when nil.")
    public void SetSubject(LuaValue value) {
-      ensureClient();
+      this.requireClientSide(this.name());
       if (value.isnil()) {
          Minecraft minecraft = MLuaMinecraftClient.instance();
          if (minecraft != null && minecraft.player != null) MLuaCameraController.setSubject(minecraft.player);
@@ -112,43 +112,43 @@ public final class MLuaCameraService extends MLuaReflectiveService {
    }
 
    @MLuaDescription("Returns the current camera control mode.")
-   public String GetMode() { ensureClient(); return MLuaCameraController.getMode(); }
+   public String GetMode() { this.requireClientSide(this.name()); return MLuaCameraController.getMode(); }
 
    @MLuaDescription("Sets the camera control mode.")
-   public void SetMode(String value) { ensureClient(); MLuaCameraController.setMode(value); }
+   public void SetMode(String value) { this.requireClientSide(this.name()); MLuaCameraController.setMode(value); }
 
    @MLuaDescription("Returns the current first-person or third-person view mode.")
-   public String GetViewMode() { ensureClient(); return MLuaCameraController.getViewMode(); }
+   public String GetViewMode() { this.requireClientSide(this.name()); return MLuaCameraController.getViewMode(); }
 
    @MLuaDescription("Sets the first-person or third-person view mode.")
-   public void SetViewMode(String value) { ensureClient(); MLuaCameraController.setViewMode(value); }
+   public void SetViewMode(String value) { this.requireClientSide(this.name()); MLuaCameraController.setViewMode(value); }
 
    @MLuaDescription("Sets this addon's first-person right-arm pose layer to a CFrame or a callback sampled once per client tick. Addon layers compose in registration order. The callback receives player, hand, itemStack, and arm.")
    public void SetRightHandOffset(LuaValue value) {
-      ensureClient();
+      this.requireClientSide(this.name());
       setHandOffset(value, false);
    }
 
    @MLuaDescription("Returns this addon's right-arm CFrame, callback, or nil.")
    public LuaValue GetRightHandOffset() {
-      ensureClient();
+      this.requireClientSide(this.name());
       return MLuaCameraController.getHeldItemOffsetValue(owner());
    }
 
    @MLuaDescription("Sets this addon's first-person left-arm pose layer to a CFrame or a callback sampled once per client tick. Addon layers compose in registration order. The callback receives player, hand, itemStack, and arm.")
    public void SetLeftHandOffset(LuaValue value) {
-      ensureClient();
+      this.requireClientSide(this.name());
       setHandOffset(value, true);
    }
 
    @MLuaDescription("Returns this addon's left-arm CFrame, callback, or nil.")
    public LuaValue GetLeftHandOffset() {
-      ensureClient();
+      this.requireClientSide(this.name());
       return MLuaCameraController.getHeldItemLeftOffsetValue(owner());
    }
 
    @MLuaDescription("Resets camera overrides and removes this addon's first-person hand-pose layers.")
-   public void Reset() { ensureClient(); MLuaCameraController.reset(owner()); }
+   public void Reset() { this.requireClientSide(this.name()); MLuaCameraController.reset(owner()); }
 
    private void setHandOffset(LuaValue value, boolean leftHand) {
       if (value.isnil()) {
@@ -178,10 +178,6 @@ public final class MLuaCameraService extends MLuaReflectiveService {
       } catch (IllegalArgumentException error) {
          throw new LuaError("[MLua] Hand offset must be a CFrame or a function returning CFrame: " + error.getMessage());
       }
-   }
-
-   private void ensureClient() {
-      this.requireClientSide(this.name());
    }
 
    private dev.mlua.runtime.client.MLuaHandPoseRegistry.Owner owner() {

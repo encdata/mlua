@@ -38,7 +38,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns advancement details by identifier, or nil when missing.")
    public LuaValue GetAdvancement(String id) {
-      this.requireServer();
+      this.requireServerSide(this.name());
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(id);
       if (adv == null) return LuaValue.NIL;
@@ -91,7 +91,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns a player's completion status and criteria for each advancement.")
    public LuaTable GetPlayerAdvancements(LuaValue playerValue) {
-      this.requireServer();
+      this.requireServerSide(this.name());
       MCServerPlayer player = this.extractPlayer(playerValue);
       var rawPa = ((net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner()).getAdvancements();
       LuaTable result = new LuaTable();
@@ -112,7 +112,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns one advancement's progress for a player, or nil when the advancement is missing.")
    public LuaValue GetPlayerAdvancement(LuaValue playerValue, String advancementId) {
-      this.requireServer();
+      this.requireServerSide(this.name());
       MCServerPlayer player = this.extractPlayer(playerValue);
       var rawPa = ((net.minecraft.server.level.ServerPlayer)((MCServerPlayerImpl)player).inner()).getAdvancements();
       String canonicalId;
@@ -162,7 +162,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Grants one criterion for an advancement to a player.")
    public boolean GrantCriteria(LuaValue playerValue, String advancementId, String criterion) {
-      this.requireServer();
+      this.requireServerSide(this.name());
       MCServerPlayer player = this.extractPlayer(playerValue);
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(advancementId);
@@ -183,7 +183,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Revokes one criterion for an advancement from a player.")
    public boolean RevokeCriteria(LuaValue playerValue, String advancementId, String criterion) {
-      this.requireServer();
+      this.requireServerSide(this.name());
       MCServerPlayer player = this.extractPlayer(playerValue);
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(advancementId);
@@ -203,7 +203,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Grants all criteria for an advancement to a player.")
    public void GrantAll(LuaValue playerValue, String advancementId) {
-      this.requireServer();
+      this.requireServerSide(this.name());
       MCServerPlayer player = this.extractPlayer(playerValue);
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(advancementId);
@@ -225,7 +225,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Revokes all criteria for an advancement from a player.")
    public void RevokeAll(LuaValue playerValue, String advancementId) {
-      this.requireServer();
+      this.requireServerSide(this.name());
       MCServerPlayer player = this.extractPlayer(playerValue);
 //--version 1.20.1
       MCAdvancement adv = this.resolveAdvancement(advancementId);
@@ -247,7 +247,7 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
 
    @MLuaDescription("Returns details for all registered advancements.")
    public LuaTable GetAllAdvancements() {
-      this.requireServer();
+      this.requireServerSide(this.name());
       LuaTable list = new LuaTable();
       int index = 1;
       var rawServer = ((MCMinecraftServerImpl)this.server()).inner();
@@ -295,10 +295,6 @@ public final class MLuaAdvancementService extends MLuaReflectiveService {
          list.set(index++, info);
       }
       return list;
-   }
-
-   private void requireServer() {
-      this.requireServerSide(this.name());
    }
 
    private MCMinecraftServer server() {
