@@ -80,7 +80,7 @@ public class RegistryModule implements MLuaModule {
                 }
                 return result;
             }
-        }, "Lists the public methods available on this registry category.");
+        }, "Lists the category-specific methods registered on this API table.");
         registration.registerClassFunction("RegistryCategory", "GetMethodDescription", new org.luaj.vm2.lib.TwoArgFunction() {
             @Override public org.luaj.vm2.LuaValue call(org.luaj.vm2.LuaValue self, org.luaj.vm2.LuaValue name) {
                 org.luaj.vm2.LuaValue metadata = self.checktable().rawget("__mlua_doc_methods");
@@ -168,7 +168,7 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetDescription()",
             "Returns the category's registered description.", null, "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetMethods()",
-            "Lists the public methods available on this registry category.", null, "string[]", "shared:Shared", null));
+            "Lists the category-specific methods registered on this API table.", null, "string[]", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("RegistryCategory", "RegistryCategory:GetMethodDescription(name: string)",
             "Returns the registered description for one category method, or nil when that method is unavailable.",
             "Method name", "string|nil", "shared:Shared", null));

@@ -107,7 +107,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       Map<String, String> descriptions = new java.util.LinkedHashMap<>();
       descriptions.put("Register", "Routes a named content definition through its typed registry.");
       descriptions.put("RegisterCategory", "Adds a category under the addon's namespace that uses the shared registry and inherited content type APIs.");
-      descriptions.put("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults.");
+      descriptions.put("RegisterType", "Registers an addon-scoped reusable content type with inherited defaults. Defaults are snapshotted; cyclic tables and definitions nested more than 64 tables deep are rejected.");
       descriptions.put("ResolveType", "Returns a definition with its reusable type defaults merged in.");
       descriptions.put("GetKinds", "Lists the registry kinds supported by this loader.");
       descriptions.put("GetCategories", "Lists the built-in and addon-owned registration categories.");
