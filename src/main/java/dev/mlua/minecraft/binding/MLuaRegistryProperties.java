@@ -49,12 +49,12 @@ public final class MLuaRegistryProperties {
       item(registration, "Meat", "meat", "Marks the food as meat.");
       item(registration, "AlwaysEdible", "alwaysEat", "Allows the food to be eaten when the hunger bar is full.");
       item(registration, "Fast", "fast", "Reduces the food eating duration.");
-      item(registration, "OnUse", "onUse", "Registers the item use callback.");
-      item(registration, "OnUseOnBlock", "onUseOnBlock", "Registers the item use-on-block callback.");
-      item(registration, "OnInventoryTick", "onInventoryTick", "Registers the item inventory tick callback.");
-      item(registration, "OnCrafted", "onCrafted", "Registers the item crafted callback.");
-      item(registration, "OnConsume", "onConsume", "Registers the item consume callback.");
-      item(registration, "OnAttackEntity", "onAttackEntity", "Registers the item attack-entity callback.");
+      callback(registration, "ItemProperties", "OnUse", "onUse", "Registers the item use callback.");
+      callback(registration, "ItemProperties", "OnUseOnBlock", "onUseOnBlock", "Registers the item use-on-block callback.");
+      callback(registration, "ItemProperties", "OnInventoryTick", "onInventoryTick", "Registers the item inventory tick callback.");
+      callback(registration, "ItemProperties", "OnCrafted", "onCrafted", "Registers the item crafted callback.");
+      callback(registration, "ItemProperties", "OnConsume", "onConsume", "Registers the item consume callback.");
+      callback(registration, "ItemProperties", "OnAttackEntity", "onAttackEntity", "Registers the item attack-entity callback.");
 
       method(registration, "BlockProperties", "Strength", (properties, args) -> {
          LuaValue hardness = args.arg(2);
@@ -82,17 +82,17 @@ public final class MLuaRegistryProperties {
       block(registration, "MapColor", "mapColor", "Sets the map color used for this block.");
       block(registration, "PushReaction", "pushReaction", "Sets the block reaction to pistons.");
       block(registration, "Instrument", "instrument", "Sets the note-block instrument for this block.");
-      block(registration, "OnRightClick", "onRightClick", "Registers the block interaction callback.");
-      block(registration, "OnPlace", "onPlace", "Registers the block placement callback.");
-      block(registration, "OnBreak", "onBreak", "Registers the block break callback.");
-      block(registration, "OnStepOn", "onStepOn", "Registers the entity step-on callback.");
-      block(registration, "OnEntityInside", "onEntityInside", "Registers the entity-inside callback.");
-      block(registration, "OnNeighborChanged", "onNeighborChanged", "Registers the neighbor-change callback.");
-      block(registration, "OnRemove", "onRemove", "Registers the block removal callback.");
-      block(registration, "OnRandomTick", "onRandomTick", "Registers the random block tick callback.");
-      block(registration, "OnTick", "onTick", "Registers the scheduled block tick callback.");
-      block(registration, "OnFallOn", "onFallOn", "Registers the entity fall-on callback.");
-      block(registration, "OnProjectileHit", "onProjectileHit", "Registers the projectile hit callback.");
+      callback(registration, "BlockProperties", "OnRightClick", "onRightClick", "Registers the block interaction callback.");
+      callback(registration, "BlockProperties", "OnPlace", "onPlace", "Registers the block placement callback.");
+      callback(registration, "BlockProperties", "OnBreak", "onBreak", "Registers the block break callback.");
+      callback(registration, "BlockProperties", "OnStepOn", "onStepOn", "Registers the entity step-on callback.");
+      callback(registration, "BlockProperties", "OnEntityInside", "onEntityInside", "Registers the entity-inside callback.");
+      callback(registration, "BlockProperties", "OnNeighborChanged", "onNeighborChanged", "Registers the neighbor-change callback.");
+      callback(registration, "BlockProperties", "OnRemove", "onRemove", "Registers the block removal callback.");
+      callback(registration, "BlockProperties", "OnRandomTick", "onRandomTick", "Registers the random block tick callback.");
+      callback(registration, "BlockProperties", "OnTick", "onTick", "Registers the scheduled block tick callback.");
+      callback(registration, "BlockProperties", "OnFallOn", "onFallOn", "Registers the entity fall-on callback.");
+      callback(registration, "BlockProperties", "OnProjectileHit", "onProjectileHit", "Registers the projectile hit callback.");
 
       entity(registration, "Category", "category", "Sets the Minecraft mob category.");
       entity(registration, "TrackingRange", "trackingRange", "Sets the entity tracking range in chunks.");
@@ -121,13 +121,13 @@ public final class MLuaRegistryProperties {
       for (int index = 0; index < attributeNames.length; index++) {
          attribute(registration, attributeNames[index], attributeKeys[index]);
       }
-      entity(registration, "AI", "AI", "Registers scripted AI behavior for this entity.");
-      entity(registration, "OnTick", "onTick", "Registers the entity tick callback.");
-      entity(registration, "OnHurt", "onHurt", "Registers the entity hurt callback.");
-      entity(registration, "OnDeath", "onDeath", "Registers the entity death callback.");
-      entity(registration, "OnSpawn", "onSpawn", "Registers the entity spawn callback.");
-      entity(registration, "OnInteract", "onInteract", "Registers the entity interaction callback.");
-      entity(registration, "OnRemove", "onRemove", "Registers the entity removal callback.");
+      callback(registration, "EntityProperties", "AI", "AI", "Registers scripted AI behavior for this entity.", true);
+      callback(registration, "EntityProperties", "OnTick", "onTick", "Registers the entity tick callback.");
+      callback(registration, "EntityProperties", "OnHurt", "onHurt", "Registers the entity hurt callback.");
+      callback(registration, "EntityProperties", "OnDeath", "onDeath", "Registers the entity death callback.");
+      callback(registration, "EntityProperties", "OnSpawn", "onSpawn", "Registers the entity spawn callback.");
+      callback(registration, "EntityProperties", "OnInteract", "onInteract", "Registers the entity interaction callback.");
+      callback(registration, "EntityProperties", "OnRemove", "onRemove", "Registers the entity removal callback.");
    }
 
    public static LuaTable create(MLuaRegistration registration, String className) {
@@ -192,6 +192,23 @@ public final class MLuaRegistryProperties {
 
    private static void entity(MLuaRegistration registration, String name, String key, String description) {
       method(registration, "EntityProperties", name, (properties, args) -> set(properties, key, args.arg(2)), description);
+   }
+
+   private static void callback(MLuaRegistration registration, String className, String methodName,
+                                String key, String description) {
+      callback(registration, className, methodName, key, description, false);
+   }
+
+   private static void callback(MLuaRegistration registration, String className, String methodName,
+                                String key, String description, boolean tableAllowed) {
+      method(registration, className, methodName, (properties, args) -> {
+         LuaValue value = args.arg(2);
+         if (!value.isfunction() && !(tableAllowed && value.istable())) {
+            throw new LuaError("[MLua] " + className + ":" + methodName + " expects "
+               + (tableAllowed ? "a function or state table." : "a function."));
+         }
+         return set(properties, key, value);
+      }, description);
    }
 
    private static void attribute(MLuaRegistration registration, String name, String key) {

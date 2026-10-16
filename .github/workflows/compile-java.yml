@@ -246,6 +246,10 @@ jobs:
                   return true
               end)
           assert(item:Build().maxStackSize == 1, "ItemProperties:Build lost StacksTo")
+          assert(not pcall(function() Registry.Items:Properties():OnUse("not a function") end),
+              "ItemProperties accepted a non-function callback")
+          assert(not pcall(function() Registry.Items:Register("ci_wrong_property_class", Registry.Blocks:Properties()) end),
+              "Registry.Items:Register accepted BlockProperties")
           Registry.Items:Register("ci_property_item", item)
           Registry.Items:RegisterType("ci_property_item_kind", {
               Base = "item",
