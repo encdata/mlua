@@ -245,6 +245,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       try {
          dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(owner);
          dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(name);
+         if (!isCanonicalLocalResourcePath(owner, name)) {
+            throw new IllegalArgumentException("Invalid lowercase namespaced registry path: " + name);
+         }
       } catch (IllegalArgumentException invalid) {
          throw new LuaError("[MLua] Registry generated " + resourceKind
             + " name must be a valid lowercase addon-local resource path: " + invalid.getMessage());
@@ -2042,10 +2045,19 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       try {
          dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(owner);
          dev.mlua.runtime.registry.MLuaResourceNameValidator.validate(name);
+         if (!isCanonicalLocalResourcePath(owner, name)) {
+            throw new IllegalArgumentException("Invalid lowercase local registry path: " + name);
+         }
       } catch (IllegalArgumentException invalid) {
          throw new LuaError("[MLua] " + operation
             + " name must be a valid lowercase registry path without a namespace: " + invalid.getMessage());
       }
+   }
+
+   private static boolean isCanonicalLocalResourcePath(String owner, String name) {
+      var id = MLuaResourceLocations.tryParseOrNull(owner + ":" + name);
+      return id != null && owner.equals(MLuaResourceLocations.namespace(id))
+         && name.equals(MLuaResourceLocations.path(id));
    }
 
    private static int colorProperty(LuaTable properties, String name, int fallback) {
