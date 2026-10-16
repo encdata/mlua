@@ -575,6 +575,9 @@ public class RegistryModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetTitle()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:GetAllowedItems()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("ContainerType", "ContainerType:AllowsAllItems()", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.method("ContainerType", "ContainerType:AllowsItem(item: string|Item): boolean",
+            "Checks whether an item id or live Item instance is allowed by this container type.",
+            "Namespaced item id or live Item instance", "boolean", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Register(id: string, props: EntityDefinition)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:RegisterSpawnEgg(id: string, props: SpawnEggDefinition)", "RegistryEntry"));
         docs.register(MLuaDocBuilder.Registration.signature("Registry.Entities", "Registry.Entities:Get(name: string)", "RegistryEntry"));
