@@ -28,7 +28,7 @@ public final class MLuaAttributeInstance {
         register(registration, "GetDefaultValue", "Returns this attribute's registered default value.", args -> LuaValue.valueOf(defaultValue(args.arg1().checktable())));
         register(registration, "GetModifiers", "Returns the modifiers currently applied to this attribute.", args -> modifiers(args.arg1().checktable()));
         register(registration, "AddModifier", "Adds or replaces a transient modifier with a finite amount and operation 0, 1, or 2.", args -> addModifier(args.arg1().checktable(), args));
-        register(registration, "RemoveModifier", "Removes a transient modifier by its identifier.", args -> removeModifier(args.arg1().checktable(), args.checkjstring(2)));
+        register(registration, "RemoveModifier", "Removes a transient modifier by its identifier and returns whether it existed.", args -> removeModifier(args.arg1().checktable(), args.checkjstring(2)));
         MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Id", "GetId", null,
             "string", "shared:Shared", "This attribute's namespaced identifier.");
         MLuaClassMethods.registerInstanceProperty(registration, "AttributeInstance", "Value", "GetValue", null,
@@ -135,22 +135,70 @@ public final class MLuaAttributeInstance {
         String name = args.checkjstring(2);
         double amount = finiteValue(args.arg(3), "modifier amount");
         int operation = operation(args);
+        addTransientModifier(attribute, name, amount, operation);
+        return LuaValue.TRUE;
+    }
+
+    public static void addTransientModifier(AttributeInstance attribute, String name, double amount, int operation) {
+        finiteValue(amount, "modifier amount");
+        if (operation < 0 || operation > 2) {
+            throw new LuaError("[MLua] Attribute modifier operation must be a whole number from 0 to 2.");
+        }
         //--version 1.20.1
         java.util.UUID uuid = MLuaAttributeModifierIds.legacy(name);
+        attribute.removeModifier(uuid);
         attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
             uuid, name, amount, net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.fromValue(operation)));
         //--endversion
         //--version 1.21.1
         net.minecraft.resources.ResourceLocation id = modifierId(name);
+        attribute.removeModifier(id);
         attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(id, amount,
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(operation)));
         //--endversion
         //--version 26.1
         net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name));
+        attribute.removeModifier(id);
         attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(id, amount,
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.BY_ID.apply(operation)));
         //--endversion
-        return LuaValue.TRUE;
+    }
+
+    public static boolean removeTransientModifier(AttributeInstance attribute, String name) {
+        String id = modifierIdString(name);
+        boolean present = attribute.getModifiers().stream().anyMatch(modifier -> modifierId(modifier).equals(id));
+        if (!present) return false;
+//--version 1.20.1
+        attribute.removeModifier(MLuaAttributeModifierIds.legacy(name));
+//--endversion
+//--version 1.21.1
+        attribute.removeModifier(modifierId(name));
+//--endversion
+//--version 26.1
+        attribute.removeModifier(net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name)));
+//--endversion
+        return true;
+    }
+
+    private static String modifierIdString(String name) {
+//--version 1.20.1
+        return MLuaAttributeModifierIds.legacy(name).toString();
+//--endversion
+//--version 1.21.1
+        return modifierId(name).toString();
+//--endversion
+//--version 26.1
+        return net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name)).toString();
+//--endversion
+    }
+
+    private static String modifierId(net.minecraft.world.entity.ai.attributes.AttributeModifier modifier) {
+//--version 1.20.1
+        return modifier.getId().toString();
+//--endversion
+//--version 1.21.1,26.1
+        return modifier.id().toString();
+//--endversion
     }
 
     public static double finiteValue(LuaValue value, String name) {
@@ -159,6 +207,13 @@ public final class MLuaAttributeInstance {
         }
         return value.todouble();
     }
+
+   public static double finiteValue(double value, String name) {
+      if (!Double.isFinite(value)) {
+         throw new LuaError("[MLua] Attribute " + name + " must be a finite number.");
+      }
+      return value;
+   }
 
     private static int operation(Varargs args) {
         LuaValue value = args.arg(4);
@@ -172,17 +227,7 @@ public final class MLuaAttributeInstance {
     }
 
     private static LuaValue removeModifier(LuaTable instance, String name) {
-        AttributeInstance attribute = attribute(instance);
-        //--version 1.20.1
-        attribute.removeModifier(MLuaAttributeModifierIds.legacy(name));
-        //--endversion
-        //--version 1.21.1
-        attribute.removeModifier(modifierId(name));
-        //--endversion
-        //--version 26.1
-        attribute.removeModifier(net.minecraft.resources.Identifier.fromNamespaceAndPath("mlua", MLuaAttributeModifierIds.path(name)));
-        //--endversion
-        return LuaValue.TRUE;
+        return LuaValue.valueOf(removeTransientModifier(attribute(instance), name));
     }
 
     //--version 1.21.1

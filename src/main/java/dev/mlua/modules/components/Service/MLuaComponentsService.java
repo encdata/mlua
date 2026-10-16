@@ -29,7 +29,7 @@ public final class MLuaComponentsService extends MLuaReflectiveService {
         return table;
     }
 
-    @MLuaDescription("Attaches a named Lua behavior component to an entity.")
+    @MLuaDescription("Attaches an owner-scoped component with optional State and lifecycle callbacks. Reattaching its name updates callbacks and preserves state.")
     public LuaTable Attach(LuaValue entityValue, String name, LuaTable spec) {
         Entity entity = requireEntity(entityValue);
         return MLuaEntityComponentManager.attach(entity, this.context.side(), name, spec,
@@ -43,24 +43,45 @@ public final class MLuaComponentsService extends MLuaReflectiveService {
             this.context.ownerModId(), this.context.mlua().session());
     }
 
-    @MLuaDescription("Returns component names attached by the calling mod to an entity.")
+    @MLuaDescription("Returns one of the calling mod's components attached to an entity, or nil when missing.")
+    public LuaValue Find(LuaValue entityValue, String name) {
+        Entity entity = requireEntity(entityValue);
+        return MLuaEntityComponentManager.find(entity, this.context.side(), name,
+            this.context.ownerModId(), this.context.mlua().session());
+    }
+
+    @MLuaDescription("Checks whether the calling mod has a component with this name attached to an entity.")
+    public boolean Has(LuaValue entityValue, String name) {
+        Entity entity = requireEntity(entityValue);
+        return MLuaEntityComponentManager.has(entity, this.context.side(), name,
+            this.context.ownerModId(), this.context.mlua().session());
+    }
+
+    @MLuaDescription("Returns component names attached by the calling mod to an entity in sorted order.")
     public List<String> List(LuaValue entityValue) {
         Entity entity = requireEntity(entityValue);
         return MLuaEntityComponentManager.list(entity, this.context.side(),
             this.context.ownerModId(), this.context.mlua().session());
     }
 
-    @MLuaDescription("Removes one of the calling mod's components from an entity.")
-    public void Remove(LuaValue entityValue, String name) {
+    @MLuaDescription("Returns this mod's live components attached to an entity as a name-sorted array.")
+    public List<LuaTable> GetAll(LuaValue entityValue) {
         Entity entity = requireEntity(entityValue);
-        MLuaEntityComponentManager.remove(entity, this.context.side(), name,
+        return MLuaEntityComponentManager.handles(entity, this.context.side(),
+            this.context.ownerModId(), this.context.mlua().session());
+    }
+
+    @MLuaDescription("Removes one of the calling mod's components from an entity.")
+    public boolean Remove(LuaValue entityValue, String name) {
+        Entity entity = requireEntity(entityValue);
+        return MLuaEntityComponentManager.remove(entity, this.context.side(), name,
             this.context.ownerModId(), this.context.mlua().session());
     }
 
     @MLuaDescription("Removes all components attached by the calling mod to an entity.")
-    public void Clear(LuaValue entityValue) {
+    public int Clear(LuaValue entityValue) {
         Entity entity = requireEntity(entityValue);
-        MLuaEntityComponentManager.clear(entity, this.context.side(),
+        return MLuaEntityComponentManager.clear(entity, this.context.side(),
             this.context.ownerModId(), this.context.mlua().session());
     }
 

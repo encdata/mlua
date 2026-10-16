@@ -71,10 +71,18 @@ public final class ComponentsModule implements MLuaModule {
     @Override
     public void contributeDocs(MLuaDocBuilder docs) {
         docs.register(MLuaDocBuilder.Registration.service("Components", "MLuaComponentsService",
-            "Attach reusable Lua behavior components to entities with tick and event callbacks.",
+            "Attach owner-scoped Lua behavior components to entities with mutable state, lifecycle callbacks, and deterministic lookup.",
             "services/components.html"));
         docs.register(MLuaDocBuilder.Registration.clazz("EntityComponent", null,
             "Mutable entity behavior component handle returned by Components:Attach.",
             "classes/entity-component.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.signature("Components", "Components:Find(entity: Entity, name: string): EntityComponent?", "EntityComponent or nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Components", "Components:Has(entity: Entity, name: string): boolean", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("Components", "Components:GetAll(entity: Entity): EntityComponent[]", "name-sorted component handles"));
+        docs.register(MLuaDocBuilder.Registration.signature("Components", "Components:Remove(entity: Entity, name: string): boolean", "true if a component was removed"));
+        docs.register(MLuaDocBuilder.Registration.signature("Components", "Components:Clear(entity: Entity): number", "number of removed components"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Components", "Attach state and callbacks to an entity",
+            "A component is scoped to the calling mod and runtime. Its State table persists while the component is attached. Reattaching the same name updates callbacks and keeps the existing state; OnAdded runs only for a new attachment. Callback payloads expose Entity, Component, State, and Event.",
+            "local Components = Minecraft:GetService(\"Components\")\nlocal component = Components:Attach(entity, \"patrol_state\", {\n    State = { ticks = 0 },\n    OnAdded = function(event)\n        print(\"component attached to\", event.Entity.Name)\n    end,\n    OnTick = function(event)\n        event.State.ticks = event.State.ticks + 1\n    end,\n    OnHurt = function(event)\n        print(\"entity took damage\", event.Amount)\n    end,\n    OnRemoved = function(event)\n        print(\"component removed\", event.Component.Name)\n    end,\n})\n\nif Components:Has(entity, \"patrol_state\") then\n    print(component.State.ticks)\nend\n\nfor _, attached in ipairs(Components:GetAll(entity)) do\n    print(attached.Name)\nend"));
     }
 }

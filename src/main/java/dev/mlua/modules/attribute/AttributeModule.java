@@ -21,6 +21,10 @@ public class AttributeModule implements MLuaModule {
             .build());
     }
     @Override public void contributeDocs(MLuaDocBuilder docs) {
-        docs.register(MLuaDocBuilder.Registration.service("Attribute", "MLuaAttributeService", "Service for managing entity attribute modifiers.", "services/attribute.html"));
+        docs.register(MLuaDocBuilder.Registration.service("Attribute", "MLuaAttributeService", "Reads and updates living entity attributes and transient modifiers on the server.", "services/attribute.html"));
+        docs.register(MLuaDocBuilder.Registration.signature("Attribute", "Attribute:GetAttributeInstance(entity: LivingEntity, id: string): AttributeInstance?", "live AttributeInstance class or nil"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Attribute", "Apply a named transient modifier",
+            "Attribute modifiers use a stable name as their identifier. Adding the same name replaces its previous transient modifier, so scripts can update an effect without stacking duplicates. Operations are 0 for addition, 1 for multiply base, and 2 for multiply total.",
+            "local Attribute = Minecraft:GetService(\"Attribute\")\nlocal id\nfor _, registeredId in ipairs(Attribute:GetRegisteredAttributes()) do\n    if registeredId:find(\"attack_damage\", 1, true) then\n        id = registeredId\n        break\n    end\nend\n\nif id then\n    local attack = Attribute:GetAttributeInstance(player, id)\n    if attack then\n        Attribute:AddModifier(player, id, \"rage_effect\", 3.0, 0)\n        print(attack.Value, attack.BaseValue, attack.DefaultValue)\n        Attribute:RemoveModifier(player, id, \"rage_effect\")\n    end\nend"));
     }
 }

@@ -18,10 +18,18 @@ Remove-Item $minecraftLogPath -Force -ErrorAction SilentlyContinue
 $arguments = @($GradleArgs) + @($Task)
 $argumentText = $arguments -join ' '
 $wrapperPath = Join-Path (Get-Location).Path 'gradlew.bat'
-$gradleCommand = if (Test-Path $wrapperPath) { "`"$wrapperPath`"" } else { 'gradle' }
-$command = "$gradleCommand $argumentText 1> `"$stdoutPath`" 2> `"$stderrPath`""
-$process = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', $command) `
-    -WorkingDirectory (Get-Location).Path -PassThru
+$launcherPath = Join-Path (Get-Location).Path 'mlua-smoke-launch.cmd'
+if (-not (Test-Path $wrapperPath)) {
+    throw "Gradle wrapper was not found at '$wrapperPath'."
+}
+@(
+    '@echo off'
+    "call `"$wrapperPath`" $argumentText"
+    'exit /b %ERRORLEVEL%'
+) | Set-Content -Path $launcherPath -Encoding Ascii
+$process = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', "`"$launcherPath`"") `
+    -WorkingDirectory (Get-Location).Path -RedirectStandardOutput $stdoutPath `
+    -RedirectStandardError $stderrPath -PassThru
 
 function Get-SmokeOutput {
     $text = ''
@@ -112,4 +120,5 @@ finally {
     if (Test-Path $minecraftLogPath) {
         Copy-Item $minecraftLogPath "$stdoutPath.minecraft.log" -Force
     }
+    Remove-Item $launcherPath -Force -ErrorAction SilentlyContinue
 }

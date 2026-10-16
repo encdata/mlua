@@ -43,17 +43,42 @@ public final class MLuaEntityComponentManager {
         if (entity == null) {
             throw new LuaError("[MLua] Cannot attach component to a null entity");
         }
+        if (name == null || name.isBlank()) {
+            throw new LuaError("[MLua] Component name must be a non-empty string");
+        }
+        validateSpec(name, spec);
         Object runtimeOwner = context != null ? context.session() : null;
         ComponentKey key = componentKey(runtimeOwner, ownerModId, name);
+        boolean[] created = {false};
         ComponentInstance instance = components(entity, side).components.compute(key, (ignored, existing) -> {
             if (existing != null) {
                 existing.callbacks = spec;
                 return existing;
             }
+            created[0] = true;
             return new ComponentInstance(entity, side, name, ownerModId, spec, context);
         });
-        invokeCallback(instance, "OnAdded", "added", new LuaTable());
+        if (created[0]) invokeCallback(instance, "OnAdded", "added", new LuaTable());
         return instance.handle;
+    }
+
+    private static void validateSpec(String name, LuaTable spec) {
+        String[] callbacks = {"OnAdded", "OnRemoved", "OnTick", "OnClientTick", "OnHurt", "OnDeath", "OnInteract"};
+        for (String callbackName : callbacks) {
+            LuaValue callback = spec.get(callbackName);
+            if (callback.isnil()) {
+                String lowerCamel = Character.toLowerCase(callbackName.charAt(0)) + callbackName.substring(1);
+                callback = spec.get(lowerCamel);
+            }
+            if (!callback.isnil() && !callback.isfunction()) {
+                throw new LuaError("[MLua] Component '" + name + "' callback '" + callbackName + "' must be a function");
+            }
+        }
+        LuaValue state = spec.get("State");
+        if (state.isnil()) state = spec.get("state");
+        if (!state.isnil() && !state.istable()) {
+            throw new LuaError("[MLua] Component '" + name + "' State must be a table");
+        }
     }
 
     public static LuaTable get(Entity entity, Side side, String name) {
@@ -65,12 +90,21 @@ public final class MLuaEntityComponentManager {
     }
 
     public static LuaTable get(Entity entity, Side side, String name, String ownerModId, Object runtimeOwner) {
+        LuaValue found = find(entity, side, name, ownerModId, runtimeOwner);
+        return found.istable() ? found.checktable() : new LuaTable();
+    }
+
+    public static LuaValue find(Entity entity, Side side, String name, String ownerModId, Object runtimeOwner) {
         EntityComponents components = COMPONENTS.get(entityKey(entity, side));
         if (components == null) {
-            return new LuaTable();
+            return LuaValue.NIL;
         }
         ComponentInstance instance = components.components.get(componentKey(runtimeOwner, ownerModId, name));
-        return instance != null ? instance.handle : new LuaTable();
+        return instance != null ? instance.handle : LuaValue.NIL;
+    }
+
+    public static boolean has(Entity entity, Side side, String name, String ownerModId, Object runtimeOwner) {
+        return !find(entity, side, name, ownerModId, runtimeOwner).isnil();
     }
 
     public static List<String> list(Entity entity, Side side) {
@@ -90,21 +124,33 @@ public final class MLuaEntityComponentManager {
                 .filter(instance -> (ownerModId == null || ownerModId.equals(instance.ownerModId))
                         && instance.runtimeOwner == runtimeOwner)
                 .map(instance -> instance.name)
+                .sorted()
                 .toList();
     }
 
-    public static void remove(Entity entity, Side side, String name) {
-        remove(entity, side, name, null);
+    public static List<LuaTable> handles(Entity entity, Side side, String ownerModId, Object runtimeOwner) {
+        EntityComponents components = COMPONENTS.get(entityKey(entity, side));
+        if (components == null) return List.of();
+        return components.components.values().stream()
+                .filter(instance -> (ownerModId == null || ownerModId.equals(instance.ownerModId))
+                        && instance.runtimeOwner == runtimeOwner)
+                .sorted(java.util.Comparator.comparing(instance -> instance.name))
+                .map(instance -> instance.handle)
+                .toList();
     }
 
-    public static void remove(Entity entity, Side side, String name, String ownerModId) {
-        remove(entity, side, name, ownerModId, null);
+    public static boolean remove(Entity entity, Side side, String name) {
+        return remove(entity, side, name, null);
     }
 
-    public static void remove(Entity entity, Side side, String name, String ownerModId, Object runtimeOwner) {
+    public static boolean remove(Entity entity, Side side, String name, String ownerModId) {
+        return remove(entity, side, name, ownerModId, null);
+    }
+
+    public static boolean remove(Entity entity, Side side, String name, String ownerModId, Object runtimeOwner) {
         EntityComponents components = COMPONENTS.get(entityKey(entity, side));
         if (components == null) {
-            return;
+            return false;
         }
         ComponentKey key = componentKey(runtimeOwner, ownerModId, name);
         ComponentInstance instance = components.components.remove(key);
@@ -114,29 +160,33 @@ public final class MLuaEntityComponentManager {
         if (components.components.isEmpty()) {
             COMPONENTS.remove(entityKey(entity, side), components);
         }
+        return instance != null;
     }
 
-    public static void clear(Entity entity, Side side) {
-        clear(entity, side, null);
+    public static int clear(Entity entity, Side side) {
+        return clear(entity, side, null);
     }
 
-    public static void clear(Entity entity, Side side, String ownerModId) {
-        clear(entity, side, ownerModId, null);
+    public static int clear(Entity entity, Side side, String ownerModId) {
+        return clear(entity, side, ownerModId, null);
     }
 
-    public static void clear(Entity entity, Side side, String ownerModId, Object runtimeOwner) {
+    public static int clear(Entity entity, Side side, String ownerModId, Object runtimeOwner) {
         EntityComponentsKey key = entityKey(entity, side);
         EntityComponents current = COMPONENTS.get(key);
-        if (current == null) return;
+        if (current == null) return 0;
+        int removed = 0;
         for (Map.Entry<ComponentKey, ComponentInstance> entry : current.components.entrySet()) {
             ComponentInstance instance = entry.getValue();
             if ((ownerModId == null || ownerModId.equals(instance.ownerModId))
                     && instance.runtimeOwner == runtimeOwner
                     && current.components.remove(entry.getKey(), instance)) {
+                removed++;
                 invokeCallback(instance, "OnRemoved", "removed", new LuaTable());
             }
         }
         if (current.components.isEmpty()) COMPONENTS.remove(key, current);
+        return removed;
     }
 
     public static void clearAll() {
