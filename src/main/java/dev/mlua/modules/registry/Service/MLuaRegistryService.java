@@ -48,10 +48,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Holder;
 //--version 26.1
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -64,6 +66,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.EntityType.Builder;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.level.block.Block;
@@ -71,6 +74,9 @@ import net.minecraft.world.level.block.Block;
 public final class MLuaRegistryService extends MLuaServiceBase {
    private static final Map<String, RegistryEndpoint> REGISTRY_ENDPOINTS = registryEndpoints();
    private static final Map<String, String> METHOD_DESCRIPTIONS = registryMethodDescriptions();
+   private static final Set<String> ENTITY_ATTRIBUTE_ALIASES = Set.of(
+      "maxHealth", "movementSpeed", "attackDamage", "armor", "armorToughness",
+      "attackSpeed", "knockbackResistance", "followRange");
    private static final List<String> SERVICE_METHODS = List.of(
       "Register", "RegisterCategory", "RegisterType", "ResolveType", "GetKinds", "GetCategories",
       "Get", "GetAll", "GetTypes", "GetRegistered", "GetEntry", "Exists");
@@ -943,6 +949,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                 throw new LuaError("[MLua] Registry.Entities:Register attributes must be a table.");
              }
              LuaTable attr = attributesValue.istable() ? attributesValue.checktable() : null;
+             Map<String, Double> additionalAttributes = MLuaRegistryService.additionalEntityAttributes(attr);
              double maxHealth = MLuaRegistryService.attrValue(attr, "maxHealth", 20.0);
              double speed = MLuaRegistryService.attrValue(attr, "movementSpeed", 0.25);
              double attack = MLuaRegistryService.attrValue(attr, "attackDamage", 2.0);
@@ -967,7 +974,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
              };
              EntityType.Builder<MLuaScriptedEntity> builder = Builder.of(factory, category).sized((float)width, (float)height).clientTrackingRange(trackingRange).updateInterval(updateInterval);
              Supplier<AttributeSupplier> attrSupplier = () -> {
-                return Mob.createMobAttributes()
+                AttributeSupplier.Builder builder = Mob.createMobAttributes()
                    .add(Attributes.MAX_HEALTH, maxHealth)
                    .add(Attributes.MOVEMENT_SPEED, speed)
                    .add(Attributes.ATTACK_DAMAGE, attack)
@@ -975,8 +982,10 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                    .add(Attributes.ARMOR_TOUGHNESS, armorToughness)
                    .add(Attributes.ATTACK_SPEED, attackSpeed)
                    .add(Attributes.KNOCKBACK_RESISTANCE, knockbackResistance)
-                   .add(Attributes.FOLLOW_RANGE, followRange)
-                   .build();
+                   .add(Attributes.FOLLOW_RANGE, followRange);
+                additionalAttributes.forEach((attributeId, value) ->
+                   MLuaRegistryService.addEntityAttribute(builder, attributeId, value));
+                return builder.build();
              };
              MLuaRegistryService.this.registerEntityVisual(owner, name,
                 entityTexture.all() != null ? entityTexture.all() : "minecraft:textures/entity/zombie/zombie.png",
@@ -1893,6 +1902,63 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          throw new LuaError("[MLua] Registry.Entities:Register attributes." + key + " must be " + constraint + ".");
       }
       return number;
+   }
+
+   private static Map<String, Double> additionalEntityAttributes(LuaTable attributes) {
+      if (attributes == null) return Map.of();
+      Map<String, Double> result = new java.util.LinkedHashMap<>();
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs entry = attributes.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         if (!key.isstring()) {
+            throw new LuaError("[MLua] Registry.Entities:Register attribute keys must be strings.");
+         }
+         String name = key.tojstring();
+         if (ENTITY_ATTRIBUTE_ALIASES.contains(name)) continue;
+         if (!name.contains(":")) {
+            throw new LuaError("[MLua] Unknown entity attribute '" + name
+               + "'. Use a built-in alias or a registered namespaced attribute id.");
+         }
+         var id = MLuaResourceLocations.tryParseOrNull(name);
+         if (id == null || !id.toString().equals(name)) {
+            throw new LuaError("[MLua] Entity attribute '" + name + "' must be a valid lowercase namespaced id.");
+         }
+         LuaValue value = entry.arg(2);
+         if (!value.isnumber() || !Double.isFinite(value.todouble())) {
+            throw new LuaError("[MLua] Registry.Entities:Register attribute '" + name
+               + "' must have a finite number value.");
+         }
+         result.put(id.toString(), value.todouble());
+      }
+      return Map.copyOf(result);
+   }
+
+   private static void addEntityAttribute(AttributeSupplier.Builder builder, String name, double value) {
+      var id = MLuaResourceLocations.tryParseOrNull(name);
+      if (id == null) throw new IllegalStateException("Invalid registered entity attribute id: " + name);
+      //--version 1.20.1
+      Attribute attribute = BuiltInRegistries.ATTRIBUTE.get(id);
+      if (attribute == null) {
+         throw new IllegalStateException("Entity attribute is not registered: " + name);
+      }
+      builder.add(attribute, value);
+      //--endversion
+      //--version 1.21.1
+      Holder<Attribute> attribute = BuiltInRegistries.ATTRIBUTE.getHolder(id).orElse(null);
+      if (attribute == null) {
+         throw new IllegalStateException("Entity attribute is not registered: " + name);
+      }
+      builder.add(attribute, value);
+      //--endversion
+      //--version 26.1
+      Holder<Attribute> attribute = BuiltInRegistries.ATTRIBUTE.get(id).orElse(null);
+      if (attribute == null) {
+         throw new IllegalStateException("Entity attribute is not registered: " + name);
+      }
+      builder.add(attribute, value);
+      //--endversion
    }
 
    private static void requirePositiveFiniteEntitySize(String property, double value) {

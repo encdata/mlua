@@ -387,7 +387,7 @@ public class RegistryModule implements MLuaModule {
             "onInteract?", "fun(self: Entity, player: Player, hand: string): boolean", "Handles player interaction.",
             "onRemove?", "fun(entity: Entity)", "Runs when the entity is removed.",
             "aiInterval?", "whole number", "Ticks between scripted AI updates, clamped to 1–120.",
-            "attributes?", "table<string, number>", "Finite non-negative attribute values; maxHealth must be greater than zero and knockbackResistance must be between 0 and 1.", "width?", "number", "Finite positive width representable as a float.",
+            "attributes?", "table<string, number>", "Finite values using built-in camelCase aliases or registered namespaced attribute ids. maxHealth must be greater than zero and knockbackResistance must be between 0 and 1.", "width?", "number", "Finite positive width representable as a float.",
             "height?", "number", "Finite positive height representable as a float.",
             "trackingRange?", "whole number >= 0", "Network tracking range in chunks; zero disables client tracking.",
             "updateInterval?", "whole number >= 1", "Ticks between entity tracking updates.",
