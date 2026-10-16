@@ -650,10 +650,12 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       tabs.set("Register", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             MLuaRegistryService.this.ensureRegistryPhase();
-            Map<String, Object> props = args.arg(3).istable() ? MLuaLuaBindings.mapFromLua(args.arg(3).checktable()) : Map.of();
             String name = args.checkjstring(2);
-            MLuaLoaderRegistry.register(RegistryKind.CREATIVE_TAB, MLuaRegistryService.this.context.mlua().ownerModId(), name, () -> {
-               return MLuaRegistryService.this.tabFactory.create(MLuaRegistryService.this.context.mlua().ownerModId(), name, props);
+            String owner = MLuaRegistryService.this.context.mlua().ownerModId();
+            MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Tabs:Register");
+            Map<String, Object> props = args.arg(3).istable() ? MLuaLuaBindings.mapFromLua(args.arg(3).checktable()) : Map.of();
+            MLuaLoaderRegistry.register(RegistryKind.CREATIVE_TAB, owner, name, () -> {
+               return MLuaRegistryService.this.tabFactory.create(owner, name, props);
             });
             return LuaValue.NONE;
          }
