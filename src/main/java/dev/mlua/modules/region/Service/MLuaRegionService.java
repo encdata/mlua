@@ -22,7 +22,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.Level;
@@ -295,10 +294,10 @@ public final class MLuaRegionService extends MLuaReflectiveService {
 
           Set<MLuaEntityScope> currentScopes = new HashSet<>();
           for (Level level : levels) {
-             List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, def.bounds);
-             for (LivingEntity living : entities) {
-                if (def.contains(living.position())) {
-                   currentScopes.add(MLuaEntityScope.of(living));
+             List<Entity> entities = level.getEntitiesOfClass(Entity.class, def.bounds);
+             for (Entity entity : entities) {
+                if (def.contains(entity.position())) {
+                   currentScopes.add(MLuaEntityScope.of(entity));
                 }
              }
           }
@@ -309,14 +308,14 @@ public final class MLuaRegionService extends MLuaReflectiveService {
 
           MLuaSignal enterSig = state.onEnter.get(key);
           if (enterSig != null) {
-             for (MLuaEntityScope scope : delta.entered()) {
+             for (MLuaEntityScope scope : orderedScopes(delta.entered())) {
                 fireEntitySignal(state.registrations.get(key), enterSig, levels, scope, name);
              }
           }
 
           MLuaSignal exitSig = state.onExit.get(key);
           if (exitSig != null) {
-             for (MLuaEntityScope scope : delta.exited()) {
+             for (MLuaEntityScope scope : orderedScopes(delta.exited())) {
                 fireEntitySignal(state.registrations.get(key), exitSig, levels, scope, name);
              }
           }
@@ -333,15 +332,17 @@ public final class MLuaRegionService extends MLuaReflectiveService {
     private static void fireEntitySignal(MLuaRegistration registration, MLuaSignal signal, List<Level> levels, MLuaEntityScope scope, String regionName) {
        Entity entity = resolveEntity(scope, levels);
        LuaTable args = new LuaTable();
-       if (entity instanceof LivingEntity living) {
-          args.set("Entity", MLuaEntityWrapper.entityTable(living, registration));
-       }
+       if (entity != null) args.set("Entity", MLuaEntityWrapper.entityTable(entity, registration));
        args.set("Region", LuaValue.valueOf(regionName));
        try {
           signal.fire(args);
        } catch (Exception e) {
           MLuaLogger.LOGGER.error("[MLua] Region signal handler error", e);
        }
+    }
+
+    private static List<MLuaEntityScope> orderedScopes(Set<MLuaEntityScope> scopes) {
+       return scopes.stream().sorted(Comparator.comparing(scope -> scope.uuid().toString())).toList();
     }
 
     private static Entity resolveEntity(MLuaEntityScope scope, List<Level> levels) {
@@ -399,13 +400,15 @@ public final class MLuaRegionService extends MLuaReflectiveService {
    @dev.mlua.api.MLuaDescription("Returns the regions registered by the calling mod.")
    public LuaTable GetRegions() {
       LuaTable result = new LuaTable();
-      int index = 1;
       String ownerModId = this.context.mlua().ownerModId();
       Side side = this.context.mlua().side();
-      for (RegionKey key : this.state.regions.keySet()) {
-         if (key.ownerModId().equals(ownerModId) && key.side() == side) {
-            result.set(index++, LuaValue.valueOf(key.name()));
-         }
+      List<String> names = this.state.regions.keySet().stream()
+         .filter(key -> key.ownerModId().equals(ownerModId) && key.side() == side)
+         .map(RegionKey::name)
+         .sorted()
+         .toList();
+      for (int index = 0; index < names.size(); index++) {
+         result.set(index + 1, LuaValue.valueOf(names.get(index)));
       }
       return result;
    }
@@ -479,9 +482,9 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       } else if (this.context.mlua().server() != null) {
          for (ServerLevel level : this.context.mlua().server().getAllLevels()) levels.add(level);
       }
-      for (MLuaEntityScope scope : scopes) {
+      for (MLuaEntityScope scope : orderedScopes(scopes)) {
          Entity entity = resolveEntity(scope, levels);
-         if (entity instanceof LivingEntity living) result.set(i++, MLuaEntityWrapper.entityTable(living, this.context.mlua().registration()));
+         if (entity != null) result.set(i++, MLuaEntityWrapper.entityTable(entity, this.context.mlua().registration()));
       }
       return result;
    }
