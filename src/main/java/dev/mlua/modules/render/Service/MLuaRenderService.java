@@ -786,7 +786,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         operations.set("SetFollowOffset", fn(args -> {
             LuaValue value = args.arg(2);
             try {
-                if (value.isfunction()) requireObject(id).setFollowOffsetCallback(value, context.mlua());
+                if (value.isfunction()) requireObject(id).setFollowOffsetCallback(value, renderOwnerContext());
                 else requireObject(id).setFollowOffset(MLuaCFrame.fromLua(value));
             } catch (IllegalArgumentException | LuaError invalid) {
                 throw new LuaError("[MLua] FollowOffset must be a CFrame or a function returning CFrame: " + invalid.getMessage());

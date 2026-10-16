@@ -4,6 +4,7 @@ import dev.mlua.math.MLuaVector;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.engine.MLuaLuauTypes;
+import dev.mlua.minecraft.MLuaResourceLocations;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;

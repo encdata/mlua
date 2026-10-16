@@ -207,7 +207,7 @@ public final class MLuaEntityComponentManager {
             ComponentInstance instance = entry.getValue();
             if ((ownerModId == null || ownerModId.equals(instance.ownerModId))
                     && instance.runtimeOwner == runtimeOwner
-                    && removeComponent(current, entry.getKey(), instance)) {
+                    && removeComponent(current, entry.getKey(), instance) != null) {
                 removed++;
                 removeInstance(instance);
             }
@@ -254,7 +254,7 @@ public final class MLuaEntityComponentManager {
             for (Map.Entry<ComponentKey, ComponentInstance> componentEntry : components.components.entrySet()) {
                 ComponentInstance instance = componentEntry.getValue();
                 if (!ownerModId.equals(instance.ownerModId) || instance.runtimeOwner != runtimeOwner) continue;
-                if (removeComponent(components, componentEntry.getKey(), instance)) {
+                if (removeComponent(components, componentEntry.getKey(), instance) != null) {
                     removeInstance(instance);
                 }
             }
@@ -270,7 +270,7 @@ public final class MLuaEntityComponentManager {
             for (Map.Entry<ComponentKey, ComponentInstance> componentEntry : components.components.entrySet()) {
                 ComponentInstance instance = componentEntry.getValue();
                 if (instance.runtimeOwner == runtimeOwner
-                        && removeComponent(components, componentEntry.getKey(), instance)) {
+                        && removeComponent(components, componentEntry.getKey(), instance) != null) {
                     removeInstance(instance);
                 }
             }
@@ -331,15 +331,15 @@ public final class MLuaEntityComponentManager {
             .toList();
     }
 
-    private static boolean removeComponent(EntityComponents components, ComponentKey key,
+    private static ComponentInstance removeComponent(EntityComponents components, ComponentKey key,
             ComponentInstance expected) {
         synchronized (components) {
             ComponentInstance removed = expected == null
                 ? components.components.remove(key)
                 : components.components.remove(key, expected) ? expected : null;
-            if (removed == null) return false;
+            if (removed == null) return null;
             rebuildSnapshot(components);
-            return true;
+            return removed;
         }
     }
 

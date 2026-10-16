@@ -43,7 +43,7 @@ public final class MLuaRenderFrameScope {
             return scope.active;
         }
 
-        MLuaRenderFrameScope scope() {
+        public MLuaRenderFrameScope scope() {
             return scope;
         }
     }
