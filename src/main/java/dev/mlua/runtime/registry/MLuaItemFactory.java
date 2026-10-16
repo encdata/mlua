@@ -53,6 +53,11 @@ public final class MLuaItemFactory {
 
    /** Registers a Java item type that Lua definitions can select with {@code kind = "typeName"}. */
    public static void registerType(String name, String description, TypeProvider provider) {
+      registerType("mlua", name, description, provider);
+   }
+
+   /** Registers an addon-owned Java item type so it can be removed when that addon unloads. */
+   public static void registerType(String owner, String name, String description, TypeProvider provider) {
       String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Item");
       if (java.util.Set.of("item", "generic", "bow", "sword", "pickaxe", "pick", "axe", "shovel", "spade", "hoe").contains(key)) {
          throw new IllegalArgumentException("[MLua] Item type '" + key + "' is reserved by MLua");
@@ -60,7 +65,21 @@ public final class MLuaItemFactory {
       if (provider == null) {
          throw new IllegalArgumentException("[MLua] Item type provider is required");
       }
-      REGISTERED_TYPES.register(name, description, provider, "Item");
+      REGISTERED_TYPES.register(owner, key, description, provider, "Item");
+   }
+
+   /** Removes an item type only when it is still owned by the supplied addon. */
+   public static boolean unregisterType(String owner, String name) {
+      String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Item");
+      if (java.util.Set.of("item", "generic", "bow", "sword", "pickaxe", "pick", "axe", "shovel", "spade", "hoe").contains(key)) {
+         return false;
+      }
+      return REGISTERED_TYPES.remove(owner, key, "Item");
+   }
+
+   /** Removes all item types registered by one addon. */
+   public static int unregisterTypes(String owner) {
+      return REGISTERED_TYPES.removeOwner(owner);
    }
 
    public static Map<String, String> registeredTypes() {

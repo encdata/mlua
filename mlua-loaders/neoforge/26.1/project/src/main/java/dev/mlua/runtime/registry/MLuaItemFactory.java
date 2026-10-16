@@ -39,10 +39,24 @@ public final class MLuaItemFactory {
     }
 
     public static void registerType(String name, String description, TypeProvider provider) {
+        registerType("mlua", name, description, provider);
+    }
+
+    public static void registerType(String owner, String name, String description, TypeProvider provider) {
         String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Item");
         if (Set.of("item", "generic", "bow").contains(key)) throw new IllegalArgumentException("[MLua] Item type '" + key + "' is reserved by MLua");
         if (provider == null) throw new IllegalArgumentException("[MLua] Item type provider is required");
-        REGISTERED_TYPES.register(key, description, provider, "Item");
+        REGISTERED_TYPES.register(owner, key, description, provider, "Item");
+    }
+
+    public static boolean unregisterType(String owner, String name) {
+        String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Item");
+        if (Set.of("item", "generic", "bow").contains(key)) return false;
+        return REGISTERED_TYPES.remove(owner, key, "Item");
+    }
+
+    public static int unregisterTypes(String owner) {
+        return REGISTERED_TYPES.removeOwner(owner);
     }
 
     public static Map<String, String> registeredTypes() {

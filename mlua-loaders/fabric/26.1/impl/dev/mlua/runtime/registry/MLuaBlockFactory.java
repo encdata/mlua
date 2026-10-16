@@ -33,10 +33,24 @@ public final class MLuaBlockFactory {
     }
 
     public static void registerType(String name, String description, TypeProvider provider) {
+        registerType("mlua", name, description, provider);
+    }
+
+    public static void registerType(String owner, String name, String description, TypeProvider provider) {
         String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
         if ("default".equals(key)) throw new IllegalArgumentException("[MLua] Block type 'default' is reserved by MLua");
         if (provider == null) throw new IllegalArgumentException("[MLua] Block type provider is required");
-        REGISTERED_TYPES.register(key, description, provider, "Block");
+        REGISTERED_TYPES.register(owner, key, description, provider, "Block");
+    }
+
+    public static boolean unregisterType(String owner, String name) {
+        String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
+        if ("default".equals(key)) return false;
+        return REGISTERED_TYPES.remove(owner, key, "Block");
+    }
+
+    public static int unregisterTypes(String owner) {
+        return REGISTERED_TYPES.removeOwner(owner);
     }
 
     public static Map<String, String> registeredTypes() {
