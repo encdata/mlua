@@ -145,12 +145,23 @@ public final class MLuaRegistryProperties {
    public static LuaTable table(MLuaRegistration registration, LuaValue value, String expectedClass, String method) {
       if (value.isnil()) return new LuaTable();
       if (!value.istable()) throw new LuaError("[MLua] " + method + " expects a property table or " + expectedClass + " instance.");
-      if (registration.isInstanceOf(value, "RegistryProperties")) {
+      // The private state marker is authoritative for our fluent builders. Keep
+      // the class check as a second guard so a BlockProperties value can never
+      // silently become an ItemProperties plain table if class lookup changes.
+      if (!value.checktable().rawget(STATE).isnil()) {
          State state = state(value);
-         if (!registration.isInstanceOf(value, expectedClass)) {
+         String actualClass = registration.classNameOf(value);
+         if (!expectedClass.equals(state.className)
+            || !registration.isInstanceOf(value, expectedClass)
+            || (actualClass != null && !expectedClass.equals(actualClass))) {
             throw new LuaError("[MLua] " + method + " received " + state.className + "; expected " + expectedClass + ".");
          }
          return dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog.copyTable(state.values);
+      }
+      String actualClass = registration.classNameOf(value);
+      if (actualClass != null) {
+         throw new LuaError("[MLua] " + method + " expects a plain property table or " + expectedClass
+            + " instance; received " + actualClass + ".");
       }
       return value.checktable();
    }
@@ -164,13 +175,17 @@ public final class MLuaRegistryProperties {
          case "entity" -> "EntityProperties";
          default -> null;
       };
-      if (registration.isInstanceOf(value, "RegistryProperties")) {
+      if (!value.istable()) throw new LuaError("[MLua] " + method + " expects a property table.");
+      if (!value.checktable().rawget(STATE).isnil() || registration.isInstanceOf(value, "RegistryProperties")) {
          if (expectedClass == null) {
             throw new LuaError("[MLua] " + method + " does not accept a " + registration.classNameOf(value) + " instance for domain '" + domain + "'.");
          }
          return table(registration, value, expectedClass, method);
       }
-      if (!value.istable()) throw new LuaError("[MLua] " + method + " expects a property table.");
+      String actualClass = registration.classNameOf(value);
+      if (actualClass != null) {
+         throw new LuaError("[MLua] " + method + " expects a plain property table or matching properties instance; received " + actualClass + ".");
+      }
       return value.checktable();
    }
 
