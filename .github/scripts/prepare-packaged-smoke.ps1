@@ -272,6 +272,11 @@ assert(type(taskLimits.Pending) == "number" and type(taskLimits.PendingOwned) ==
     and taskLimits.Maximum > 0 and taskLimits.MaximumPerOwner > 0,
     "RunService:GetTaskLimits returned invalid scheduler counts or limits")
 print("MLUA_CI_TASK_LIMITS_OK")
+task.defer(function()
+    task.defer(function()
+        print("MLUA_CI_NESTED_TASK_SCHEDULE_OK")
+    end)
+end)
 assert(type(Animation.new) == "function", "Animation.new constructor was not exposed")
 local definition = Animation.new({
     { Time = 0, Data = { head = CFrame.identity } },

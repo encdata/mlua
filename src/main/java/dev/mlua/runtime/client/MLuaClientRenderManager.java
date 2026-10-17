@@ -1207,7 +1207,6 @@ public final class MLuaClientRenderManager {
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
             copy.followOffset = followOffset;
-            copy.executionLock = executionLock;
             copy.worldX = worldX;
             copy.worldY = worldY;
             copy.worldZ = worldZ;

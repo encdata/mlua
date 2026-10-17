@@ -183,33 +183,32 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       return count;
    }
 
-    public synchronized void tick() {
-      Iterator<MLuaScheduledTask> iterator = this.tasks.iterator();
-      List<MLuaScheduledTask> ready = new ArrayList();
-
-      while(iterator.hasNext()) {
-         MLuaScheduledTask task = (MLuaScheduledTask)iterator.next();
-         --task.ticksRemaining;
-         if (task.ticksRemaining <= 0L) {
-            iterator.remove();
-            this.release(task);
-            ready.add(task);
+    public void tick() {
+      List<MLuaScheduledTask> ready = new ArrayList<>();
+      synchronized (this) {
+         Iterator<MLuaScheduledTask> iterator = this.tasks.iterator();
+         while (iterator.hasNext()) {
+            MLuaScheduledTask task = iterator.next();
+            --task.ticksRemaining;
+            if (task.ticksRemaining <= 0L) {
+               iterator.remove();
+               this.release(task);
+               ready.add(task);
+            }
          }
       }
 
-      Iterator var8 = ready.iterator();
-
-      while(var8.hasNext()) {
-         MLuaScheduledTask task = (MLuaScheduledTask)var8.next();
-
+      // LuaThread.resume waits for the coroutine thread. Do not hold the scheduler
+      // monitor here: resumed Lua code is allowed to schedule or cancel tasks.
+      for (MLuaScheduledTask task : ready) {
          try {
             this.runTask(task);
-         } catch (LuaError var6) {
-            MLuaLogger.LOGGER.error("Scheduled MLua task failed and was removed: {}", var6.getMessage());
-            this.reportRuntimeFailure("Scheduled MLua task crashed and was removed", var6);
-         } catch (RuntimeException var7) {
-            MLuaLogger.LOGGER.error("Scheduled MLua task failed unexpectedly and was removed", var7);
-            this.reportRuntimeFailure("Scheduled MLua task failed unexpectedly and was removed", var7);
+         } catch (LuaError failure) {
+            MLuaLogger.LOGGER.error("Scheduled MLua task failed and was removed: {}", failure.getMessage());
+            this.reportRuntimeFailure("Scheduled MLua task crashed and was removed", failure);
+         } catch (RuntimeException failure) {
+            MLuaLogger.LOGGER.error("Scheduled MLua task failed unexpectedly and was removed", failure);
+            this.reportRuntimeFailure("Scheduled MLua task failed unexpectedly and was removed", failure);
          }
       }
 
