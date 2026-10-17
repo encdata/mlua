@@ -1823,7 +1823,6 @@ public final class MLuaJavaService extends MLuaServiceBase {
         } catch (ReflectiveOperationException ignored) {
             return null;
         }
-        return null;
     }
 
     private static void putConvertedMapEntry(Map<Object, Object> target, Object key, Object value) {

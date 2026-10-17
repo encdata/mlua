@@ -193,6 +193,10 @@ public final class MLuaClientModelManager {
 
     public static void clearAll() {
         STATES.clear();
+        synchronized (OVERRIDE_POSES) {
+            OVERRIDE_POSES.forEach((model, poses) -> poses.forEach((part, pose) -> pose.restore(part)));
+            OVERRIDE_POSES.clear();
+        }
     }
     public static void clearOwned(Owner owner) {
         STATES.remove(owner == null ? LEGACY_OWNER : owner);
