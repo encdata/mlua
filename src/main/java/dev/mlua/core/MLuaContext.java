@@ -37,7 +37,7 @@ public final class MLuaContext implements MLuaContextView {
    private volatile Globals globals;
    private volatile Object executionLock;
    private final Map<String, LuaTable> materializedServices = new LinkedHashMap<>();
-   private final Map<String, LuaValue> contextGlobals = new LinkedHashMap<>();
+   private volatile Map<String, LuaValue> contextGlobals = Map.of();
    private volatile boolean contextGlobalsConfigured;
    private volatile LuaTable documentationTable;
    private final Map<String, LuaTable> serviceProxies = new LinkedHashMap<>();
@@ -166,14 +166,11 @@ public final class MLuaContext implements MLuaContextView {
    public synchronized boolean contextGlobalsConfigured() { return this.contextGlobalsConfigured; }
 
    public synchronized void configureContextGlobals(Map<String, LuaValue> bindings) {
-      this.contextGlobals.clear();
-      this.contextGlobals.putAll(bindings);
+      this.contextGlobals = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
       this.contextGlobalsConfigured = true;
    }
 
-   public synchronized Map<String, LuaValue> contextGlobals() {
-      return Collections.unmodifiableMap(new LinkedHashMap<>(this.contextGlobals));
-   }
+   public Map<String, LuaValue> contextGlobals() { return this.contextGlobals; }
 
    @Override
    public Object executionLock() { return this.executionLock; }

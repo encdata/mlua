@@ -45,6 +45,16 @@ Mixin:Target("dev.mlua.ci.SmokeTarget"):Inject("probe", {
 })
 '@ | Set-Content "$template/run/mlua/scripts/ci_smoke.mixin.lua"
 @'
+local registry = Minecraft:GetService("Registry")
+local expectedRegistry = registry
+registry:RegisterCategory("mlua:ci_records", "CI dynamic registry definitions.", function(id, definition)
+    assert(Minecraft:GetService("Registry") == expectedRegistry,
+        "dynamic registry callback did not restore its registering script context")
+    assert(id == "mlua:record", "dynamic registry callback received the wrong id")
+    assert(definition.Value == 7, "dynamic registry callback received the wrong definition")
+end)
+'@ | Set-Content "$template/run/mlua/scripts/ci_dynamic_category.registry.lua"
+@'
 local Registry = Minecraft:GetService("Registry")
 
 local earlyEntity = Registry.Entities:Properties()
@@ -195,12 +205,10 @@ local inheritedEntity = Registry.Entities:ResolveType({ RegistryType = "ci_prope
 assert(inheritedEntity.width == 0.6 and inheritedEntity.attributes.maxHealth == 18,
     "content type did not copy EntityProperties defaults")
 Registry.Entities:Register("ci_property_typed_entity", { RegistryType = "ci_property_entity_kind" })
-Registry:RegisterCategory("mlua:ci_records", "CI dynamic registry definitions.", function(id, definition)
-    assert(id == "mlua:record", "dynamic registry callback received the wrong id")
-    assert(definition.Value == 7, "dynamic registry callback received the wrong definition")
-end)
 local dynamic = Registry:GetCategory("mlua:ci_records")
 dynamic:Register("record", { Value = 7 })
+assert(Minecraft:GetService("Registry") == Registry,
+    "dynamic registry callback did not restore the calling script context")
 local handle = dynamic:GetEntry("record")
 assert(handle ~= nil and handle:IsA("RegistryDefinition"), "dynamic GetEntry did not return a RegistryDefinition")
 assert(dynamic:Get("record"):Equals(handle), "dynamic Get did not return the typed RegistryDefinition handle")

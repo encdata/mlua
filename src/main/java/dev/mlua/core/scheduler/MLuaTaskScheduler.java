@@ -242,7 +242,7 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
          MLuaLuaBindings.withContext(task.context, () -> { runTaskLocked(task); return null; });
       } else {
          synchronized (task.globals) {
-            MLuaLuaBindings.bindContext(task.globals, null);
+            MLuaLuaBindings.configureContextGlobals(task.globals, null);
             runTaskLocked(task);
          }
       }
