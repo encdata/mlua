@@ -62,6 +62,9 @@ try {
         if ($text -match '(?i)(Mod loading has failed|Missing or unsupported mandatory dependencies|is not a valid mod file)') {
             throw 'NeoForge rejected the packaged mod during discovery or loading; see the captured launcher log.'
         }
+        if ($text -match 'MLUA_CI_(CLIENT|SERVER)_SERVICE_MISSING') {
+            throw 'The packaged smoke script did not reach its Java service call; see the captured launcher log.'
+        }
 
         if ($process.HasExited) { break }
 

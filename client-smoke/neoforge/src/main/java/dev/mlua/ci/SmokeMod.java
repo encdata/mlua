@@ -9,6 +9,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 @Mod("mlua_ci_smoke")
 public final class SmokeMod {
+    private int serverTicks;
+
     public SmokeMod(IEventBus modEventBus) {
         if (!ModList.get().isLoaded("mlua")) {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by NeoForge");
@@ -46,7 +48,11 @@ public final class SmokeMod {
 
     private void onServerTick(ServerTickEvent.Post event) {
         if (!"called".equals(System.getProperty("mlua.ci.service.SERVER"))) {
-            throw new IllegalStateException("MLua server script did not call the Java contributed service");
+            if (++serverTicks == 200) {
+                System.out.println("MLUA_CI_SERVER_SERVICE_MISSING");
+                event.getServer().halt(false);
+            }
+            return;
         }
         runMixinProbe();
         System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");

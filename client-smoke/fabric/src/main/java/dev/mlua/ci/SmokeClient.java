@@ -14,8 +14,9 @@ public final class SmokeClient implements ClientModInitializer {
         }
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (!"called".equals(System.getProperty("mlua.ci.service.CLIENT"))) {
-                if (++ticks >= 200) {
-                    throw new IllegalStateException("MLua client script did not call the Java contributed service");
+                if (++ticks == 200) {
+                    System.out.println("MLUA_CI_CLIENT_SERVICE_MISSING");
+                    client.stop();
                 }
                 return;
             }

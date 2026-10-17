@@ -486,8 +486,8 @@ public final class MLuaRenderCallbacks {
         } catch (Throwable failure) {
             hook.failed = true;
             removeFailedHook(hook);
-            MLuaLogger.LOGGER.error("[MLua] Disabled Lua {} render callback after an error",
-                hook.target, failure);
+            MLuaLogger.LOGGER.error("[MLua] Disabled render callback '{}' for addon '{}' at {} after an error",
+                hook.id, hook.key.owner().modId(), hook.target, failure);
         } finally {
             if (frameScope != null) frameScope.close();
         }

@@ -96,7 +96,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("ClassViewer", "Returns a Lua-oriented textual view of a Java class; alias for ViewClass.");
         descriptions.put("GetEnumConstants", "Returns the constants of a Java enum class.");
         descriptions.put("ToTable", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, colliding keys, cycles, or nesting deeper than 64 levels.");
-        descriptions.put("FromTable", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps. Cycles and nesting deeper than 64 levels raise a Lua error.");
+        descriptions.put("FromTable", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps. Map-key collisions after conversion, incompatible values, cycles, and nesting deeper than 64 levels raise a Lua error instead of discarding entries.");
         return java.util.Collections.unmodifiableMap(descriptions);
     }
 
@@ -700,8 +700,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     Varargs entry = source.next(key);
                     key = entry.arg1();
                     if (key.isnil()) break;
-                    values.put(convertLuaValue(key, typeArgument(targetType, 0), activeTables, depth + 1),
-                        convertLuaValue(entry.arg(2), typeArgument(targetType, 1), activeTables, depth + 1));
+                    Object convertedKey = convertLuaValue(key, typeArgument(targetType, 0), activeTables, depth + 1);
+                    Object convertedValue = convertLuaValue(entry.arg(2), typeArgument(targetType, 1), activeTables, depth + 1);
+                    putConvertedMapEntry(values, convertedKey, convertedValue);
                 }
                 Map<Object, Object> converted = newMap(rawType, values);
                 if (converted != null) return converted;
@@ -1777,7 +1778,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             Map<Object, Object> converted = new LinkedHashMap<>();
             Type keyType = typeArgument(targetType, 0);
             Type valueType = typeArgument(targetType, 1);
-            source.forEach((key, value) -> converted.put(
+            source.forEach((key, value) -> putConvertedMapEntry(converted,
                 convertTypedValue(key, keyType, activeContainers, depth + 1),
                 convertTypedValue(value, valueType, activeContainers, depth + 1)));
             Map<Object, Object> result = newMap(rawType, converted);
@@ -1790,32 +1791,47 @@ public final class MLuaJavaService extends MLuaServiceBase {
     private Map<Object, Object> newMap(Class<?> targetType, Map<Object, Object> values) {
         try {
             if (targetType.isInstance(values)) return values;
+            Map<Object, Object> result = null;
             if (ConcurrentNavigableMap.class.isAssignableFrom(targetType)
                 && targetType.isAssignableFrom(ConcurrentSkipListMap.class)) {
-                return new ConcurrentSkipListMap<>(values);
-            }
-            if ((NavigableMap.class.isAssignableFrom(targetType) || SortedMap.class.isAssignableFrom(targetType))
+                result = new ConcurrentSkipListMap<>(values);
+            } else if ((NavigableMap.class.isAssignableFrom(targetType) || SortedMap.class.isAssignableFrom(targetType))
                 && targetType.isAssignableFrom(java.util.TreeMap.class)) {
-                return new java.util.TreeMap<>(values);
-            }
-            if (ConcurrentMap.class.isAssignableFrom(targetType)
+                result = new java.util.TreeMap<>(values);
+            } else if (ConcurrentMap.class.isAssignableFrom(targetType)
                 && targetType.isAssignableFrom(ConcurrentHashMap.class)) {
-                return new ConcurrentHashMap<>(values);
-            }
-            if (targetType.isAssignableFrom(LinkedHashMap.class)) return new LinkedHashMap<>(values);
-            if (!targetType.isInterface() && !Modifier.isAbstract(targetType.getModifiers())) {
+                result = new ConcurrentHashMap<>(values);
+            } else if (targetType.isAssignableFrom(LinkedHashMap.class)) {
+                result = new LinkedHashMap<>(values);
+            } else if (!targetType.isInterface() && !Modifier.isAbstract(targetType.getModifiers())) {
                 @SuppressWarnings("unchecked")
                 Map<Object, Object> map = (Map<Object, Object>) targetType.getConstructor().newInstance();
                 map.putAll(values);
-                return map;
+                result = map;
             }
+            if (result != null && result.size() != values.size()) {
+                throw new LuaError("[MLua] Java map type " + targetType.getName()
+                    + " collapsed distinct converted keys; refusing to discard Lua table entries");
+            }
+            return result;
         } catch (ClassCastException incompatibleKeys) {
             throw new LuaError("[MLua] Java map type " + targetType.getName()
                 + " cannot order or accept the Lua table keys.");
+        } catch (NullPointerException nullEntry) {
+            throw new LuaError("[MLua] Java map type " + targetType.getName()
+                + " does not accept null keys or values.");
         } catch (ReflectiveOperationException ignored) {
             return null;
         }
         return null;
+    }
+
+    private static void putConvertedMapEntry(Map<Object, Object> target, Object key, Object value) {
+        if (target.containsKey(key)) {
+            throw new LuaError("[MLua] Java map conversion produced the same key more than once ('"
+                + String.valueOf(key) + "'); refusing to overwrite an entry");
+        }
+        target.put(key, value);
     }
 
     private Object convertValue(Object rawValue, Class<?> targetType) {

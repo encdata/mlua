@@ -231,7 +231,18 @@ jobs:
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
             -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_SERVICE_PARITY_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK', 'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK') `
             -LogFile 'client-smoke.log' `
-            -TimeoutSeconds 480
+            -TimeoutSeconds 180
+
+      - name: Upload client logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-logs-${{ matrix.loader }}-${{ matrix.target }}
+          path: |
+            ${{ github.workspace }}/client-smoke/**/*.log*
+            ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt
+          if-no-files-found: ignore
+          retention-days: 5
 
       - name: Boot dedicated server with the packaged MLua JAR
         if: ${{ always() && !cancelled() }}
@@ -254,11 +265,11 @@ jobs:
             -LogFile 'server-smoke.log' `
             -TimeoutSeconds 600
 
-      - name: Upload client logs on failure
+      - name: Upload server logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: client-logs-${{ matrix.loader }}-${{ matrix.target }}
+          name: server-logs-${{ matrix.loader }}-${{ matrix.target }}
           path: |
             ${{ github.workspace }}/client-smoke/**/*.log*
             ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt

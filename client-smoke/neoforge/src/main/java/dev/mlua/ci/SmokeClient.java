@@ -19,8 +19,9 @@ public final class SmokeClient {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by NeoForge");
         }
         if (!"called".equals(System.getProperty("mlua.ci.service.CLIENT"))) {
-            if (++ticks >= 200) {
-                throw new IllegalStateException("MLua client script did not call the Java contributed service");
+            if (++ticks == 200) {
+                System.out.println("MLUA_CI_CLIENT_SERVICE_MISSING");
+                Minecraft.getInstance().stop();
             }
             return;
         }

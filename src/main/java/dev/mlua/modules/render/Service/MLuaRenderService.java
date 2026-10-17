@@ -622,6 +622,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         MLuaClientRenderManager.RenderObject renderObject = requireObject(id);
         MLuaClientRenderManager.RenderType primitive = java.util.Objects.requireNonNull(
             renderObject.type(), "Render object " + id + " has no render primitive");
+        String className = renderObject.luaClassName();
         LuaValue renderTypeValue = LuaValue.valueOf(primitive.name().toLowerCase(java.util.Locale.ROOT));
         LuaTable operations = new LuaTable();
         operations.set("GetId", fn(args -> LuaValue.valueOf(id)));
@@ -642,8 +643,6 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             java.util.Objects.hash(renderOwner.ownerModId(), id))));
         operations.set("ToString", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                LuaTable self = args.arg1().checktable();
-                String className = context.mlua().registration().classNameOf(self);
                 return LuaValue.valueOf((className == null ? "RenderObject" : className) + "["
                     + primitive.name().toLowerCase(java.util.Locale.ROOT) + ", " + renderOwner.ownerModId() + ":" + id + "]");
             }

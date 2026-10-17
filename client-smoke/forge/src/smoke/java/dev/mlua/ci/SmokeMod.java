@@ -8,6 +8,8 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 
 @Mod("mlua_ci_smoke")
 public final class SmokeMod {
+    private int serverTicks;
+
     public SmokeMod() {
         if (!ModList.get().isLoaded("mlua")) {
             throw new IllegalStateException("Packaged MLua JAR was not discovered by Forge");
@@ -18,7 +20,11 @@ public final class SmokeMod {
     private void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!"called".equals(System.getProperty("mlua.ci.service.SERVER"))) {
-            throw new IllegalStateException("MLua server script did not call the Java contributed service");
+            if (++serverTicks == 200) {
+                System.out.println("MLUA_CI_SERVER_SERVICE_MISSING");
+                ServerLifecycleHooks.getCurrentServer().halt(false);
+            }
+            return;
         }
         runMixinProbe();
         System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");

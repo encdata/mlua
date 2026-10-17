@@ -31,6 +31,11 @@ public final class ModelModule implements MLuaModule {
     public Side side() { return Side.CLIENT; }
 
     @Override
+    public void registerEvents(dev.mlua.loaderapi.EventBridge events) {
+        events.onClientDisconnect(dev.mlua.runtime.client.MLuaClientModelManager::clearAll);
+    }
+
+    @Override
     public List<ServiceEntry> services() {
         ServiceEntry.Builder model = ServiceEntry.builder("ModelService", MLuaModelService::new)
             .reflective(MLuaModelService.class);

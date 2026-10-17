@@ -5,6 +5,8 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
 public final class SmokeServer implements ModInitializer {
+    private static int ticks;
+
     @Override
     public void onInitialize() {
         if (!FabricLoader.getInstance().isModLoaded("mlua")) {
@@ -12,7 +14,11 @@ public final class SmokeServer implements ModInitializer {
         }
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (!"called".equals(System.getProperty("mlua.ci.service.SERVER"))) {
-                throw new IllegalStateException("MLua server script did not call the Java contributed service");
+                if (++ticks == 200) {
+                    System.out.println("MLUA_CI_SERVER_SERVICE_MISSING");
+                    server.halt(false);
+                }
+                return;
             }
             runMixinProbe();
             System.out.println("MLUA_PACKAGED_SERVER_BOOT_OK");

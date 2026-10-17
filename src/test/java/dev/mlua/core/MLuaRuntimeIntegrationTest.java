@@ -38,6 +38,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -815,6 +816,26 @@ final class MLuaRuntimeIntegrationTest {
         LuaError error = assertThrows(LuaError.class, () -> engine.execute(test, contextWithJava(test)));
         assertTrue(error.getMessage().contains("No matching instance method"));
         assertTrue(error.getMessage().contains("Candidates"));
+    }
+
+    @Test
+    void javaBridgeRejectsMapKeysThatCollapseDuringTypedConversion() {
+        MLuaScript test = script("mlua", ScriptType.SERVER, "java_map_key_collision.server.lua", "java_map_key_collision", """
+                local Java = Minecraft:GetService("Java")
+                local EnumType = Java:LoadClass("dev.mlua.core.MLuaRuntimeIntegrationTest$JavaBridgeEnum")
+                local enumValue = Java:GetEnumConstants(EnumType)[1]
+                local entries = { ["FIRST"] = "lua key", [enumValue] = "Java enum key" }
+                local ok, message = pcall(function()
+                    return Java:FromTable(entries, "java.util.Map", EnumType, "java.lang.String")
+                end)
+                return { ok, message }
+                """);
+
+        LuaJEngineBackend engine = new LuaJEngineBackend(List.of(test));
+        LuaValue result = (LuaValue) engine.execute(test, contextWithJava(test)).raw();
+
+        assertFalse(result.get(1).toboolean());
+        assertTrue(result.get(2).tojstring().contains("same key more than once"));
     }
 
     @Test
