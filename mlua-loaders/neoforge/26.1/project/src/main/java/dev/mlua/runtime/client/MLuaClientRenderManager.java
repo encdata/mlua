@@ -487,7 +487,7 @@ public final class MLuaClientRenderManager {
         resetEntityModel(MLuaEntityScope.of(entity));
     }
 
-    private static void resetEntityModel(MLuaEntityScope scope) {
+    public static void resetEntityModel(MLuaEntityScope scope) {
         java.util.Set<Integer> renderIds = ENTITY_MODELS.remove(scope);
         if (renderIds != null) renderIds.forEach(MLuaClientRenderManager::remove);
     }
