@@ -770,12 +770,14 @@ public final class MLuaLuaBindings {
       if (globals == null) return;
       if (context == null) {
          bindContext(globals, null);
+         clearContextGlobals(globals);
          return;
       }
       synchronized (context) {
          if (context.contextGlobalsConfigured()) {
+            boolean alreadyBound = boundContext(globals) == context;
             bindContext(globals, context);
-            applyContextGlobals(globals, context);
+            if (!alreadyBound) applyContextGlobals(globals, context);
             return;
          }
          clearContextGlobals(globals);
@@ -840,7 +842,7 @@ public final class MLuaLuaBindings {
          // coroutine is safe, but reacquiring the monitor would deadlock.
          MLuaContext previousBound = boundContext(globals);
          MLuaContext previous = currentContext();
-         MLuaContext restore = previous == null ? previousBound : previous;
+         MLuaContext restore = previous != null && previous.globals() == globals ? previous : previousBound;
          configureContextGlobals(globals, context);
          try {
             return callback.get();
@@ -850,7 +852,7 @@ public final class MLuaLuaBindings {
       }
       MLuaContext previous = currentContext();
       MLuaContext previousBound = boundContext(globals);
-      MLuaContext restore = previous == null ? previousBound : previous;
+      MLuaContext restore = previous != null && previous.globals() == globals ? previous : previousBound;
       synchronized (context.executionLock()) {
          configureContextGlobals(globals, context);
          try {

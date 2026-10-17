@@ -169,13 +169,19 @@ public final class MLuaModelAdapterRegistry {
     public static synchronized void clearOwned(Owner owner) {
         if (owner == null) return;
         boolean removed = removeOwned((registeredOwner) -> registeredOwner.equals(owner));
-        if (removed) clearMappingCaches();
+        if (removed) {
+            clearMappingCaches();
+            clearAppliedEntities();
+        }
     }
 
     public static synchronized void clearRuntime(Object runtimeSession) {
         if (runtimeSession == null) return;
         boolean removed = removeOwned((owner) -> owner.runtimeSession() == runtimeSession);
-        if (removed) clearMappingCaches();
+        if (removed) {
+            clearMappingCaches();
+            clearAppliedEntities();
+        }
     }
 
     private static synchronized boolean removeOwned(java.util.function.Predicate<Owner> predicate) {
