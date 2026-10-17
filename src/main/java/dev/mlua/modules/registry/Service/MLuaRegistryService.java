@@ -561,7 +561,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Items:Register");
             LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
                args.arg(3), "ItemProperties", "Registry.Items:Register");
-            Map<String, Object> props = MLuaLuaBindings.mapFromLua(propsTable);
+            Map<String, Object> props = registryPropertiesMap(propsTable,
+               "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             MLuaRegistryService.this.itemFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
@@ -613,7 +614,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:Register");
             LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
                args.arg(3), "BlockProperties", "Registry.Blocks:Register");
-            Map<String, Object> props = new HashMap(MLuaLuaBindings.mapFromLua(propsTable));
+            Map<String, Object> props = new HashMap(registryPropertiesMap(propsTable,
+               "onRightClick", "onPlace", "onBreak", "onStepOn", "onEntityInside",
+               "onNeighborChanged", "onRemove", "onRandomTick", "onTick", "onFallOn", "onProjectileHit"));
             MLuaBlockFactory.validateTypeDefinition(props);
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = MLuaRegistryService.this.context.mlua().registration();
@@ -704,7 +707,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             MLuaRegistryService.requireLocalRegistryName(owner, name, "Registry.Blocks:RegisterItem");
             LuaTable propsTable = MLuaRegistryProperties.table(MLuaRegistryService.this.context.mlua().registration(),
                args.arg(3), "ItemProperties", "Registry.Blocks:RegisterItem");
-            Map<String, Object> props = propsTable != null ? MLuaLuaBindings.mapFromLua(propsTable) : Map.of();
+            Map<String, Object> props = registryPropertiesMap(propsTable,
+               "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             try {
                MLuaRegistryService.this.itemFactory.validateItemProperties(props);
             } catch (IllegalArgumentException invalid) {
@@ -2205,6 +2209,38 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          }
       }
       return Map.copyOf(callbacks);
+   }
+
+   private static Map<String, Object> registryPropertiesMap(LuaTable properties, String... callbackNames) {
+      if (properties == null) return Map.of();
+      Set<String> callbacks = Set.of(callbackNames);
+      LuaTable values = new LuaTable();
+      LuaValue key = LuaValue.NIL;
+      while (true) {
+         Varargs next = properties.next(key);
+         key = next.arg1();
+         if (key.isnil()) break;
+         if (key.type() == LuaValue.TSTRING && callbacks.contains(key.tojstring())) continue;
+         LuaValue value = next.arg(2);
+         if (key.type() == LuaValue.TSTRING
+            && (key.tojstring().equals("blockEntity") || key.tojstring().equals("BlockEntity"))
+            && value.istable()) {
+            LuaTable blockEntity = new LuaTable();
+            LuaTable source = value.checktable();
+            LuaValue nestedKey = LuaValue.NIL;
+            while (true) {
+               Varargs nested = source.next(nestedKey);
+               nestedKey = nested.arg1();
+               if (nestedKey.isnil()) break;
+               if (nestedKey.type() == LuaValue.TSTRING
+                  && Set.of("onLoad", "onUnload").contains(nestedKey.tojstring())) continue;
+               blockEntity.set(nestedKey, nested.arg(2));
+            }
+            value = blockEntity;
+         }
+         values.set(key, value);
+      }
+      return MLuaLuaBindings.mapFromLua(values);
    }
 
    private void replaceBehaviors(String domain, String key, Map<String, LuaValue> requested) {
