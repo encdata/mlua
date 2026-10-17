@@ -169,8 +169,8 @@ public final class MLuaSignal {
    public void destroyOwned(String ownerKey, Side side) {
       if (ownerKey == null || side == null) return;
       synchronized (this) {
-         this.listeners.removeIf(entry -> ownerKey.equals(entry.ownerKey()) && (side == Side.BOTH || side == entry.side()));
-         this.waiters.removeIf(entry -> ownerKey.equals(entry.ownerKey()) && (side == Side.BOTH || side == entry.side()));
+         this.listeners.removeIf(entry -> ownerKey.equals(entry.ownerKey()) && matchesCleanupSide(entry.side(), side));
+         this.waiters.removeIf(entry -> ownerKey.equals(entry.ownerKey()) && matchesCleanupSide(entry.side(), side));
       }
    }
 
@@ -190,8 +190,8 @@ public final class MLuaSignal {
          return;
       }
       synchronized (this) {
-         this.listeners.removeIf(entry -> side == entry.side());
-         this.waiters.removeIf(entry -> side == entry.side());
+         this.listeners.removeIf(entry -> matchesCleanupSide(entry.side(), side));
+         this.waiters.removeIf(entry -> matchesCleanupSide(entry.side(), side));
       }
    }
 
@@ -212,6 +212,11 @@ public final class MLuaSignal {
       if (requestedSide == Side.BOTH) return true;
       Side actualSide = registeredSide != null ? registeredSide : context == null ? null : context.side();
       return actualSide == null || actualSide == Side.BOTH || actualSide == requestedSide;
+   }
+
+   private static boolean matchesCleanupSide(Side registeredSide, Side requestedSide) {
+      return requestedSide == Side.BOTH || registeredSide == null || registeredSide == Side.BOTH
+         || registeredSide == requestedSide;
    }
 
    public synchronized boolean isEmpty() {
@@ -316,6 +321,9 @@ public final class MLuaSignal {
             Runnable resume = () -> {
                if (entry.thread() != null) {
                   Varargs result = entry.thread().resume(args);
+                  if (!result.arg1().toboolean()) {
+                     throw new LuaError(result.arg(2).tojstring());
+                  }
                   if (entry.scheduler() != null) {
                      entry.scheduler().scheduleResumableThread(entry.globals(), entry.thread(), result, entry.ownerKey(), entry.side());
                   }

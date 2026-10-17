@@ -112,16 +112,20 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    public synchronized int removeOwned(Side side, String ownerModId) {
       if (side == null || ownerModId == null) return 0;
       int before = this.tasks.size();
-      this.tasks.removeIf(task -> side == task.side && ownerModId.equals(task.ownerModId));
+      this.tasks.removeIf(task -> sideMatches(task.side, side) && ownerModId.equals(task.ownerModId));
       return before - this.tasks.size();
    }
 
     public synchronized int removeSide(Side side) {
       if (side == null || side == Side.BOTH) return 0;
       int before = this.tasks.size();
-      this.tasks.removeIf(task -> side == task.side);
+      this.tasks.removeIf(task -> sideMatches(task.side, side));
       return before - this.tasks.size();
     }
+
+   private static boolean sideMatches(Side taskSide, Side requestedSide) {
+      return requestedSide == Side.BOTH || taskSide == Side.BOTH || taskSide == requestedSide;
+   }
 
    public synchronized int removeScripts(Set<Path> scriptPaths) {
       if (scriptPaths == null || scriptPaths.isEmpty()) return 0;

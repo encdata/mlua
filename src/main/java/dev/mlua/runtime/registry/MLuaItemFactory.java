@@ -759,7 +759,7 @@ public final class MLuaItemFactory {
          context.set("Attacker", attackerTable);
          if (attacker instanceof ServerPlayer) context.set("Player", attackerTable);
          context.set("ItemStack", behaviorKey);
-         Varargs result = MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, callback, LuaValue.varargsOf(new LuaValue[]{context}));
+         Varargs result = MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, "onAttackEntity", callback, LuaValue.varargsOf(new LuaValue[]{context}));
          return result.arg1();
       } catch (Exception exception) {
          MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", behaviorKey, exception.getMessage());
@@ -1158,7 +1158,7 @@ public final class MLuaItemFactory {
 
             ctx.set("World", level.dimension().location().toString());
             ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
-            MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, onConsume, LuaValue.varargsOf(new LuaValue[]{ctx}));
+            MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, "onConsume", onConsume, LuaValue.varargsOf(new LuaValue[]{ctx}));
          } catch (Exception var6) {
             MLuaLogger.LOGGER.error("MLua item onConsume callback failed for '{}': {}", behaviorKey, var6.getMessage());
          }
@@ -1182,7 +1182,7 @@ public final class MLuaItemFactory {
             ctx.set("Hand", hand.name().toLowerCase());
             ctx.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), MLuaRuntime.registrationForLevel(level)));
             ctx.set("ItemStack", behaviorKey);
-            Varargs result = MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, onUse, LuaValue.varargsOf(new LuaValue[]{ctx}));
+            Varargs result = MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, "onUse", onUse, LuaValue.varargsOf(new LuaValue[]{ctx}));
          if (result.arg1().isboolean() && result.arg1().toboolean()) {
             return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
          }
@@ -1214,7 +1214,7 @@ public final class MLuaItemFactory {
          ctx.set("Hand", context.getHand().name().toLowerCase());
          ctx.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), MLuaRuntime.registrationForLevel(context.getLevel())));
          ctx.set("ItemStack", behaviorKey);
-         Varargs result = MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, onUseOnBlock, LuaValue.varargsOf(new LuaValue[]{ctx}));
+         Varargs result = MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, "onUseOnBlock", onUseOnBlock, LuaValue.varargsOf(new LuaValue[]{ctx}));
          if (result.arg1().isboolean() && result.arg1().toboolean()) {
             return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
          }
@@ -1242,7 +1242,7 @@ public final class MLuaItemFactory {
             ctx.set("Selected", LuaValue.valueOf(selected));
             ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
             ctx.set("ItemStack", behaviorKey);
-            MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, onInventoryTick, LuaValue.varargsOf(new LuaValue[]{ctx}));
+             MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, "onInventoryTick", onInventoryTick, LuaValue.varargsOf(new LuaValue[]{ctx}));
          } catch (Exception var8) {
             MLuaLogger.LOGGER.error("MLua item onInventoryTick callback failed for '{}': {}", behaviorKey, var8.getMessage());
          }
@@ -1263,7 +1263,7 @@ public final class MLuaItemFactory {
              ctx.set("Hand", player.getUsedItemHand() == null ? "main_hand" : player.getUsedItemHand().name().toLowerCase());
              ctx.set("ItemStack", behaviorKey);
             ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
-            MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, onCrafted, LuaValue.varargsOf(new LuaValue[]{ctx}));
+            MLuaBehaviorRegistry.invokeCallback("item", behaviorKey, "onCrafted", onCrafted, LuaValue.varargsOf(new LuaValue[]{ctx}));
          } catch (Exception var6) {
             MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}", behaviorKey, var6.getMessage());
          }
