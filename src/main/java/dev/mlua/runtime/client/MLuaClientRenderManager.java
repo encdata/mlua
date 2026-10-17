@@ -73,8 +73,10 @@ public final class MLuaClientRenderManager {
             synchronized (object.executionLock()) {
                 if (object.destroyed) continue;
                 if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
-                object.sampleFollowOffset();
             }
+            // A follow-offset function enters Lua and can itself destroy this object.
+            // Never call into Lua while holding the render object's lifecycle lock.
+            object.sampleFollowOffset();
         }
     }
 
@@ -542,7 +544,12 @@ public final class MLuaClientRenderManager {
         if (renderIds == null) return;
         for (Integer renderId : renderIds) {
             RenderObject object = OBJECTS.get(renderId);
-            if (object != null && object.bbmodel != null) object.animationPlayer.play(name, object.bbmodel, loop, speed);
+            if (object == null) continue;
+            synchronized (object.executionLock()) {
+                if (!object.destroyed && object.bbmodel != null) {
+                    object.animationPlayer.play(name, object.bbmodel, loop, speed);
+                }
+            }
         }
     }
 
@@ -559,7 +566,10 @@ public final class MLuaClientRenderManager {
         if (renderIds == null) return;
         for (Integer renderId : renderIds) {
             RenderObject object = OBJECTS.get(renderId);
-            if (object != null && object.bbmodel != null) object.animationPlayer.stop();
+            if (object == null) continue;
+            synchronized (object.executionLock()) {
+                if (!object.destroyed && object.bbmodel != null) object.animationPlayer.stop();
+            }
         }
     }
 
@@ -932,45 +942,44 @@ public final class MLuaClientRenderManager {
     public static final class RenderObject {
         private final int id;
         private final RenderType type;
-        private String luaClassName = "RenderObject";
-        private String resource;
-        private double x = 0.0;
-        private double y = 0.0;
-        private double width = 16.0;
-        private double height = 16.0;
-        private int color = 0xFFFFFF;
-        private double transparency = 0.0;
-        private double rotation = 0.0;
-        private boolean visible = true;
+        private volatile String luaClassName = "RenderObject";
+        private volatile String resource;
+        private volatile double x = 0.0;
+        private volatile double y = 0.0;
+        private volatile double width = 16.0;
+        private volatile double height = 16.0;
+        private volatile int color = 0xFFFFFF;
+        private volatile double transparency = 0.0;
+        private volatile double rotation = 0.0;
+        private volatile boolean visible = true;
         private volatile boolean destroyed;
         private final AtomicBoolean renderFailureReported = new AtomicBoolean();
-        private int zIndex = 0;
-        private boolean worldSpace = false;
-        private boolean manualTarget;
-        private boolean entityModelTarget;
-        private String followBoneName;
+        private volatile int zIndex = 0;
+        private volatile boolean worldSpace = false;
+        private volatile boolean manualTarget;
+        private volatile boolean entityModelTarget;
+        private volatile String followBoneName;
         private volatile MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
         private volatile FollowOffsetBinding followOffsetBinding = FollowOffsetBinding.NONE;
-        private double worldX = 0.0;
-        private double worldY = 0.0;
-        private double worldZ = 0.0;
-        private double endX = 0.0;
-        private double endY = 0.0;
-        private double endWorldX = 0.0;
-        private double endWorldY = 0.0;
-        private double endWorldZ = 0.0;
-        private double depth = 16.0;
-        private double thickness = 1.0;
-        private boolean scaleWithDistance = true;
-        private MLuaEntityScope followEntityScope;
-        private MLuaMeshDefinition mesh;
-        private MLuaBBModelAsset bbmodel;
-        private List<ResourceLocation> resolvedTextures = List.of();
-        private List<ResourceLocation> modelTextures = List.of();
-        private float modelScale = 1.0F;
-        private String renderStage = "AFTER_ENTITIES";
+        private volatile double worldX = 0.0;
+        private volatile double worldY = 0.0;
+        private volatile double worldZ = 0.0;
+        private volatile double endX = 0.0;
+        private volatile double endY = 0.0;
+        private volatile double endWorldX = 0.0;
+        private volatile double endWorldY = 0.0;
+        private volatile double endWorldZ = 0.0;
+        private volatile double depth = 16.0;
+        private volatile double thickness = 1.0;
+        private volatile boolean scaleWithDistance = true;
+        private volatile MLuaEntityScope followEntityScope;
+        private volatile MLuaMeshDefinition mesh;
+        private volatile MLuaBBModelAsset bbmodel;
+        private volatile List<ResourceLocation> resolvedTextures = List.of();
+        private volatile List<ResourceLocation> modelTextures = List.of();
+        private volatile float modelScale = 1.0F;
+        private volatile String renderStage = "AFTER_ENTITIES";
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
-        private volatile Object executionLock = this;
 
         private RenderObject(int id, RenderType type, String resource) {
             this.id = id;
@@ -980,16 +989,13 @@ public final class MLuaClientRenderManager {
 
         public int id() { return id; }
         public String luaClassName() { return luaClassName; }
-        public void setLuaClassName(String luaClassName) {
+        public synchronized void setLuaClassName(String luaClassName) {
             if (luaClassName == null || luaClassName.isBlank()) {
                 throw new IllegalArgumentException("Render object Lua class name cannot be empty");
             }
             this.luaClassName = luaClassName;
         }
-        public Object executionLock() { return executionLock; }
-        public void setExecutionLock(Object executionLock) {
-            this.executionLock = executionLock == null ? this : executionLock;
-        }
+        public Object executionLock() { return this; }
         public RenderType type() { return type; }
         public String resource() { return resource; }
         public double x() { return x; }
@@ -1031,14 +1037,14 @@ public final class MLuaClientRenderManager {
         public float modelScale() { return modelScale; }
         public String renderStage() { return renderStage; }
 
-        public void setResource(String resource) { this.resource = resource; }
-        public void setPosition(double x, double y) { this.x = x; this.y = y; }
-        public void setSize(double width, double height) { this.width = width; this.height = height; }
-        public void setColor(int color) { this.color = color; }
-        public void setTransparency(double transparency) { this.transparency = Math.max(0.0, Math.min(1.0, transparency)); }
-        public void setRotation(double rotation) { this.rotation = rotation; }
-        public void setVisible(boolean visible) { this.visible = visible; }
-        private void markDestroyed() {
+        public synchronized void setResource(String resource) { this.resource = resource; }
+        public synchronized void setPosition(double x, double y) { this.x = x; this.y = y; }
+        public synchronized void setSize(double width, double height) { this.width = width; this.height = height; }
+        public synchronized void setColor(int color) { this.color = color; }
+        public synchronized void setTransparency(double transparency) { this.transparency = Math.max(0.0, Math.min(1.0, transparency)); }
+        public synchronized void setRotation(double rotation) { this.rotation = rotation; }
+        public synchronized void setVisible(boolean visible) { this.visible = visible; }
+        private synchronized void markDestroyed() {
             if (destroyed) return;
             destroyed = true;
             visible = false;
@@ -1046,12 +1052,12 @@ public final class MLuaClientRenderManager {
             followOffsetBinding = FollowOffsetBinding.NONE;
             animationPlayer.stop();
         }
-        public void setZIndex(int zIndex) {
+        public synchronized void setZIndex(int zIndex) {
             if (this.zIndex == zIndex) return;
             this.zIndex = zIndex;
             invalidateDrawOrder();
         }
-        public void setWorldSpace(boolean worldSpace) {
+        public synchronized void setWorldSpace(boolean worldSpace) {
             manualTarget = false;
             if (worldSpace && (type == RenderType.MESH || type == RenderType.BBMODEL)) {
                 dev.mlua.loaderapi.LoaderApi.client().normalizeSupportedWorldModelStage(renderStage);
@@ -1063,7 +1069,7 @@ public final class MLuaClientRenderManager {
             }
             this.worldSpace = worldSpace;
         }
-        public void setTarget(RenderTarget target) {
+        public synchronized void setTarget(RenderTarget target) {
             if (target == null) throw new IllegalArgumentException("Render target cannot be null");
             boolean model = type == RenderType.MESH || type == RenderType.BBMODEL;
             if (target == RenderTarget.MANUAL) {
@@ -1094,20 +1100,20 @@ public final class MLuaClientRenderManager {
             this.entityModelTarget = target == RenderTarget.ENTITY_MODEL;
             this.worldSpace = target != RenderTarget.HUD;
         }
-        public void setWorldPosition(double x, double y, double z) { this.worldX = x; this.worldY = y; this.worldZ = z; }
-        public void setEndPosition(double x, double y) { this.endX = x; this.endY = y; }
-        public void setEndWorldPosition(double x, double y, double z) { this.endWorldX = x; this.endWorldY = y; this.endWorldZ = z; }
-        public void setDepth(double depth) { this.depth = Math.max(0.0, depth); }
-        public void setThickness(double thickness) { this.thickness = Math.max(1.0, thickness); }
-        public void setScaleWithDistance(boolean scaleWithDistance) { this.scaleWithDistance = scaleWithDistance; }
-        public void setModelScale(float modelScale) { this.modelScale = Math.max(0.001F, modelScale); }
-        public void setRenderStage(String renderStage) {
+        public synchronized void setWorldPosition(double x, double y, double z) { this.worldX = x; this.worldY = y; this.worldZ = z; }
+        public synchronized void setEndPosition(double x, double y) { this.endX = x; this.endY = y; }
+        public synchronized void setEndWorldPosition(double x, double y, double z) { this.endWorldX = x; this.endWorldY = y; this.endWorldZ = z; }
+        public synchronized void setDepth(double depth) { this.depth = Math.max(0.0, depth); }
+        public synchronized void setThickness(double thickness) { this.thickness = Math.max(1.0, thickness); }
+        public synchronized void setScaleWithDistance(boolean scaleWithDistance) { this.scaleWithDistance = scaleWithDistance; }
+        public synchronized void setModelScale(float modelScale) { this.modelScale = Math.max(0.001F, modelScale); }
+        public synchronized void setRenderStage(String renderStage) {
             String normalized = target() == RenderTarget.WORLD_MODEL
                 ? dev.mlua.loaderapi.LoaderApi.client().normalizeSupportedWorldModelStage(renderStage)
                 : dev.mlua.loaderapi.ClientBridge.normalizeWorldRenderStage(renderStage);
             this.renderStage = normalized;
         }
-        public void setFollowEntityScope(MLuaEntityScope followEntityScope) {
+        public synchronized void setFollowEntityScope(MLuaEntityScope followEntityScope) {
             if (followEntityScope != null) manualTarget = false;
             if (this.followEntityScope != null && !this.followEntityScope.equals(followEntityScope)) {
                 unregisterEntityModel(this.followEntityScope, this.id);
@@ -1123,7 +1129,7 @@ public final class MLuaClientRenderManager {
             }
         }
 
-        public void setFollowBoneName(String boneName) {
+        public synchronized void setFollowBoneName(String boneName) {
             if (type != RenderType.MESH && type != RenderType.BBMODEL) {
                 throw new IllegalArgumentException("FollowBone requires a Mesh or BBModel object");
             }
@@ -1137,12 +1143,12 @@ public final class MLuaClientRenderManager {
             this.entityModelTarget = true;
             this.worldSpace = true;
         }
-        public void setFollowOffset(MLuaCFrame offset) {
+        public synchronized void setFollowOffset(MLuaCFrame offset) {
             if (offset == null) throw new IllegalArgumentException("FollowOffset must be a CFrame");
             this.followOffset = offset;
             this.followOffsetBinding = FollowOffsetBinding.NONE;
         }
-        public void setFollowOffsetCallback(LuaValue callback, MLuaContext context) {
+        public synchronized void setFollowOffsetCallback(LuaValue callback, MLuaContext context) {
             if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("FollowOffset callback must be a function");
             if (context == null) throw new IllegalArgumentException("FollowOffset callback needs its owning Lua context");
             this.followOffsetBinding = new FollowOffsetBinding(callback, context);

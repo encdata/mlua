@@ -571,11 +571,19 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 operations.set("PlayAnimation", fn(args -> {
                     String name = args.checkjstring(2);
                     MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "RenderObject:PlayAnimation");
-                    object.animationPlayer().play(name, asset, options.loop(), options.speed());
+                    synchronized (object.executionLock()) {
+                        if (object.destroyed()) throw new LuaError("[MLua] Render object no longer exists");
+                        object.animationPlayer().play(name, asset, options.loop(), options.speed());
+                    }
                     return LuaValue.NONE;
                 }));
-                operations.set("StopAnimation", fn(args -> { object.animationPlayer().stop(); return LuaValue.NONE; }));
-                operations.set("GetAnimationTime", fn(args -> LuaValue.valueOf(object.animationPlayer().time())));
+                operations.set("StopAnimation", fn(args -> {
+                    synchronized (object.executionLock()) { object.animationPlayer().stop(); }
+                    return LuaValue.NONE;
+                }));
+                operations.set("GetAnimationTime", fn(args -> {
+                    synchronized (object.executionLock()) { return LuaValue.valueOf(object.animationPlayer().time()); }
+                }));
                 return table;
             } catch (RuntimeException failure) {
                 MLuaClientRenderManager.remove(id, owner());
@@ -1044,7 +1052,6 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         if (object == null) {
             throw new LuaError("[MLua] Render object no longer exists");
         }
-        object.setExecutionLock(context.mlua().executionLock());
         return object;
     }
 

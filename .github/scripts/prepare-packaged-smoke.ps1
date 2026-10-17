@@ -266,6 +266,12 @@ print("MLUA_CI_SERVER_SERVICE_SCRIPT_OK")
 local service = Minecraft:GetService("CiSmokeService")
 assert(service.__type == "CiSmokeService", "Java registered service class was not attached")
 assert(service:GetSide() == "CLIENT", "Java service returned the wrong side")
+local taskLimits = Minecraft:GetService("RunService"):GetTaskLimits()
+assert(type(taskLimits.Pending) == "number" and type(taskLimits.PendingOwned) == "number"
+    and taskLimits.PendingOwned <= taskLimits.Pending
+    and taskLimits.Maximum > 0 and taskLimits.MaximumPerOwner > 0,
+    "RunService:GetTaskLimits returned invalid scheduler counts or limits")
+print("MLUA_CI_TASK_LIMITS_OK")
 assert(type(Animation.new) == "function", "Animation.new constructor was not exposed")
 local definition = Animation.new({
     { Time = 0, Data = { head = CFrame.identity } },

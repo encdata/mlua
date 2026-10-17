@@ -74,6 +74,19 @@ public final class MLuaRunService extends MLuaReflectiveService {
       return frameState().renderFrame.available();
    }
 
+   @MLuaDescription("Returns the scheduler's global and per-addon pending task counts and limits. Pending includes callbacks waiting for their next scheduled resume.")
+   public LuaTable GetTaskLimits() {
+      LuaTable result = new LuaTable();
+      dev.mlua.core.scheduler.MLuaTaskScheduler scheduler = this.context.scheduler() instanceof dev.mlua.core.scheduler.MLuaTaskScheduler runtime
+         ? runtime : null;
+      result.set("Pending", scheduler == null ? 0 : scheduler.pendingTaskCount());
+      result.set("PendingOwned", scheduler == null ? 0 : scheduler.pendingTaskCount(
+         this.context.mlua().ownerModId(), this.context.side()));
+      result.set("Maximum", dev.mlua.core.scheduler.MLuaTaskScheduler.MAX_PENDING_TASKS);
+      result.set("MaximumPerOwner", dev.mlua.core.scheduler.MLuaTaskScheduler.MAX_PENDING_TASKS_PER_OWNER);
+      return result;
+   }
+
    @MLuaDescription("Returns whether this script is running on the server.")
    public boolean IsServer() { return this.context.isServer(); }
 
