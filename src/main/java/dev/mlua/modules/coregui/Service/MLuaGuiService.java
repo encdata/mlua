@@ -204,7 +204,7 @@ public final class MLuaGuiService implements MLuaService {
     }
 
     private static Object nativeText(LuaValue value) {
-        if (value.isstring()) return value.checkjstring();
+        if (value.type() == LuaValue.TSTRING) return value.checkjstring();
         try {
             Object component = dev.mlua.api.MLuaLuaCoercions.javaValue(value, Component.class);
             if (component instanceof Component) return component;
@@ -326,7 +326,7 @@ public final class MLuaGuiService implements MLuaService {
                     if (!value.isnil()) requireGuiObject(value, property);
                 }
                 for (LuaValue key : updates.keys()) {
-                    if (key.isstring() && !key.tojstring().startsWith("__Clear")) {
+                    if (key.type() == LuaValue.TSTRING && !key.tojstring().startsWith("__Clear")) {
                         nextProperties.set(key, updates.get(key));
                     }
                 }
@@ -712,9 +712,9 @@ public final class MLuaGuiService implements MLuaService {
         LuaValue targetIndex = selector.get("Index");
         if (targetIndex.isint() && targetIndex.checkint() != index) return false;
         LuaValue className = selector.get("Class");
-        if (className.isstring() && !matchesWidgetType(widget.getClass(), className.checkjstring(), new java.util.HashSet<>())) return false;
+        if (className.type() == LuaValue.TSTRING && !matchesWidgetType(widget.getClass(), className.checkjstring(), new java.util.HashSet<>())) return false;
         LuaValue text = selector.get("Text");
-        if (text.isstring()) {
+        if (text.type() == LuaValue.TSTRING) {
             try {
                 Object message = widget.getClass().getMethod("getMessage").invoke(widget);
                 Object value = message.getClass().getMethod("getString").invoke(message);
@@ -724,7 +724,7 @@ public final class MLuaGuiService implements MLuaService {
             }
         }
         for (LuaValue key : selector.keys()) {
-            if (!key.isstring()) continue;
+            if (key.type() != LuaValue.TSTRING) continue;
             String property = key.tojstring();
             if (Set.of("Index", "Class", "Text").contains(property)) continue;
             Object actual;
@@ -735,7 +735,8 @@ public final class MLuaGuiService implements MLuaService {
             }
             if (!matchesWidgetProperty(actual, selector.get(key))) return false;
         }
-        return targetIndex.isint() || className.isstring() || text.isstring() || selector.keys().length > 0;
+        return targetIndex.isint() || className.type() == LuaValue.TSTRING
+            || text.type() == LuaValue.TSTRING || selector.keys().length > 0;
     }
 
     private static boolean matchesWidgetProperty(Object actual, LuaValue expected) {
@@ -743,9 +744,9 @@ public final class MLuaGuiService implements MLuaService {
         if (actual instanceof Component component) actual = component.getString();
         else if (actual instanceof Enum<?> value) actual = value.name();
         if (actual instanceof Boolean value) return expected.isboolean() && value == expected.toboolean();
-        if (actual instanceof Number value) return expected.isnumber()
+        if (actual instanceof Number value) return expected.type() == LuaValue.TNUMBER
             && Double.compare(value.doubleValue(), expected.todouble()) == 0;
-        if (actual instanceof String value) return expected.isstring() && value.equals(expected.tojstring());
+        if (actual instanceof String value) return expected.type() == LuaValue.TSTRING && value.equals(expected.tojstring());
         return false;
     }
 
@@ -800,11 +801,11 @@ public final class MLuaGuiService implements MLuaService {
             throw new LuaError("[MLua] NativeControl.Visible is not writable for " + widget.getClass().getSimpleName());
         }
         LuaValue text = properties.get("Text");
-        if (text.isstring() && !setWidgetText(widget, text.checkjstring())) {
+        if (text.type() == LuaValue.TSTRING && !setWidgetText(widget, text.checkjstring())) {
             throw new LuaError("[MLua] NativeControl.Text is not writable for " + widget.getClass().getSimpleName());
         }
         for (LuaValue key : properties.keys()) {
-            if (!key.isstring()) continue;
+            if (key.type() != LuaValue.TSTRING) continue;
             String name = key.tojstring();
             if (Set.of("Position", "Size", "Visible", "Text", "Replacement", "Before", "After")
                 .contains(name)) continue;
@@ -1146,7 +1147,7 @@ public final class MLuaGuiService implements MLuaService {
                 if (fieldsValue.istable()) {
                     Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "AddEditBox", "AddRenderableWidget", "SetOnClose", "SetOnRender");
                     for (LuaValue key : fieldsValue.checktable().keys()) {
-                        if (key.isstring() && reserved.contains(key.tojstring())) {
+                        if (key.type() == LuaValue.TSTRING && reserved.contains(key.tojstring())) {
                             throw new LuaError("[MLua] Gui:OpenScreen fields cannot replace the native screen member '" + key.tojstring() + "'.");
                         }
                     }
@@ -1289,7 +1290,7 @@ public final class MLuaGuiService implements MLuaService {
                 requireNativeSelector(selector);
                 if (properties.keys().length == 0) throw new LuaError("[MLua] Native layout needs at least one property");
                 for (LuaValue key : properties.keys()) {
-                    if (!key.isstring() || key.tojstring().isBlank() || !Character.isLetter(key.tojstring().charAt(0))
+                    if (key.type() != LuaValue.TSTRING || key.tojstring().isBlank() || !Character.isLetter(key.tojstring().charAt(0))
                         || key.tojstring().startsWith("__")) {
                         throw new LuaError("[MLua] Native layout property names must start with a letter and cannot be runtime metadata");
                     }
@@ -1301,19 +1302,20 @@ public final class MLuaGuiService implements MLuaService {
                 if (!properties.get("Position").isnil() && !MLuaLuauTypes.isUDim2(properties.get("Position"))
                     || !properties.get("Size").isnil() && !MLuaLuauTypes.isUDim2(properties.get("Size"))
                     || !properties.get("Visible").isnil() && !properties.get("Visible").isboolean()
-                    || !properties.get("Text").isnil() && !properties.get("Text").isstring()) {
+                    || !properties.get("Text").isnil() && properties.get("Text").type() != LuaValue.TSTRING) {
                     throw new LuaError("[MLua] Native layout Position and Size require UDim2 values; Visible must be boolean and Text must be a string");
                 }
                 for (LuaValue key : properties.keys()) {
-                    if (!key.isstring() || Set.of("Position", "Size", "Visible", "Text", "Replacement", "Before", "After").contains(key.tojstring())) continue;
+                    if (key.type() != LuaValue.TSTRING || Set.of("Position", "Size", "Visible", "Text", "Replacement", "Before", "After").contains(key.tojstring())) continue;
                     LuaValue value = properties.get(key);
-                    if (!value.isstring() && !value.isnumber() && !value.isboolean()) {
+                    if (value.type() != LuaValue.TSTRING && value.type() != LuaValue.TNUMBER
+                        && value.type() != LuaValue.TBOOLEAN) {
                         throw new LuaError("[MLua] Native layout property '" + key
                             + "' must use a string, number, boolean, enum name, or text value");
                     }
                 }
                 if (!properties.get("Replacement").isnil()
-                    && ((!selector.get("Index").isint() && !selector.get("Text").isstring())
+                    && ((!selector.get("Index").isint() && selector.get("Text").type() != LuaValue.TSTRING)
                         || properties.get("Visible").isboolean() && properties.get("Visible").checkboolean())) {
                     throw new LuaError("[MLua] A replacement requires a specific Index or Text selector and cannot set Visible=true");
                 }
@@ -1345,7 +1347,7 @@ public final class MLuaGuiService implements MLuaService {
         if (target.istable()) {
             GuiBase instance = MLuaTableRegistry.getElement(target.checktable());
             if (instance instanceof ScreenGui screen && this.state.screens.contains(screen)) found = screen;
-        } else if (target.isstring()) {
+        } else if (target.type() == LuaValue.TSTRING) {
             String name = target.checkjstring();
             for (ScreenGui screen : this.state.screens) {
                 if (name.equals(screen.getName())) {
@@ -1370,7 +1372,7 @@ public final class MLuaGuiService implements MLuaService {
 
     private static void requireNativeSelector(LuaTable selector) {
         for (LuaValue key : selector.keys()) {
-            if (!key.isstring()) throw new LuaError("[MLua] Native widget selector fields must be strings");
+            if (key.type() != LuaValue.TSTRING) throw new LuaError("[MLua] Native widget selector fields must be strings");
             String name = key.tojstring();
             if (name.isBlank() || name.startsWith("__") || !Character.isLetter(name.charAt(0))) {
                 throw new LuaError("[MLua] Invalid native widget selector field '" + name + "'");
@@ -1382,17 +1384,18 @@ public final class MLuaGuiService implements MLuaService {
         if (!index.isnil() && (!index.isint() || index.checkint() < 1)) {
             throw new LuaError("[MLua] Native widget Index must be a positive one-based integer");
         }
-        if (!className.isnil() && (!className.isstring() || className.checkjstring().isBlank())) {
+        if (!className.isnil() && (className.type() != LuaValue.TSTRING || className.checkjstring().isBlank())) {
             throw new LuaError("[MLua] Native widget Class must be a non-empty Java class or interface name");
         }
-        if (!text.isnil() && !text.isstring()) {
+        if (!text.isnil() && text.type() != LuaValue.TSTRING) {
             throw new LuaError("[MLua] Native widget Text must be a string");
         }
         for (LuaValue key : selector.keys()) {
             String name = key.tojstring();
             if (Set.of("Index", "Class", "Text").contains(name)) continue;
             LuaValue value = selector.get(key);
-            if (!value.isstring() && !value.isnumber() && !value.isboolean()) {
+            if (value.type() != LuaValue.TSTRING && value.type() != LuaValue.TNUMBER
+                && value.type() != LuaValue.TBOOLEAN) {
                 throw new LuaError("[MLua] Native widget property selector '" + name
                     + "' must use a string, number, or boolean");
             }
@@ -1471,7 +1474,7 @@ public final class MLuaGuiService implements MLuaService {
             Varargs entry = array.next(key);
             key = entry.arg1();
             if (key.isnil()) break;
-            if (!key.isnumber()) {
+            if (key.type() != LuaValue.TNUMBER) {
                 throw new LuaError("[MLua] " + label + " must use only positive integer array keys.");
             }
             double numericIndex = key.todouble();
@@ -2144,7 +2147,7 @@ public final class MLuaGuiService implements MLuaService {
                 readInt(value, "getHeight", 0), readWidgetField(value, "visible", true),
                 readWidgetText(value), new java.util.LinkedHashMap<>()));
             for (LuaValue key : layoutProperties.keys()) {
-                if (!key.isstring()) continue;
+                if (key.type() != LuaValue.TSTRING) continue;
                 String name = key.tojstring();
                 if (Set.of("X", "Y", "Width", "Height", "Visible", "Text", "Replacement", "Before", "After")
                     .contains(name) || state.properties().containsKey(name)) continue;

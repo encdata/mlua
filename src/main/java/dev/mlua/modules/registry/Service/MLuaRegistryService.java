@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Set;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.IdentityHashMap;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Holder;
@@ -2390,7 +2391,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable definition = ai.checktable();
       LuaValue initial = definition.get("initial");
       LuaValue statesValue = definition.get("states");
-      if (!initial.isstring() || initial.tojstring().isBlank() || !statesValue.istable()) {
+      if (initial.type() != LuaValue.TSTRING || initial.tojstring().isBlank() || !statesValue.istable()) {
          throw new LuaError("[MLua] State-based AI requires an 'initial' state name and a 'states' table.");
       }
       LuaTable states = statesValue.checktable();
@@ -2403,7 +2404,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
          key = entry.arg1();
          if (key.isnil()) break;
          LuaValue state = entry.arg(2);
-         if (!key.isstring() || key.tojstring().isBlank() || !state.isfunction() && !state.istable()) {
+         if (key.type() != LuaValue.TSTRING || key.tojstring().isBlank() || !state.isfunction() && !state.istable()) {
             throw new LuaError("[MLua] Each AI state must have a name and be a function or state table.");
          }
          if (state.istable()) {
@@ -2533,7 +2534,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    private static JsonObject jsonObjectArg(LuaValue value, String type) {
       JsonElement element;
-      if (value.isstring()) {
+      if (value.type() == LuaValue.TSTRING) {
          try {
             element = JsonParser.parseString(value.checkjstring());
          } catch (JsonParseException error) {
@@ -2565,7 +2566,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private static TagRegistration parseTagRegistration(LuaValue value) {
-      if (value.isstring()) {
+      if (value.type() == LuaValue.TSTRING) {
          JsonObject object = jsonObjectArg(value, "tag");
          JsonElement entries = object.get("values");
          if (entries == null || !entries.isJsonArray()) {
@@ -2866,7 +2867,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private static String requiredString(LuaValue value, String field) {
-      if (!value.isstring()) {
+      if (value.type() != LuaValue.TSTRING) {
          throw new LuaError("[MLua] " + field + " must be a string");
       }
 
@@ -2912,21 +2913,26 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    private static JsonElement luaToJson(LuaValue value) {
+      return luaToJson(value, new IdentityHashMap<>(), 0);
+   }
+
+   private static JsonElement luaToJson(LuaValue value, IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
       if (value.isnil()) {
          return JsonNull.INSTANCE;
       }
-      if (value.isboolean()) {
+      if (value.type() == LuaValue.TBOOLEAN) {
          return new JsonPrimitive(value.toboolean());
       }
-      if (value.isnumber()) {
+      if (value.type() == LuaValue.TNUMBER) {
          double numeric = value.todouble();
+         if (!Double.isFinite(numeric)) throw new LuaError("[MLua] Generated JSON cannot contain NaN or infinite numbers.");
          long integral = value.tolong();
-         if (numeric == (double)integral) {
+         if (numeric == (double)integral && numeric >= Long.MIN_VALUE && numeric < 0x1.0p63) {
             return new JsonPrimitive(integral);
          }
          return new JsonPrimitive(numeric);
       }
-      if (value.isstring()) {
+      if (value.type() == LuaValue.TSTRING) {
          return new JsonPrimitive(value.tojstring());
       }
       if (!value.istable()) {
@@ -2934,29 +2940,70 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       }
 
       LuaTable table = value.checktable();
-      if (isArrayTable(table)) {
-         JsonArray array = new JsonArray();
-         for(int i = 1; !table.get(i).isnil(); ++i) {
-            array.add(luaToJson(table.get(i)));
-         }
-         return array;
+      if (depth >= MLuaContentTypeRegistry.MAX_TABLE_DEPTH) {
+         throw new LuaError("[MLua] Generated JSON nesting exceeds " + MLuaContentTypeRegistry.MAX_TABLE_DEPTH + " tables.");
       }
-
-      JsonObject object = new JsonObject();
-      LuaValue key = LuaValue.NIL;
-      while(true) {
-         Varargs next = table.next(key);
-         key = next.arg1();
-         if (key.isnil()) {
-            return object;
+      if (activeTables.put(table, Boolean.TRUE) != null) {
+         throw new LuaError("[MLua] Generated JSON cannot contain cyclic Lua tables.");
+      }
+      try {
+         int arrayLength = jsonArrayLength(table);
+         if (arrayLength >= 0) {
+            JsonArray array = new JsonArray();
+            for (int i = 1; i <= arrayLength; i++) {
+               array.add(luaToJson(table.get(i), activeTables, depth + 1));
+            }
+            return array;
          }
 
-         object.add(key.tojstring(), luaToJson(next.arg(2)));
+         JsonObject object = new JsonObject();
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = table.next(key);
+            key = next.arg1();
+            if (key.isnil()) return object;
+            if (key.type() != LuaValue.TSTRING) {
+               throw new LuaError("[MLua] Generated JSON objects must use string keys; got " + key.typename());
+            }
+            object.add(key.tojstring(), luaToJson(next.arg(2), activeTables, depth + 1));
+         }
+      } finally {
+         activeTables.remove(table);
       }
    }
 
-   private static boolean isArrayTable(LuaTable table) {
-      return !table.get(1).isnil();
+   /** Returns a dense one-based array length, or -1 for a string-keyed JSON object. */
+   private static int jsonArrayLength(LuaTable table) {
+      LuaValue key = LuaValue.NIL;
+      int count = 0;
+      int maximum = 0;
+      boolean hasNumberKeys = false;
+      boolean hasStringKeys = false;
+      while (true) {
+         Varargs entry = table.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         count++;
+         if (key.type() == LuaValue.TSTRING) {
+            hasStringKeys = true;
+         } else if (key.type() == LuaValue.TNUMBER) {
+            hasNumberKeys = true;
+            double index = key.todouble();
+            if (!Double.isFinite(index) || index < 1 || index > Integer.MAX_VALUE || index != Math.rint(index)) {
+               throw new LuaError("[MLua] Generated JSON array indexes must be positive whole numbers.");
+            }
+            maximum = Math.max(maximum, (int)index);
+         } else {
+            throw new LuaError("[MLua] Generated JSON table keys must be strings or positive array indexes; got "
+               + key.typename());
+         }
+      }
+      if (hasNumberKeys && hasStringKeys) {
+         throw new LuaError("[MLua] Generated JSON tables cannot mix object keys and array indexes.");
+      }
+      if (!hasNumberKeys) return -1;
+      if (maximum != count) throw new LuaError("[MLua] Generated JSON arrays must be dense and start at index one.");
+      return maximum;
    }
 
    private static MLuaTextureDescriptor textureDescriptor(LuaTable table, String... keys) {
@@ -2980,11 +3027,17 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    private static List<String> stringValues(LuaValue value, String label) {
       List<String> values = new ArrayList<>();
-      if (value.isstring()) {
+      if (value.type() == LuaValue.TSTRING) {
          values.add(value.checkjstring());
       } else if (value.istable()) {
          LuaTable entries = value.checktable();
-         for (int index = 1; index <= entries.length(); index++) values.add(entries.get(index).checkjstring());
+         int length = jsonArrayLength(entries);
+         if (length < 0) throw new LuaError("[MLua] " + label + " table must use dense array indexes");
+         for (int index = 1; index <= length; index++) {
+            LuaValue entry = entries.get(index);
+            if (entry.type() != LuaValue.TSTRING) throw new LuaError("[MLua] " + label + " entries must be strings");
+            values.add(entry.tojstring());
+         }
       } else {
          throw new LuaError("[MLua] " + label + " must be an id or an array of ids");
       }

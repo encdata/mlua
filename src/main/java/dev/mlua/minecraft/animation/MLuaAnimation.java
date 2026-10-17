@@ -116,7 +116,7 @@ public final class MLuaAnimation {
             Varargs entry = table.next(key);
             key = entry.arg1();
             if (key.isnil()) break;
-            if (!key.isnumber()) {
+            if (key.type() != LuaValue.TNUMBER) {
                 throw new LuaError("[MLua] Animation keyframes must be a dense array indexed from one.");
             }
             double numericIndex = key.todouble();
@@ -153,7 +153,7 @@ public final class MLuaAnimation {
 
     private static Keyframe keyframeFromLua(LuaTable table) {
         LuaValue timeValue = table.get("Time");
-        if (!timeValue.isnumber()) {
+        if (timeValue.type() != LuaValue.TNUMBER) {
             throw new LuaError("[MLua] Each keyframe Time must be a finite, non-negative number.");
         }
         double time = timeValue.todouble();
@@ -169,7 +169,7 @@ public final class MLuaAnimation {
             Varargs next = dataTable.next(key);
             key = next.arg1();
             if (key.isnil()) break;
-            if (!key.isstring() || key.tojstring().isBlank()) {
+            if (key.type() != LuaValue.TSTRING || key.tojstring().isBlank()) {
                 throw new LuaError("[MLua] Animation pose bone names must be non-empty strings.");
             }
             String boneName = key.tojstring();

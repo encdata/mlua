@@ -1,15 +1,18 @@
 package dev.mlua.minecraft.binding;
 
 import dev.mlua.module.MLuaRegistration;
+import java.util.Set;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Java-shaped, chainable property instances used by Registry item and block registration. */
+/** Typed, chainable property instances used by Registry item, block, and entity registration. */
 public final class MLuaRegistryProperties {
    private static final String STATE = "__mlua_registry_properties";
+   private static final Set<String> WHOLE_NUMBER_PROPERTIES = Set.of(
+      "maxStackSize", "durability", "nutrition", "lightLevel", "trackingRange", "updateInterval", "aiInterval");
 
    private MLuaRegistryProperties() { }
 
@@ -58,11 +61,11 @@ public final class MLuaRegistryProperties {
 
       method(registration, "BlockProperties", "Strength", (properties, args) -> {
          LuaValue hardness = args.arg(2);
-         if (!hardness.isnumber()) throw new LuaError("[MLua] BlockProperties:Strength expects numeric hardness.");
+         requireNumber(properties, "hardness", hardness);
          properties.values.set("strength", hardness);
          LuaValue resistance = args.arg(3);
          if (!resistance.isnil()) {
-            if (!resistance.isnumber()) throw new LuaError("[MLua] BlockProperties:Strength resistance must be numeric.");
+            requireNumber(properties, "resistance", resistance);
             properties.values.set("resistance", resistance);
          }
          return properties.instance;
@@ -104,7 +107,8 @@ public final class MLuaRegistryProperties {
       method(registration, "EntityProperties", "Size", (properties, args) -> {
          LuaValue width = args.arg(2);
          LuaValue height = args.arg(3);
-         if (!width.isnumber() || !height.isnumber()) throw new LuaError("[MLua] EntityProperties:Size expects numeric width and height.");
+         requireNumber(properties, "width", width);
+         requireNumber(properties, "height", height);
          properties.values.set("width", width);
          properties.values.set("height", height);
          return properties.instance;
@@ -226,7 +230,7 @@ public final class MLuaRegistryProperties {
    private static void attribute(MLuaRegistration registration, String name, String key) {
       method(registration, "EntityProperties", name, (properties, args) -> {
          LuaValue value = args.arg(2);
-         if (!value.isnumber()) throw new LuaError("[MLua] EntityProperties:" + name + " expects a numeric value.");
+         requireNumber(properties, key, value);
          LuaValue attributes = properties.values.get("attributes");
          LuaTable target = attributes.istable() ? attributes.checktable() : new LuaTable();
          target.set(key, value);
@@ -237,8 +241,51 @@ public final class MLuaRegistryProperties {
 
    private static LuaValue set(State state, String key, LuaValue value) {
       if (value.isnil()) throw new LuaError("[MLua] Property method cannot receive nil.");
+      validateValue(state, key, value);
       state.values.set(key, value);
       return state.instance;
+   }
+
+   private static void validateValue(State state, String key, LuaValue value) {
+      int type = value.type();
+      String expected = switch (key) {
+         case "className", "description", "copy", "rarity", "craftRemainder", "kind", "tier",
+            "sound", "mapColor", "pushReaction", "instrument", "category", "texture", "model" -> "string";
+         case "copyModel", "fireResistant", "meat", "alwaysEat", "fast", "requiresCorrectTool",
+            "noCollision", "noOcclusion", "randomTicks", "ignitedByLava", "replaceable" -> "boolean";
+         case "maxStackSize", "durability", "attackDamage", "attackSpeed", "nutrition", "saturation",
+            "resistance", "lightLevel", "friction", "speedFactor", "jumpFactor", "width", "height",
+            "trackingRange", "updateInterval", "aiInterval", "shadowRadius" -> "number";
+         case "food", "attributes" -> "table";
+         default -> null;
+      };
+      if (expected == null) return;
+      boolean valid = switch (expected) {
+         case "string" -> type == LuaValue.TSTRING;
+         case "boolean" -> type == LuaValue.TBOOLEAN;
+         case "number" -> type == LuaValue.TNUMBER;
+         case "table" -> value.istable();
+         default -> false;
+      };
+      if (!valid) {
+         throw new LuaError("[MLua] " + state.className + " property '" + key + "' expects a " + expected + ".");
+      }
+      if ("number".equals(expected)) {
+         requireNumber(state, key, value);
+         double number = value.todouble();
+         if (WHOLE_NUMBER_PROPERTIES.contains(key) && number != Math.rint(number)) {
+            throw new LuaError("[MLua] " + state.className + " property '" + key + "' must be a whole number.");
+         }
+      }
+   }
+
+   private static void requireNumber(State state, String key, LuaValue value) {
+      if (value.type() != LuaValue.TNUMBER) {
+         throw new LuaError("[MLua] " + state.className + " property '" + key + "' expects a number.");
+      }
+      if (!Double.isFinite(value.todouble())) {
+         throw new LuaError("[MLua] " + state.className + " property '" + key + "' must be finite.");
+      }
    }
 
    private static void method(MLuaRegistration registration, String className, String name,

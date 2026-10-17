@@ -139,7 +139,7 @@ public class RegistryModule implements MLuaModule {
             {"SetCanOpenDoors", "Enables or disables opening doors while navigating."},
             {"SetCanPassDoors", "Enables or disables pathfinding through doors."},
             {"GetData", "Returns persistent Lua data saved with this mob."},
-            {"SetData", "Replaces persistent Lua data after conversion; cyclic tables, nesting deeper than 64 levels, non-finite numbers, and mixed-type arrays are rejected."},
+            {"SetData", "Replaces persistent Lua data after conversion; map keys must be strings, arrays must be dense and one-based, and only booleans, finite numbers, strings, maps, and arrays are supported. Cycles, mixed-key tables, mixed-type NBT arrays, and nesting deeper than 64 levels are rejected."},
             {"RandomStroll", "Chooses a nearby safe position and walks there."},
             {"Panic", "Moves away from the last attacker or chooses a random escape direction."},
             {"DistanceTo", "Returns the distance to another entity instance."},

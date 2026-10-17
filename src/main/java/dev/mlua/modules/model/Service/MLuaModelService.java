@@ -52,7 +52,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
             key = next.arg1();
             if (key.isnil()) break;
             LuaValue path = next.arg(2);
-            if (!key.isstring() || !path.isstring()) {
+            if (key.type() != LuaValue.TSTRING || path.type() != LuaValue.TSTRING) {
                 throw new LuaError("[MLua] RegisterAdapter expects a table of string bone names to string model part paths.");
             }
             mapping.put(key.tojstring(), path.tojstring());

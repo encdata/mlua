@@ -920,7 +920,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             Varargs entry = props.next(key);
             key = entry.arg1();
             if (key.isnil()) break;
-            if (!key.isstring()) {
+            if (key.type() != LuaValue.TSTRING) {
                 throw new LuaError("[MLua] RenderObject properties must use registered string names.");
             }
             String suppliedName = key.tojstring();

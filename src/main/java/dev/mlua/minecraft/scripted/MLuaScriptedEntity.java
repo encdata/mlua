@@ -247,7 +247,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          if (key.isnil()) {
             break;
          }
-         if (!key.isstring() || !next.arg(2).isfunction()) continue;
+         if (key.type() != LuaValue.TSTRING || !next.arg(2).isfunction()) continue;
          MLuaClassMethods.setInstanceMethod(table, key.tojstring(), next.arg(2));
       }
       table.rawset("__mlua_scripted_entity_bound", LuaValue.TRUE);
@@ -376,7 +376,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("FindNearestEntity", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             LuaValue typeValue = args.arg(2);
-            if (!typeValue.isnil() && !typeValue.isstring()) {
+            if (!typeValue.isnil() && typeValue.type() != LuaValue.TSTRING) {
                throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:FindNearestEntity type must be an entity type id or nil.");
             }
             String typeId = typeValue.isnil() ? null : typeValue.tojstring();
@@ -660,7 +660,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (update.isnil()) return;
       LuaTable stateContext = this.aiStateContext();
       LuaValue result = this.invokeBehavior(behaviors, update, this.entityTable(), stateContext).arg1();
-      if (this.aiState.equals(stateContext.get("State").optjstring(null)) && result.isstring()
+      if (this.aiState.equals(stateContext.get("State").optjstring(null)) && result.type() == LuaValue.TSTRING
             && !result.tojstring().equals(this.aiState)) {
          this.transitionAIState(behaviors, config, result.tojstring());
       }
@@ -702,7 +702,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
    }
 
    private LuaValue tagToLua(Tag tag) {
-      if (tag instanceof net.minecraft.nbt.NumericTag nt) {
+      if (tag instanceof ByteTag bt) {
+         return LuaValue.valueOf(bt.getAsByte() != 0);
+      } else if (tag instanceof net.minecraft.nbt.NumericTag nt) {
          return LuaValue.valueOf(nt.getAsDouble());
       } else if (tag instanceof net.minecraft.nbt.StringTag st) {
          return LuaValue.valueOf(st.getAsString());
@@ -714,8 +716,6 @@ public class MLuaScriptedEntity extends PathfinderMob {
             list.set(i + 1, this.tagToLua(lt.get(i)));
          }
          return list;
-      } else if (tag instanceof net.minecraft.nbt.ByteTag bt) {
-         return LuaValue.valueOf(bt.getAsByte() != 0);
       }
       return LuaValue.NIL;
    }
@@ -728,8 +728,11 @@ public class MLuaScriptedEntity extends PathfinderMob {
             Varargs next = table.next(key);
             key = next.arg1();
             if (key.isnil()) break;
+            if (key.type() != LuaValue.TSTRING) {
+               throw new IllegalArgumentException("compound table keys must be strings; got " + key.typename());
+            }
             Tag converted = this.valueToTag(next.arg(2), activeTables, depth + 1);
-            if (converted != null) tag.put(key.tojstring(), converted);
+            tag.put(key.tojstring(), converted);
          }
       } finally {
          activeTables.remove(table);
@@ -737,9 +740,9 @@ public class MLuaScriptedEntity extends PathfinderMob {
    }
 
    private Tag valueToTag(LuaValue value, Set<LuaTable> activeTables, int depth) {
-      if (value.isboolean()) {
+      if (value.type() == LuaValue.TBOOLEAN) {
          return ByteTag.valueOf(value.toboolean());
-      } else if (value.isnumber()) {
+      } else if (value.type() == LuaValue.TNUMBER) {
          double d = value.todouble();
          if (!Double.isFinite(d)) {
             throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetData cannot save NaN or infinite numbers.");
@@ -748,26 +751,30 @@ public class MLuaScriptedEntity extends PathfinderMob {
             return LongTag.valueOf((long)d);
          }
          return DoubleTag.valueOf(d);
-      } else if (value.isstring()) {
+      } else if (value.type() == LuaValue.TSTRING) {
          return StringTag.valueOf(value.tojstring());
       } else if (value.istable()) {
          LuaTable tbl = value.checktable();
          this.enterPersistentDataTable(tbl, activeTables, depth);
          try {
-            if (tbl.get(1).isnil()) {
+            int arrayLength = persistentArrayLength(tbl);
+            if (arrayLength < 0) {
                CompoundTag nested = new CompoundTag();
                LuaValue key = LuaValue.NIL;
                while (true) {
                   Varargs next = tbl.next(key);
                   key = next.arg1();
                   if (key.isnil()) break;
+                  if (key.type() != LuaValue.TSTRING) {
+                     throw new IllegalArgumentException("compound table keys must be strings; got " + key.typename());
+                  }
                   Tag converted = this.valueToTag(next.arg(2), activeTables, depth + 1);
-                  if (converted != null) nested.put(key.tojstring(), converted);
+                  nested.put(key.tojstring(), converted);
                }
                return nested;
             }
             ListTag list = new ListTag();
-            for (int i = 1; !tbl.get(i).isnil(); i++) {
+            for (int i = 1; i <= arrayLength; i++) {
                if (!list.add(this.valueToTag(tbl.get(i), activeTables, depth + 1))) {
                   throw new IllegalArgumentException("Lua array values must use one NBT value type");
                }
@@ -777,7 +784,41 @@ public class MLuaScriptedEntity extends PathfinderMob {
             activeTables.remove(tbl);
          }
       }
-      return ByteTag.valueOf(false);
+      throw new IllegalArgumentException("unsupported Lua value type " + value.typename()
+         + "; only booleans, finite numbers, strings, maps, and dense arrays can be saved");
+   }
+
+   /** Returns the dense one-based array length, or -1 for a string-keyed map. */
+   private static int persistentArrayLength(LuaTable table) {
+      LuaValue key = LuaValue.NIL;
+      int count = 0;
+      int maximum = 0;
+      boolean hasNumberKeys = false;
+      boolean hasStringKeys = false;
+      while (true) {
+         Varargs entry = table.next(key);
+         key = entry.arg1();
+         if (key.isnil()) break;
+         count++;
+         if (key.type() == LuaValue.TSTRING) {
+            hasStringKeys = true;
+         } else if (key.type() == LuaValue.TNUMBER) {
+            hasNumberKeys = true;
+            double index = key.todouble();
+            if (!Double.isFinite(index) || index < 1 || index > Integer.MAX_VALUE || index != Math.rint(index)) {
+               throw new IllegalArgumentException("array keys must be positive whole numbers");
+            }
+            maximum = Math.max(maximum, (int)index);
+         } else {
+            throw new IllegalArgumentException("table keys must be strings or positive array indexes; got " + key.typename());
+         }
+      }
+      if (hasNumberKeys && hasStringKeys) {
+         throw new IllegalArgumentException("a table cannot mix map keys and array indexes");
+      }
+      if (!hasNumberKeys) return -1;
+      if (maximum != count) throw new IllegalArgumentException("arrays must use dense indexes starting at one");
+      return maximum;
    }
 
    private void enterPersistentDataTable(LuaTable table, Set<LuaTable> activeTables, int depth) {

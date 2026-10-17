@@ -20,7 +20,7 @@ public final class MLuaMeshLuaParser {
         List<MLuaMeshVertex> vertices = parseVertices(definition.get("Vertices"));
         List<Integer> indices = parseIndices(definition.get("Indices"), vertices.size());
         LuaValue textureValue = definition.get("Texture");
-        if (!textureValue.isnil() && !textureValue.isstring()) {
+        if (!textureValue.isnil() && textureValue.type() != LuaValue.TSTRING) {
             throw error("Texture must be a resource identifier string.");
         }
         return new MLuaMeshDefinition(vertices, indices, textureValue.isnil() ? null : textureValue.tojstring());
@@ -76,7 +76,7 @@ public final class MLuaMeshLuaParser {
             Varargs entry = table.next(key);
             key = entry.arg1();
             if (key.isnil()) break;
-            if (!key.isnumber()) throw error(field + " must use positive whole-number array indices.");
+            if (key.type() != LuaValue.TNUMBER) throw error(field + " must use positive whole-number array indices.");
             double index = key.todouble();
             if (!Double.isFinite(index) || index < 1 || index != Math.rint(index) || index > Integer.MAX_VALUE) {
                 throw error(field + " must use positive whole-number array indices.");
@@ -90,7 +90,7 @@ public final class MLuaMeshLuaParser {
     }
 
     private static int wholeIndex(LuaValue value, int position) {
-        if (!value.isnumber()) throw error("Indices[" + position + "] must be a zero-based whole-number vertex index.");
+        if (value.type() != LuaValue.TNUMBER) throw error("Indices[" + position + "] must be a zero-based whole-number vertex index.");
         double number = value.todouble();
         if (!Double.isFinite(number) || number != Math.rint(number)
                 || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
@@ -119,7 +119,7 @@ public final class MLuaMeshLuaParser {
     }
 
     private static int packedColor(LuaValue value, int position) {
-        if (!value.isnumber()) throw error("Vertices[" + position + "].Color must be a packed integer color.");
+        if (value.type() != LuaValue.TNUMBER) throw error("Vertices[" + position + "].Color must be a packed integer color.");
         double color = value.todouble();
         if (!Double.isFinite(color) || color != Math.rint(color) || color < Integer.MIN_VALUE || color > 0xFFFFFFFFL) {
             throw error("Vertices[" + position + "].Color must be a packed 32-bit integer color.");
@@ -135,7 +135,7 @@ public final class MLuaMeshLuaParser {
     }
 
     private static double finite(LuaValue value, String field) {
-        if (!value.isnumber()) throw error(field + " components must be finite numbers.");
+        if (value.type() != LuaValue.TNUMBER) throw error(field + " components must be finite numbers.");
         double number = value.todouble();
         if (!Double.isFinite(number)) throw error(field + " components must be finite numbers.");
         return number;
