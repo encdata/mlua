@@ -99,6 +99,16 @@ public final class MLuaClientRenderManager {
         }
     }
 
+    private static List<RenderObject> orderedEntityAttachments(java.util.Set<Integer> renderIds) {
+        List<RenderObject> attached = new ArrayList<>(renderIds.size());
+        for (Integer renderId : renderIds) {
+            RenderObject object = OBJECTS.get(renderId);
+            if (object != null) attached.add(object);
+        }
+        attached.sort(Comparator.comparingInt(RenderObject::zIndex).thenComparingInt(RenderObject::id));
+        return attached;
+    }
+
     private static void renderWorldContext(String stage, Object context) {
         try {
             Object rawPose = invokeOptional(context, "matrixStack", "getPoseStack", "poseStack");
@@ -112,7 +122,7 @@ public final class MLuaClientRenderManager {
                 (Vec3) invokeOptional(rawCamera, "getPosition", "position");
             if (camera == null) camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
             Vec3 look = cameraLook(rawCamera == null ? Minecraft.getInstance().gameRenderer.getMainCamera() : rawCamera);
-            for (RenderObject object : OBJECTS.values()) {
+            for (RenderObject object : orderedRenderObjects()) {
                 synchronized (object.executionLock()) {
                     if (object.destroyed || !object.visible() || object.target() != RenderTarget.WORLD_MODEL
                             || !object.renderStage().equals(stage)) continue;
@@ -241,9 +251,8 @@ public final class MLuaClientRenderManager {
         if (scope == null || pose == null || buffers == null) return;
         java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
         if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
-        for (Integer renderId : attachedRenderIds) {
-            RenderObject object = OBJECTS.get(renderId);
-            if (object == null) continue;
+        for (RenderObject object : orderedEntityAttachments(attachedRenderIds)) {
+            int renderId = object.id;
             synchronized (object.executionLock()) {
                 if (object.destroyed || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
                         || !scope.equals(object.followEntityScope)) continue;

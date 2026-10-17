@@ -77,8 +77,10 @@ public final class MLuaClientRenderManager {
             synchronized (object.executionLock()) {
                 if (object.destroyed) continue;
                 if (object.bbmodel != null) object.animationPlayer.tick(1.0F / 20.0F, object.bbmodel);
-                object.sampleFollowOffset();
             }
+            // Follow-offset functions enter Lua and may destroy this object.
+            // Run them outside the lifecycle lock, as on the shared targets.
+            object.sampleFollowOffset();
         }
     }
 
@@ -99,6 +101,16 @@ public final class MLuaClientRenderManager {
             drawOrderDirty = false;
             return drawOrderSnapshot;
         }
+    }
+
+    private static List<RenderObject> orderedEntityAttachments(java.util.Set<Integer> renderIds) {
+        List<RenderObject> attached = new ArrayList<>(renderIds.size());
+        for (Integer renderId : renderIds) {
+            RenderObject object = OBJECTS.get(renderId);
+            if (object != null) attached.add(object);
+        }
+        attached.sort(Comparator.comparingInt(RenderObject::zIndex).thenComparingInt(RenderObject::id));
+        return attached;
     }
 
     private static Object invokeOptional(Object target, String... names) {
@@ -235,9 +247,8 @@ public final class MLuaClientRenderManager {
         if (scope == null || pose == null || collector == null) return;
         java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
         if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
-        for (Integer renderId : attachedRenderIds) {
-            RenderObject object = OBJECTS.get(renderId);
-            if (object == null) continue;
+        for (RenderObject object : orderedEntityAttachments(attachedRenderIds)) {
+            int renderId = object.id;
             synchronized (object.executionLock()) {
                 if (object.destroyed || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
                         || !scope.equals(object.followEntityScope)) continue;
@@ -686,9 +697,8 @@ public final class MLuaClientRenderManager {
         private boolean manualTarget;
         private boolean entityModelTarget;
         private String followBoneName;
-        private MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
-        private LuaValue followOffsetCallback = LuaValue.NIL;
-        private MLuaContext followOffsetContext;
+        private volatile MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
+        private volatile FollowOffsetBinding followOffsetBinding = FollowOffsetBinding.NONE;
         private double worldX = 0.0;
         private double worldY = 0.0;
         private double worldZ = 0.0;
@@ -763,7 +773,10 @@ public final class MLuaClientRenderManager {
         public MLuaEntityScope followEntityScope() { return followEntityScope; }
         public String followBoneName() { return followBoneName; }
         public MLuaCFrame followOffset() { return followOffset; }
-        public LuaValue followOffsetValue() { return followOffsetCallback.isfunction() ? followOffsetCallback : followOffset.toLua(); }
+        public LuaValue followOffsetValue() {
+            FollowOffsetBinding binding = followOffsetBinding;
+            return binding.callback().isfunction() ? binding.callback() : followOffset.toLua();
+        }
         public MLuaMeshDefinition mesh() { return mesh; }
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
         public MLuaCFrame modelPartTransform(String boneId) {
@@ -801,8 +814,7 @@ public final class MLuaClientRenderManager {
             destroyed = true;
             visible = false;
             setFollowEntityScope(null);
-            followOffsetCallback = LuaValue.NIL;
-            followOffsetContext = null;
+            followOffsetBinding = FollowOffsetBinding.NONE;
             animationPlayer.stop();
             modelPartTransforms.clear();
         }
@@ -890,30 +902,37 @@ public final class MLuaClientRenderManager {
             entityModelTarget = true;
             worldSpace = true;
         }
-        public void setFollowOffset(MLuaCFrame offset) {
+        public synchronized void setFollowOffset(MLuaCFrame offset) {
             if (offset == null) throw new IllegalArgumentException("FollowOffset must be a CFrame");
             followOffset = offset;
-            followOffsetCallback = LuaValue.NIL;
-            followOffsetContext = null;
+            followOffsetBinding = FollowOffsetBinding.NONE;
         }
-        public void setFollowOffsetCallback(LuaValue callback, MLuaContext context) {
+        public synchronized void setFollowOffsetCallback(LuaValue callback, MLuaContext context) {
             if (callback == null || !callback.isfunction()) throw new IllegalArgumentException("FollowOffset callback must be a function");
             if (context == null) throw new IllegalArgumentException("FollowOffset callback needs its owning Lua context");
-            followOffsetCallback = callback;
-            followOffsetContext = context;
+            followOffsetBinding = new FollowOffsetBinding(callback, context);
         }
         private void sampleFollowOffset() {
-            if (!followOffsetCallback.isfunction()) return;
+            FollowOffsetBinding binding = followOffsetBinding;
+            LuaValue callback = binding.callback();
+            MLuaContext context = binding.context();
+            if (!callback.isfunction() || context == null) return;
             try {
-                if (followOffsetContext != null) {
-                    MLuaLuaBindings.bindContext(followOffsetContext.globals(), followOffsetContext);
-                }
-                followOffset = MLuaCFrame.fromLua(followOffsetCallback.invoke(LuaValue.NONE).arg1());
+                MLuaCFrame resolved = MLuaLuaBindings.withContext(context, () -> {
+                    if (followOffsetBinding != binding) return null;
+                    return MLuaCFrame.fromLua(callback.invoke(LuaValue.NONE).arg1());
+                });
+                if (resolved != null && followOffsetBinding == binding) followOffset = resolved;
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
             } catch (RuntimeException failure) {
-                followOffsetCallback = LuaValue.NIL;
-                followOffsetContext = null;
+                if (followOffsetBinding != binding) return;
+                followOffsetBinding = FollowOffsetBinding.NONE;
                 MLuaLogger.LOGGER.error("RenderObject FollowOffset callback failed; disabled it and kept the last valid CFrame", failure);
             }
+        }
+        private record FollowOffsetBinding(LuaValue callback, MLuaContext context) {
+            private static final FollowOffsetBinding NONE = new FollowOffsetBinding(LuaValue.NIL, null);
         }
         private void applyFollowOffset(PoseStack pose) {
             pose.translate(followOffset.x(), followOffset.y(), followOffset.z());
