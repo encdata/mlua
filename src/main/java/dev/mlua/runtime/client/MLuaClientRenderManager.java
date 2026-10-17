@@ -238,7 +238,7 @@ public final class MLuaClientRenderManager {
 
     public static void renderEntityAttachments(Object model, MLuaEntityScope scope, PoseStack pose,
                                                MultiBufferSource buffers, int light, int overlay, float partialTick) {
-        if (model == null || scope == null || pose == null || buffers == null) return;
+        if (scope == null || pose == null || buffers == null) return;
         java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
         if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
         for (Integer renderId : attachedRenderIds) {
@@ -246,10 +246,13 @@ public final class MLuaClientRenderManager {
             if (object == null) continue;
             synchronized (object.executionLock()) {
                 if (object.destroyed || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
-                        || !scope.equals(object.followEntityScope) || object.followBoneName == null) continue;
+                        || !scope.equals(object.followEntityScope)) continue;
                 pose.pushPose();
                 try {
-                    if (!MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose)) continue;
+                    // A missing bone means the entity model's root. This keeps root-level
+                    // attachments usable with living models that have no registered adapter.
+                    if (object.followBoneName != null && (model == null
+                            || !MLuaModelAdapterRegistry.applyPartTransform(model, object.followBoneName, pose))) continue;
                     object.applyFollowOffset(pose);
                     pose.translate(object.worldX, object.worldY, object.worldZ);
                     if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
@@ -1160,7 +1163,7 @@ public final class MLuaClientRenderManager {
             }
             if (boneName == null || boneName.isBlank()) {
                 this.followBoneName = null;
-                this.entityModelTarget = false;
+                this.entityModelTarget = this.followEntityScope != null;
                 return;
             }
             manualTarget = false;

@@ -1,7 +1,10 @@
 package dev.mlua.modules.mixin.Service;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.runtime.client.MLuaRenderCallbacks;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -25,6 +28,10 @@ public abstract class EntityRenderDispatcherMixin {
     private void mlua$renderEntityPass(Entity entity, double x, double y, double z,
             float yaw, float partialTick, PoseStack poseStack, MultiBufferSource buffers,
             int packedLight, CallbackInfo callbackInfo) {
+        if (!(entity instanceof net.minecraft.world.entity.LivingEntity)) {
+            MLuaClientRenderManager.renderEntityAttachments(null, MLuaEntityScope.of(entity), poseStack,
+                buffers, packedLight, OverlayTexture.NO_OVERLAY, partialTick);
+        }
         EntityRenderer<?> renderer = ((EntityRenderDispatcher) (Object) this).getRenderer(entity);
         MLuaRenderCallbacks.renderEntityDraw(entity, renderer, poseStack, buffers, partialTick, packedLight);
     }

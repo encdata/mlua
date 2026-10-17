@@ -68,13 +68,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         new ObjectProperty("Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness"),
         new ObjectProperty("ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex"),
         new ObjectProperty("WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace"),
-        new ObjectProperty("Target", "string", "Automatic destination: Manual, Hud, WorldOverlay, WorldModel, or EntityModel. Manual objects render only when submitted explicitly through a RenderContext.", "GetTarget", "SetTarget"),
+        new ObjectProperty("Target", "string", "Automatic destination: Manual, Hud, WorldOverlay, WorldModel, or EntityModel. EntityModel follows an entity root or a living model bone. Manual objects render only when submitted explicitly through a RenderContext.", "GetTarget", "SetTarget"),
         new ObjectProperty("RenderStage", "string", "The cross-loader world render stage used by WorldModel objects. Defaults to AFTER_ENTITIES; NeoForge 26.1 currently submits WorldModel objects at AFTER_ENTITIES only.", "GetRenderStage", "SetRenderStage"),
         new ObjectProperty("ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance"),
         new ObjectProperty("ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale"),
         new ObjectProperty("FollowEntity", "Entity|number|nil", "The entity followed by this object. Assign an entity instance or id, or nil to clear it.", "GetFollowEntity", "SetFollowEntity"),
-        new ObjectProperty("FollowBone", "string|nil", "A registered model adapter bone to attach this 3D object to on the followed entity.", "GetFollowBone", "SetFollowBone"),
-        new ObjectProperty("FollowOffset", "CFrame|function", "A local transform after the followed model bone. A function returning CFrame is sampled once per client tick.", "GetFollowOffset", "SetFollowOffset"),
+        new ObjectProperty("FollowBone", "string|nil", "A registered model adapter bone on the followed entity. When unset, EntityModel attaches at the living entity model root.", "GetFollowBone", "SetFollowBone"),
+        new ObjectProperty("FollowOffset", "CFrame|function", "A local transform after the followed entity root or model bone. A function returning CFrame is sampled once per client tick.", "GetFollowOffset", "SetFollowOffset"),
         new ObjectProperty("Resource", "string|nil", "The resource identifier for image, item, or block objects; nil for other render types.", "GetResource", "SetResource"),
         new ObjectProperty("Text", "string|nil", "The displayed text; available only on text objects.", "GetText", "SetText")
     );

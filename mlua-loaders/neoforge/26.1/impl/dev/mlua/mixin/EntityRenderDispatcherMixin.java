@@ -1,6 +1,8 @@
 package dev.mlua.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.runtime.client.MLuaRenderCallbacks;
 import dev.mlua.runtime.client.MLuaRenderStateEntityResolver;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -37,9 +39,14 @@ public abstract class EntityRenderDispatcherMixin {
     private void mlua$renderEntityPass(EntityRenderState state, CameraRenderState camera,
             double x, double y, double z, PoseStack poseStack, SubmitNodeCollector collector,
             CallbackInfo callbackInfo) {
-        if (!MLuaRenderCallbacks.hasEntityDrawCallbacks(state.entityType)) return;
         Entity entity = MLuaRenderStateEntityResolver.findEntity(state);
         if (entity == null) return;
+        if (!(entity instanceof net.minecraft.world.entity.LivingEntity)) {
+            Float partialTick = MLuaRenderStateEntityResolver.findPartialTick(state);
+            MLuaClientRenderManager.renderEntityAttachments(null, MLuaEntityScope.of(entity), poseStack,
+                collector, state.lightCoords, partialTick == null ? 0.0F : partialTick);
+        }
+        if (!MLuaRenderCallbacks.hasEntityDrawCallbacks(state.entityType)) return;
         EntityRenderer<?, ?> renderer = ((EntityRenderDispatcher) (Object) this).getRenderer(state);
         MLuaRenderCallbacks.renderEntityDraw(entity, renderer, poseStack, collector,
             MLuaRenderStateEntityResolver.findPartialTick(state), state.lightCoords, state);
