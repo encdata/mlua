@@ -142,9 +142,11 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetWorldRenderStages()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetWorldModelRenderStages()", "string[]"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:GetRenderCallbackLimits()", "RenderCallbackLimits"));
-        docs.register(MLuaDocBuilder.Registration.type("RenderCallbackLimits", null, "Current active render callbacks and the shared capacity limits."));
+        docs.register(MLuaDocBuilder.Registration.type("RenderCallbackLimits", null, "Current active render callbacks and capacity limits for the client, calling addon runtime, and individual render targets."));
         docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "Active", "number", "Number of active callbacks across all render targets and addons."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "ActiveOwned", "number", "Number of active callbacks owned by the calling addon runtime."));
         docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "MaxTotal", "number", "Maximum active callbacks across MLua."));
+        docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "MaxPerOwner", "number", "Maximum active callbacks owned by one addon runtime."));
         docs.register(MLuaDocBuilder.Registration.field("RenderCallbackLimits", "MaxPerTarget", "number", "Maximum callbacks for one entity type, item id, HUD layer, or world stage."));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterHudRenderer(callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderer()", "boolean"));

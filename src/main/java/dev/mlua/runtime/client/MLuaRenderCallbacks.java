@@ -30,8 +30,12 @@ public final class MLuaRenderCallbacks {
     public static final int MAX_CALLBACKS = 4096;
     /** Prevents one entity type, render stage, or item from monopolizing every frame. */
     public static final int MAX_CALLBACKS_PER_TARGET = 256;
+    /** Keeps one addon runtime from consuming the callback capacity needed by other addons. */
+    public static final int MAX_CALLBACKS_PER_OWNER = 512;
     private static final AtomicLong NEXT_REGISTRATION_ORDER = new AtomicLong();
     private static final AtomicInteger REGISTERED_CALLBACKS = new AtomicInteger();
+    private static final Object CALLBACK_LIMIT_LOCK = new Object();
+    private static final Map<Owner, Integer> REGISTERED_CALLBACKS_BY_OWNER = new HashMap<>();
     /** One registry owns every render hook; the target kind prevents unrelated hooks colliding. */
     private static final ConcurrentMap<HookTarget, HookBucket> HOOKS = new ConcurrentHashMap<>();
     private static final Object WORLD_REGISTRATION_LOCK = new Object();
@@ -642,7 +646,7 @@ public final class MLuaRenderCallbacks {
                     throw new IllegalStateException("Render target '" + target + "' already has the maximum of "
                         + MAX_CALLBACKS_PER_TARGET + " callbacks");
                 }
-                reserveCallback();
+                reserveCallback(key.owner());
             } else {
                 previous.active = false;
             }
@@ -655,7 +659,7 @@ public final class MLuaRenderCallbacks {
             Hook removed = hooks.remove(key);
             if (removed == null) return false;
             removed.active = false;
-            releaseCallback();
+            releaseCallback(key.owner());
             rebuildSnapshot();
             return true;
         }
@@ -663,7 +667,7 @@ public final class MLuaRenderCallbacks {
         private synchronized boolean remove(HookKey key, Hook expected) {
             if (!hooks.remove(key, expected)) return false;
             expected.active = false;
-            releaseCallback();
+            releaseCallback(key.owner());
             rebuildSnapshot();
             return true;
         }
@@ -681,10 +685,10 @@ public final class MLuaRenderCallbacks {
                 if (!predicate.test(entry.getKey().owner())) continue;
                 entry.getValue().active = false;
                 iterator.remove();
+                releaseCallback(entry.getKey().owner());
                 removed++;
             }
             if (removed > 0) {
-                REGISTERED_CALLBACKS.addAndGet(-removed);
                 rebuildSnapshot();
             }
         }
@@ -720,14 +724,20 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    private static void reserveCallback() {
-        while (true) {
+    private static void reserveCallback(Owner owner) {
+        synchronized (CALLBACK_LIMIT_LOCK) {
             int current = REGISTERED_CALLBACKS.get();
             if (current >= MAX_CALLBACKS) {
                 throw new IllegalStateException("MLua already has the maximum of " + MAX_CALLBACKS
                     + " active render callbacks; unregister unused passes or unload their addon");
             }
-            if (REGISTERED_CALLBACKS.compareAndSet(current, current + 1)) return;
+            int owned = REGISTERED_CALLBACKS_BY_OWNER.getOrDefault(owner, 0);
+            if (owned >= MAX_CALLBACKS_PER_OWNER) {
+                throw new IllegalStateException("Addon '" + owner.modId() + "' already has the maximum of "
+                    + MAX_CALLBACKS_PER_OWNER + " active render callbacks");
+            }
+            REGISTERED_CALLBACKS.set(current + 1);
+            REGISTERED_CALLBACKS_BY_OWNER.put(owner, owned + 1);
         }
     }
 
@@ -735,11 +745,23 @@ public final class MLuaRenderCallbacks {
         return REGISTERED_CALLBACKS.get();
     }
 
-    private static void releaseCallback() {
-        int remaining = REGISTERED_CALLBACKS.decrementAndGet();
-        if (remaining < 0) {
-            REGISTERED_CALLBACKS.incrementAndGet();
-            throw new IllegalStateException("Render callback accounting underflow");
+    public static int registeredCallbackCount(MLuaContext context) {
+        if (context == null) return 0;
+        synchronized (CALLBACK_LIMIT_LOCK) {
+            return REGISTERED_CALLBACKS_BY_OWNER.getOrDefault(owner(context), 0);
+        }
+    }
+
+    private static void releaseCallback(Owner owner) {
+        synchronized (CALLBACK_LIMIT_LOCK) {
+            int current = REGISTERED_CALLBACKS.get();
+            Integer owned = REGISTERED_CALLBACKS_BY_OWNER.get(owner);
+            if (current <= 0 || owned == null || owned <= 0) {
+                throw new IllegalStateException("Render callback accounting underflow");
+            }
+            REGISTERED_CALLBACKS.set(current - 1);
+            if (owned == 1) REGISTERED_CALLBACKS_BY_OWNER.remove(owner);
+            else REGISTERED_CALLBACKS_BY_OWNER.put(owner, owned - 1);
         }
     }
 

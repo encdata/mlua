@@ -489,11 +489,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return stages;
     }
 
-    @MLuaDescription("Returns render callback capacity and current usage. MaxTotal is shared by all render callbacks; MaxPerTarget applies to each entity type, item, HUD layer, or world stage.")
+    @MLuaDescription("Returns render callback capacity and usage. Active is the global count; ActiveOwned is the count registered by the calling addon runtime. MaxTotal is shared by all addons, MaxPerOwner limits one addon runtime, and MaxPerTarget applies to each entity type, item, HUD layer, or world stage.")
     public LuaTable GetRenderCallbackLimits() {
         LuaTable limits = new LuaTable();
         limits.set("Active", dev.mlua.runtime.client.MLuaRenderCallbacks.registeredCallbackCount());
+        limits.set("ActiveOwned", dev.mlua.runtime.client.MLuaRenderCallbacks.registeredCallbackCount(renderOwnerContext()));
         limits.set("MaxTotal", dev.mlua.runtime.client.MLuaRenderCallbacks.MAX_CALLBACKS);
+        limits.set("MaxPerOwner", dev.mlua.runtime.client.MLuaRenderCallbacks.MAX_CALLBACKS_PER_OWNER);
         limits.set("MaxPerTarget", dev.mlua.runtime.client.MLuaRenderCallbacks.MAX_CALLBACKS_PER_TARGET);
         return limits;
     }
