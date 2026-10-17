@@ -7,6 +7,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 public final class SmokeClient {
     private static int ticks;
+    private static int successTicks;
 
     private SmokeClient() {}
 
@@ -25,6 +26,7 @@ public final class SmokeClient {
             }
             return;
         }
+        if (++successTicks < 5) return;
         System.out.println("MLUA_PACKAGED_CLIENT_BOOT_OK");
         Minecraft.getInstance().stop();
     }

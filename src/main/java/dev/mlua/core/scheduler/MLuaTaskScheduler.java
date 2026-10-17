@@ -12,6 +12,7 @@ import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.common.enums.Side;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    public static final LuaValue TASK_WAIT_TOKEN = LuaValue.valueOf("__mlua_task_wait__");
    private final List<MLuaScheduledTask> tasks = new ArrayList<>();
    private final Map<TaskOwner, Integer> pendingByOwner = new HashMap<>();
+   /** Due tasks are kept here until execution finishes so owner teardown can cancel them. */
+   private final Set<MLuaScheduledTask> inFlight = new HashSet<>();
    private volatile BiConsumer<String, Throwable> failureReporter;
 
    public void setFailureReporter(BiConsumer<String, Throwable> failureReporter) {
@@ -134,14 +137,23 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       while (iterator.hasNext()) {
          MLuaScheduledTask task = iterator.next();
          if (!predicate.test(task)) continue;
+         task.cancelled = true;
          iterator.remove();
          this.release(task);
          removed++;
+      }
+      for (MLuaScheduledTask task : this.inFlight) {
+         if (predicate.test(task) && !task.cancelled) {
+            task.cancelled = true;
+            removed++;
+         }
       }
       return removed;
    }
 
     public synchronized void Destroy() {
+       this.inFlight.forEach(task -> task.cancelled = true);
+       this.inFlight.clear();
        this.tasks.clear();
        this.pendingByOwner.clear();
     }
@@ -193,6 +205,7 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
             if (task.ticksRemaining <= 0L) {
                iterator.remove();
                this.release(task);
+               this.inFlight.add(task);
                ready.add(task);
             }
          }
@@ -201,6 +214,12 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       // LuaThread.resume waits for the coroutine thread. Do not hold the scheduler
       // monitor here: resumed Lua code is allowed to schedule or cancel tasks.
       for (MLuaScheduledTask task : ready) {
+         synchronized (this) {
+            if (task.cancelled) {
+               this.inFlight.remove(task);
+               continue;
+            }
+         }
          try {
             this.runTask(task);
          } catch (LuaError failure) {
@@ -209,6 +228,10 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
          } catch (RuntimeException failure) {
             MLuaLogger.LOGGER.error("Scheduled MLua task failed unexpectedly and was removed", failure);
             this.reportRuntimeFailure("Scheduled MLua task failed unexpectedly and was removed", failure);
+         } finally {
+            synchronized (this) {
+               this.inFlight.remove(task);
+            }
          }
       }
 
@@ -226,11 +249,18 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    }
 
    private void runTaskLocked(MLuaScheduledTask task) {
+      // A due task can be waiting for its Lua context while the owning script is
+      // reloaded. Recheck after taking the context lock so cleanup wins that race.
+      if (task.cancelled) return;
       LuaThread thread = task.thread != null ? task.thread : new LuaThread(task.globals, task.function);
       Varargs resumeArgs = task.resumeArgs == null ? LuaValue.NONE : task.resumeArgs;
       Varargs result = thread.resume(resumeArgs);
       if (!result.arg1().toboolean()) throw new LuaError(result.arg(2).tojstring());
-      this.scheduleResumableThread(task.globals, thread, result, task.context, task.ownerModId, task.side);
+      synchronized (this) {
+         if (!task.cancelled) {
+            this.scheduleResumableThread(task.globals, thread, result, task.context, task.ownerModId, task.side);
+         }
+      }
    }
 
    private MLuaContext contextFor(Globals globals) {

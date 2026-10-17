@@ -10,6 +10,7 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = "mlua_ci_smoke", value = Dist.CLIENT)
 public final class SmokeClient {
     private static int ticks;
+    private static int successTicks;
 
     private SmokeClient() {}
 
@@ -26,6 +27,7 @@ public final class SmokeClient {
             }
             return;
         }
+        if (++successTicks < 5) return;
         System.out.println("MLUA_PACKAGED_CLIENT_BOOT_OK");
         Minecraft.getInstance().stop();
     }

@@ -16,6 +16,7 @@ final class MLuaScheduledTask {
    final MLuaContext context;
    final String ownerModId;
    final Side side;
+   volatile boolean cancelled;
 
    MLuaScheduledTask(long ticksRemaining, Globals globals, LuaThread thread, LuaValue function, Varargs resumeArgs, MLuaContext context) {
       this(ticksRemaining, globals, thread, function, resumeArgs, context,

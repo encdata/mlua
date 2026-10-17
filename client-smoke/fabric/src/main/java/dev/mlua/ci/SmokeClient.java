@@ -6,6 +6,7 @@ import net.fabricmc.loader.api.FabricLoader;
 
 public final class SmokeClient implements ClientModInitializer {
     private static int ticks;
+    private static int successTicks;
 
     @Override
     public void onInitializeClient() {
@@ -20,6 +21,7 @@ public final class SmokeClient implements ClientModInitializer {
                 }
                 return;
             }
+            if (++successTicks < 5) return;
             System.out.println("MLUA_PACKAGED_CLIENT_BOOT_OK");
             client.stop();
         });
