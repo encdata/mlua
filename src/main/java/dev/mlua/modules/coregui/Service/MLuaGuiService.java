@@ -289,6 +289,59 @@ public final class MLuaGuiService implements MLuaService {
         }
     }
 
+    /** Opens a constructed screen on the client thread; Lua client scripts may run on a worker. */
+    private static void openNativeScreen(Minecraft minecraft, MLuaScriptScreen screen) {
+        Runnable open = () -> {
+            synchronized (screen) {
+                if (screen.disposed || !screen.pendingOpen) return;
+                screen.pendingOpen = false;
+            }
+            minecraft.setScreen(screen);
+        };
+        if (minecraft.isSameThread()) {
+            synchronized (screen) {
+                if (screen.disposed) return;
+                screen.pendingOpen = true;
+            }
+            open.run();
+        }
+        else {
+            synchronized (screen) {
+                if (screen.disposed) return;
+                screen.pendingOpen = true;
+            }
+            minecraft.execute(open);
+        }
+    }
+
+    public static boolean isNativeScreenPending(Object screen) {
+        return screen instanceof MLuaScriptScreen scriptScreen && scriptScreen.pendingOpen;
+    }
+
+    /** Closes only the currently active screen, scheduling the change when called from Lua workers. */
+    public static boolean closeNativeScreen(Object expectedScreen) {
+        if (expectedScreen == null) return false;
+        if (expectedScreen instanceof MLuaScriptScreen scriptScreen) {
+            synchronized (scriptScreen) {
+                if (scriptScreen.pendingOpen) {
+                    scriptScreen.pendingOpen = false;
+                    scriptScreen.disposed = true;
+                    scriptScreen.textLines.clear();
+                    scriptScreen.state.scriptScreens.remove(scriptScreen);
+                    return true;
+                }
+            }
+        }
+        if (currentScreen() != expectedScreen) return false;
+        Minecraft minecraft = Minecraft.getInstance();
+        Runnable close = () -> {
+            if (currentScreen() == expectedScreen) minecraft.setScreen(null);
+        };
+        if (minecraft.isSameThread()) close.run();
+        else minecraft.execute(close);
+        return true;
+    }
+
     public static void setNativeControlProperty(MLuaNativeControl.Backing backing, String name, LuaValue value) {
         if (value.isnil() && Set.of("Replacement", "Before", "After").contains(name)) {
             LuaTable update = new LuaTable();
@@ -1136,7 +1189,7 @@ public final class MLuaGuiService implements MLuaService {
                     MLuaGuiService.this.context.mlua().registration(), MLuaGuiService.this.state,
                     MLuaGuiService.this.context.mlua().ownerModId(), MLuaLuaBindings.currentContext());
                 MLuaGuiService.this.state.scriptScreens.add(screen);
-                minecraft.setScreen(screen);
+                openNativeScreen(minecraft, screen);
                 return MLuaNativeScreen.instance(MLuaRuntime.get(), screen);
             }
         });
@@ -1170,14 +1223,10 @@ public final class MLuaGuiService implements MLuaService {
                 instance.set("NativeScreen", MLuaNativeScreen.instance(MLuaRuntime.get(), screen));
                 instance.rawset("Close", new VarArgFunction() {
                     @Override public Varargs invoke(Varargs closeArgs) {
-                        if (MLuaGuiService.currentScreen() == screen) {
-                            Minecraft.getInstance().setScreen(null);
-                            return LuaValue.TRUE;
-                        }
-                        return LuaValue.FALSE;
+                        return LuaValue.valueOf(MLuaGuiService.closeNativeScreen(screen));
                     }
                 });
-                Minecraft.getInstance().setScreen(screen);
+                openNativeScreen(Minecraft.getInstance(), screen);
                 return instance;
             }
         });
@@ -1557,7 +1606,8 @@ public final class MLuaGuiService implements MLuaService {
         private LuaValue tickCallback = LuaValue.NIL;
         private LuaValue renderCallback = LuaValue.NIL;
         private boolean classInitialized;
-        private boolean disposed;
+        private volatile boolean disposed;
+        private volatile boolean pendingOpen;
         private boolean tickFailed;
         private boolean renderFailed;
         private int nextNativeControlIndex = 1;
@@ -2000,7 +2050,7 @@ public final class MLuaGuiService implements MLuaService {
             this.disposed = true;
             this.textLines.clear();
             this.state.scriptScreens.remove(this);
-            if (MLuaGuiService.currentScreen() == this) Minecraft.getInstance().setScreen(null);
+            MLuaGuiService.closeNativeScreen(this);
         }
 
         private Varargs invokeLua(LuaValue function, Varargs arguments) {

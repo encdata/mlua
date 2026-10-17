@@ -33,6 +33,11 @@ public final class MLuaNativeScreen {
                 return LuaValue.valueOf(backing(self.checktable()).isOpen());
             }
         }, LuaValue.NIL, "boolean", "client:Client", "Returns whether this screen is currently open in Minecraft.");
+        registration.registerClassProperty("NativeScreen", "IsPending", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(backing(self.checktable()).isPending());
+            }
+        }, LuaValue.NIL, "boolean", "client:Client", "Returns whether Minecraft has a queued request to open this screen on the client thread.");
         registration.registerClassProperty("NativeScreen", "CanInspectControls", new OneArgFunction() {
             @Override public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(backing(self.checktable()).canInspectControls());
@@ -43,7 +48,7 @@ public final class MLuaNativeScreen {
             @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
                 return backing(args.arg1().checktable()).controls();
             }
-        }, "Returns the current live NativeControl instances for this screen's widgets.");
+        }, "Returns the current live NativeControl instances for this screen's widgets, or an empty array after the screen closes.");
         registration.registerClassFunction("NativeScreen", "GetControl", new VarArgFunction() {
             @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
                 int index = args.arg(2).checkint();
@@ -72,11 +77,7 @@ public final class MLuaNativeScreen {
         registration.registerClassFunction("NativeScreen", "Close", new VarArgFunction() {
             @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
                 Backing screen = backing(args.arg1().checktable());
-                if (screen.isOpen()) {
-                    net.minecraft.client.Minecraft.getInstance().setScreen(null);
-                    return LuaValue.TRUE;
-                }
-                return LuaValue.FALSE;
+                return LuaValue.valueOf(MLuaGuiService.closeNativeScreen(screen.screen));
             }
         }, "Closes this screen when it is the currently open Minecraft screen.");
     }
@@ -110,6 +111,7 @@ public final class MLuaNativeScreen {
     private record Backing(Object screen, MLuaTaskSchedulerView scheduler) {
         String screenClass() { return this.screen.getClass().getName(); }
         boolean isOpen() { return MLuaGuiService.currentScreen() == this.screen; }
+        boolean isPending() { return MLuaGuiService.isNativeScreenPending(this.screen); }
         boolean canInspectControls() {
             try {
                 return this.screen.getClass().getMethod("children").invoke(this.screen) instanceof Iterable<?>;
@@ -117,6 +119,9 @@ public final class MLuaNativeScreen {
                 return false;
             }
         }
-        LuaTable controls() { return MLuaGuiService.getNativeControls(this.scheduler, this.screen); }
+        LuaTable controls() {
+            if (!isOpen()) return new LuaTable();
+            return MLuaGuiService.getNativeControls(this.scheduler, this.screen);
+        }
     }
 }

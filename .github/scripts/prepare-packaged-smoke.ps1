@@ -413,9 +413,15 @@ tickScreen = gui:OpenNativeScreen("MLua CI screen lifecycle", function(screen)
         if screenTicks == 1 then
             print("MLUA_CI_NATIVE_SCREEN_TICK_OK")
             tickScreen:Close()
+            assert(#tickScreen:GetControls() == 0 and tickScreen:GetControl(1) == nil,
+                "Closed NativeScreen exposed stale NativeControl handles")
+            print("MLUA_CI_CLOSED_SCREEN_CONTROLS_OK")
         end
     end)
 end)
+assert(tickScreen.IsPending and not tickScreen.IsOpen,
+    "Gui:OpenNativeScreen did not report its queued client-thread state")
+print("MLUA_CI_NATIVE_SCREEN_PENDING_OK")
 print("MLUA_CI_ANIMATION_API_OK")
 print("MLUA_CI_SERVICE_PARITY_OK")
 print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")
