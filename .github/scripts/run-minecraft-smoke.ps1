@@ -65,6 +65,9 @@ try {
         if ($text -match 'MLUA_CI_(CLIENT|SERVER)_SERVICE_MISSING') {
             throw 'The packaged smoke script did not reach its Java service call; see the captured launcher log.'
         }
+        if ($text.Contains('MLUA_CI_NATIVE_SCREEN_LIFECYCLE_MISSING')) {
+            throw 'The packaged client did not complete the queued native screen lifecycle; see the captured launcher log.'
+        }
 
         if ($process.HasExited) { break }
 

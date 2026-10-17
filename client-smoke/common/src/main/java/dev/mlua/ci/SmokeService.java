@@ -21,4 +21,10 @@ public final class SmokeService extends MLuaReflectiveService {
         System.setProperty("mlua.ci.service." + side, "called");
         return side;
     }
+
+    @MLuaDescription("Marks the native screen lifecycle smoke check as complete.")
+    public String MarkNativeScreenLifecycleComplete() {
+        System.setProperty("mlua.ci.native_screen_lifecycle", "complete");
+        return "complete";
+    }
 }

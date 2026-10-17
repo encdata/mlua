@@ -416,6 +416,9 @@ tickScreen = gui:OpenNativeScreen("MLua CI screen lifecycle", function(screen)
             assert(#tickScreen:GetControls() == 0 and tickScreen:GetControl(1) == nil,
                 "Closed NativeScreen exposed stale NativeControl handles")
             print("MLUA_CI_CLOSED_SCREEN_CONTROLS_OK")
+            local smoke = Minecraft:GetService("CiSmokeService")
+            assert(smoke:MarkNativeScreenLifecycleComplete() == "complete",
+                "Java smoke service did not acknowledge native screen lifecycle completion")
         end
     end)
 end)
