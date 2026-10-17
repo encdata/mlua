@@ -246,12 +246,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    }
 
    private void configureContextGlobals(Globals globals, MLuaContext context) {
-      MLuaLuaBindings.bindContext(globals, context);
-      LuaTable task = MLuaLuaBindings.taskTable(context.scheduler(), globals);
-      globals.set("task", task);
-      globals.set("wait", task.get("wait"));
-      globals.set("Minecraft", MLuaLuaBindings.minecraftTable(context));
-      MLuaModuleLoader.get().contributeContextGlobals(globals, context);
+      MLuaLuaBindings.configureContextGlobals(globals, context);
    }
 
    private ResolvedModule resolveRequire(String requested, MLuaScript current) {

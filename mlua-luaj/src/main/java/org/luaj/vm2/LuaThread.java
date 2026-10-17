@@ -152,6 +152,11 @@ public class LuaThread extends LuaValue {
 		return STATUS_NAMES[state.status];
 	}
 
+	/** Returns whether the current Java thread is executing this Lua coroutine. */
+	public boolean isRunningOnCurrentThread() {
+		return this.state.executionThread == Thread.currentThread();
+	}
+
 	public boolean isMainThread() {
 		return this.state.function == null;
 	}
@@ -184,6 +189,7 @@ public class LuaThread extends LuaValue {
 		public int bytecodes;
 		
 		public int status = LuaThread.STATUS_INITIAL;
+		volatile Thread executionThread;
 
 		State(Globals globals, LuaThread lua_thread, LuaValue function) {
 			this.globals = globals;
@@ -192,6 +198,7 @@ public class LuaThread extends LuaValue {
 		}
 		
 		public synchronized void run() {
+			this.executionThread = Thread.currentThread();
 			try {
 				Varargs a = this.args;
 				this.args = LuaValue.NONE;
@@ -200,6 +207,7 @@ public class LuaThread extends LuaValue {
 				this.error = t.getMessage();
 			} finally {
 				this.status = LuaThread.STATUS_DEAD;
+				this.executionThread = null;
 				this.notify();
 			}
 		}

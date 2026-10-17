@@ -377,8 +377,13 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
             String domain = dynamicContentTypeDomain(owner, category);
+            dev.mlua.core.MLuaContext callbackContext = MLuaLuaBindings.boundContext(
+               MLuaRegistryService.this.context.mlua().globals());
+            if (callbackContext == null || !owner.equals(callbackContext.ownerModId())) {
+               throw new LuaError("[MLua] RegisterCategory must be called from its owning Lua script context");
+            }
             MLuaDynamicRegistryCatalog.Category registered = new MLuaDynamicRegistryCatalog.Category(category, description, domain,
-               owner, register);
+               owner, register, callbackContext);
             if (!MLuaRegistryService.this.dynamicRegistry.register(registered)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
@@ -1746,8 +1751,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
                LuaTable definition = args.checktable(3);
                LuaTable resolved = MLuaRegistryService.this.context.mlua().registration()
                   .resolveContentType(active.domain(), MLuaRegistryService.this.context.mlua().ownerModId(), definition);
-               Varargs result = active.register().invoke(LuaValue.varargsOf(
-                  new LuaValue[]{LuaValue.valueOf(id), MLuaDynamicRegistryCatalog.copyTable(resolved)}));
+               Varargs result = MLuaLuaBindings.withContext(active.context(), () -> active.register().invoke(LuaValue.varargsOf(
+                  new LuaValue[]{LuaValue.valueOf(id), MLuaDynamicRegistryCatalog.copyTable(resolved)})));
                MLuaDynamicRegistryCatalog.DefinitionHandle stored = MLuaRegistryService.this.dynamicRegistry
                   .registerDefinition(reservation, resolved);
                if (stored == null) {

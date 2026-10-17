@@ -1,6 +1,7 @@
 package dev.mlua.runtime.registry;
 
 import dev.mlua.api.registry.MLuaRegistry;
+import dev.mlua.core.MLuaContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -225,7 +226,8 @@ public final class MLuaDynamicRegistryCatalog {
         private String owner() { return this.owner; }
     }
 
-    public record Category(String name, String description, String domain, String owner, LuaValue register) {
+    public record Category(String name, String description, String domain, String owner,
+                           LuaValue register, MLuaContext context) {
         public Category {
             name = requireText(name, "category name");
             description = requireText(description, "category description");
@@ -233,6 +235,7 @@ public final class MLuaDynamicRegistryCatalog {
             owner = requireText(owner, "category owner");
             Objects.requireNonNull(register, "category register callback");
             if (!register.isfunction()) throw new IllegalArgumentException("category register callback must be a function");
+            Objects.requireNonNull(context, "category register context");
             int namespaceEnd = name.indexOf(':');
             if (namespaceEnd < 1 || !owner.equals(name.substring(0, namespaceEnd))) {
                 throw new IllegalArgumentException("category must be namespaced to its owner");

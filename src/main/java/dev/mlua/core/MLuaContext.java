@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 import net.minecraft.server.MinecraftServer;
 import org.luaj.vm2.Globals;
 
@@ -36,6 +37,9 @@ public final class MLuaContext implements MLuaContextView {
    private volatile Globals globals;
    private volatile Object executionLock;
    private final Map<String, LuaTable> materializedServices = new LinkedHashMap<>();
+   private final Map<String, LuaValue> contextGlobals = new LinkedHashMap<>();
+   private volatile boolean contextGlobalsConfigured;
+   private volatile LuaTable documentationTable;
    private final Map<String, LuaTable> serviceProxies = new LinkedHashMap<>();
    private final ArrayDeque<String> serviceMaterializationStack = new ArrayDeque<>();
 
@@ -153,6 +157,23 @@ public final class MLuaContext implements MLuaContextView {
    public Globals globals() { return this.globals; }
 
    public void bindGlobals(Globals globals) { this.globals = globals; }
+
+   public synchronized LuaTable documentationTable(Supplier<LuaTable> factory) {
+      if (this.documentationTable == null) this.documentationTable = factory.get();
+      return this.documentationTable;
+   }
+
+   public synchronized boolean contextGlobalsConfigured() { return this.contextGlobalsConfigured; }
+
+   public synchronized void configureContextGlobals(Map<String, LuaValue> bindings) {
+      this.contextGlobals.clear();
+      this.contextGlobals.putAll(bindings);
+      this.contextGlobalsConfigured = true;
+   }
+
+   public synchronized Map<String, LuaValue> contextGlobals() {
+      return Collections.unmodifiableMap(new LinkedHashMap<>(this.contextGlobals));
+   }
 
    @Override
    public Object executionLock() { return this.executionLock; }

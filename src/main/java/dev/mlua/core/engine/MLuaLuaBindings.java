@@ -14,12 +14,15 @@ import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.module.MLuaDocBuilder;
+import dev.mlua.module.MLuaModuleLoader;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.WeakHashMap;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -33,6 +36,7 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 public final class MLuaLuaBindings {
    private static final ThreadLocal<WeakReference<MLuaContext>> ACTIVE_CONTEXT = new ThreadLocal<>();
+   private static final Map<Globals, Set<String>> CONTEXT_GLOBAL_NAMES = new WeakHashMap<>();
    private static final String API_VERSION = MLuaApiPolicy.VERSION;
    private static final List<String> CAPABILITIES = MLuaApiPolicy.capabilities().stream().sorted().toList();
    private static final LuaValue CONTEXT_KEY = LuaValue.valueOf("__mlua_context");
@@ -757,21 +761,102 @@ public final class MLuaLuaBindings {
       else ACTIVE_CONTEXT.set(new WeakReference<>(context));
       if (globals != null) {
          globals.set(CONTEXT_KEY, context != null ? CoerceJavaToLua.coerce(context) : LuaValue.NIL);
-         if (context != null) globals.set("Docs", documentationTable(context));
+         if (context != null) globals.set("Docs", context.documentationTable(() -> documentationTable(context)));
       }
+   }
+
+   /** Binds all globals whose values depend on the active script context. */
+   public static void configureContextGlobals(Globals globals, MLuaContext context) {
+      if (globals == null) return;
+      if (context == null) {
+         bindContext(globals, null);
+         return;
+      }
+      synchronized (context) {
+         if (context.contextGlobalsConfigured()) {
+            bindContext(globals, context);
+            applyContextGlobals(globals, context);
+            return;
+         }
+         clearContextGlobals(globals);
+         Map<String, LuaValue> before = snapshotGlobals(globals);
+         bindContext(globals, context);
+         LuaTable task = taskTable(context.scheduler(), globals);
+         globals.set("task", task);
+         globals.set("wait", task.get("wait"));
+         globals.set("Minecraft", minecraftTable(context));
+         MLuaModuleLoader.get().contributeContextGlobals(globals, context);
+         Map<String, LuaValue> after = snapshotGlobals(globals);
+         Map<String, LuaValue> bindings = new LinkedHashMap<>();
+         Set<String> keys = new java.util.TreeSet<>(before.keySet());
+         keys.addAll(after.keySet());
+         for (String key : keys) {
+            LuaValue previous = before.getOrDefault(key, LuaValue.NIL);
+            LuaValue current = after.getOrDefault(key, LuaValue.NIL);
+            if (previous != current) bindings.put(key, current);
+         }
+         context.configureContextGlobals(bindings);
+         synchronized (CONTEXT_GLOBAL_NAMES) {
+            Set<String> names = CONTEXT_GLOBAL_NAMES.computeIfAbsent(globals, ignored -> new java.util.TreeSet<>());
+            names.addAll(bindings.keySet());
+         }
+      }
+   }
+
+   private static void clearContextGlobals(Globals globals) {
+      synchronized (CONTEXT_GLOBAL_NAMES) {
+         Set<String> names = CONTEXT_GLOBAL_NAMES.get(globals);
+         if (names != null) for (String name : names) globals.set(name, LuaValue.NIL);
+      }
+   }
+
+   private static Map<String, LuaValue> snapshotGlobals(Globals globals) {
+      Map<String, LuaValue> snapshot = new LinkedHashMap<>();
+      for (LuaValue key : globals.keys()) {
+         if (key.isstring()) snapshot.put(key.tojstring(), globals.rawget(key));
+      }
+      return snapshot;
+   }
+
+   private static void applyContextGlobals(Globals globals, MLuaContext context) {
+      Map<String, LuaValue> bindings = context.contextGlobals();
+      synchronized (CONTEXT_GLOBAL_NAMES) {
+         Set<String> names = CONTEXT_GLOBAL_NAMES.computeIfAbsent(globals, ignored -> new java.util.TreeSet<>());
+         names.addAll(bindings.keySet());
+         for (String name : names) globals.set(name, bindings.getOrDefault(name, LuaValue.NIL));
+      }
+      // The context marker and documentation table are bound by bindContext.
    }
 
    /** Runs Java-dispatched Lua work with its owner context and lock, restoring the caller context afterward. */
    public static <T> T withContext(MLuaContext context, java.util.function.Supplier<T> callback) {
       java.util.Objects.requireNonNull(callback, "callback");
       if (context == null) return callback.get();
-      MLuaContext previous = currentContext();
-      synchronized (context.executionLock()) {
-         bindContext(context.globals(), context);
+      Globals globals = context.globals();
+      org.luaj.vm2.LuaThread running = globals == null ? null : globals.running;
+      if (running != null && running.isRunningOnCurrentThread()) {
+         // LuaJ resumes coroutines on a child thread while the resuming thread
+         // waits with the execution monitor held. Rebinding context on that same
+         // coroutine is safe, but reacquiring the monitor would deadlock.
+         MLuaContext previousBound = boundContext(globals);
+         MLuaContext previous = currentContext();
+         MLuaContext restore = previous == null ? previousBound : previous;
+         configureContextGlobals(globals, context);
          try {
             return callback.get();
          } finally {
-            bindContext(previous == null ? null : previous.globals(), previous);
+            configureContextGlobals(globals, restore);
+         }
+      }
+      MLuaContext previous = currentContext();
+      MLuaContext previousBound = boundContext(globals);
+      MLuaContext restore = previous == null ? previousBound : previous;
+      synchronized (context.executionLock()) {
+         configureContextGlobals(globals, context);
+         try {
+            return callback.get();
+         } finally {
+            configureContextGlobals(globals, restore);
          }
       }
    }
