@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -43,6 +44,16 @@ public final class FabricEventBridge implements EventBridge {
     @Override public void onServerTickEnd(Consumer<Object> callback) { ServerTickEvents.END_SERVER_TICK.register(server -> callback.accept(server)); }
     @Override public void onServerLevelTickEnd(Consumer<Object> callback) { ServerTickEvents.END_LEVEL_TICK.register(level -> { if (!level.isClientSide()) callback.accept(level); }); }
     @Override public void onClientDisconnect(Runnable callback) { AtomicBoolean notified = new AtomicBoolean(); Runnable notifyOnce = () -> { if (notified.compareAndSet(false, true)) callback.run(); }; ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> notified.set(false)); ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> notifyOnce.run()); ClientLifecycleEvents.CLIENT_STOPPING.register(client -> notifyOnce.run()); }
+    @Override public void onClientEntityUnload(Consumer<Object> callback) {
+        if (!dev.mlua.loaderapi.LoaderApi.platform().isClient()) {
+            throw new UnsupportedOperationException("Client entity unload events are unavailable on a dedicated server");
+        }
+        try {
+            ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> callback.accept(entity));
+        } catch (LinkageError unavailableOnThisSide) {
+            throw new UnsupportedOperationException("Client entity unload events are unavailable on this side", unavailableOnThisSide);
+        }
+    }
     @Override public void onPlayerJoin(Consumer<Object> callback) { ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> callback.accept(handler.getPlayer())); }
     @Override public void onPlayerLeave(Consumer<Object> callback) { ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> callback.accept(handler.getPlayer())); }
     @Override public void onServerChat(ServerChatCallback callback) { ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, sender, params) -> { ChatResult result = callback.handle(sender, message.signedBody().content()); if (result == null) return true; if (result.cancel()) return false; String updated = result.message(); if (updated != null && !updated.equals(message.signedBody().content())) { Component replacement = Component.translatable("chat.type.text", sender.getDisplayName(), Component.literal(updated)); sender.level().getServer().getPlayerList().broadcastSystemMessage(replacement, false); } return updated == null || updated.equals(message.signedBody().content()); }); }

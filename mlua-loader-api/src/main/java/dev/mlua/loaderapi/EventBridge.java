@@ -22,6 +22,7 @@ public interface EventBridge {
     void onEntityInteract(EntityInteractCallback callback);
 
     default void onPlayerRespawn(Consumer<Object> callback) { throw unsupported("onPlayerRespawn"); }
+    default void onClientEntityUnload(Consumer<Object> callback) { throw unsupported("onClientEntityUnload"); }
     default void onEntitySpawn(Consumer<Object> callback) { throw unsupported("onEntitySpawn"); }
     default void onWorldLoad(Consumer<Object> callback) { throw unsupported("onWorldLoad"); }
     default void onWorldUnload(Consumer<Object> callback) { throw unsupported("onWorldUnload"); }

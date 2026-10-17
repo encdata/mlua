@@ -85,6 +85,30 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
+    void classFunctionsAreSharedAndReceiveTheLiveInstanceAsSelf() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        LuaTable classTable = registry.register("ModelPart", (String) null);
+        VarArgFunction getName = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return args.arg1().get("name");
+            }
+        };
+        registry.registerFunction(classTable, "GetName", getName, "Returns the model part name.");
+
+        LuaTable first = new LuaTable();
+        first.set("name", "left_arm");
+        registry.attachInstance(first, "ModelPart", null);
+        LuaTable second = new LuaTable();
+        second.set("name", "right_arm");
+        registry.attachInstance(second, "ModelPart", null);
+
+        assertEquals("left_arm", first.get("GetName").call(first).tojstring());
+        assertEquals("right_arm", second.get("GetName").call(second).tojstring());
+        assertTrue(first.get("GetName") == getName);
+        assertTrue(second.get("GetName") == getName);
+    }
+
+    @Test
     void serviceClassesCanOnlyBeMaterializedThroughTheirServiceLifecycle() {
         LuaTable serviceClass = new LuaTable();
         serviceClass.set("__mlua_service_class", LuaValue.valueOf(true));

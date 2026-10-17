@@ -3,7 +3,6 @@ package dev.mlua.modules.render.Service;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
-import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -24,6 +23,8 @@ import java.io.IOException;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,16 +48,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                                   MLuaRegistration registration) { }
     private record ResolvedModelPart(ModelPartHandle handle, MLuaClientRenderManager.RenderObject object,
                                      MLuaBBModelAsset.Bone bone) { }
-    private static final Map<String, LuaValue> MODEL_PART_METHODS = Map.of(
-        "GetName", modelPartMethod("GetName"),
-        "GetId", modelPartMethod("GetId"),
-        "GetParent", modelPartMethod("GetParent"),
-        "GetChildren", modelPartMethod("GetChildren"),
-        "GetTransform", modelPartMethod("GetTransform"),
-        "SetTransform", modelPartMethod("SetTransform"),
-        "ResetTransform", modelPartMethod("ResetTransform"),
-        "Equals", modelPartMethod("Equals")
-    );
+    private static final Map<String, LuaValue> MODEL_PART_METHODS = modelPartMethods();
     private record ObjectProperty(String name, String type, String description, String getter, String setter) { }
     private static final List<ObjectProperty> OBJECT_PROPERTIES = List.of(
         new ObjectProperty("Id", "number", "The render object's runtime identifier.", "", null),
@@ -158,24 +150,37 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 throw new LuaError("[MLua] RenderPart instances come from RenderObject:GetModelPart, GetModelPartById, or GetModelParts; they cannot be constructed directly.");
             }
         }, "RenderPart handles are created by RenderObject model-part lookup methods.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "GetName", "Returns the part's Blockbench bone name.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "GetId", "Returns the part's stable Blockbench bone UUID.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "GetParent", "Returns the parent RenderPart, or nil for a root bone.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "GetChildren", "Returns the direct child RenderPart instances in model order.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "GetTransform", "Returns the local CFrame override composed after the part's base and animated transforms.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "SetTransform", "Sets a local CFrame override composed after the part's base and animated transforms.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "ResetTransform", "Removes this part's local CFrame override.");
-        MLuaClassMethods.registerInstanceMethod(registration, "RenderPart", "Equals", "Compares handles for the same part on the same owned model.");
-        MLuaClassMethods.registerInstanceProperty(registration, "RenderPart", "Name", "GetName", null,
+        for (Map.Entry<String, LuaValue> method : MODEL_PART_METHODS.entrySet()) {
+            registration.registerClassFunction("RenderPart", method.getKey(), method.getValue(),
+                modelPartMethodDescription(method.getKey()));
+        }
+        registration.registerClassProperty("RenderPart", "Name", MODEL_PART_METHODS.get("GetName"), LuaValue.NIL,
             "string", "client:Client", "The Blockbench bone name.");
-        MLuaClassMethods.registerInstanceProperty(registration, "RenderPart", "Id", "GetId", null,
+        registration.registerClassProperty("RenderPart", "Id", MODEL_PART_METHODS.get("GetId"), LuaValue.NIL,
             "string", "client:Client", "The stable Blockbench bone UUID; use it when names are duplicated.");
-        MLuaClassMethods.registerInstanceProperty(registration, "RenderPart", "Parent", "GetParent", null,
+        registration.registerClassProperty("RenderPart", "IsValid", MODEL_PART_METHODS.get("IsValid"), LuaValue.NIL,
+            "boolean", "client:Client", "Whether this handle still refers to a bone on a live Blockbench RenderObject.");
+        registration.registerClassProperty("RenderPart", "Parent", MODEL_PART_METHODS.get("GetParent"), LuaValue.NIL,
             "RenderPart|nil", "client:Client", "The direct parent part, or nil for a root bone.");
-        MLuaClassMethods.registerInstanceProperty(registration, "RenderPart", "Children", "GetChildren", null,
+        registration.registerClassProperty("RenderPart", "Children", MODEL_PART_METHODS.get("GetChildren"), LuaValue.NIL,
             "RenderPart[]", "client:Client", "The direct child parts in model order.");
-        MLuaClassMethods.registerInstanceProperty(registration, "RenderPart", "Transform", "GetTransform", "SetTransform",
-            "CFrame", "client:Client", "A local transform override composed with the part's base and animation transforms.");
+        registration.registerClassProperty("RenderPart", "Transform", MODEL_PART_METHODS.get("GetTransform"),
+            MODEL_PART_METHODS.get("SetTransform"), "CFrame", "client:Client",
+            "A local transform override composed with the part's base and animation transforms.");
+    }
+
+    private static Map<String, LuaValue> modelPartMethods() {
+        Map<String, LuaValue> methods = new LinkedHashMap<>();
+        methods.put("GetName", modelPartMethod("GetName"));
+        methods.put("GetId", modelPartMethod("GetId"));
+        methods.put("IsValid", modelPartMethod("IsValid"));
+        methods.put("GetParent", modelPartMethod("GetParent"));
+        methods.put("GetChildren", modelPartMethod("GetChildren"));
+        methods.put("GetTransform", modelPartMethod("GetTransform"));
+        methods.put("SetTransform", modelPartMethod("SetTransform"));
+        methods.put("ResetTransform", modelPartMethod("ResetTransform"));
+        methods.put("Equals", modelPartMethod("Equals"));
+        return Collections.unmodifiableMap(methods);
     }
 
     public static void contributeRenderObjectPropertyDocs(MLuaDocBuilder docs) {
@@ -963,10 +968,22 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         LuaTable part = registration.createClassInstance("RenderPart", fields);
         ModelPartHandle handle = new ModelPartHandle(objectId, modelOwner, bone.uuid(), registration);
         part.rawset(MODEL_PART_HANDLE, LuaValue.userdataOf(handle));
-        for (Map.Entry<String, LuaValue> method : MODEL_PART_METHODS.entrySet()) {
-            MLuaClassMethods.setInstanceMethod(part, method.getKey(), method.getValue());
-        }
         return part;
+    }
+
+    private static String modelPartMethodDescription(String name) {
+        return switch (name) {
+            case "GetName" -> "Returns the part's Blockbench bone name.";
+            case "GetId" -> "Returns the part's stable Blockbench bone UUID.";
+            case "IsValid" -> "Returns whether this handle still refers to a bone on a live Blockbench RenderObject.";
+            case "GetParent" -> "Returns the parent RenderPart, or nil for a root bone.";
+            case "GetChildren" -> "Returns the direct child RenderPart instances in model order.";
+            case "GetTransform" -> "Returns the local CFrame override composed after the part's base and animated transforms.";
+            case "SetTransform" -> "Sets a local CFrame override composed after the part's base and animated transforms.";
+            case "ResetTransform" -> "Removes this part's local CFrame override.";
+            case "Equals" -> "Compares handles for the same part on the same owned model.";
+            default -> throw new IllegalArgumentException("Unknown RenderPart method: " + name);
+        };
     }
 
     private static LuaValue modelPartMethod(String name) {
@@ -980,6 +997,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return switch (name) {
             case "GetName" -> LuaValue.valueOf(resolveModelPart(self).bone().name());
             case "GetId" -> LuaValue.valueOf(resolveModelPart(self).bone().uuid());
+            case "IsValid" -> LuaValue.valueOf(isValidModelPart(self));
             case "GetParent" -> {
                 ResolvedModelPart resolved = resolveModelPart(self);
                 String parentId = resolved.bone().parent();
@@ -1033,6 +1051,15 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             throw new LuaError("[MLua] Expected a live RenderPart instance.");
         }
         return (ModelPartHandle) handle.touserdata(ModelPartHandle.class);
+    }
+
+    private static boolean isValidModelPart(LuaValue value) {
+        if (!value.istable()) return false;
+        LuaValue handleValue = value.checktable().rawget(MODEL_PART_HANDLE);
+        if (!handleValue.isuserdata(ModelPartHandle.class)) return false;
+        ModelPartHandle handle = (ModelPartHandle) handleValue.touserdata(ModelPartHandle.class);
+        MLuaClientRenderManager.RenderObject object = MLuaClientRenderManager.get(handle.objectId(), handle.owner());
+        return object != null && object.bbmodel() != null && object.bbmodel().boneById(handle.partId()) != null;
     }
 
     private static ResolvedModelPart resolveModelPart(LuaValue value) {

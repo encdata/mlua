@@ -15,6 +15,7 @@ import net.minecraftforge.event.entity.player.PlayerContainerEvent;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -134,6 +135,16 @@ public class ForgeEventBridge implements EventBridge {
     public void onEntitySpawn(java.util.function.Consumer<Object> callback) {
         MinecraftForge.EVENT_BUS.addListener((EntityJoinLevelEvent event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getEntity());
+        });
+    }
+
+    @Override
+    public void onClientEntityUnload(java.util.function.Consumer<Object> callback) {
+        if (!dev.mlua.loaderapi.LoaderApi.platform().isClient()) {
+            throw new UnsupportedOperationException("Client entity unload events are unavailable on a dedicated server");
+        }
+        MinecraftForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+            if (event.getLevel().isClientSide()) callback.accept(event.getEntity());
         });
     }
 

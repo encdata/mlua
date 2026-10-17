@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
@@ -69,6 +70,18 @@ public final class FabricEventBridge implements EventBridge {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> notified.set(false));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> notifyOnce.run());
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> notifyOnce.run());
+    }
+
+    @Override
+    public void onClientEntityUnload(Consumer<Object> callback) {
+        if (!dev.mlua.loaderapi.LoaderApi.platform().isClient()) {
+            throw new UnsupportedOperationException("Client entity unload events are unavailable on a dedicated server");
+        }
+        try {
+            ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> callback.accept(entity));
+        } catch (LinkageError unavailableOnThisSide) {
+            throw new UnsupportedOperationException("Client entity unload events are unavailable on this side", unavailableOnThisSide);
+        }
     }
 
     @Override

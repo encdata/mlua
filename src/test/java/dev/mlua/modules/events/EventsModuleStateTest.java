@@ -1,6 +1,7 @@
 package dev.mlua.modules.events;
 
 import net.minecraft.resources.ResourceLocation;
+import dev.mlua.modules.events.Service.MLuaEventsService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -77,5 +78,11 @@ final class EventsModuleStateTest {
 
         assertFalse(EventsModule.LAST_PLAYER_STEP_POSITIONS.containsKey(first));
         assertTrue(EventsModule.LAST_PLAYER_STEP_POSITIONS.containsKey(second));
+    }
+
+    @Test
+    void clientEntityUnloadIsRegisteredAsABuiltInSignal() {
+        assertTrue(MLuaEventsService.signalNames().contains("EntityUnload"));
+        assertFalse(MLuaEventsService.unregisterSignal("EntityUnload", MLuaEventsService.ENTITY_UNLOAD));
     }
 }

@@ -107,9 +107,15 @@ public class EventsModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.event("Events", "Events.Explosion", "event: { Level: Level, Dimension: string, Position: Vector3 }",
             "Fires when an explosion starts on the server. Position is the explosion center in world coordinates.",
             "server:Server"));
+        docs.register(MLuaDocBuilder.Registration.event("Events", "Events.EntityUnload", "event: { Entity: Entity, Dimension: string }",
+            "Fires on the client when an entity leaves the loaded client world, such as when its chunk unloads or it changes dimensions. Use EntityDeath for server-side death; an unload does not mean the entity died.",
+            "client:Client"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Events", "Find event signals available on this loader",
             "GetSignalNames lists registered signals. GetUnavailableSignals lists names that this loader cannot currently provide.",
             "local Events = Minecraft:GetService(\"Events\")\nlocal unavailable = {}\n\nfor _, name in ipairs(Events:GetUnavailableSignals()) do\n    unavailable[name] = true\nend\n\nfor _, name in ipairs(Events:GetSignalNames()) do\n    if not unavailable[name] then\n        print(name)\n    end\nend"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Events", "Handle client entity unload",
+            "EntityUnload runs when the client removes an entity from its loaded world. This includes chunk unloads and dimension changes; use EntityDeath for server-side death.",
+            "local Events = Minecraft:GetService(\"Events\")\n\nEvents.EntityUnload:Connect(function(event)\n    print(event.Entity.Name, \"left\", event.Dimension)\nend)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("Events", "Register an addon event signal",
             "Register the signal in a registry script. Other scripts can connect to it or fire it through the shared Events service. MLua removes it when this registry script rolls back.",
             "local Events = Minecraft:GetService(\"Events\")\nlocal FearChanged = Signal.new()\n\nEvents:RegisterSignal(\"FearChanged\", FearChanged, \"Fires when the addon changes the player's fear level.\")\n\n-- In another script:\nEvents.FearChanged:Connect(function(level)\n    print(\"Fear is now\", level)\nend)"));
@@ -127,6 +133,7 @@ public class EventsModule implements MLuaModule {
         registerLoaderEvent(unsupportedEvents, unavailableSignals, "entity interaction", "EntityInteract", () -> events.onEntityInteractEvent((player, hand, target) -> fireEntityInteract((Player) player, hand, (Entity) target)));
         registerLoaderEvent(unsupportedEvents, unavailableSignals, "player respawn", "PlayerRespawn", () -> events.onPlayerRespawn(EventsModule::firePlayerRespawn));
         registerLoaderEvent(unsupportedEvents, unavailableSignals, "entity spawn", "EntitySpawn", () -> events.onEntitySpawn(EventsModule::fireEntitySpawn));
+        registerLoaderEvent(unsupportedEvents, unavailableSignals, "client entity unload", "EntityUnload", () -> events.onClientEntityUnload(EventsModule::fireClientEntityUnload));
         registerLoaderEvent(unsupportedEvents, unavailableSignals, "world load", "WorldLoad", () -> events.onWorldLoad(EventsModule::fireWorldLoad));
         registerLoaderEvent(unsupportedEvents, unavailableSignals, "world unload", "WorldUnload", () -> events.onWorldUnload(EventsModule::fireWorldUnload));
         registerLoaderEvent(unsupportedEvents, unavailableSignals, "block right click", "BlockRightClick", () -> events.onBlockRightClick((player, hand, level, pos) -> fireBlockRightClick((Player) player, hand, (Level) level, (BlockPos) pos)));
@@ -281,6 +288,18 @@ public class EventsModule implements MLuaModule {
         LuaTable ctx = eventContext(entity.level().isClientSide() ? "Client" : "Server", false);
         ctx.set("Entity", entityTable(entity));
         fireSignal(MLuaEventsService.ENTITY_SPAWN, entity.level(), entity.level().isClientSide() ? Side.CLIENT : Side.SERVER, ctx);
+    }
+
+    public static void fireClientEntityUnload(Object entityObj) {
+        if (!(entityObj instanceof Entity entity) || !entity.level().isClientSide()) return;
+        try {
+            LuaTable ctx = eventContext("Client", false);
+            ctx.set("Entity", entityTable(entity));
+            ctx.set("Dimension", LuaValue.valueOf(dimensionName(entity.level())));
+            fireSignal(MLuaEventsService.ENTITY_UNLOAD, entity.level(), Side.CLIENT, ctx);
+        } finally {
+            MLuaEntityWrapper.removeFromCache(entity);
+        }
     }
 
     public static void fireWorldLoad(Object levelObj) {

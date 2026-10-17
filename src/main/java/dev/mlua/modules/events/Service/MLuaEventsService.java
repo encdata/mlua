@@ -33,6 +33,7 @@ public final class MLuaEventsService extends MLuaReflectiveService {
    public static final MLuaSignal ENTITY_INTERACT = new MLuaSignal();
    public static final MLuaSignal PLAYER_RESPAWN = new MLuaSignal();
    public static final MLuaSignal ENTITY_SPAWN = new MLuaSignal();
+   public static final MLuaSignal ENTITY_UNLOAD = new MLuaSignal();
    public static final MLuaSignal WORLD_LOAD = new MLuaSignal();
    public static final MLuaSignal WORLD_UNLOAD = new MLuaSignal();
    public static final MLuaSignal BLOCK_RIGHT_CLICK = new MLuaSignal();
@@ -64,6 +65,7 @@ public final class MLuaEventsService extends MLuaReflectiveService {
       builtIn("EntityInteract", ENTITY_INTERACT, "Fires when a player interacts with a living entity.");
       builtIn("PlayerRespawn", PLAYER_RESPAWN, "Fires after a player respawns on the server.");
       builtIn("EntitySpawn", ENTITY_SPAWN, "Fires when an entity is added to a server world.");
+      builtIn("EntityUnload", ENTITY_UNLOAD, "Fires on the client when an entity leaves the loaded client world, including chunk unloads and dimension changes.");
       builtIn("WorldLoad", WORLD_LOAD, "Fires when a server world is loaded.");
       builtIn("WorldUnload", WORLD_UNLOAD, "Fires when a server world is unloaded.");
       builtIn("BlockRightClick", BLOCK_RIGHT_CLICK, "Fires when a player uses an item on a block.");

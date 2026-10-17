@@ -16,6 +16,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -127,6 +128,16 @@ public class NeoForgeEventBridge implements EventBridge {
     public void onEntitySpawn(java.util.function.Consumer<Object> callback) {
         NeoForge.EVENT_BUS.addListener((EntityJoinLevelEvent event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getEntity());
+        });
+    }
+
+    @Override
+    public void onClientEntityUnload(java.util.function.Consumer<Object> callback) {
+        if (!dev.mlua.loaderapi.LoaderApi.platform().isClient()) {
+            throw new UnsupportedOperationException("Client entity unload events are unavailable on a dedicated server");
+        }
+        NeoForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+            if (event.getLevel().isClientSide()) callback.accept(event.getEntity());
         });
     }
 
