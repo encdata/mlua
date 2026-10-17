@@ -7,6 +7,8 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.MLuaContext;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.modules.players.Class.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
@@ -194,13 +196,15 @@ public final class MLuaCameraService extends MLuaReflectiveService {
       }
       if (value.isfunction()) {
          MLuaRegistration registration = context.mlua().registration();
+         MLuaContext callbackContext = MLuaLuaBindings.currentContext();
          MLuaCameraController.HandOffsetSampler sampler = (player, hand, stack, arm) -> {
             LuaValue luaPlayer = player == null ? LuaValue.NIL
                : MLuaPlayerWrapper.playerEntityTable(player, registration);
             LuaValue luaHand = MLuaEnumValue.forJava(hand);
             LuaValue luaStack = MLuaItemWrapper.itemTable(stack == null ? ItemStack.EMPTY : stack, registration);
             LuaValue luaArm = LuaValue.valueOf(arm == HumanoidArm.RIGHT ? "Right" : "Left");
-            Varargs result = value.invoke(LuaValue.varargsOf(new LuaValue[]{luaPlayer, luaHand, luaStack, luaArm}));
+            Varargs result = MLuaLuaBindings.withContext(callbackContext,
+               () -> value.invoke(LuaValue.varargsOf(new LuaValue[]{luaPlayer, luaHand, luaStack, luaArm})));
             return requireFiniteFrame(MLuaCFrame.fromLua(result.arg1()), "Camera hand offset callback");
          };
          if (leftHand) MLuaCameraController.setHeldItemLeftOffsetCallback(owner(), value, sampler, context.mlua().executionLock());

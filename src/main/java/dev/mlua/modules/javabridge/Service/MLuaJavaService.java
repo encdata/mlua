@@ -2,6 +2,9 @@ package dev.mlua.modules.javabridge.Service;
 
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.common.enums.Side;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.common.mixin.MLuaClassViewer;
 import dev.mlua.runtime.registry.MLuaContentTypeRegistry;
@@ -17,6 +20,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.Proxy;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.math.BigDecimal;
 import java.util.Collection;
@@ -27,6 +31,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.Deque;
@@ -49,7 +54,10 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 public final class MLuaJavaService extends MLuaServiceBase {
+    public static final int MAX_LUA_PROXIES = 4096;
+    public static final int MAX_LUA_PROXIES_PER_OWNER = 512;
     private static final Map<String, String> SERVICE_METHOD_DESCRIPTIONS = createServiceMethodDescriptions();
+    private static final Map<Object, Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>>> LUA_PROXIES = new WeakHashMap<>();
     private final Object javaProxyMarker = new Object();
     private final MLuaJavaClassResolver classResolver;
     private final Map<MethodCacheKey, List<Method>> resolvedMethods = new ConcurrentHashMap<>();
@@ -81,8 +89,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("package", "Returns a lazy proxy for navigating a Java package; alias for Package.");
         descriptions.put("New", "Constructs an object using a compatible public Java constructor.");
         descriptions.put("newInstance", "Constructs an object using a compatible public Java constructor; alias for New.");
-        descriptions.put("Proxy", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions.");
-        descriptions.put("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy. Required abstract methods are checked at creation; default and static methods do not need Lua functions.");
+        descriptions.put("Proxy", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions. Calls run synchronously on the Java caller thread under the owning script's execution lock and Lua context; MLua does not move them to the Minecraft thread. Runtime or addon cleanup invalidates the proxy and releases its Lua callbacks.");
+        descriptions.put("createProxy", "Creates a Java interface implementation backed by Lua functions; alias for Proxy. Required abstract methods are checked at creation; default and static methods do not need Lua functions. Calls run synchronously on the Java caller thread under the owning script's execution lock and Lua context; MLua does not move them to the Minecraft thread. Runtime or addon cleanup invalidates the proxy and releases its Lua callbacks.");
+        descriptions.put("GetProxyLimits", "Returns active Lua-backed Java proxy usage and the global and per-addon runtime limits.");
         descriptions.put("IsInstance", "Checks whether a Java object matches a class or interface.");
         descriptions.put("Cast", "Checks a Java object's type and returns its live proxy.");
         descriptions.put("TypeOf", "Returns the runtime Java class name of a Java value, object proxy, or class proxy. Returns nil for nil.");
@@ -168,11 +177,16 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     interfaces[i] = iface;
                 }
 
-                return wrapJavaValue(createLuaInterfaceProxy(interfaces, implementation));
+                return wrapJavaValue(createLuaInterfaceProxy(interfaces, implementation, activeProxyContext()));
             }
         };
         table.set("Proxy", proxyFn);
         table.set("createProxy", proxyFn);
+        table.set("GetProxyLimits", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return proxyLimits(activeProxyContext());
+            }
+        });
         table.set("IsInstance", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
@@ -502,7 +516,16 @@ public final class MLuaJavaService extends MLuaServiceBase {
         return raw instanceof Class<?> clazz ? clazz : raw.getClass();
     }
 
-    private Object createLuaInterfaceProxy(Class<?>[] interfaces, LuaTable implementation) {
+    private MLuaContext activeProxyContext() {
+        MLuaContext active = MLuaLuaBindings.activeContext(this.context.mlua().registration());
+        if (active == null) {
+            throw new LuaError("[MLua] Java:Proxy must be created while an MLua script context is active.");
+        }
+        return active;
+    }
+
+    private Object createLuaInterfaceProxy(Class<?>[] interfaces, LuaTable implementation,
+                                           MLuaContext ownerContext) {
         validateInterfaceImplementation(interfaces, implementation);
         for (Class<?> iface : interfaces) {
             if (!iface.isInterface()) {
@@ -514,11 +537,109 @@ public final class MLuaJavaService extends MLuaServiceBase {
             throw new LuaError("[MLua] Could not create Java interface proxy: no class loader can see all requested interfaces");
         }
         try {
-            return Proxy.newProxyInstance(loader, interfaces, new LuaInvocationHandler(implementation));
+            LuaInvocationHandler handler = new LuaInvocationHandler(this, implementation, ownerContext);
+            Object proxy = Proxy.newProxyInstance(loader, interfaces, handler);
+            registerLuaProxy(ownerContext, handler);
+            return proxy;
         } catch (IllegalArgumentException error) {
             throw new LuaError("[MLua] Could not create Java interface proxy: " + error.getMessage());
         }
     }
+
+    private static void registerLuaProxy(MLuaContext context, LuaInvocationHandler handler) {
+        Object session = context.session() == null ? context.registration() : context.session();
+        if (session == null) return;
+        ProxyOwner owner = new ProxyOwner(context.ownerModId(), context.side());
+        synchronized (LUA_PROXIES) {
+            int[] counts = pruneAndCountProxies();
+            if (counts[0] >= MAX_LUA_PROXIES) {
+                throw new LuaError("[MLua] Java-backed proxy limit reached (" + MAX_LUA_PROXIES + ")");
+            }
+            Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>> byOwner =
+                LUA_PROXIES.computeIfAbsent(session, ignored -> new LinkedHashMap<>());
+            if (countOwnedProxies(byOwner, owner.ownerModId()) >= MAX_LUA_PROXIES_PER_OWNER) {
+                throw new LuaError("[MLua] Java-backed proxy limit reached for addon '" + owner.ownerModId()
+                    + "' (" + MAX_LUA_PROXIES_PER_OWNER + ")");
+            }
+            List<WeakReference<LuaInvocationHandler>> handlers = byOwner.computeIfAbsent(owner,
+                ignored -> new ArrayList<>());
+            handlers.add(new WeakReference<>(handler));
+        }
+    }
+
+    private static LuaTable proxyLimits(MLuaContext context) {
+        int[] counts;
+        synchronized (LUA_PROXIES) {
+            counts = pruneAndCountProxies();
+            Object session = context.session() == null ? context.registration() : context.session();
+            Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>> byOwner = LUA_PROXIES.get(session);
+            counts[1] = byOwner == null ? 0 : countOwnedProxies(byOwner, context.ownerModId());
+        }
+        LuaTable result = new LuaTable();
+        result.set("Active", counts[0]);
+        result.set("ActiveOwned", counts[1]);
+        result.set("MaxTotal", MAX_LUA_PROXIES);
+        result.set("MaxPerOwner", MAX_LUA_PROXIES_PER_OWNER);
+        return result;
+    }
+
+    /** Must be called while holding LUA_PROXIES. Returns global active count. */
+    private static int[] pruneAndCountProxies() {
+        int total = 0;
+        for (Map.Entry<Object, Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>>> sessionEntry
+                : LUA_PROXIES.entrySet()) {
+            Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>> byOwner = sessionEntry.getValue();
+            byOwner.entrySet().removeIf(entry -> {
+                entry.getValue().removeIf(reference -> reference.get() == null);
+                return entry.getValue().isEmpty();
+            });
+            for (List<WeakReference<LuaInvocationHandler>> handlers : byOwner.values()) total += handlers.size();
+        }
+        LUA_PROXIES.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        return new int[]{total, 0};
+    }
+
+    private static int countOwnedProxies(
+            Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>> byOwner, String ownerModId) {
+        int count = 0;
+        for (Map.Entry<ProxyOwner, List<WeakReference<LuaInvocationHandler>>> entry : byOwner.entrySet()) {
+            if (entry.getKey().ownerModId().equals(ownerModId)) count += entry.getValue().size();
+        }
+        return count;
+    }
+
+    public static void clearRuntimeProxies(Object runtimeSession, Side side) {
+        clearLuaProxies(runtimeSession, side, null);
+    }
+
+    public static void clearOwnedProxies(Object runtimeSession, Side side, String ownerModId) {
+        if (ownerModId == null || ownerModId.isBlank()) return;
+        clearLuaProxies(runtimeSession, side, ownerModId);
+    }
+
+    private static void clearLuaProxies(Object runtimeSession, Side side, String ownerModId) {
+        if (runtimeSession == null) return;
+        List<LuaInvocationHandler> handlers = new ArrayList<>();
+        synchronized (LUA_PROXIES) {
+            Map<ProxyOwner, List<WeakReference<LuaInvocationHandler>>> byOwner = LUA_PROXIES.get(runtimeSession);
+            if (byOwner == null) return;
+            byOwner.entrySet().removeIf(entry -> {
+                ProxyOwner owner = entry.getKey();
+                boolean matchingOwner = ownerModId == null || owner.ownerModId().equals(ownerModId);
+                boolean matchingSide = side == Side.BOTH || owner.side() == Side.BOTH || owner.side() == side;
+                if (!matchingOwner || !matchingSide) return false;
+                for (WeakReference<LuaInvocationHandler> reference : entry.getValue()) {
+                    LuaInvocationHandler handler = reference.get();
+                    if (handler != null) handlers.add(handler);
+                }
+                return true;
+            });
+            if (byOwner.isEmpty()) LUA_PROXIES.remove(runtimeSession);
+        }
+        handlers.forEach(LuaInvocationHandler::close);
+    }
+
+    private record ProxyOwner(String ownerModId, Side side) { }
 
     private void validateInterfaceImplementation(Class<?>[] interfaces, LuaTable implementation) {
         Map<String, Method> requiredMethods = new LinkedHashMap<>();
@@ -672,7 +793,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
         LuaTable source = value.checktable();
         if (rawType.isInterface() && !Map.class.isAssignableFrom(rawType)
             && !Iterable.class.isAssignableFrom(rawType)) {
-            return createLuaInterfaceProxy(new Class<?>[]{rawType}, source);
+            return createLuaInterfaceProxy(new Class<?>[]{rawType}, source, activeProxyContext());
         }
         requireConversionDepth(depth, "Lua-to-Java");
         if (activeTables.put(source, Boolean.TRUE) != null) {
@@ -2444,31 +2565,46 @@ public final class MLuaJavaService extends MLuaServiceBase {
         }
     }
 
-    private final class LuaInvocationHandler implements InvocationHandler {
-        private final LuaTable implementation;
+    private static final class LuaInvocationHandler implements InvocationHandler {
+        private volatile MLuaJavaService service;
+        private volatile LuaTable implementation;
+        private volatile MLuaContext ownerContext;
 
-        private LuaInvocationHandler(LuaTable implementation) {
+        private LuaInvocationHandler(MLuaJavaService service, LuaTable implementation, MLuaContext ownerContext) {
+            this.service = service;
             this.implementation = implementation;
+            this.ownerContext = ownerContext;
         }
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
-            synchronized (MLuaJavaService.this.context.mlua().executionLock()) {
-                return invokeLocked(proxy, method, args);
+            if (method.getDeclaringClass() == Object.class) return invokeObjectMethod(proxy, method, args);
+            MLuaContext context = this.ownerContext;
+            MLuaJavaService bridge = this.service;
+            LuaTable functions = this.implementation;
+            if (context == null || bridge == null || functions == null) {
+                throw new IllegalStateException("[MLua] This Lua-backed Java proxy was invalidated when its script runtime unloaded.");
             }
+            return MLuaLuaBindings.withContext(context, () -> {
+                if (this.ownerContext != context || this.service != bridge || this.implementation != functions) {
+                    throw new IllegalStateException("[MLua] This Lua-backed Java proxy was invalidated when its script runtime unloaded.");
+                }
+                return invokeLocked(proxy, method, args, bridge, functions);
+            });
         }
 
-        private Object invokeLocked(Object proxy, Method method, Object[] args) {
-            if (method.getDeclaringClass() == Object.class) {
-                return switch (method.getName()) {
-                    case "toString" -> "LuaProxy(" + proxy.getClass().getInterfaces()[0].getName() + ")";
-                    case "hashCode" -> System.identityHashCode(proxy);
-                    case "equals" -> proxy == (args != null && args.length > 0 ? args[0] : null);
-                    default -> throw new UnsupportedOperationException("Unsupported Object method: " + method.getName());
-                };
-            }
+        private static Object invokeObjectMethod(Object proxy, Method method, Object[] args) {
+            return switch (method.getName()) {
+                case "toString" -> "LuaProxy(" + proxy.getClass().getInterfaces()[0].getName() + ")";
+                case "hashCode" -> System.identityHashCode(proxy);
+                case "equals" -> proxy == (args != null && args.length > 0 ? args[0] : null);
+                default -> throw new UnsupportedOperationException("Unsupported Object method: " + method.getName());
+            };
+        }
 
-            LuaValue function = this.implementation.get(method.getName());
+        private static Object invokeLocked(Object proxy, Method method, Object[] args,
+                                            MLuaJavaService service, LuaTable implementation) {
+            LuaValue function = implementation.get(method.getName());
             if (function.isnil()) {
                 if (method.isDefault()) {
                     try {
@@ -2483,7 +2619,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             LuaValue[] luaArgs = new LuaValue[args == null ? 0 : args.length];
             Type[] parameterTypes = method.getGenericParameterTypes();
             for (int i = 0; i < luaArgs.length; i++) {
-                luaArgs[i] = wrapJavaValue(args[i], parameterTypes[i]);
+                luaArgs[i] = service.wrapJavaValue(args[i], parameterTypes[i]);
             }
 
             LuaValue result = function.invoke(LuaValue.varargsOf(luaArgs)).arg1();
@@ -2491,7 +2627,18 @@ public final class MLuaJavaService extends MLuaServiceBase {
             if (result.isnil() && method.getReturnType().isPrimitive()) {
                 throw new LuaError("[MLua] Lua proxy method " + method.getName() + " must return " + method.getReturnType().getName());
             }
-            return convertLuaValue(result, method.getGenericReturnType());
+            return service.convertLuaValue(result, method.getGenericReturnType());
+        }
+
+        private void close() {
+            MLuaContext context = this.ownerContext;
+            if (context == null) return;
+            synchronized (context.executionLock()) {
+                if (this.ownerContext != context) return;
+                this.ownerContext = null;
+                this.implementation = null;
+                this.service = null;
+            }
         }
     }
 }

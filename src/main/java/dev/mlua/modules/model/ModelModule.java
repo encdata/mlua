@@ -60,6 +60,7 @@ public final class ModelModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:ResolvePartName(name: string)", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:RegisterAdapter(modelClass: string, parts: table<string, string>)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:UnregisterAdapter(modelClass: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:UnregisterAdapterBone(modelClass: string, boneName: string)", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:GetAdapter(modelClass: string)", "table<string, string>|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:GetAdapterLimits()", "ModelAdapterLimits"));
         docs.register(MLuaDocBuilder.Registration.type("ModelAdapterLimits", null, "Current global use and capacity for Lua-registered model adapters."));

@@ -40,7 +40,7 @@ import org.luaj.vm2.lib.TwoArgFunction;
 @MLuaDescription("Client-side HUD, world, all-entity draw, living model, and held-item rendering with addon-owned, frame-scoped callbacks.")
 public final class MLuaRenderService extends MLuaReflectiveService {
     private static final String OBJECT_OPERATIONS = "__mlua_render_object_operations";
-    private static final String OBJECT_ID = "__mlua_render_object_id";
+    public static final String OBJECT_ID = "__mlua_render_object_id";
     private record ObjectProperty(String name, String type, String description, String getter, String setter) { }
     private static final List<ObjectProperty> OBJECT_PROPERTIES = List.of(
         new ObjectProperty("Id", "number", "The render object's runtime identifier.", "", null),
@@ -60,7 +60,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         new ObjectProperty("Thickness", "number", "The line or outline thickness, at least one pixel.", "GetThickness", "SetThickness"),
         new ObjectProperty("ZIndex", "number", "The screen draw order.", "GetZIndex", "SetZIndex"),
         new ObjectProperty("WorldSpace", "boolean", "Whether the object is positioned in the world.", "GetWorldSpace", "SetWorldSpace"),
-        new ObjectProperty("Target", "string", "Render stage: Hud, WorldOverlay, WorldModel, or EntityModel. GetTarget returns the same canonical spelling accepted by SetTarget.", "GetTarget", "SetTarget"),
+        new ObjectProperty("Target", "string", "Automatic destination: Manual, Hud, WorldOverlay, WorldModel, or EntityModel. Manual objects render only when submitted explicitly through a RenderContext.", "GetTarget", "SetTarget"),
         new ObjectProperty("RenderStage", "string", "The cross-loader world render stage used by WorldModel objects. Defaults to AFTER_ENTITIES; NeoForge 26.1 currently submits WorldModel objects at AFTER_ENTITIES only.", "GetRenderStage", "SetRenderStage"),
         new ObjectProperty("ScaleWithDistance", "boolean", "Whether world-space size changes with camera distance.", "GetScaleWithDistance", "SetScaleWithDistance"),
         new ObjectProperty("ModelScale", "number", "The finite uniform scale applied to this object or model; at least 0.001.", "GetModelScale", "SetModelScale"),
@@ -105,7 +105,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetThickness", "Returns the line or outline thickness."}, {"SetThickness", "Sets a finite thickness of at least one pixel."},
             {"GetZIndex", "Returns the screen draw order."}, {"SetZIndex", "Changes the screen draw order."},
             {"GetWorldSpace", "Returns whether the object is positioned in the world."}, {"SetWorldSpace", "Changes whether the object is positioned in the world."},
-            {"GetTarget", "Returns Hud, WorldOverlay, WorldModel, or EntityModel using the canonical spelling accepted by SetTarget."}, {"SetTarget", "Selects Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive."},
+            {"GetTarget", "Returns Manual, Hud, WorldOverlay, WorldModel, or EntityModel using the canonical spelling accepted by SetTarget."}, {"SetTarget", "Selects Manual, Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive."},
             {"GetRenderStage", "Returns the selected world render stage."}, {"SetRenderStage", "Selects a supported world render stage for WorldModel rendering."},
             {"GetScaleWithDistance", "Returns whether world-space size follows camera distance."}, {"SetScaleWithDistance", "Changes distance-based scaling."},
             {"GetModelScale", "Returns the uniform model scale."}, {"SetModelScale", "Sets a finite uniform model scale of at least 0.001."},
@@ -749,7 +749,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             try {
                 requireObject(id).setTarget(MLuaClientRenderManager.RenderTarget.valueOf(name));
             } catch (IllegalArgumentException invalid) {
-                throw new LuaError("[MLua] Invalid render target '" + name + "'. Use Hud, WorldOverlay, WorldModel, or EntityModel.");
+                throw new LuaError("[MLua] Invalid render target '" + name + "'. Use Manual, Hud, WorldOverlay, WorldModel, or EntityModel.");
             }
             return LuaValue.NONE;
         }));
@@ -1131,6 +1131,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     private static String renderTargetName(MLuaClientRenderManager.RenderTarget target) {
         return switch (target) {
+            case MANUAL -> "Manual";
             case HUD -> "Hud";
             case WORLD_OVERLAY -> "WorldOverlay";
             case WORLD_MODEL -> "WorldModel";

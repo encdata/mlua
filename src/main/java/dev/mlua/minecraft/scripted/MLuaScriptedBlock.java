@@ -68,7 +68,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
          try {
             if (!onRightClick.isnil()) {
                LuaTable ctx = this.createContext(level, pos, player, hand, hit);
-               Varargs result = onRightClick.invoke(ctx);
+               Varargs result = this.invokeBehavior("onRightClick", onRightClick, ctx);
                if (result.arg1().isboolean() && result.arg1().toboolean()) {
                   return InteractionResult.sidedSuccess(false);
                }
@@ -95,7 +95,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
          try {
             if (!onRightClick.isnil()) {
                LuaTable ctx = this.createContext(level, pos, player, null, hit);
-               Varargs result = onRightClick.invoke(ctx);
+               Varargs result = this.invokeBehavior("onRightClick", onRightClick, ctx);
                if (result.arg1().isboolean() && result.arg1().toboolean()) {
                   return InteractionResult.sidedSuccess(false);
                }
@@ -118,7 +118,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
          if (level.isClientSide) return InteractionResult.sidedSuccess(true);
          try {
             if (!onRightClick.isnil()) {
-               Varargs result = onRightClick.invoke(this.createContext(level, pos, player, null, hit));
+               Varargs result = this.invokeBehavior("onRightClick", onRightClick, this.createContext(level, pos, player, null, hit));
                if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.sidedSuccess(false);
             }
          } catch (Exception exception) {
@@ -188,7 +188,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
                 ctx.set("Player", MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(lp), MLuaRuntime.registrationForLevel(level)));
             }
 
-            onEntityInside.invoke(ctx);
+            this.invokeBehavior("onEntityInside", onEntityInside, ctx);
          } catch (Exception var9) {
             MLuaLogger.LOGGER.error("MLua block onEntityInside callback failed for '{}': {}", this.behaviorKey, var9.getMessage());
          }
@@ -205,7 +205,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
             LuaTable ctx = this.entityContext(level, pos, entity);
             if (entity instanceof ServerPlayer sp) ctx.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(sp), MLuaRuntime.registrationForLevel(level)));
             else if (entity instanceof LocalPlayer lp) ctx.set("Player", MLuaPlayerWrapper.localPlayerTable(MCLocalPlayerImpl.fromReal(lp), MLuaRuntime.registrationForLevel(level)));
-            onEntityInside.invoke(ctx);
+            this.invokeBehavior("onEntityInside", onEntityInside, ctx);
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua block onEntityInside callback failed for '{}': {}", this.behaviorKey, exception.getMessage());
          }
@@ -223,7 +223,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
             ctx.set("Position", MLuaPlayerWrapper.positionTable((double)pos.getX() + 0.5, (double)pos.getY() + 0.5, (double)pos.getZ() + 0.5));
             ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
             ctx.set("Neighbor", (LuaValue)(fromPos == null ? LuaValue.NIL : MLuaBlockWrapper.blockTable(level, fromPos, MLuaRuntime.registrationForLevel(level))));
-            onNeighborChanged.invoke(ctx);
+            this.invokeBehavior("onNeighborChanged", onNeighborChanged, ctx);
          } catch (Exception var9) {
             MLuaLogger.LOGGER.error("MLua block onNeighborChanged callback failed for '{}': {}", this.behaviorKey, var9.getMessage());
          }
@@ -241,7 +241,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
             ctx.set("World", level.dimension().location().toString());
             ctx.set("Position", MLuaPlayerWrapper.positionTable(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5));
             ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
-            callback.invoke(ctx);
+            this.invokeBehavior("onNeighborChanged", callback, ctx);
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua block onNeighborChanged callback failed for '{}': {}", this.behaviorKey, exception.getMessage());
          }
@@ -258,7 +258,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
             ctx.set("World", level.dimension().location().toString());
             ctx.set("Position", MLuaPlayerWrapper.positionTable((double)pos.getX() + 0.5, (double)pos.getY() + 0.5, (double)pos.getZ() + 0.5));
             ctx.set("Block", MLuaBlockWrapper.blockTable(level, pos, MLuaRuntime.registrationForLevel(level)));
-            onRemove.invoke(ctx);
+            this.invokeBehavior("onRemove", onRemove, ctx);
          } catch (Exception var8) {
             MLuaLogger.LOGGER.error("MLua block onRemove callback failed for '{}': {}", this.behaviorKey, var8.getMessage());
          }
@@ -272,7 +272,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
       if (!onRandomTick.isnil()) {
          try {
             LuaTable ctx = this.createContext(level, pos, (Player)null, (InteractionHand)null);
-            onRandomTick.invoke(ctx);
+            this.invokeBehavior("onRandomTick", onRandomTick, ctx);
          } catch (Exception var7) {
             MLuaLogger.LOGGER.error("MLua block onRandomTick callback failed for '{}': {}", this.behaviorKey, var7.getMessage());
          }
@@ -286,7 +286,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
       LuaValue onTick = MLuaBehaviorRegistry.getCallback("block", this.behaviorKey, "onTick");
       if (!onTick.isnil()) {
          try {
-            onTick.invoke(this.createContext(level, pos, null, null));
+            this.invokeBehavior("onTick", onTick, this.createContext(level, pos, null, null));
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua block onTick callback failed for '{}': {}", this.behaviorKey, exception.getMessage());
          }
@@ -300,7 +300,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
          try {
             LuaTable ctx = this.entityContext(level, pos, entity);
             ctx.set("FallDistance", LuaValue.valueOf(fallDistance));
-            onFallOn.invoke(ctx);
+            this.invokeBehavior("onFallOn", onFallOn, ctx);
          } catch (Exception var9) {
             MLuaLogger.LOGGER.error("MLua block onFallOn callback failed for '{}': {}", this.behaviorKey, var9.getMessage());
          }
@@ -317,12 +317,17 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
             ctx.set("Position", MLuaPlayerWrapper.positionTable((double)hitResult.getBlockPos().getX() + 0.5, (double)hitResult.getBlockPos().getY() + 0.5, (double)hitResult.getBlockPos().getZ() + 0.5));
             ctx.set("Block", MLuaBlockWrapper.blockTable(level, hitResult.getBlockPos(), MLuaRuntime.registrationForLevel(level)));
             ctx.set("Projectile", MLuaEntityWrapper.entityTable(projectile, MLuaRuntime.registrationForLevel(level)));
-            onProjectileHit.invoke(ctx);
+            this.invokeBehavior("onProjectileHit", onProjectileHit, ctx);
          } catch (Exception var8) {
             MLuaLogger.LOGGER.error("MLua block onProjectileHit callback failed for '{}': {}", this.behaviorKey, var8.getMessage());
          }
       }
       super.onProjectileHit(level, state, hitResult, projectile);
+   }
+
+   private Varargs invokeBehavior(String event, LuaValue callback, LuaTable context) {
+      return MLuaBehaviorRegistry.invokeCallback("block", this.behaviorKey, event, callback,
+         LuaValue.varargsOf(new LuaValue[]{context}));
    }
 
    private LuaTable createContext(Level level, BlockPos pos, Player player, InteractionHand hand) {

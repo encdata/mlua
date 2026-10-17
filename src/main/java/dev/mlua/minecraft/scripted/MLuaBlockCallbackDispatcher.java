@@ -34,12 +34,9 @@ public final class MLuaBlockCallbackDispatcher {
         if (behaviorKey == null || isDuplicate("place", level, pos, player)) {
             return;
         }
-        LuaValue onPlace = MLuaBehaviorRegistry.getCallback("block", behaviorKey, "onPlace");
-        if (onPlace.isnil()) {
-            return;
-        }
         try {
-            onPlace.invoke(baseContext(level, pos, player));
+            MLuaBehaviorRegistry.invokeBehavior("block", behaviorKey, "onPlace",
+                LuaValue.varargsOf(new LuaValue[]{baseContext(level, pos, player)}));
         } catch (Exception ex) {
             MLuaLogger.LOGGER.error("MLua block onPlace callback failed for '{}': {}", behaviorKey, ex.getMessage());
         }
@@ -53,12 +50,9 @@ public final class MLuaBlockCallbackDispatcher {
         if (behaviorKey == null || isDuplicate("break", level, pos, player)) {
             return;
         }
-        LuaValue onBreak = MLuaBehaviorRegistry.getCallback("block", behaviorKey, "onBreak");
-        if (onBreak.isnil()) {
-            return;
-        }
         try {
-            onBreak.invoke(baseContext(level, pos, player));
+            MLuaBehaviorRegistry.invokeBehavior("block", behaviorKey, "onBreak",
+                LuaValue.varargsOf(new LuaValue[]{baseContext(level, pos, player)}));
         } catch (Exception ex) {
             MLuaLogger.LOGGER.error("MLua block onBreak callback failed for '{}': {}", behaviorKey, ex.getMessage());
         }
@@ -72,14 +66,11 @@ public final class MLuaBlockCallbackDispatcher {
         if (behaviorKey == null || isDuplicate("step", level, pos, entity)) {
             return;
         }
-        LuaValue onStepOn = MLuaBehaviorRegistry.getCallback("block", behaviorKey, "onStepOn");
-        if (onStepOn.isnil()) {
-            return;
-        }
         try {
             LuaTable ctx = baseContext(level, pos, entity instanceof Player player ? player : null);
             ctx.set("Entity", MLuaEntityWrapper.entityTable(entity, MLuaRuntime.registrationForLevel(level)));
-            onStepOn.invoke(ctx);
+            MLuaBehaviorRegistry.invokeBehavior("block", behaviorKey, "onStepOn",
+                LuaValue.varargsOf(new LuaValue[]{ctx}));
         } catch (Exception ex) {
             MLuaLogger.LOGGER.error("MLua block onStepOn callback failed for '{}': {}", behaviorKey, ex.getMessage());
         }
@@ -89,10 +80,9 @@ public final class MLuaBlockCallbackDispatcher {
         if (level.isClientSide) return;
         String behaviorKey = behaviorKey(level, pos);
         if (behaviorKey == null) return;
-        LuaValue callback = MLuaBehaviorRegistry.getCallback("block", behaviorKey, callbackName);
-        if (callback.isnil()) return;
         try {
-            callback.invoke(context);
+            MLuaBehaviorRegistry.invokeBehavior("block", behaviorKey, callbackName,
+                LuaValue.varargsOf(new LuaValue[]{context}));
         } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua block {} callback failed for '{}': {}", callbackName, behaviorKey, exception.getMessage());
         }

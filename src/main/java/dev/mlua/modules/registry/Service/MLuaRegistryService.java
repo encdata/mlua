@@ -679,7 +679,8 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             if (propsTable != null && !propsTable.get("onRandomTick").isnil()) {
                ((Map)props).put("randomTicks", true);
             }
-            boolean scripted = requestedContainer != null || !blockCallbacks.isEmpty();
+            boolean hasBlockEntityBehavior = blockEntityProperties != null || !"BlockEntity".equals(blockEntityClass);
+            boolean scripted = requestedContainer != null || hasBlockEntityBehavior || !blockCallbacks.isEmpty();
             MLuaLoaderRegistry.register(RegistryKind.BLOCK, owner, name, () -> {
                return scripted
                   ? MLuaRegistryService.this.blockFactory.createScripted(

@@ -18,6 +18,7 @@ import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.binding.MLuaBlockWrapper;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
 import org.luaj.vm2.LuaTable;
@@ -65,7 +66,8 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
 
    private void invokeLifecycle(String callbackName, String methodName, Level level) {
       if (level == null || level.isClientSide || this.behaviorKey == null) return;
-      LuaValue callback = MLuaBehaviorRegistry.getCallback("block_entity", this.behaviorKey, callbackName);
+      MLuaBehaviorRegistry.Snapshot owner = MLuaBehaviorRegistry.snapshotBehaviors("block_entity", this.behaviorKey);
+      LuaValue callback = owner.callbacks().getOrDefault(callbackName, LuaValue.NIL);
       String className = MLuaBehaviorRegistry.getContentClass("block_entity", this.behaviorKey);
       if (className == null) className = "BlockEntity";
       try {
@@ -79,10 +81,14 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
          context.set("World", MLuaLevelWrapper.levelTable(level, registration));
          context.set("Position", dev.mlua.math.MLuaVector.vector3(this.worldPosition.getX(), this.worldPosition.getY(), this.worldPosition.getZ()));
          LuaValue classMethod = findLifecycleMethod(registration, className, methodName);
+         LuaValue[] invocationArgs = new LuaValue[]{blockEntity, context};
          if (classMethod.isfunction()) {
-            classMethod.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
+            MLuaLuaBindings.withContext(owner.context(), () -> {
+               classMethod.invoke(LuaValue.varargsOf(invocationArgs));
+               return null;
+            });
          } else if (callback.isfunction()) {
-            callback.invoke(LuaValue.varargsOf(new LuaValue[]{blockEntity, context}));
+            MLuaBehaviorRegistry.invokeCallback(owner, callback, LuaValue.varargsOf(invocationArgs));
          }
       } catch (Exception exception) {
          MLuaLogger.LOGGER.error("MLua block entity {} callback failed for '{}': {}", callbackName, this.behaviorKey, exception.getMessage());

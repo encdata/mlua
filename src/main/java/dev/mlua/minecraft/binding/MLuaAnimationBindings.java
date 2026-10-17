@@ -714,14 +714,16 @@ public final class MLuaAnimationBindings {
                 float triggerTime = MLuaLuaArguments.finiteNonNegativeFloat(
                     args.arg(2), "AnimationTrack:AddEvent", "time");
                 LuaValue callback = args.checkfunction(3);
+                MLuaContext eventContext = requireAnimationEventContext(registration, "AnimationTrack:AddEvent");
                 try {
                     track.addEvent(triggerTime, new VarArgFunction() {
                         @Override
                         public Varargs invoke(Varargs eventArgs) {
-                            return callback.invoke(LuaValue.varargsOf(new LuaValue[]{table, eventArgs.arg(2)}));
+                            return invokeAnimationEvent(eventContext, callback,
+                                LuaValue.varargsOf(new LuaValue[]{table, eventArgs.arg(2)}));
                         }
                     });
-                } catch (IllegalArgumentException error) {
+                } catch (IllegalArgumentException | IllegalStateException error) {
                     throw new LuaError("[MLua] AnimationTrack:AddEvent: " + error.getMessage());
                 }
                 return LuaValue.NONE;
@@ -734,14 +736,15 @@ public final class MLuaAnimationBindings {
                 float triggerTime = MLuaLuaArguments.finiteNonNegativeFloat(
                     args.arg(3), "AnimationTrack:AddMarker", "time");
                 LuaValue callback = args.checkfunction(4);
+                MLuaContext eventContext = requireAnimationEventContext(registration, "AnimationTrack:AddMarker");
                 try {
                     track.addEvent(triggerTime, new VarArgFunction() {
                         @Override public Varargs invoke(Varargs eventArgs) {
-                            return callback.invoke(LuaValue.varargsOf(new LuaValue[]{table,
-                                LuaValue.valueOf(marker), eventArgs.arg(2)}));
+                            return invokeAnimationEvent(eventContext, callback,
+                                LuaValue.varargsOf(new LuaValue[]{table, LuaValue.valueOf(marker), eventArgs.arg(2)}));
                         }
                     });
-                } catch (IllegalArgumentException error) {
+                } catch (IllegalArgumentException | IllegalStateException error) {
                     throw new LuaError("[MLua] AnimationTrack:AddMarker: " + error.getMessage());
                 }
                 return LuaValue.NONE;
@@ -774,6 +777,18 @@ public final class MLuaAnimationBindings {
         });
 
         return table;
+    }
+
+    private static MLuaContext requireAnimationEventContext(MLuaRegistration registration, String method) {
+        MLuaContext context = MLuaLuaBindings.activeContext(registration);
+        if (context == null) {
+            throw new LuaError("[MLua] " + method + " must be called while an MLua script context is active.");
+        }
+        return context;
+    }
+
+    private static Varargs invokeAnimationEvent(MLuaContext context, LuaValue callback, Varargs args) {
+        return MLuaLuaBindings.withContext(context, () -> callback.invoke(args));
     }
 
     private static LuaTable createClassInstance(MLuaRegistration registration, String className, LuaTable fields) {

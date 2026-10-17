@@ -13,6 +13,7 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.MLuaContext;
 import dev.mlua.core.engine.MLuaLuauTypes;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.common.enums.Side;
@@ -130,7 +131,10 @@ public final class MLuaGuiService implements MLuaService {
             element.canvas.set("Anchor", LuaValue.valueOf(element.anchor));
             element.canvas.set("Phase", LuaValue.valueOf(element.before ? "Before" : "After"));
             try {
-                element.callback.invoke(element.canvas);
+                MLuaLuaBindings.withContext(element.context, () -> {
+                    element.callback.invoke(element.canvas);
+                    return null;
+                });
             } catch (RuntimeException failure) {
                 element.failed = true;
                 MLuaLogger.LOGGER.error("Lua HUD element '{}' failed; rendering is paused until it is registered again", element.id, failure);
@@ -1130,7 +1134,7 @@ public final class MLuaGuiService implements MLuaService {
                 if (minecraft == null) throw new LuaError("[MLua] Minecraft client is not available.");
                 MLuaScriptScreen screen = new MLuaScriptScreen(title, initialize,
                     MLuaGuiService.this.context.mlua().registration(), MLuaGuiService.this.state,
-                    MLuaGuiService.this.context.mlua().ownerModId());
+                    MLuaGuiService.this.context.mlua().ownerModId(), MLuaLuaBindings.currentContext());
                 MLuaGuiService.this.state.scriptScreens.add(screen);
                 minecraft.setScreen(screen);
                 return MLuaNativeScreen.instance(MLuaRuntime.get(), screen);
@@ -1161,7 +1165,7 @@ public final class MLuaGuiService implements MLuaService {
                 catch (RuntimeException failure) { throw new LuaError("[MLua] Could not create screen class '" + className + "': " + failure.getMessage()); }
                 MLuaScriptScreen screen = new MLuaScriptScreen(title, instance, registration, className,
                     fieldsValue.istable() ? fieldsValue.checktable() : null, MLuaGuiService.this.state,
-                    MLuaGuiService.this.context.mlua().ownerModId());
+                    MLuaGuiService.this.context.mlua().ownerModId(), MLuaLuaBindings.currentContext());
                 MLuaGuiService.this.state.scriptScreens.add(screen);
                 instance.set("NativeScreen", MLuaNativeScreen.instance(MLuaRuntime.get(), screen));
                 instance.rawset("Close", new VarArgFunction() {
@@ -1446,7 +1450,8 @@ public final class MLuaGuiService implements MLuaService {
         String key = owner + ":" + id;
         String position = (before ? "Before" : "After") + positionAnchor;
         HudElement element = new HudElement(key, owner, positionAnchor, before, position, callback,
-            priority, NEXT_HUD_ELEMENT_ID.getAndIncrement(), this.context.mlua().executionLock());
+            priority, NEXT_HUD_ELEMENT_ID.getAndIncrement(), this.context.mlua().executionLock(),
+            MLuaLuaBindings.currentContext());
         this.state.hudElements.put(key, element);
         return id;
     }
@@ -1545,6 +1550,7 @@ public final class MLuaGuiService implements MLuaService {
         private final LuaTable fields;
         private final GuiState state;
         private final String ownerModId;
+        private final MLuaContext context;
         private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
         private final Set<String> failedInputMethods = ConcurrentHashMap.newKeySet();
         private LuaValue closed = LuaValue.NIL;
@@ -1555,7 +1561,7 @@ public final class MLuaGuiService implements MLuaService {
         private int nextNativeControlIndex = 1;
 
         private MLuaScriptScreen(Object title, LuaValue initialize, MLuaRegistration registration,
-                                 GuiState state, String ownerModId) {
+                                 GuiState state, String ownerModId, MLuaContext context) {
             super(screenTitle(title));
             this.initialize = initialize;
             this.luaInstance = null;
@@ -1564,10 +1570,12 @@ public final class MLuaGuiService implements MLuaService {
             this.fields = null;
             this.state = state;
             this.ownerModId = ownerModId;
+            this.context = context;
         }
 
         private MLuaScriptScreen(Object title, LuaTable luaInstance, MLuaRegistration registration,
-                                 String className, LuaTable fields, GuiState state, String ownerModId) {
+                                 String className, LuaTable fields, GuiState state, String ownerModId,
+                                 MLuaContext context) {
             super(screenTitle(title));
             this.initialize = LuaValue.NIL;
             this.luaInstance = luaInstance;
@@ -1576,6 +1584,7 @@ public final class MLuaGuiService implements MLuaService {
             this.fields = fields;
             this.state = state;
             this.ownerModId = ownerModId;
+            this.context = context;
         }
 
         private static Component screenTitle(Object title) {
@@ -1974,9 +1983,7 @@ public final class MLuaGuiService implements MLuaService {
         }
 
         private Varargs invokeLua(LuaValue function, Varargs arguments) {
-            synchronized (this.state.executionLock) {
-                return function.invoke(arguments);
-            }
+            return MLuaLuaBindings.withContext(this.context, () -> function.invoke(arguments));
         }
 
         @Override
@@ -2059,12 +2066,13 @@ public final class MLuaGuiService implements MLuaService {
         private final LuaValue callback;
         private final long order;
         private final Object executionLock;
+        private final MLuaContext context;
         private final LuaTable canvas;
         private volatile Object graphics;
         private volatile boolean failed;
 
         private HudElement(String id, String owner, String anchor, boolean before, String position,
-                           LuaValue callback, int priority, long order, Object executionLock) {
+                           LuaValue callback, int priority, long order, Object executionLock, MLuaContext context) {
             this.id = id;
             this.owner = owner;
             this.anchor = anchor;
@@ -2074,6 +2082,7 @@ public final class MLuaGuiService implements MLuaService {
             this.callback = callback;
             this.order = order;
             this.executionLock = executionLock;
+            this.context = context;
             this.canvas = createHudCanvas(this);
         }
     }

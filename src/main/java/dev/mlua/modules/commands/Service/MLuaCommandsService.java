@@ -3,6 +3,7 @@ package dev.mlua.modules.commands.Service;
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.command.MLuaCommandDefinition;
 import dev.mlua.minecraft.command.MLuaCommandRegistry;
 import java.util.List;
@@ -32,9 +33,11 @@ public final class MLuaCommandsService extends MLuaReflectiveService {
    public void Register(String name, LuaTable definitionTable) {
       this.requirePhase(RegistrationPhase.COMMANDS, "Cannot register command '" + name
          + "': commands must be registered during run_commands(ctx) / RegisterCommandsEvent.");
-      MLuaCommandDefinition definition = MLuaCommandRegistry.fromLua(name, definitionTable);
+      MLuaCommandDefinition definition = MLuaCommandRegistry.fromLua(name, definitionTable,
+         MLuaLuaBindings.currentContext());
       if (this.context.isClient()) {
-         MLuaCommandRegistry.get().registerClientCallback(name, definition.clientCallback(), this.context.registration());
+         MLuaCommandRegistry.get().registerClientCallback(name, definition.clientCallback(),
+            this.context.registration(), definition.context());
       } else {
          MLuaCommandRegistry.get().register(definition);
       }

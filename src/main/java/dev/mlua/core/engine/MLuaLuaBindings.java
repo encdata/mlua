@@ -761,12 +761,33 @@ public final class MLuaLuaBindings {
       }
    }
 
+   /** Runs Java-dispatched Lua work with its owner context and lock, restoring the caller context afterward. */
+   public static <T> T withContext(MLuaContext context, java.util.function.Supplier<T> callback) {
+      java.util.Objects.requireNonNull(callback, "callback");
+      if (context == null) return callback.get();
+      MLuaContext previous = currentContext();
+      synchronized (context.executionLock()) {
+         bindContext(context.globals(), context);
+         try {
+            return callback.get();
+         } finally {
+            bindContext(previous == null ? null : previous.globals(), previous);
+         }
+      }
+   }
+
    /** Returns the Lua context active on this thread for a Java-backed callback. */
    public static MLuaContext activeContext(MLuaRegistration registration) {
+      MLuaContext context = currentContext();
+      return context != null && context.registration() == registration ? context : null;
+   }
+
+   /** Returns the context active on this thread, if any. */
+   public static MLuaContext currentContext() {
       WeakReference<MLuaContext> reference = ACTIVE_CONTEXT.get();
       MLuaContext context = reference == null ? null : reference.get();
       if (context == null && reference != null) ACTIVE_CONTEXT.remove();
-      return context != null && context.registration() == registration ? context : null;
+      return context;
    }
 
    private static LuaTable documentationTable(MLuaContext context) {

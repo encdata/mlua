@@ -215,6 +215,41 @@ public final class MLuaClientRenderManager {
         }
     }
 
+    /** Submits a Lua-owned model through the active frame's render collector. */
+    public static boolean drawObjectInRenderContext(int renderId, MLuaRenderOwnershipRegistry.Owner owner,
+            Object poseValue, Object collectorValue, MLuaCFrame transform, int light, int overlay, float partialTick) {
+        RenderObject object = get(renderId, owner);
+        if (object == null) throw new IllegalArgumentException("RenderObject is destroyed or belongs to another addon runtime");
+        if (object.mesh == null && object.bbmodel == null) {
+            throw new IllegalArgumentException("RenderContext:DrawObject requires a Mesh or BBModel RenderObject");
+        }
+        if (!(poseValue instanceof PoseStack pose) || !(collectorValue instanceof SubmitNodeCollector collector)) {
+            throw new IllegalStateException("This render callback does not expose a PoseStack and SubmitNodeCollector");
+        }
+        synchronized (object.executionLock()) {
+            if (object.destroyed) throw new IllegalStateException("RenderObject was destroyed before it could be drawn");
+            if (!object.visible) return false;
+            pose.pushPose();
+            try {
+                applyRenderTransform(pose, transform == null ? MLuaCFrame.IDENTITY : transform);
+                if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
+                if (object.bbmodel != null) submitBBModelAttachment(pose, collector, object, light, partialTick);
+                else submitMeshAttachment(pose, collector, object, light);
+                return true;
+            } finally {
+                pose.popPose();
+            }
+        }
+    }
+
+    private static void applyRenderTransform(PoseStack pose, MLuaCFrame transform) {
+        pose.translate(transform.x(), transform.y(), transform.z());
+        double[] angles = transform.toEulerAnglesXYZ();
+        pose.mulPose(Axis.XP.rotation((float)angles[0]));
+        pose.mulPose(Axis.YP.rotation((float)angles[1]));
+        pose.mulPose(Axis.ZP.rotation((float)angles[2]));
+    }
+
     private static void submitMeshAttachment(PoseStack pose, SubmitNodeCollector collector,
                                              RenderObject object, int light) {
         var mesh = object.mesh;
@@ -321,7 +356,8 @@ public final class MLuaClientRenderManager {
     private static void renderOverlayObjects(GuiGraphicsExtractor graphics) {
         for (RenderObject object : orderedRenderObjects()) {
             synchronized (object.executionLock()) {
-                if (object.destroyed || !object.visible() || object.worldSpace()) continue;
+                if (object.destroyed || !object.visible() || object.target() == RenderTarget.MANUAL
+                        || object.worldSpace()) continue;
                 int alpha = (int) ((1.0 - object.transparency()) * 255.0);
                 int color = ((alpha & 0xff) << 24) | (object.color() & 0x00ffffff);
                 int x1 = (int) Math.round(object.x());
@@ -567,6 +603,7 @@ public final class MLuaClientRenderManager {
     }
 
     public enum RenderTarget {
+        MANUAL,
         HUD,
         WORLD_OVERLAY,
         WORLD_MODEL,
@@ -590,6 +627,7 @@ public final class MLuaClientRenderManager {
         private final AtomicBoolean renderFailureReported = new AtomicBoolean();
         private int zIndex = 0;
         private boolean worldSpace = false;
+        private boolean manualTarget;
         private boolean entityModelTarget;
         private String followBoneName;
         private MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
@@ -648,6 +686,7 @@ public final class MLuaClientRenderManager {
         public int zIndex() { return zIndex; }
         public boolean worldSpace() { return worldSpace; }
         public RenderTarget target() {
+            if (manualTarget) return RenderTarget.MANUAL;
             if (entityModelTarget || followBoneName != null) return RenderTarget.ENTITY_MODEL;
             if (!worldSpace) return RenderTarget.HUD;
             return type == RenderType.MESH || type == RenderType.BBMODEL
@@ -696,6 +735,7 @@ public final class MLuaClientRenderManager {
             invalidateDrawOrder();
         }
         public void setWorldSpace(boolean worldSpace) {
+            manualTarget = false;
             if (worldSpace && (type == RenderType.MESH || type == RenderType.BBMODEL)) {
                 LoaderApi.client().normalizeSupportedWorldModelStage(renderStage);
             }
@@ -709,6 +749,16 @@ public final class MLuaClientRenderManager {
         public void setTarget(RenderTarget target) {
             if (target == null) throw new IllegalArgumentException("Render target must be provided");
             boolean model = type == RenderType.MESH || type == RenderType.BBMODEL;
+            if (target == RenderTarget.MANUAL) {
+                if (!model) throw new IllegalArgumentException("Manual target requires a Mesh or BBModel object");
+                manualTarget = true;
+                setFollowEntityScope(null);
+                followBoneName = null;
+                entityModelTarget = false;
+                worldSpace = false;
+                return;
+            }
+            manualTarget = false;
             if ((target == RenderTarget.WORLD_MODEL || target == RenderTarget.ENTITY_MODEL) && !model) {
                 throw new IllegalArgumentException("WorldModel and EntityModel targets require a Mesh or BBModel object");
             }
@@ -735,6 +785,7 @@ public final class MLuaClientRenderManager {
             this.renderStage = normalized;
         }
         public void setFollowEntityScope(MLuaEntityScope followEntityScope) {
+            if (followEntityScope != null) manualTarget = false;
             if (this.followEntityScope != null && !this.followEntityScope.equals(followEntityScope)) {
                 unregisterEntityModel(this.followEntityScope, this.id);
             }
@@ -757,6 +808,7 @@ public final class MLuaClientRenderManager {
                 entityModelTarget = false;
                 return;
             }
+            manualTarget = false;
             followBoneName = boneName.trim();
             entityModelTarget = true;
             worldSpace = true;
@@ -807,6 +859,7 @@ public final class MLuaClientRenderManager {
             copy.visible = visible;
             copy.zIndex = zIndex;
             copy.worldSpace = worldSpace;
+            copy.manualTarget = manualTarget;
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
             copy.followOffset = followOffset;

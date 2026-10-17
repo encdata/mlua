@@ -3,8 +3,10 @@ package dev.mlua.runtime.client;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.module.MLuaRegistration;
 import dev.mlua.loaderapi.FrameClock;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -24,8 +26,7 @@ import org.luaj.vm2.Varargs;
 
 /** Addon-owned Lua callbacks attached to Minecraft's client render points. */
 public final class MLuaRenderCallbacks {
-    private static volatile double frameDeltaTime;
-    private static volatile boolean hasFrameDeltaTime;
+    private static volatile RenderFrameTime frameTime = RenderFrameTime.EMPTY;
     private static final String DEFAULT_PASS_ID = "mlua:default";
     /** Bounds callback dispatch work even when many addons register render hooks. */
     public static final int MAX_CALLBACKS = 4096;
@@ -57,13 +58,13 @@ public final class MLuaRenderCallbacks {
 
     /** Stores the latest client render-frame duration in seconds for render callbacks. */
     public static void setFrameDeltaTime(double deltaTime) {
-        // FrameClock returns zero on its first sample because no complete interval
-        // exists yet. Keep HasDeltaTime false until a real positive interval arrives.
         double bounded = FrameClock.boundedSeconds(deltaTime);
-        if (bounded > 0.0D) {
-            frameDeltaTime = bounded;
-            hasFrameDeltaTime = true;
-        }
+        // Treat this as the latest sample, including the first sample from a
+        // newly initialized frame clock. Retaining an older positive value would
+        // make contexts claim to have a current interval before one exists.
+        frameTime = bounded > 0.0D
+            ? new RenderFrameTime(bounded, true)
+            : RenderFrameTime.EMPTY;
     }
 
     public static void register(String entityId, LuaValue callback, MLuaContext context) {
@@ -421,6 +422,9 @@ public final class MLuaRenderCallbacks {
     }
 
     private record PartialTickAccess(Method direct, Method tracker, Method tickNoArg, Method tickWithBoolean) { }
+    private record RenderFrameTime(double deltaTime, boolean available) {
+        private static final RenderFrameTime EMPTY = new RenderFrameTime(0.0D, false);
+    }
 
     public static void renderHud(Object graphics, int width, int height) {
         HookBucket hud = bucket(HookKind.HUD, "");
@@ -475,11 +479,11 @@ public final class MLuaRenderCallbacks {
         }
         MLuaContext context = hook.context;
         try {
-            synchronized (context.executionLock()) {
-                if (!hook.active || hook.failed) return;
-                MLuaLuaBindings.bindContext(context.globals(), context);
+            MLuaLuaBindings.withContext(context, () -> {
+                if (!hook.active || hook.failed) return null;
                 hook.callback.invoke(invocationArgs);
-            }
+                return null;
+            });
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
@@ -553,8 +557,9 @@ public final class MLuaRenderCallbacks {
         context.set("Model", scopedUserdata(frameScope, model));
         context.set("PartialTick", LuaValue.valueOf(partialTick));
         context.set("HasPartialTick", LuaValue.valueOf(hasPartialTick));
-        context.set("DeltaTime", LuaValue.valueOf(frameDeltaTime));
-        context.set("HasDeltaTime", LuaValue.valueOf(hasFrameDeltaTime));
+        RenderFrameTime currentFrame = frameTime;
+        context.set("DeltaTime", LuaValue.valueOf(currentFrame.deltaTime()));
+        context.set("HasDeltaTime", LuaValue.valueOf(currentFrame.available()));
         context.set("PackedLight", LuaValue.valueOf(packedLight));
         context.set("PackedOverlay", LuaValue.valueOf(packedOverlay));
         context.set("NativeContext", scopedUserdata(frameScope, nativeContext));
@@ -569,8 +574,79 @@ public final class MLuaRenderCallbacks {
                 context.set(name, value);
             }
         }
-        return hook.context.registration().attachClassInstance(context, "RenderContext", null);
+        LuaValue instance = hook.context.registration().attachClassInstance(context, "RenderContext", null);
+        instance.rawset("__mluaRenderDrawRequest", LuaValue.userdataOf(new RenderDrawRequest(
+            frameScope, instance.get("PoseStack"), instance.get("BufferSource"),
+            new MLuaRenderOwnershipRegistry.Owner(hook.context.session(), hook.context.ownerModId()),
+            packedLight, packedOverlay, partialTick)));
+        return instance;
     }
+
+    /** Called by the registered RenderContext:DrawObject class method. */
+    public static LuaValue drawObject(MLuaRegistration registration, LuaValue context,
+                                     LuaValue handle, LuaValue transformValue) {
+        LuaValue requestValue = context.istable() ? context.checktable().rawget("__mluaRenderDrawRequest") : LuaValue.NIL;
+        if (!requestValue.isuserdata(RenderDrawRequest.class)) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject requires a live render context.");
+        }
+        RenderDrawRequest request = (RenderDrawRequest)requestValue.touserdata(RenderDrawRequest.class);
+        if (!request.scope().view().isActive()) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject can only run during its render callback.");
+        }
+        LuaValue targetValue = context.get("Target");
+        String target = targetValue.isstring() ? targetValue.tojstring() : "unknown";
+        if ("Hud".equals(target)) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject cannot submit a 3D RenderObject from a Hud callback; use the HUD render APIs for screen-space drawing.");
+        }
+        if (!handle.istable() || !registration.isInstanceOf(handle, "RenderObject")) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject expects a live RenderObject instance.");
+        }
+        LuaValue idValue = handle.checktable().rawget(dev.mlua.modules.render.Service.MLuaRenderService.OBJECT_ID);
+        if (!idValue.isint()) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject received an invalid RenderObject handle.");
+        }
+        MLuaCFrame transform = MLuaCFrame.IDENTITY;
+        if (!transformValue.isnil()) {
+            if (!MLuaCFrame.isCFrame(transformValue)) {
+                throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject transform must be a CFrame.");
+            }
+            transform = MLuaCFrame.fromLua(transformValue);
+            double[] components = {transform.x(), transform.y(), transform.z(), transform.r00(), transform.r01(),
+                transform.r02(), transform.r10(), transform.r11(), transform.r12(), transform.r20(),
+                transform.r21(), transform.r22()};
+            for (double component : components) {
+                if (!Double.isFinite(component)) {
+                    throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject transform must be finite.");
+                }
+            }
+        }
+        Object livePose = unwrapFrameValue(request.poseStack(), "PoseStack", target);
+        Object liveSource = unwrapFrameValue(request.bufferSource(), "render source", target);
+        try {
+            boolean drawn = MLuaClientRenderManager.drawObjectInRenderContext(idValue.toint(), request.owner(),
+                livePose, liveSource, transform, request.light(), request.overlay(), request.partialTick());
+            return LuaValue.valueOf(drawn);
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject " + failure.getMessage());
+        }
+    }
+
+    private static Object unwrapFrameValue(LuaValue reference, String name, String target) {
+        if (reference == null || !reference.isuserdata(MLuaRenderFrameScope.MLuaScopedRenderObject.class)) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject is unavailable for " + target
+                + " callbacks because Minecraft did not provide a " + name + ".");
+        }
+        try {
+            return ((MLuaRenderFrameScope.MLuaScopedRenderObject)reference.touserdata(
+                MLuaRenderFrameScope.MLuaScopedRenderObject.class)).unwrap();
+        } catch (IllegalStateException expired) {
+            throw new org.luaj.vm2.LuaError("[MLua] RenderContext:DrawObject cannot use an expired " + name + ".");
+        }
+    }
+
+    private record RenderDrawRequest(MLuaRenderFrameScope scope, LuaValue poseStack, LuaValue bufferSource,
+                                     MLuaRenderOwnershipRegistry.Owner owner, int light, int overlay,
+                                     float partialTick) { }
 
     private static LuaValue scopedUserdata(MLuaRenderFrameScope scope, Object value) {
         Object reference = scope.reference(value);

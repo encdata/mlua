@@ -18,7 +18,7 @@ public final class RenderModule implements MLuaModule {
         {"PartialTick", "number", "Frame interpolation value; check HasPartialTick before relying on it."},
         {"HasPartialTick", "boolean", "Whether this render point supplied a real frame interpolation value. If false, PartialTick is zero."},
         {"DeltaTime", "number", "Duration of the latest client render frame in seconds, capped at one second; zero until HasDeltaTime is true. This is separate from PartialTick."},
-        {"HasDeltaTime", "boolean", "Whether a complete client render-frame interval has been observed; false means DeltaTime is zero."},
+        {"HasDeltaTime", "boolean", "Whether the latest client render-frame sample contains a complete positive interval; false means DeltaTime is zero."},
         {"PackedLight", "number", "Minecraft packed light value when supplied."},
         {"PackedOverlay", "number", "Minecraft packed overlay value when supplied."},
         {"PassId", "string", "Namespaced id of the render pass receiving this context."},
@@ -87,7 +87,13 @@ public final class RenderModule implements MLuaModule {
                     && ((dev.mlua.runtime.client.MLuaRenderFrameScope.View)scope.touserdata(
                         dev.mlua.runtime.client.MLuaRenderFrameScope.View.class)).isActive());
             }
-        }, "Returns whether this RenderContext belongs to a callback that is still running.");
+        }, "Returns whether this RenderContext is still active on the render thread that created it.");
+        registration.registerClassFunction("RenderContext", "DrawObject", new org.luaj.vm2.lib.VarArgFunction() {
+            @Override public org.luaj.vm2.Varargs invoke(org.luaj.vm2.Varargs args) {
+                return dev.mlua.runtime.client.MLuaRenderCallbacks.drawObject(
+                    registration, args.arg(1), args.arg(2), args.arg(3));
+            }
+        }, "Draws an addon-owned Mesh or BBModel RenderObject in this callback's current frame pose.");
     }
 
     @Override
@@ -152,8 +158,9 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderer()", "boolean"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:RegisterHudRenderPass(id: string, callback: function(RenderContext))", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("RenderService", "RenderService:UnregisterHudRenderPass(id: string)", "boolean"));
-        docs.register(MLuaDocBuilder.Registration.clazz("RenderContext", "RenderService", "Values supplied at HUD, world, living entity, or first-person item render points. Native Java references are valid only during the callback; Java bridge calls reject them after the callback returns or from another thread. Plain values such as stage names and dimensions can be retained.", "classes/render-context.html", "Instance"));
-        docs.register(MLuaDocBuilder.Registration.method("RenderContext", "RenderContext:IsActive()", "Returns whether the render callback that created this context is still running.", null, "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.clazz("RenderContext", "RenderService", "Values supplied at HUD, world, living entity, or first-person item render points. Native Java references are valid only during the callback; Java bridge calls reject them after the callback returns or from another thread. DrawObject submits a Mesh or BBModel using this frame's pose and render source. Plain values such as stage names and dimensions can be retained.", "classes/render-context.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.method("RenderContext", "RenderContext:IsActive()", "Returns whether this RenderContext is still active on the render thread that created it.", null, "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderContext", "RenderContext:DrawObject(renderObject: RenderObject, transform?: CFrame)", "Submits a Mesh or BBModel RenderObject at this callback's current Minecraft pose using its render source, light, and overlay. The optional CFrame is local to that pose. The object must be owned by the same addon runtime. Returns false when the object is hidden. HUD callbacks do not provide a 3D pose or render source; use HUD screen-space drawing there.", "Call inside a world, entity, or held-item render callback; the render context expires when the callback returns.", "boolean", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.type("WorldRenderStage", null, "A shared stage name mapped to the closest supported native world-render event for the active loader and Minecraft version."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "BEFORE_ENTITIES", "string", "After opaque terrain and before entity rendering."));
         docs.register(MLuaDocBuilder.Registration.field("WorldRenderStage", "AFTER_ENTITIES", "string", "After opaque entity and block-entity features."));
@@ -169,7 +176,7 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetEndWorldPosition(position: Vector3|CFrame)", "Sets the endpoint used by world lines and beams.", "Native Vector3 or CFrame", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetEndWorldPosition()", "Returns the world endpoint as a native Vector3.", null, "Vector3", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetTarget()", "Returns the canonical render target name.", null, "string", "client:Client", null));
-        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetTarget(target: string)", "Selects where this object is drawn.", "Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:SetTarget(target: string)", "Selects where this object is drawn. Manual disables automatic drawing so it can be submitted from a RenderContext.", "Manual, Hud, WorldOverlay, WorldModel, or EntityModel; matching is case-insensitive", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:PlayAnimation(name: string, options: ModelAnimationOptions?)", "Plays a named Blockbench model animation.", "Animation name and optional playback settings", "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:GetAnimations()", "Lists animation names on a loaded Blockbench model.", null, "string[]", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:StopAnimation()", "Stops the current Blockbench model animation.", null, "void", "client:Client", null));
@@ -186,7 +193,7 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.type("MeshDefinition", null, "Vertex data, zero-based triangle indices, and optional texture for RenderService:CreateMesh. A mesh may contain at most 16384 vertices and 49152 indices."));
         docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Vertices", "MeshVertex[]", "At least three vertices used by the mesh."));
         docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Indices", "number[]", "One or more complete triangles. Each zero-based index must refer to an entry in Vertices."));
-        docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Texture?", "string", "Optional texture resource identifier."));
+        docs.register(MLuaDocBuilder.Registration.field("MeshDefinition", "Texture?", "string", "Optional texture resource identifier. Unqualified paths resolve in the owning addon's namespace; use namespace:path to select another namespace."));
         docs.register(MLuaDocBuilder.Registration.type("MeshVertex", null, "One mesh vertex with a world position, optional texture coordinate, and optional packed color."));
         docs.register(MLuaDocBuilder.Registration.field("MeshVertex", "Position", "Vector3|CFrame", "Finite position in mesh-local space, relative to RenderObject.WorldPosition."));
         docs.register(MLuaDocBuilder.Registration.field("MeshVertex", "UV?", "Vector2", "Optional texture coordinate."));
@@ -217,8 +224,11 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Add a third-person held-item render pass",
             "MLua invokes this callback after the entity arm and vanilla item transforms are applied, immediately before the item is submitted. It works for player and mob equipment. MLua reads partial tick from the render state when available, then falls back to Minecraft's client frame tracker; check HasPartialTick before using it. The pose and other Minecraft render objects are valid only until the callback returns.",
             "local Render = Minecraft:GetService(\"RenderService\")\nlocal Java = Minecraft:GetService(\"Java\")\n\nRender:RegisterThirdPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:glow\", function(entity, context)\n    local pose = context.PoseStack\n    if context.Hand == \"MAIN_HAND\" then\n        Java:Invoke(pose, \"pushPose\", \"()V\")\n        -- Add a render effect at the item's current hand transform.\n        Java:Invoke(pose, \"popPose\", \"()V\")\n    end\nend)\n\nRender:UnregisterThirdPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:glow\")"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Draw an animated model on a held item",
+            "Load a Mesh or Blockbench RenderObject once, then submit it from first- and third-person item callbacks. Set Target to Manual so it is used only by DrawObject and is not also auto-drawn. DrawObject uses the callback's current Minecraft hand pose, light, overlay, and version-specific render source, then applies its optional local CFrame and the model's animation and scale. Keep the render object in the same addon runtime as the callbacks. The render context and native buffers expire when each callback returns.",
+            "local Render = Minecraft:GetService(\"RenderService\")\nlocal blade = Render:LoadBBModel(\"myaddon:models/ritual_blade.bbmodel\", { Target = \"Manual\" })\nblade:PlayAnimation(\"idle\", { Loop = true })\n\nlocal function drawBlade(entity, context)\n    if context.Hand ~= \"MAIN_HAND\" then return end\n    context:DrawObject(blade, CFrame.new(0, 0.05, 0) * CFrame.Angles(0, math.rad(90), 0))\nend\n\nRender:RegisterFirstPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:model\", drawBlade)\nRender:RegisterThirdPersonItemRenderPass(\"myaddon:ritual_blade\", \"myaddon:model\", drawBlade)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderContext", "Use frame timing in an effect",
-            "DeltaTime is elapsed seconds from the latest client render-frame callback. PartialTick is Minecraft's interpolation fraction from zero to one. Use DeltaTime for time-based motion and PartialTick for interpolating entity state. Some loader hooks publish the frame duration after world rendering, so HasDeltaTime tells you whether any frame duration has been observed.",
+            "DeltaTime is the latest usable client render-frame interval in seconds. It is zero and HasDeltaTime is false until a complete interval is sampled. PartialTick is Minecraft's interpolation fraction from zero to one. Use DeltaTime for time-based motion and PartialTick for interpolating entity state.",
             "local Render = Minecraft:GetService(\"RenderService\")\nlocal phase = 0\n\nRender:RegisterHudRenderPass(\"myaddon:pulse\", function(context)\n    if context.HasDeltaTime then\n        phase = phase + context.DeltaTime * 2\n    end\n    local pulse = (math.sin(phase) + 1) / 2\n    -- Use pulse to update a render object or a Color3 value.\nend)"));
         docs.register(MLuaDocBuilder.Registration.guideStep("RenderService", "Attach a world or HUD render callback",
             "World callbacks run at one of the cross-loader stages exposed by GetWorldRenderStages(); MLua maps each name to that loader's nearest native render event. HUD callbacks run in MLua's registered GUI layer before MLua RenderObjects. Both callbacks receive a frame-scoped RenderContext. Use Java:Invoke or Java:Proxy to call Minecraft rendering APIs, and never retain frame objects or yield from a callback.",

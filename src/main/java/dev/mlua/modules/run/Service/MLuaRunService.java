@@ -53,10 +53,10 @@ public final class MLuaRunService extends MLuaReflectiveService {
    public static void setRenderDeltaTime(Object runtimeSession, double value) {
       if (!(runtimeSession instanceof MLuaRuntimeSession session)) return;
       double bounded = FrameClock.boundedSeconds(value);
-      if (bounded <= 0.0D) return;
       FrameState state = frameState(session, Side.CLIENT);
-      state.renderDeltaTime = bounded;
-      state.hasRenderDeltaTime = true;
+      state.renderFrame = bounded > 0.0D
+         ? new RenderFrameSample(bounded, true)
+         : RenderFrameSample.EMPTY;
    }
 
    @MLuaDescription("Returns the latest simulation frame delta time for this runtime side.")
@@ -64,14 +64,14 @@ public final class MLuaRunService extends MLuaReflectiveService {
       return frameState().simulationDeltaTime;
    }
 
-   @MLuaDescription("Returns the latest client render-frame duration in seconds, capped at one second. Returns zero until a complete frame interval is observed and on the server.")
+   @MLuaDescription("Returns the latest usable client render-frame duration in seconds, capped at one second. Returns zero when the latest sample has no complete interval and on the server.")
    public double GetRenderDeltaTime() {
-      return frameState().renderDeltaTime;
+      return frameState().renderFrame.deltaTime();
    }
 
-   @MLuaDescription("Returns whether a complete client render-frame interval has been observed for this runtime session.")
+   @MLuaDescription("Returns whether the latest client render-frame sample is a complete positive interval for this runtime session.")
    public boolean HasRenderDeltaTime() {
-      return frameState().hasRenderDeltaTime;
+      return frameState().renderFrame.available();
    }
 
    @MLuaDescription("Returns whether this script is running on the server.")
@@ -117,7 +117,10 @@ public final class MLuaRunService extends MLuaReflectiveService {
 
    private static final class FrameState {
       private volatile double simulationDeltaTime = 0.05D;
-      private volatile double renderDeltaTime;
-      private volatile boolean hasRenderDeltaTime;
+      private volatile RenderFrameSample renderFrame = RenderFrameSample.EMPTY;
+   }
+
+   private record RenderFrameSample(double deltaTime, boolean available) {
+      private static final RenderFrameSample EMPTY = new RenderFrameSample(0.0D, false);
    }
 }

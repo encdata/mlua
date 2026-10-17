@@ -74,6 +74,16 @@ public final class MLuaModelService extends MLuaReflectiveService {
         }
     }
 
+    @MLuaDescription("Removes one named bone mapping registered by the calling addon, leaving other mappings and addons intact.")
+    public boolean UnregisterAdapterBone(String modelClass, String boneName) {
+        this.requireClientSide(this.name());
+        try {
+            return MLuaModelAdapterRegistry.unregisterBone(modelClass, boneName, adapterOwner());
+        } catch (IllegalArgumentException invalid) {
+            throw new LuaError("[MLua] " + invalid.getMessage());
+        }
+    }
+
     @MLuaDescription("Returns the merged bone-to-part paths registered for a Java model class, or nil when no addon has registered an adapter for it.")
     public LuaValue GetAdapter(String modelClass) {
         this.requireClientSide(this.name());
@@ -190,7 +200,7 @@ public final class MLuaModelService extends MLuaReflectiveService {
         return MLuaVector.vector3(components[0], components[1], components[2]);
     }
 
-    @MLuaDescription("Returns the model part names supported by the active renderer.")
+    @MLuaDescription("Returns standard part names, names with state on this entity, and adapter bones that resolved on the entity's most recently rendered model.")
     public Iterable<String> GetPartNames(LuaValue entity) {
         this.requireClientSide(this.name());
         return MLuaClientModelManager.getPartNames(resolveEntityScope(entity), owner());

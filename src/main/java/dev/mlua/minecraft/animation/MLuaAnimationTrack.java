@@ -129,6 +129,7 @@ public final class MLuaAnimationTrack {
         fadeSpeed = defaultFadeSpeed;
         computedPose.clear();
         sampledPose.clear();
+        clearEvents();
     }
 
     public void pause() {

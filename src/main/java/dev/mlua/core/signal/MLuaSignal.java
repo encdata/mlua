@@ -313,16 +313,18 @@ public final class MLuaSignal {
 
       for (WaitEntry entry : waiting) {
          try {
-            Object executionLock = entry.context() != null
-               ? entry.context().executionLock() : entry.globals();
-            synchronized (executionLock) {
-               if (entry.context() != null) MLuaLuaBindings.bindContext(entry.globals(), entry.context());
+            Runnable resume = () -> {
                if (entry.thread() != null) {
                   Varargs result = entry.thread().resume(args);
                   if (entry.scheduler() != null) {
                      entry.scheduler().scheduleResumableThread(entry.globals(), entry.thread(), result, entry.ownerKey(), entry.side());
                   }
                }
+            };
+            if (entry.context() != null) {
+               MLuaLuaBindings.withContext(entry.context(), () -> { resume.run(); return null; });
+            } else {
+               synchronized (entry.globals()) { resume.run(); }
             }
          } catch (Exception e) {
             MLuaLogger.LOGGER.error("Signal:Wait resume failed: {}", e.getMessage());
@@ -355,23 +357,23 @@ public final class MLuaSignal {
       LuaValue listener = entry.listener();
       Globals g = entry.globals() != null ? entry.globals() : this.globals;
       MLuaTaskSchedulerView scheduler = entry.context() != null ? entry.context().scheduler() : entry.scheduler() != null ? entry.scheduler() : this.scheduler;
-      Object executionLock = entry.context() != null
-         ? entry.context().executionLock() : (g != null ? g : this);
-      synchronized (executionLock) {
-         if (g != null && scheduler != null) {
-            if (entry.context() != null) MLuaLuaBindings.bindContext(g, entry.context());
-            LuaThread thread = new LuaThread(g, listener);
-            Varargs result = thread.resume(args);
-            if (!result.arg1().toboolean()) {
-               throw new LuaError(result.arg(2).tojstring());
-            }
-
-            scheduler.scheduleResumableThread(g, thread, result, entry.ownerKey(), entry.side());
-            return result;
-         } else {
-            return listener.invoke(args);
-         }
+      if (entry.context() != null) {
+         return MLuaLuaBindings.withContext(entry.context(), () -> invokeListenerLocked(entry, listener, g, scheduler, args));
       }
+      Object executionLock = g != null ? g : this;
+      synchronized (executionLock) { return invokeListenerLocked(entry, listener, g, scheduler, args); }
+   }
+
+   private Varargs invokeListenerLocked(ListenerEntry entry, LuaValue listener, Globals globals,
+                                        MLuaTaskSchedulerView scheduler, Varargs args) {
+      if (globals != null && scheduler != null) {
+         LuaThread thread = new LuaThread(globals, listener);
+         Varargs result = thread.resume(args);
+         if (!result.arg1().toboolean()) throw new LuaError(result.arg(2).tojstring());
+         scheduler.scheduleResumableThread(globals, thread, result, entry.ownerKey(), entry.side());
+         return result;
+      }
+      return listener.invoke(args);
    }
 
    private record ListenerEntry(LuaValue listener, String ownerKey, Side side, Globals globals, MLuaTaskSchedulerView scheduler, MLuaContext context) {

@@ -2,10 +2,22 @@ package dev.mlua.modules.javabridge;
 
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;
+import dev.mlua.common.enums.Side;
 import dev.mlua.modules.javabridge.Service.MLuaJavaService;
 import java.util.List;
 
 public final class JavaModule implements MLuaModule {
+    @Override
+    public void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
+        MLuaJavaService.clearRuntimeProxies(runtimeSession == null ? runtime : runtimeSession, side);
+    }
+
+    @Override
+    public void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession,
+                                Side side, String ownerModId) {
+        MLuaJavaService.clearOwnedProxies(runtimeSession == null ? runtime : runtimeSession, side, ownerModId);
+    }
+
     @Override
     public String id() {
         return "java";
@@ -31,8 +43,10 @@ public final class JavaModule implements MLuaModule {
             "packageName: package path", "JavaPackage", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:New(classNameOrClass, ...)", "Constructs an object using a compatible public Java constructor.",
             "classNameOrClass: class name or JavaClass; remaining arguments match a public constructor", "JavaObject", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:Proxy(interface1, ..., implementationTable)", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions.",
-            "One or more interfaces followed by a table containing a function for every required abstract method. The same conversion also happens when a Lua table is passed to a Java method expecting an interface. Java arguments are exposed as live Java proxies, and Lua return values are converted using the Java method's declared return type.", "JavaObject", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:Proxy(interface1, ..., implementationTable)", "Creates a Java interface implementation backed by Lua functions. Required abstract methods are checked at creation; default and static methods do not need Lua functions. Calls run synchronously on the Java caller thread under the owning script's execution lock and Lua context; MLua does not move them to the Minecraft thread. Runtime or addon cleanup invalidates the proxy and releases its Lua callbacks.",
+            "One or more interfaces followed by a table containing a function for every required abstract method. The same conversion also happens when a Lua table is passed to a Java method expecting an interface. Java arguments are exposed as live Java proxies, and Lua return values are converted using the Java method's declared return type. If Java calls from a worker thread, the Lua callback runs on that worker thread; schedule game mutations onto Minecraft's main thread. Calling a proxy after its runtime or addon is cleaned up throws IllegalStateException.", "JavaObject", "shared:Shared", null));
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetProxyLimits()", "Returns the active Lua-backed Java proxy count, the count created by this addon runtime, and the configured limits. Proxies are tracked weakly and counted only while Java still retains them.",
+            "No arguments", "table with Active, ActiveOwned, MaxTotal, and MaxPerOwner", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:IsInstance(value, classNameOrClass)", "Checks whether a Java object matches a class or interface.",
             "value: JavaObject; classNameOrClass: class name or JavaClass", "boolean", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:Cast(value, classNameOrClass)", "Checks a Java object's type and returns its live proxy.",

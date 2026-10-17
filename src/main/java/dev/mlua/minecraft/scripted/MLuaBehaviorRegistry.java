@@ -107,9 +107,16 @@ public final class MLuaBehaviorRegistry {
       return invokeCallback(definition.context(), definition.callbacks().get(event), args);
    }
 
-   public static Varargs invokeCallback(String domain, String key, LuaValue callback, Varargs args) {
+   public static Varargs invokeCallback(String domain, String key, String event, LuaValue callback, Varargs args) {
       BehaviorSet definition = definition(domain, key);
-      return invokeCallback(definition == null ? null : definition.context(), callback, args);
+      // Callback lookup and invocation are separate operations in several Minecraft hooks. If a
+      // script reload replaced the behavior in between, never run the old closure under the new
+      // script's context (or keep invoking a callback that has already been removed).
+      if (definition == null || callback == null || event == null
+          || definition.callbacks().get(event) != callback) {
+         return LuaValue.NONE;
+      }
+      return invokeCallback(definition.context(), callback, args);
    }
 
    /** Invokes a callback with the owner context captured alongside its behavior definition. */
@@ -120,11 +127,7 @@ public final class MLuaBehaviorRegistry {
    private static Varargs invokeCallback(MLuaContext context, LuaValue callback, Varargs args) {
       if (callback == null || callback.isnil() || !callback.isfunction()) return LuaValue.NONE;
       Varargs invocationArgs = args == null ? LuaValue.NONE : args;
-      if (context == null) return callback.invoke(invocationArgs);
-      synchronized (context.executionLock()) {
-         MLuaLuaBindings.bindContext(context.globals(), context);
-         return callback.invoke(invocationArgs);
-      }
+      return MLuaLuaBindings.withContext(context, () -> callback.invoke(invocationArgs));
    }
 
    private static BehaviorSet definition(String domain, String key) {

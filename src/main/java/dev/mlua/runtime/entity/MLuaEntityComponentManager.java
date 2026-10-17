@@ -435,11 +435,11 @@ public final class MLuaEntityComponentManager {
                     invokeCallbackBody(instance, callbackName, eventName, event);
                 }
             } else {
-                synchronized (instance.context.executionLock()) {
-                    if (!removing && (instance.removed || instance.failed)) return;
-                    MLuaLuaBindings.bindContext(instance.context.globals(), instance.context);
+                MLuaLuaBindings.withContext(instance.context, () -> {
+                    if (!removing && (instance.removed || instance.failed)) return null;
                     invokeCallbackBody(instance, callbackName, eventName, event);
-                }
+                    return null;
+                });
             }
         } catch (LuaError error) {
             disableAfterFailure(instance, callbackName, eventName, error);

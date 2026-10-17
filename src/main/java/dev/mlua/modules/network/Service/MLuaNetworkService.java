@@ -8,6 +8,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaContextView;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
@@ -94,12 +96,13 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
    @MLuaDescription("Performs an HTTP GET request and invokes a callback with the result.")
    public void HttpGetAsync(String url, LuaValue callback) {
       long expectedEpoch = this.lifecycleEpoch();
+      MLuaContext callbackContext = MLuaLuaBindings.currentContext();
       CompletableFuture.runAsync(() -> {
          try {
             String body = this.http("GET", url, null);
-            this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(body), expectedEpoch);
+            this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(body), expectedEpoch, callbackContext);
          } catch (Exception failure) {
-            this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(failure.getMessage()), expectedEpoch);
+            this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(failure.getMessage()), expectedEpoch, callbackContext);
          }
       });
    }
@@ -107,12 +110,13 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
    @MLuaDescription("Performs an HTTP POST request and invokes a callback with the result.")
    public void HttpPostAsync(String url, String body, LuaValue callback) {
       long expectedEpoch = this.lifecycleEpoch();
+      MLuaContext callbackContext = MLuaLuaBindings.currentContext();
       CompletableFuture.runAsync(() -> {
          try {
             String result = this.http("POST", url, body);
-            this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(result), expectedEpoch);
+            this.dispatchAsync(callback, LuaValue.TRUE, LuaValue.valueOf(result), expectedEpoch, callbackContext);
          } catch (Exception failure) {
-            this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(failure.getMessage()), expectedEpoch);
+            this.dispatchAsync(callback, LuaValue.FALSE, LuaValue.valueOf(failure.getMessage()), expectedEpoch, callbackContext);
          }
       });
    }
@@ -147,7 +151,8 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
       return this.context.mlua().registration() instanceof MLuaRuntime runtime ? runtime.lifecycleEpoch() : -1L;
    }
 
-   private void dispatchAsync(LuaValue callback, LuaValue success, LuaValue value, long expectedEpoch) {
+   private void dispatchAsync(LuaValue callback, LuaValue success, LuaValue value, long expectedEpoch,
+                              MLuaContext callbackContext) {
       try {
          MLuaContextView mlua = this.context.mlua();
          var globals = mlua.globals();
@@ -162,7 +167,7 @@ public final class MLuaNetworkService extends MLuaReflectiveService {
             @Override
             public Varargs invoke(Varargs args) {
                return runtime == null || runtime.lifecycleEpoch() == expectedEpoch
-                  ? callback.invoke(args)
+                  ? MLuaLuaBindings.withContext(callbackContext, () -> callback.invoke(args))
                   : LuaValue.NONE;
             }
          };

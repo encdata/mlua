@@ -159,7 +159,8 @@ public final class MLuaScriptedMobEffect extends MobEffect {
    private void invoke(String hook, LuaValue callback, LuaTable context) {
       if (!callback.isnil()) {
          try {
-            callback.invoke(context);
+            MLuaBehaviorRegistry.invokeCallback("effect", this.behaviorKey, hook, callback,
+               LuaValue.varargsOf(new LuaValue[]{context}));
          } catch (Exception exception) {
             MLuaLogger.LOGGER.error("MLua mob effect {} callback failed for '{}': {}", new Object[]{hook, this.behaviorKey, exception.getMessage()});
          }

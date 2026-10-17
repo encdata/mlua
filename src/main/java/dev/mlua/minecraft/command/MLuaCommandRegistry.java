@@ -13,6 +13,8 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.mlua.common.enums.CommandArgumentType;
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.network.MLuaNetworkManager;
 import dev.mlua.minecraft.network.MLuaNetworkSerializer;
@@ -53,7 +55,7 @@ public final class MLuaCommandRegistry {
    private static final Pattern COMMAND_NAME = Pattern.compile("[a-z0-9_][a-z0-9_-]{0,63}");
    private static final Pattern ARGUMENT_NAME = Pattern.compile("[A-Za-z0-9_]{1,64}");
    private final Map<String, MLuaCommandDefinition> commands = new LinkedHashMap();
-   private final Map<MLuaRegistration, Map<String, LuaValue>> clientCallbacks = new java.util.IdentityHashMap<>();
+   private final Map<MLuaRegistration, Map<String, ClientCallback>> clientCallbacks = new java.util.IdentityHashMap<>();
 
    public static MLuaCommandRegistry get() {
       return INSTANCE;
@@ -85,10 +87,15 @@ public final class MLuaCommandRegistry {
    }
 
    public void registerClientCallback(String name, LuaValue callback, MLuaRegistration registration) {
+      this.registerClientCallback(name, callback, registration, null);
+   }
+
+   public void registerClientCallback(String name, LuaValue callback, MLuaRegistration registration, MLuaContext context) {
       validateCommandName(name);
       if (callback.isfunction()) {
          synchronized (this.clientCallbacks) {
-            this.clientCallbacks.computeIfAbsent(registration, ignored -> new LinkedHashMap<>()).put(name, callback);
+            this.clientCallbacks.computeIfAbsent(registration, ignored -> new LinkedHashMap<>())
+               .put(name, new ClientCallback(callback, context));
          }
       }
    }
@@ -158,7 +165,11 @@ public final class MLuaCommandRegistry {
          MLuaRegistration registration = MLuaRuntime.registrationForServer(server);
          LuaTable args = this.argsTable(definition, context, registration);
          if (definition.callback().isfunction()) {
-            definition.callback().invoke(LuaValue.varargsOf(new LuaValue[]{MLuaCommandContext.toLua((CommandSourceStack)context.getSource(), registration), args}));
+            LuaValue[] invocationArgs = new LuaValue[]{MLuaCommandContext.toLua((CommandSourceStack)context.getSource(), registration), args};
+            MLuaLuaBindings.withContext(definition.context(), () -> {
+               definition.callback().invoke(LuaValue.varargsOf(invocationArgs));
+               return null;
+            });
          }
 
          if (definition.clientCallback().isfunction() && context.getSource().getPlayer() != null) {
@@ -178,11 +189,12 @@ public final class MLuaCommandRegistry {
    }
 
    public void executeClient(String commandName, List<MLuaNetworkValue> arguments, MLuaRegistration registration) {
-      LuaValue callback;
+      ClientCallback registered;
       synchronized (this.clientCallbacks) {
-         Map<String, LuaValue> callbacks = this.clientCallbacks.get(registration);
-         callback = callbacks != null ? callbacks.get(commandName) : null;
+         Map<String, ClientCallback> callbacks = this.clientCallbacks.get(registration);
+         registered = callbacks != null ? callbacks.get(commandName) : null;
       }
+      LuaValue callback = registered == null ? LuaValue.NIL : registered.callback();
       if (callback == null || !callback.isfunction()) {
          return;
       }
@@ -202,7 +214,11 @@ public final class MLuaCommandRegistry {
             }
          }
 
-         callback.invoke(LuaValue.varargsOf(new LuaValue[]{MLuaCommandContext.toClientLua(registration), args}));
+         LuaValue[] invocationArgs = new LuaValue[]{MLuaCommandContext.toClientLua(registration), args};
+         MLuaLuaBindings.withContext(registered.context(), () -> {
+            callback.invoke(LuaValue.varargsOf(invocationArgs));
+            return null;
+         });
       } catch (Exception e) {
          MLuaLogger.LOGGER.error("MLua client command '{}' failed", commandName, e);
          LocalPlayer player = dev.mlua.minecraft.client.MLuaMinecraftClient.localPlayer();
@@ -263,6 +279,10 @@ public final class MLuaCommandRegistry {
    }
 
    public static MLuaCommandDefinition fromLua(String name, LuaTable definition) {
+      return fromLua(name, definition, null);
+   }
+
+   public static MLuaCommandDefinition fromLua(String name, LuaTable definition, MLuaContext context) {
       validateCommandName(name);
       LuaValue callback = definition.get("run");
       LuaValue clientCallback = definition.get("run_client");
@@ -277,9 +297,11 @@ public final class MLuaCommandRegistry {
          String description = definition.get("description").isnil() ? "" : definition.get("description").checkjstring();
          List<MLuaCommandArgument> arguments = parseArguments(name, definition.get("arguments"));
          List<String> aliases = parseAliases(definition.get("aliases"));
-         return new MLuaCommandDefinition(name, description, permission, arguments, aliases, callback, clientCallback);
+         return new MLuaCommandDefinition(name, description, permission, arguments, aliases, callback, clientCallback, context);
       }
    }
+
+   private record ClientCallback(LuaValue callback, MLuaContext context) { }
 
    private List<MLuaNetworkValue> clientArguments(MLuaCommandDefinition definition, CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
       List<MLuaNetworkValue> values = new ArrayList();

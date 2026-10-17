@@ -187,9 +187,8 @@ public final class MLuaClientRenderManager {
             pose.translate(x - camera.x, y - camera.y, z - camera.z);
             if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
             if (object.type == RenderType.MESH && object.mesh != null) {
-                ResourceLocation texture = resolveTexture(object.mesh.texture());
                 MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
-                    texture == null ? MLuaRenderHelper.fallbackTexture() : texture, packedLight, 0);
+                    resolveMeshTexture(object), packedLight, 0);
             } else if (object.bbmodel != null) {
                 renderBBModelWorld(pose, buffers, object, packedLight, 0, partialTick);
             }
@@ -251,9 +250,8 @@ public final class MLuaClientRenderManager {
                     pose.translate(object.worldX, object.worldY, object.worldZ);
                     if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
                     if (object.type == RenderType.MESH && object.mesh != null) {
-                        ResourceLocation texture = resolveTexture(object.mesh.texture());
                         MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
-                            texture == null ? MLuaRenderHelper.fallbackTexture() : texture, light, overlay);
+                            resolveMeshTexture(object), light, overlay);
                     } else if (object.bbmodel != null) {
                         renderBBModelWorld(pose, buffers, object, light, overlay, partialTick);
                     }
@@ -266,6 +264,45 @@ public final class MLuaClientRenderManager {
                 }
             }
         }
+    }
+
+    /** Draws a Lua-owned model using the live pose and buffers of the current render callback. */
+    public static boolean drawObjectInRenderContext(int renderId, MLuaRenderOwnershipRegistry.Owner owner,
+            Object poseValue, Object bufferValue, MLuaCFrame transform, int light, int overlay, float partialTick) {
+        RenderObject object = get(renderId, owner);
+        if (object == null) throw new IllegalArgumentException("RenderObject is destroyed or belongs to another addon runtime");
+        if (object.type != RenderType.MESH && object.type != RenderType.BBMODEL) {
+            throw new IllegalArgumentException("RenderContext:DrawObject requires a Mesh or BBModel RenderObject");
+        }
+        if (!(poseValue instanceof PoseStack pose) || !(bufferValue instanceof MultiBufferSource buffers)) {
+            throw new IllegalStateException("This render callback does not expose a PoseStack and MultiBufferSource");
+        }
+        synchronized (object.executionLock()) {
+            if (object.destroyed) throw new IllegalStateException("RenderObject was destroyed before it could be drawn");
+            if (!object.visible) return false;
+            pose.pushPose();
+            try {
+                applyTransform(pose, transform == null ? MLuaCFrame.IDENTITY : transform);
+                if (object.modelScale != 1.0F) pose.scale(object.modelScale, object.modelScale, object.modelScale);
+                if (object.mesh != null) {
+                    MLuaRenderHelper.renderMesh(pose, buffers, object.mesh,
+                        resolveMeshTexture(object), light, overlay);
+                } else if (object.bbmodel != null) {
+                    renderBBModelWorld(pose, buffers, object, light, overlay, partialTick);
+                }
+                return true;
+            } finally {
+                pose.popPose();
+            }
+        }
+    }
+
+    private static void applyTransform(PoseStack pose, MLuaCFrame transform) {
+        pose.translate(transform.x(), transform.y(), transform.z());
+        double[] angles = transform.toEulerAnglesXYZ();
+        pose.mulPose(Axis.XP.rotation((float)angles[0]));
+        pose.mulPose(Axis.YP.rotation((float)angles[1]));
+        pose.mulPose(Axis.ZP.rotation((float)angles[2]));
     }
 
     public static int create(RenderType type, String resource) {
@@ -530,7 +567,8 @@ public final class MLuaClientRenderManager {
         for (RenderObject object : orderedRenderObjects()) {
             synchronized (object.executionLock()) {
                 if (object.destroyed || !object.visible) continue;
-                if (object.target() == RenderTarget.WORLD_MODEL || object.target() == RenderTarget.ENTITY_MODEL) continue;
+                if (object.target() == RenderTarget.MANUAL || object.target() == RenderTarget.WORLD_MODEL
+                        || object.target() == RenderTarget.ENTITY_MODEL) continue;
                 render(graphics, object);
             }
         }
@@ -824,6 +862,19 @@ public final class MLuaClientRenderManager {
         return Minecraft.getInstance().getResourceManager().getResource(location).isPresent() ? location : null;
     }
 
+    /** Resolves a mesh's unqualified texture in the addon that owns the render object. */
+    private static ResourceLocation resolveMeshTexture(RenderObject object) {
+        if (object == null || object.mesh == null) return MLuaRenderHelper.fallbackTexture();
+        String path = object.mesh.texture();
+        if (path == null || path.isBlank()) return MLuaRenderHelper.fallbackTexture();
+        MLuaRenderOwnershipRegistry.Owner owner = OWNERS.ownerOf(object.id);
+        String candidate = path.indexOf(':') >= 0 || owner == null || owner.ownerModId().isBlank()
+            ? path : owner.ownerModId() + ":" + path;
+        ResourceLocation location = MLuaResourceLocations.tryParseOrNull(candidate);
+        return location != null && Minecraft.getInstance().getResourceManager().getResource(location).isPresent()
+            ? location : MLuaRenderHelper.fallbackTexture();
+    }
+
     private static ResourceLocation resolveModelTexture(String path) {
         if (path == null || path.isBlank()) return null;
         String normalized = path.replace('\\', '/');
@@ -870,6 +921,7 @@ public final class MLuaClientRenderManager {
     }
 
     public enum RenderTarget {
+        MANUAL,
         HUD,
         WORLD_OVERLAY,
         WORLD_MODEL,
@@ -893,6 +945,7 @@ public final class MLuaClientRenderManager {
         private final AtomicBoolean renderFailureReported = new AtomicBoolean();
         private int zIndex = 0;
         private boolean worldSpace = false;
+        private boolean manualTarget;
         private boolean entityModelTarget;
         private String followBoneName;
         private volatile MLuaCFrame followOffset = MLuaCFrame.IDENTITY;
@@ -951,6 +1004,7 @@ public final class MLuaClientRenderManager {
         public int zIndex() { return zIndex; }
         public boolean worldSpace() { return worldSpace; }
         public RenderTarget target() {
+            if (manualTarget) return RenderTarget.MANUAL;
             if (entityModelTarget || followBoneName != null) return RenderTarget.ENTITY_MODEL;
             if (!worldSpace) return RenderTarget.HUD;
             return type == RenderType.MESH || type == RenderType.BBMODEL
@@ -997,6 +1051,7 @@ public final class MLuaClientRenderManager {
             invalidateDrawOrder();
         }
         public void setWorldSpace(boolean worldSpace) {
+            manualTarget = false;
             if (worldSpace && (type == RenderType.MESH || type == RenderType.BBMODEL)) {
                 dev.mlua.loaderapi.LoaderApi.client().normalizeSupportedWorldModelStage(renderStage);
             }
@@ -1010,6 +1065,16 @@ public final class MLuaClientRenderManager {
         public void setTarget(RenderTarget target) {
             if (target == null) throw new IllegalArgumentException("Render target cannot be null");
             boolean model = type == RenderType.MESH || type == RenderType.BBMODEL;
+            if (target == RenderTarget.MANUAL) {
+                if (!model) throw new IllegalArgumentException("Manual target requires a Mesh or BBModel object");
+                manualTarget = true;
+                setFollowEntityScope(null);
+                followBoneName = null;
+                entityModelTarget = false;
+                worldSpace = false;
+                return;
+            }
+            manualTarget = false;
             if ((target == RenderTarget.WORLD_MODEL || target == RenderTarget.ENTITY_MODEL) && !model) {
                 throw new IllegalArgumentException("WorldModel and EntityModel targets require a Mesh or BBModel object");
             }
@@ -1042,6 +1107,7 @@ public final class MLuaClientRenderManager {
             this.renderStage = normalized;
         }
         public void setFollowEntityScope(MLuaEntityScope followEntityScope) {
+            if (followEntityScope != null) manualTarget = false;
             if (this.followEntityScope != null && !this.followEntityScope.equals(followEntityScope)) {
                 unregisterEntityModel(this.followEntityScope, this.id);
             }
@@ -1065,6 +1131,7 @@ public final class MLuaClientRenderManager {
                 this.entityModelTarget = false;
                 return;
             }
+            manualTarget = false;
             this.followBoneName = boneName.trim();
             this.entityModelTarget = true;
             this.worldSpace = true;
@@ -1089,15 +1156,13 @@ public final class MLuaClientRenderManager {
             MLuaContext context = binding.context();
             if (!callback.isfunction() || context == null) return;
             try {
-                synchronized (context.executionLock()) {
-                    if (followOffsetBinding != binding) return;
-                    MLuaLuaBindings.bindContext(context.globals(), context);
-                    LuaValue result = callback.invoke(LuaValue.NONE).arg1();
-                    MLuaCFrame resolved = MLuaCFrame.fromLua(result);
-                    // A script may replace the callback while it is executing from another thread.
-                    // Do not let the older result overwrite the newer value.
-                    if (followOffsetBinding == binding) followOffset = resolved;
-                }
+                MLuaCFrame resolved = MLuaLuaBindings.withContext(context, () -> {
+                    if (followOffsetBinding != binding) return null;
+                    return MLuaCFrame.fromLua(callback.invoke(LuaValue.NONE).arg1());
+                });
+                // A script may replace the callback while it is executing from another thread.
+                // Do not let the older result overwrite the newer value.
+                if (resolved != null && followOffsetBinding == binding) followOffset = resolved;
             } catch (VirtualMachineError | ThreadDeath fatal) {
                 throw fatal;
             } catch (RuntimeException failure) {
@@ -1131,6 +1196,7 @@ public final class MLuaClientRenderManager {
             copy.visible = visible;
             copy.zIndex = zIndex;
             copy.worldSpace = worldSpace;
+            copy.manualTarget = manualTarget;
             copy.entityModelTarget = entityModelTarget;
             copy.followBoneName = followBoneName;
             copy.followOffset = followOffset;

@@ -8,8 +8,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.WeakHashMap;
 import net.minecraft.client.model.geom.ModelPart;
@@ -131,19 +133,21 @@ public final class MLuaClientModelManager {
     }
 
     public static Iterable<String> getPartNames(MLuaEntityScope scope) {
-        LinkedHashSet<String> names = new LinkedHashSet<>(DEFAULT_PART_NAMES);
+        TreeSet<String> names = new TreeSet<>(DEFAULT_PART_NAMES);
+        names.addAll(MLuaModelAdapterRegistry.appliedBoneNames(scope));
         for (var ownerState : STATES.values()) {
             var map = ownerState.get(scope);
             if (map != null) names.addAll(map.keySet());
         }
-        return names;
+        return List.copyOf(names);
     }
     public static Iterable<String> getPartNames(MLuaEntityScope scope, Owner owner) {
-        LinkedHashSet<String> names = new LinkedHashSet<>(DEFAULT_PART_NAMES);
+        TreeSet<String> names = new TreeSet<>(DEFAULT_PART_NAMES);
+        names.addAll(MLuaModelAdapterRegistry.appliedBoneNames(scope));
         var entities = STATES.get(owner == null ? LEGACY_OWNER : owner);
         var map = entities == null ? null : entities.get(scope);
         if (map != null) names.addAll(map.keySet());
-        return names;
+        return List.copyOf(names);
     }
 
     public static void clearPart(int entityId, String part) {
@@ -177,6 +181,7 @@ public final class MLuaClientModelManager {
     }
 
     public static void clearEntityForAllOwners(MLuaEntityScope scope) {
+        MLuaModelAdapterRegistry.clearEntity(scope);
         STATES.forEach((owner, entities) -> {
             entities.remove(scope);
             if (entities.isEmpty()) STATES.remove(owner, entities);
@@ -193,6 +198,7 @@ public final class MLuaClientModelManager {
 
     public static void clearAll() {
         STATES.clear();
+        MLuaModelAdapterRegistry.clearAppliedEntities();
         synchronized (OVERRIDE_POSES) {
             OVERRIDE_POSES.forEach((model, poses) -> poses.forEach((part, pose) -> pose.restore(part)));
             OVERRIDE_POSES.clear();

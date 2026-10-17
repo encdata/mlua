@@ -45,6 +45,7 @@ public final class MLuaModelAdapterRegistry {
     private static final ConcurrentHashMap<String, Map<Owner, Map<String, String>>> ADAPTERS = new ConcurrentHashMap<>();
     private static int registeredPartCount;
     private static final ConcurrentMap<String, java.util.List<String>> PART_PATHS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<MLuaEntityScope, AppliedModel> APPLIED_MODELS = new ConcurrentHashMap<>();
     private static final ClassValue<ConcurrentMap<String, Optional<Field>>> MODEL_FIELDS = new ClassValue<>() {
         @Override protected ConcurrentMap<String, Optional<Field>> computeValue(Class<?> type) {
             return new ConcurrentHashMap<>();
@@ -52,6 +53,8 @@ public final class MLuaModelAdapterRegistry {
     };
     private static final Map<Class<?>, Map<String, String>> RESOLVED_MAPPINGS =
         Collections.synchronizedMap(new WeakHashMap<>());
+
+    private record AppliedModel(Class<?> modelClass, java.util.Set<String> resolvedBones) { }
 
     private MLuaModelAdapterRegistry() {}
 
@@ -135,6 +138,34 @@ public final class MLuaModelAdapterRegistry {
         return removed.get();
     }
 
+    /** Removes one mapping owned by an addon without disturbing mappings from other addons. */
+    public static synchronized boolean unregisterBone(String modelClass, String boneName, Owner owner) {
+        String className = normalizeClassName(modelClass);
+        String bone = boneName == null ? "" : boneName.trim();
+        if (bone.isEmpty()) throw new IllegalArgumentException("Model adapter bone name cannot be empty");
+        if (bone.length() > MAX_BONE_NAME_LENGTH) {
+            throw new IllegalArgumentException("Model adapter bone names cannot exceed " + MAX_BONE_NAME_LENGTH + " characters");
+        }
+        Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
+        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
+        ADAPTERS.computeIfPresent(className, (ignored, current) -> {
+            Map<String, String> owned = current.get(resolvedOwner);
+            if (owned == null || !owned.containsKey(bone)) return current;
+            LinkedHashMap<Owner, Map<String, String>> owners = new LinkedHashMap<>(current);
+            LinkedHashMap<String, String> remaining = new LinkedHashMap<>(owned);
+            remaining.remove(bone);
+            if (remaining.isEmpty()) owners.remove(resolvedOwner);
+            else owners.put(resolvedOwner, orderedMap(remaining));
+            removed.set(true);
+            return owners.isEmpty() ? null : orderedMap(owners);
+        });
+        if (removed.get()) {
+            registeredPartCount--;
+            clearMappingCaches();
+        }
+        return removed.get();
+    }
+
     public static synchronized void clearOwned(Owner owner) {
         if (owner == null) return;
         boolean removed = removeOwned((registeredOwner) -> registeredOwner.equals(owner));
@@ -170,6 +201,28 @@ public final class MLuaModelAdapterRegistry {
 
     public static synchronized int registeredPartCount() { return registeredPartCount; }
 
+    /** Returns adapter bones that resolved on the model used by this entity's latest render. */
+    public static java.util.Set<String> appliedBoneNames(MLuaEntityScope scope) {
+        if (scope == null) return java.util.Set.of();
+        AppliedModel applied = APPLIED_MODELS.get(scope);
+        if (applied == null) return java.util.Set.of();
+        Map<String, String> currentMapping = findMapping(applied.modelClass());
+        if (currentMapping == null) return java.util.Set.of();
+        java.util.LinkedHashSet<String> current = new java.util.LinkedHashSet<>();
+        for (String bone : applied.resolvedBones()) {
+            if (currentMapping.containsKey(bone)) current.add(bone);
+        }
+        return Collections.unmodifiableSet(current);
+    }
+
+    public static void clearEntity(MLuaEntityScope scope) {
+        if (scope != null) APPLIED_MODELS.remove(scope);
+    }
+
+    public static void clearAppliedEntities() {
+        APPLIED_MODELS.clear();
+    }
+
     /** Returns the merged, deterministic mapping currently registered for one model class. */
     public static synchronized Map<String, String> registeredMappings(String modelClass) {
         String className = normalizeClassName(modelClass);
@@ -189,7 +242,10 @@ public final class MLuaModelAdapterRegistry {
     public static java.util.Set<String> apply(Object model, MLuaEntityScope scope) {
         if (model == null || scope == null) return java.util.Set.of();
         Map<String, String> mapping = findMapping(model.getClass());
-        if (mapping == null) return java.util.Set.of();
+        if (mapping == null) {
+            APPLIED_MODELS.remove(scope);
+            return java.util.Set.of();
+        }
         Map<String, MLuaCFrame> animation = MLuaBonePose.getPose(scope);
         java.util.LinkedHashSet<String> applied = new java.util.LinkedHashSet<>();
         for (Map.Entry<String, String> entry : mapping.entrySet()) {
@@ -203,7 +259,9 @@ public final class MLuaModelAdapterRegistry {
             }
             MLuaClientModelManager.applyState(model, part, MLuaClientModelManager.getPartState(scope, entry.getKey()));
         }
-        return java.util.Set.copyOf(applied);
+        java.util.Set<String> resolved = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(applied));
+        APPLIED_MODELS.put(scope, new AppliedModel(model.getClass(), resolved));
+        return resolved;
     }
 
     public static Map<String, String> findMapping(Class<?> modelClass) {

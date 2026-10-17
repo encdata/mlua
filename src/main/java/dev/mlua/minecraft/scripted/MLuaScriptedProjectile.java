@@ -337,10 +337,7 @@ public class MLuaScriptedProjectile extends Entity {
 
    private void invokeCallback(LuaValue callback, LuaTable args) {
       if (this.level().isClientSide) return;
-      if (this.callbackContext != null) {
-         MLuaLuaBindings.bindContext(this.callbackContext.globals(), this.callbackContext);
-      }
-      callback.invoke(args);
+      MLuaLuaBindings.withContext(this.callbackContext, () -> callback.invoke(args));
    }
 
    public void destroy() {
