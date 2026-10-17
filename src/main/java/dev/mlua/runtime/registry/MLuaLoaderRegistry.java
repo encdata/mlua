@@ -24,19 +24,34 @@ public final class MLuaLoaderRegistry {
     }
 
     public static <T> RegistryHandle<T> register(RegistryKind kind, String modId, String name, Supplier<T> supplier) {
+        requireRegistriesOpen(kind, modId, name);
         return LoaderApi.registry().register(kind, modId, name, supplier);
     }
 
     public static RegistryHandle<EntityType<?>> registerEntity(String modId, String name, Supplier<EntityType<?>> supplier, Supplier<AttributeSupplier> attributes) {
+        requireRegistriesOpen(RegistryKind.ENTITY, modId, name);
         return (RegistryHandle<EntityType<?>>) LoaderApi.registry().registerEntity(modId, name, supplier, attributes);
     }
 
     public static RegistryHandle<Item> registerSpawnEgg(String modId, String name, RegistryHandle<?> entityType, int primaryColor, int secondaryColor) {
+        requireRegistriesOpen(RegistryKind.ITEM, modId, name);
         return (RegistryHandle<Item>) LoaderApi.registry().registerSpawnEgg(modId, name, entityType, primaryColor, secondaryColor);
     }
 
     public static RegistryHandle<?> registerParticle(String modId, String name, boolean overrideLimiter) {
+        requireRegistriesOpen(RegistryKind.PARTICLE, modId, name);
         return LoaderApi.registry().registerParticle(modId, name, overrideLimiter);
+    }
+
+    private static void requireRegistriesOpen(RegistryKind kind, String modId, String name) {
+        requireRegistriesOpen(kind.name().toLowerCase(java.util.Locale.ROOT), modId, name);
+    }
+
+    private static void requireRegistriesOpen(String kind, String modId, String name) {
+        if (LoaderApi.registry().isFrozen()) {
+            throw new IllegalStateException("[MLua] Cannot register native " + kind
+                + " '" + modId + ":" + name + "': Minecraft registries are frozen. Native content must be registered during startup in a .registry.lua script.");
+        }
     }
 
     public static <T> RegistryHandle<T> get(RegistryKind kind, String modId, String name) {
@@ -49,6 +64,7 @@ public final class MLuaLoaderRegistry {
     }
 
     public static void registerVisualBlockEntityTypes() {
+        requireRegistriesOpen("block entity type", "mlua", "visual_block_entity");
         LoaderApi.registry().registerVisualBlockEntityTypes();
     }
 

@@ -71,7 +71,7 @@ public final class MLuaBootstrap {
         MLuaLoaderRegistry.registerVisualBlockEntityTypes();
         MLuaPackFinder.registerResourcePack();
 
-        var projectileType = LoaderApi.registry().register(
+        var projectileType = MLuaLoaderRegistry.register(
             RegistryKind.ENTITY,
             "mlua",
             "scripted_projectile",

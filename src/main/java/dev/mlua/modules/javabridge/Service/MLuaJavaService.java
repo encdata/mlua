@@ -4,6 +4,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.common.mixin.MLuaClassViewer;
+import dev.mlua.runtime.registry.MLuaContentTypeRegistry;
 import java.lang.reflect.Array;
 import java.lang.reflect.Member;
 import java.lang.reflect.Constructor;
@@ -94,8 +95,8 @@ public final class MLuaJavaService extends MLuaServiceBase {
         descriptions.put("ViewClass", "Returns a Lua-oriented textual view of a Java class.");
         descriptions.put("ClassViewer", "Returns a Lua-oriented textual view of a Java class; alias for ViewClass.");
         descriptions.put("GetEnumConstants", "Returns the constants of a Java enum class.");
-        descriptions.put("ToTable", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, or keys that collide after conversion.");
-        descriptions.put("FromTable", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps.");
+        descriptions.put("ToTable", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, colliding keys, cycles, or nesting deeper than 64 levels.");
+        descriptions.put("FromTable", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps. Cycles and nesting deeper than 64 levels raise a Lua error.");
         return java.util.Collections.unmodifiableMap(descriptions);
     }
 
@@ -577,10 +578,10 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private Object unwrapJavaValue(LuaValue value) {
-        return unwrapJavaValue(value, new IdentityHashMap<>());
+        return unwrapJavaValue(value, new IdentityHashMap<>(), 0);
     }
 
-    private Object unwrapJavaValue(LuaValue value, IdentityHashMap<LuaTable, Boolean> activeTables) {
+    private Object unwrapJavaValue(LuaValue value, IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
         if (value.isnil()) {
             return null;
         }
@@ -608,22 +609,23 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 return proxiedClass.touserdata(Class.class);
             }
         }
-        if (value.istable()) return luaTableValue(value.checktable(), activeTables);
+        if (value.istable()) return luaTableValue(value.checktable(), activeTables, depth);
         return CoerceLuaToJava.coerce(value, Object.class);
     }
 
-    private Object luaTableValue(LuaTable table, IdentityHashMap<LuaTable, Boolean> activeTables) {
+    private Object luaTableValue(LuaTable table, IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
+        requireConversionDepth(depth, "Lua-to-Java");
         if (activeTables.put(table, Boolean.TRUE) != null) {
             throw new LuaError("[MLua] Cyclic Lua tables cannot be passed as Java values");
         }
         try {
-            return luaTableValueContents(table, activeTables);
+            return luaTableValueContents(table, activeTables, depth);
         } finally {
             activeTables.remove(table);
         }
     }
 
-    private Object luaTableValueContents(LuaTable table, IdentityHashMap<LuaTable, Boolean> activeTables) {
+    private Object luaTableValueContents(LuaTable table, IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
         List<Object> list = new ArrayList<>();
         LuaValue key = LuaValue.NIL;
         int count = 0;
@@ -642,7 +644,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
             maximum = Math.max(maximum, key.toint());
         }
         if (arrayKeys && maximum == count) {
-            for (int index = 1; index <= maximum; index++) list.add(unwrapJavaValue(table.rawget(index), activeTables));
+            for (int index = 1; index <= maximum; index++) {
+                list.add(unwrapJavaValue(table.rawget(index), activeTables, depth + 1));
+            }
             return list;
         }
         Map<Object, Object> map = new LinkedHashMap<>();
@@ -651,15 +655,15 @@ public final class MLuaJavaService extends MLuaServiceBase {
             Varargs entry = table.next(key);
             key = entry.arg1();
             if (key.isnil()) return map;
-            map.put(unwrapMapKey(key), unwrapJavaValue(entry.arg(2), activeTables));
+            map.put(unwrapMapKey(key), unwrapJavaValue(entry.arg(2), activeTables, depth + 1));
         }
     }
 
     private Object convertLuaValue(LuaValue value, Type targetType) {
-        return convertLuaValue(value, targetType, new IdentityHashMap<>());
+        return convertLuaValue(value, targetType, new IdentityHashMap<>(), 0);
     }
 
-    private Object convertLuaValue(LuaValue value, Type targetType, IdentityHashMap<LuaTable, Boolean> activeTables) {
+    private Object convertLuaValue(LuaValue value, Type targetType, IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
         Class<?> rawType = rawClass(targetType);
         if (isJavaProxy(value)) {
             return convertTypedValue(unwrapJavaValue(value), targetType);
@@ -670,50 +674,52 @@ public final class MLuaJavaService extends MLuaServiceBase {
             && !Iterable.class.isAssignableFrom(rawType)) {
             return createLuaInterfaceProxy(new Class<?>[]{rawType}, source);
         }
+        requireConversionDepth(depth, "Lua-to-Java");
         if (activeTables.put(source, Boolean.TRUE) != null) {
             throw new LuaError("[MLua] Cyclic Lua tables cannot be assigned to Java fields");
         }
         try {
-        if (rawType.isArray()) {
-            Type componentType = targetType instanceof java.lang.reflect.GenericArrayType genericArray
-                ? genericArray.getGenericComponentType() : rawType.getComponentType();
-            List<Object> elements = luaArrayValues(source, componentType, activeTables);
-            Object array = Array.newInstance(rawType.getComponentType(), elements.size());
-            for (int i = 0; i < elements.size(); i++) Array.set(array, i, elements.get(i));
-            return array;
-        }
-        if (Iterable.class.isAssignableFrom(rawType)) {
-            List<Object> elements = luaArrayValues(source, typeArgument(targetType, 0), activeTables);
-            Collection<Object> collection = newCollection(rawType, elements);
-            if (collection != null) return collection;
-            throw new LuaError("[MLua] Cannot assign a Lua array to Java Iterable type " + rawType.getName());
-        }
-        if (Map.class.isAssignableFrom(rawType)) {
-            Map<Object, Object> values = new LinkedHashMap<>();
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-                Varargs entry = source.next(key);
-                key = entry.arg1();
-                if (key.isnil()) break;
-                values.put(convertLuaValue(key, typeArgument(targetType, 0), activeTables),
-                    convertLuaValue(entry.arg(2), typeArgument(targetType, 1), activeTables));
+            if (rawType.isArray()) {
+                Type componentType = targetType instanceof java.lang.reflect.GenericArrayType genericArray
+                    ? genericArray.getGenericComponentType() : rawType.getComponentType();
+                List<Object> elements = luaArrayValues(source, componentType, activeTables, depth);
+                Object array = Array.newInstance(rawType.getComponentType(), elements.size());
+                for (int i = 0; i < elements.size(); i++) Array.set(array, i, elements.get(i));
+                return array;
             }
-            Map<Object, Object> converted = newMap(rawType, values);
-            if (converted != null) return converted;
-            throw new LuaError("[MLua] Cannot assign a Lua table to Java map type " + rawType.getName());
-        }
-        return convertValue(luaTableValueContents(source, activeTables), rawType);
+            if (Iterable.class.isAssignableFrom(rawType)) {
+                List<Object> elements = luaArrayValues(source, typeArgument(targetType, 0), activeTables, depth);
+                Collection<Object> collection = newCollection(rawType, elements);
+                if (collection != null) return collection;
+                throw new LuaError("[MLua] Cannot assign a Lua array to Java Iterable type " + rawType.getName());
+            }
+            if (Map.class.isAssignableFrom(rawType)) {
+                Map<Object, Object> values = new LinkedHashMap<>();
+                LuaValue key = LuaValue.NIL;
+                while (true) {
+                    Varargs entry = source.next(key);
+                    key = entry.arg1();
+                    if (key.isnil()) break;
+                    values.put(convertLuaValue(key, typeArgument(targetType, 0), activeTables, depth + 1),
+                        convertLuaValue(entry.arg(2), typeArgument(targetType, 1), activeTables, depth + 1));
+                }
+                Map<Object, Object> converted = newMap(rawType, values);
+                if (converted != null) return converted;
+                throw new LuaError("[MLua] Cannot assign a Lua table to Java map type " + rawType.getName());
+            }
+            return convertValue(luaTableValueContents(source, activeTables, depth), rawType);
         } finally {
             activeTables.remove(source);
         }
     }
 
-    private List<Object> luaArrayValues(LuaTable table, Type elementType, IdentityHashMap<LuaTable, Boolean> activeTables) {
+    private List<Object> luaArrayValues(LuaTable table, Type elementType,
+                                        IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
         List<Object> values = new ArrayList<>();
         for (int i = 1; ; i++) {
             LuaValue value = table.rawget(i);
             if (value.isnil()) break;
-            values.add(convertLuaValue(value, elementType, activeTables));
+            values.add(convertLuaValue(value, elementType, activeTables, depth + 1));
         }
         LuaValue key = LuaValue.NIL;
         int count = 0;
@@ -749,6 +755,13 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return argument;
         }
         return Object.class;
+    }
+
+    private static void requireConversionDepth(int depth, String direction) {
+        if (depth > MLuaContentTypeRegistry.MAX_TABLE_DEPTH) {
+            throw new LuaError("[MLua] " + direction + " table conversion exceeds "
+                + MLuaContentTypeRegistry.MAX_TABLE_DEPTH + " levels of nesting");
+        }
     }
 
     private static final class LuaParameterizedType implements ParameterizedType {
@@ -1648,6 +1661,11 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private Object convertTypedValue(Object rawValue, Type targetType) {
+        return convertTypedValue(rawValue, targetType, new IdentityHashMap<>(), 0);
+    }
+
+    private Object convertTypedValue(Object rawValue, Type targetType,
+                                     IdentityHashMap<Object, Boolean> activeContainers, int depth) {
         if (rawValue instanceof LuaTableArgument tableArgument) {
             Class<?> targetClass = rawClass(targetType);
             if (targetClass.isArray() || Iterable.class.isAssignableFrom(targetClass)
@@ -1656,6 +1674,31 @@ public final class MLuaJavaService extends MLuaServiceBase {
             }
             rawValue = tableArgument.defaultValue();
         }
+        Class<?> rawType = rawClass(targetType);
+        boolean recursiveTarget = targetType instanceof java.lang.reflect.GenericArrayType
+            || rawType.isArray() || Iterable.class.isAssignableFrom(rawType)
+            || Map.class.isAssignableFrom(rawType);
+        boolean containerValue = rawValue != null && (rawValue.getClass().isArray()
+            || rawValue instanceof Iterable<?> || rawValue instanceof Map<?, ?>);
+        if (Optional.class.isAssignableFrom(rawType) && containerValue) {
+            requireConversionDepth(depth, "Java-to-Java");
+        }
+        if (recursiveTarget && containerValue) {
+            requireConversionDepth(depth, "Java-to-Java");
+            if (activeContainers.put(rawValue, Boolean.TRUE) != null) {
+                throw new LuaError("[MLua] Cyclic Java arrays and collections cannot be converted to typed Java values");
+            }
+            try {
+                return convertTypedValueContents(rawValue, targetType, activeContainers, depth);
+            } finally {
+                activeContainers.remove(rawValue);
+            }
+        }
+        return convertTypedValueContents(rawValue, targetType, activeContainers, depth);
+    }
+
+    private Object convertTypedValueContents(Object rawValue, Type targetType,
+                                             IdentityHashMap<Object, Boolean> activeContainers, int depth) {
         if (targetType instanceof java.lang.reflect.GenericArrayType genericArray) {
             if (rawValue == null) return null;
             Type componentType = genericArray.getGenericComponentType();
@@ -1674,16 +1717,32 @@ public final class MLuaJavaService extends MLuaServiceBase {
             }
             Object result = Array.newInstance(componentClass, source.size());
             for (int i = 0; i < source.size(); i++) {
-                Array.set(result, i, convertTypedValue(source.get(i), componentType));
+                Array.set(result, i, convertTypedValue(source.get(i), componentType, activeContainers, depth + 1));
             }
             return result;
         }
         Class<?> rawType = rawClass(targetType);
         if (Optional.class.isAssignableFrom(rawType)) {
             return rawValue == null ? Optional.empty() : Optional.ofNullable(
-                convertTypedValue(rawValue, typeArgument(targetType, 0)));
+                convertTypedValue(rawValue, typeArgument(targetType, 0), activeContainers, depth + 1));
         }
         if (rawValue == null) return convertValue(null, rawType);
+        if (rawType.isArray() && (rawValue.getClass().isArray() || rawValue instanceof Iterable<?>)) {
+            List<Object> source = new ArrayList<>();
+            if (rawValue instanceof Iterable<?> iterable) {
+                iterable.forEach(source::add);
+            } else {
+                for (int index = 0; index < Array.getLength(rawValue); index++) {
+                    source.add(Array.get(rawValue, index));
+                }
+            }
+            Class<?> componentType = rawType.getComponentType();
+            Object result = Array.newInstance(componentType, source.size());
+            for (int index = 0; index < source.size(); index++) {
+                Array.set(result, index, convertTypedValue(source.get(index), componentType, activeContainers, depth + 1));
+            }
+            return result;
+        }
         if (rawType.isArray() && !(rawValue.getClass().isArray() || rawValue instanceof Iterable<?>)) {
             throw new LuaError("[MLua] Java array parameters require a dense Lua array table, Java array, or Java collection; got "
                 + rawValue.getClass().getName());
@@ -1703,7 +1762,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             }
             List<Object> converted = new ArrayList<>(source.size());
             Type elementType = typeArgument(targetType, 0);
-            for (Object value : source) converted.add(convertTypedValue(value, elementType));
+            for (Object value : source) converted.add(convertTypedValue(value, elementType, activeContainers, depth + 1));
             Collection<Object> collection = newCollection(rawType, converted);
             if (collection != null) return collection;
             throw new LuaError("[MLua] Cannot convert Java values to Iterable type " + rawType.getName());
@@ -1718,7 +1777,9 @@ public final class MLuaJavaService extends MLuaServiceBase {
             Map<Object, Object> converted = new LinkedHashMap<>();
             Type keyType = typeArgument(targetType, 0);
             Type valueType = typeArgument(targetType, 1);
-            source.forEach((key, value) -> converted.put(convertTypedValue(key, keyType), convertTypedValue(value, valueType)));
+            source.forEach((key, value) -> converted.put(
+                convertTypedValue(key, keyType, activeContainers, depth + 1),
+                convertTypedValue(value, valueType, activeContainers, depth + 1)));
             Map<Object, Object> result = newMap(rawType, converted);
             if (result != null) return result;
             throw new LuaError("[MLua] Cannot convert Java values to map type " + rawType.getName());
@@ -2126,36 +2187,37 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private LuaValue toLuaTable(Object value) {
-        return toLuaTable(value, new IdentityHashMap<>());
+        return toLuaTable(value, new IdentityHashMap<>(), 0);
     }
 
-    private LuaValue toLuaTable(Object value, IdentityHashMap<Object, Boolean> active) {
+    private LuaValue toLuaTable(Object value, IdentityHashMap<Object, Boolean> active, int depth) {
         if (value == null) {
             return LuaValue.NIL;
         }
+        requireConversionDepth(depth, "Java-to-Lua");
         if (active.put(value, Boolean.TRUE) != null) {
             throw new LuaError("[MLua] Java:ToTable cannot convert a cyclic collection");
         }
         try {
-            return convertCompositeToLuaTable(value, active);
+            return convertCompositeToLuaTable(value, active, depth);
         } finally {
             active.remove(value);
         }
     }
 
-    private LuaValue convertCompositeToLuaTable(Object value, IdentityHashMap<Object, Boolean> active) {
+    private LuaValue convertCompositeToLuaTable(Object value, IdentityHashMap<Object, Boolean> active, int depth) {
         if (value.getClass().isArray()) {
             LuaTable array = new LuaTable();
             int length = Array.getLength(value);
             for (int i = 0; i < length; i++) {
-                array.set(i + 1, toLuaTableValue(Array.get(value, i), active));
+                array.set(i + 1, toLuaTableValue(Array.get(value, i), active, depth + 1));
             }
             return array;
         }
         if (value instanceof List<?> list) {
             LuaTable array = new LuaTable();
             for (int i = 0; i < list.size(); i++) {
-                array.set(i + 1, toLuaTableValue(list.get(i), active));
+                array.set(i + 1, toLuaTableValue(list.get(i), active, depth + 1));
             }
             return array;
         }
@@ -2163,7 +2225,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             LuaTable array = new LuaTable();
             int index = 1;
             for (Object item : collection) {
-                array.set(index++, toLuaTableValue(item, active));
+                array.set(index++, toLuaTableValue(item, active, depth + 1));
             }
             return array;
         }
@@ -2175,14 +2237,14 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     throw new LuaError("[MLua] Java:ToTable found map keys that collapse to the same Lua key: "
                         + entry.getKey());
                 }
-                table.set(key, toLuaTableValue(entry.getValue(), active));
+                table.set(key, toLuaTableValue(entry.getValue(), active, depth + 1));
             }
             return table;
         }
         throw new LuaError("[MLua] Java:ToTable only supports arrays, collections, and maps. Got " + value.getClass().getName());
     }
 
-    private LuaValue toLuaTableValue(Object value, IdentityHashMap<Object, Boolean> active) {
+    private LuaValue toLuaTableValue(Object value, IdentityHashMap<Object, Boolean> active, int depth) {
         if (value == null) {
             throw new LuaError("[MLua] Java:ToTable cannot preserve null collection or map values in a Lua table; keep the Java proxy to access them");
         }
@@ -2191,7 +2253,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return wrapJavaValue(value);
         }
         if (value.getClass().isArray() || value instanceof Collection<?> || value instanceof Map<?, ?>) {
-            return toLuaTable(value, active);
+            return toLuaTable(value, active, depth);
         }
         return wrapJavaValue(value);
     }

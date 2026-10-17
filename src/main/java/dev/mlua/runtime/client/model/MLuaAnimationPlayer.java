@@ -1,10 +1,15 @@
 package dev.mlua.runtime.client.model;
 
 import java.util.Map;
+import java.util.Arrays;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 
 public final class MLuaAnimationPlayer {
    private String active;
    private float time;
+   private float previousTime;
+   private float tickAdvance;
    private float speed = 1.0F;
    private boolean playing;
    private boolean loopOverride;
@@ -16,19 +21,35 @@ public final class MLuaAnimationPlayer {
       }
       this.active = name;
       this.time = 0.0F;
+      this.previousTime = 0.0F;
+      this.tickAdvance = 0.0F;
       this.speed = speed;
       this.loopOverride = loop;
       this.playing = true;
    }
 
-   public void stop() { playing = false; time = 0.0F; }
+   public void stop() {
+      playing = false;
+      time = previousTime = tickAdvance = 0.0F;
+   }
    public void tick(float seconds, MLuaBBModelAsset asset) {
-      if (!playing || active == null) return;
+      if (!playing || active == null) {
+         previousTime = time;
+         tickAdvance = 0.0F;
+         return;
+      }
       MLuaBBModelAsset.Animation animation = asset.animations().get(active);
-      time += seconds * speed;
-      if (animation.length() > 0 && time > animation.length()) {
-         if (loopOverride || "loop".equalsIgnoreCase(animation.loop()) || "hold".equalsIgnoreCase(animation.loop())) time %= animation.length();
-         else { time = animation.length(); playing = false; }
+      previousTime = time;
+      tickAdvance = seconds * speed;
+      time += tickAdvance;
+      if (animation.length() > 0 && time >= animation.length()) {
+         if (loopOverride || "loop".equalsIgnoreCase(animation.loop())) {
+            time %= animation.length();
+         } else {
+            time = animation.length();
+            tickAdvance = Math.max(0.0F, time - previousTime);
+            playing = false;
+         }
       }
    }
 
@@ -36,9 +57,64 @@ public final class MLuaAnimationPlayer {
    public float time() { return time; }
    public boolean playing() { return playing; }
 
+   /** Applies one Blockbench bone's base transform and the matching interpolated animation channels. */
+   public void applyBoneTransform(PoseStack pose, MLuaBBModelAsset.Animation animation,
+                                  MLuaBBModelAsset.Bone bone, float partialTick,
+                                  float[] position, float[] rotation, float[] scale) {
+      requireScratch(position, rotation, scale);
+      if (animation == null) {
+         Arrays.fill(position, 0.0F);
+         Arrays.fill(rotation, 0.0F);
+         Arrays.fill(scale, 0.0F);
+      } else {
+         sampleInto(animation, bone.uuid(), "position", position, partialTick);
+         sampleInto(animation, bone.uuid(), "rotation", rotation, partialTick);
+         sampleInto(animation, bone.uuid(), "scale", scale, partialTick);
+      }
+      pose.translate(position[0] / 16.0F, position[1] / 16.0F, position[2] / 16.0F);
+      pose.translate(bone.pivot(0) / 16.0F, bone.pivot(1) / 16.0F, bone.pivot(2) / 16.0F);
+      pose.mulPose(Axis.XP.rotationDegrees(bone.rotation(0) + rotation[0]));
+      pose.mulPose(Axis.YP.rotationDegrees(bone.rotation(1) + rotation[1]));
+      pose.mulPose(Axis.ZP.rotationDegrees(bone.rotation(2) + rotation[2]));
+      pose.scale(Math.max(0.001F, 1.0F + scale[0]),
+         Math.max(0.001F, 1.0F + scale[1]), Math.max(0.001F, 1.0F + scale[2]));
+      pose.translate(-bone.pivot(0) / 16.0F, -bone.pivot(1) / 16.0F, -bone.pivot(2) / 16.0F);
+   }
+
+   /** Applies cube keyed tracks around the cube's center, matching the Blockbench local origin. */
+   public void applyCubeTransform(PoseStack pose, MLuaBBModelAsset.Animation animation,
+                                  MLuaBBModelAsset.Cube cube, float partialTick,
+                                  float[] position, float[] rotation, float[] scale) {
+      requireScratch(position, rotation, scale);
+      if (animation == null) return;
+      sampleInto(animation, cube.uuid(), "position", position, partialTick);
+      sampleInto(animation, cube.uuid(), "rotation", rotation, partialTick);
+      sampleInto(animation, cube.uuid(), "scale", scale, partialTick);
+      float centerX = (cube.from(0) + cube.to(0)) / 32.0F;
+      float centerY = (cube.from(1) + cube.to(1)) / 32.0F;
+      float centerZ = (cube.from(2) + cube.to(2)) / 32.0F;
+      pose.translate(centerX, centerY, centerZ);
+      pose.translate(position[0] / 16.0F, position[1] / 16.0F, position[2] / 16.0F);
+      pose.mulPose(Axis.XP.rotationDegrees(rotation[0]));
+      pose.mulPose(Axis.YP.rotationDegrees(rotation[1]));
+      pose.mulPose(Axis.ZP.rotationDegrees(rotation[2]));
+      pose.scale(Math.max(0.001F, 1.0F + scale[0]),
+         Math.max(0.001F, 1.0F + scale[1]), Math.max(0.001F, 1.0F + scale[2]));
+      pose.translate(-centerX, -centerY, -centerZ);
+   }
+
+   private static void requireScratch(float[] position, float[] rotation, float[] scale) {
+      if (position == null || position.length < 3 || rotation == null || rotation.length < 3
+            || scale == null || scale.length < 3) {
+         throw new IllegalArgumentException("BBModel animation scratch vectors must each contain at least three values");
+      }
+   }
+
    public void copyStateFrom(MLuaAnimationPlayer other) {
       this.active = other.active;
       this.time = other.time;
+      this.previousTime = other.previousTime;
+      this.tickAdvance = other.tickAdvance;
       this.speed = other.speed;
       this.playing = other.playing;
       this.loopOverride = other.loopOverride;
@@ -52,6 +128,27 @@ public final class MLuaAnimationPlayer {
 
    /** Samples a track into caller-owned storage so render loops can reuse their scratch vectors. */
    public void sampleInto(MLuaBBModelAsset.Animation animation, String bone, String channel, float[] result) {
+      sampleIntoAt(animation, bone, channel, result, time);
+   }
+
+   /** Samples between tick states using Minecraft's render partial tick. */
+   public void sampleInto(MLuaBBModelAsset.Animation animation, String bone, String channel,
+                          float[] result, float partialTick) {
+      float alpha = Float.isFinite(partialTick) ? Math.max(0.0F, Math.min(1.0F, partialTick)) : 1.0F;
+      float sampleTime = previousTime + tickAdvance * alpha;
+      if (tickAdvance == 0.0F) sampleTime = time;
+      if (animation.length() > 0.0F) {
+         if (loopOverride || "loop".equalsIgnoreCase(animation.loop())) {
+            sampleTime %= animation.length();
+         } else {
+            sampleTime = Math.min(animation.length(), sampleTime);
+         }
+      }
+      sampleIntoAt(animation, bone, channel, result, sampleTime);
+   }
+
+   private void sampleIntoAt(MLuaBBModelAsset.Animation animation, String bone, String channel,
+                             float[] result, float sampleTime) {
       if (result == null || result.length < 3) {
          throw new IllegalArgumentException("Animation sample output must contain at least three values");
       }
@@ -69,31 +166,30 @@ public final class MLuaAnimationPlayer {
       int high = frames.size();
       while (low < high) {
          int middle = (low + high) >>> 1;
-         if (frames.get(middle).time() < time) low = middle + 1;
+         if (frames.get(middle).time() < sampleTime) low = middle + 1;
          else high = middle;
       }
       int nextIndex = Math.min(low, frames.size() - 1);
       MLuaBBModelAsset.Keyframe next = frames.get(nextIndex);
       MLuaBBModelAsset.Keyframe previous;
-      if (next.time() == time) {
+      if (next.time() == sampleTime) {
          int lastEqual = nextIndex;
-         while (lastEqual + 1 < frames.size() && frames.get(lastEqual + 1).time() == time) lastEqual++;
+         while (lastEqual + 1 < frames.size() && frames.get(lastEqual + 1).time() == sampleTime) lastEqual++;
          previous = frames.get(lastEqual);
       } else {
          previous = frames.get(Math.max(0, nextIndex - 1));
       }
       if (previous == next || next.time() <= previous.time()) {
-         float[] value = previous.value();
-         result[0] = value[0]; result[1] = value[1]; result[2] = value[2];
+         result[0] = previous.value(0); result[1] = previous.value(1); result[2] = previous.value(2);
          return;
       }
-      float alpha = (time - previous.time()) / (next.time() - previous.time());
+      float alpha = (sampleTime - previous.time()) / (next.time() - previous.time());
       if ("step".equalsIgnoreCase(next.interpolation())) alpha = 0.0F;
       alpha = ease(alpha, next.easing());
-      float[] a = previous.value(), b = next.value();
-      result[0] = a[0] + (b[0] - a[0]) * alpha;
-      result[1] = a[1] + (b[1] - a[1]) * alpha;
-      result[2] = a[2] + (b[2] - a[2]) * alpha;
+      for (int axis = 0; axis < 3; axis++) {
+         float start = previous.value(axis), end = next.value(axis);
+         result[axis] = start + (end - start) * alpha;
+      }
    }
 
    private static float ease(float value, String easing) {
@@ -129,17 +225,32 @@ public final class MLuaAnimationPlayer {
    }
 
    private static boolean containsNormalized(String value, String fragment) {
-      if (value == null || value.length() < fragment.length()) return false;
-      for (int start = 0; start <= value.length() - fragment.length(); start++) {
-         int index = 0;
-         while (index < fragment.length()) {
-            char actual = value.charAt(start + index);
-            if (actual == '-') actual = '_';
-            if (Character.toLowerCase(actual) != fragment.charAt(index)) break;
-            index++;
+      if (value == null || fragment == null || value.isEmpty() || fragment.isEmpty()) return false;
+      for (int start = 0; start < value.length(); start++) {
+         char first = value.charAt(start);
+         if (!Character.isLetterOrDigit(first)
+               || Character.toLowerCase(first) != firstAlphaNumeric(fragment, 0)) continue;
+         int valueIndex = start;
+         int fragmentIndex = 0;
+         while (true) {
+            while (valueIndex < value.length() && !Character.isLetterOrDigit(value.charAt(valueIndex))) valueIndex++;
+            while (fragmentIndex < fragment.length() && !Character.isLetterOrDigit(fragment.charAt(fragmentIndex))) fragmentIndex++;
+            if (fragmentIndex >= fragment.length()) return true;
+            if (valueIndex >= value.length()
+                  || Character.toLowerCase(value.charAt(valueIndex))
+                     != Character.toLowerCase(fragment.charAt(fragmentIndex))) break;
+            valueIndex++;
+            fragmentIndex++;
          }
-         if (index == fragment.length()) return true;
       }
       return false;
+   }
+
+   private static char firstAlphaNumeric(String value, int start) {
+      for (int index = start; index < value.length(); index++) {
+         char character = value.charAt(index);
+         if (Character.isLetterOrDigit(character)) return Character.toLowerCase(character);
+      }
+      return '\0';
    }
 }

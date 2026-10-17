@@ -69,5 +69,7 @@ public interface RegistryBridge {
     Map<String, RegistryHandle<?>> getRegisteredHandles(RegistryKind registryKind);
     boolean isRegistered(RegistryKind registryKind, String namespace, String path);
     void freeze();
+    /** Whether native Minecraft registry entries can still be submitted. */
+    default boolean isFrozen() { return false; }
     Object createCreativeTabBuilder();
 }

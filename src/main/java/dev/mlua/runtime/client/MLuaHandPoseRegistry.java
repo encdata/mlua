@@ -18,6 +18,15 @@ public final class MLuaHandPoseRegistry {
         public Owner {
             modId = modId == null ? "" : modId;
         }
+
+        @Override public boolean equals(Object other) {
+            return other instanceof Owner owner && runtimeSession == owner.runtimeSession
+                && modId.equals(owner.modId);
+        }
+
+        @Override public int hashCode() {
+            return 31 * System.identityHashCode(runtimeSession) + modId.hashCode();
+        }
     }
 
     @FunctionalInterface

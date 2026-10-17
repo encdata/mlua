@@ -23,6 +23,7 @@ import net.minecraft.world.item.Item;
 
 public class NeoForgeRegistryBridge implements RegistryBridge {
     private final MLuaNeoForgeRegistry neoForgeRegistry = MLuaNeoForgeRegistry.get();
+    private volatile boolean frozen;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -31,6 +32,7 @@ public class NeoForgeRegistryBridge implements RegistryBridge {
         MLuaResourceNameValidator.validate(modId);
         if (name == null || name.isBlank()) throw new IllegalArgumentException("[MLua] Invalid registry name: " + name);
         MLuaResourceNameValidator.validate(name);
+        requireRegistriesOpen(registryKind.name().toLowerCase(java.util.Locale.ROOT), modId, name);
         if (registryKind != RegistryKind.BLOCK_ITEM) Objects.requireNonNull(supplier, "supplier");
         return (RegistryHandle<T>) switch (registryKind) {
             case ITEM -> wrap(neoForgeRegistry.registerItem(modId, name, (Supplier) supplier));
@@ -69,6 +71,7 @@ public class NeoForgeRegistryBridge implements RegistryBridge {
     @Override
     @SuppressWarnings("unchecked")
     public <T> RegistryHandle<T> registerEntity(String modId, String name, Supplier<T> supplier, Supplier<?> attributes) {
+        requireRegistriesOpen("entity", modId, name);
         Objects.requireNonNull(supplier, "supplier");
         Supplier<AttributeSupplier> checkedAttributes = attributes == null ? null : () -> {
             Object value = attributes.get();
@@ -83,11 +86,13 @@ public class NeoForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public RegistryHandle<?> registerSpawnEgg(String modId, String name, RegistryHandle<?> entityType, int primaryColor, int secondaryColor) {
+        requireRegistriesOpen("item", modId, name);
         return wrap(neoForgeRegistry.registerSpawnEgg(modId, name, () -> (EntityType<?>) entityType.get(), primaryColor, secondaryColor));
     }
 
     @Override
     public RegistryHandle<?> registerParticle(String modId, String name, boolean overrideLimiter) {
+        requireRegistriesOpen("particle", modId, name);
         return wrap(neoForgeRegistry.registerParticle(modId, name, overrideLimiter));
     }
 
@@ -98,6 +103,7 @@ public class NeoForgeRegistryBridge implements RegistryBridge {
 
     @Override
     public void registerVisualBlockEntityTypes() {
+        requireRegistriesOpen("block entity type", "mlua", "visual_block_entity");
         neoForgeRegistry.registerVisualBlockEntityTypes();
     }
 
@@ -307,6 +313,15 @@ public class NeoForgeRegistryBridge implements RegistryBridge {
     @Override
     public void freeze() {
         neoForgeRegistry.freeze();
+        frozen = true;
+    }
+
+    @Override
+    public boolean isFrozen() { return frozen; }
+
+    private void requireRegistriesOpen(String kind, String modId, String name) {
+        if (frozen) throw new IllegalStateException("[MLua] Cannot register native " + kind + " '"
+            + modId + ":" + name + "': Minecraft registries are frozen");
     }
 
     private String getByPathOrName(Map<String, String> values, String namespace, String path) {

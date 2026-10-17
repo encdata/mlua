@@ -341,7 +341,18 @@ public final class MLuaClientModelManager {
         if (in.scaleOrder > out.scaleOrder) { out.scale = in.scale; out.scaleOrder = in.scaleOrder; }
         if (in.visibleOrder > out.visibleOrder) { out.visible = in.visible; out.visibleOrder = in.visibleOrder; }
     }
-    public record Owner(Object runtimeOwner, String ownerModId) { public Owner { if (ownerModId == null) ownerModId = ""; } }
+    public record Owner(Object runtimeOwner, String ownerModId) {
+        public Owner { if (ownerModId == null) ownerModId = ""; }
+
+        @Override public boolean equals(Object other) {
+            return other instanceof Owner owner && runtimeOwner == owner.runtimeOwner
+                && ownerModId.equals(owner.ownerModId);
+        }
+
+        @Override public int hashCode() {
+            return 31 * System.identityHashCode(runtimeOwner) + ownerModId.hashCode();
+        }
+    }
 
     private static Map<String, String> buildAliases() {
         Map<String, String> aliases = new LinkedHashMap<>();

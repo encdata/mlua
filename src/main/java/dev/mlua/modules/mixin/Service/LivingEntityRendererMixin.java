@@ -27,6 +27,12 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
         MLuaClientModelManager.restoreOverrides(model);
     }
 
+    @Inject(method = "render", at = @At("RETURN"))
+    private void mlua$clearRegisteredModelOverrides(T entity, float entityYaw, float partialTick,
+            PoseStack poseStack, MultiBufferSource buffers, int packedLight, CallbackInfo info) {
+        MLuaClientModelManager.restoreOverrides(model);
+    }
+
     @Inject(
         method = "render",
         at = @At(
@@ -42,7 +48,8 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
             MLuaModelAdapterRegistry.apply(model, scope);
             dev.mlua.runtime.client.MLuaRenderCallbacks.render(entity, model, poseStack, buffers,
                 partialTick, packedLight, OverlayTexture.NO_OVERLAY);
-            MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, buffers, packedLight, OverlayTexture.NO_OVERLAY);
+            MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, buffers,
+                packedLight, OverlayTexture.NO_OVERLAY, partialTick);
         }
     }
 }

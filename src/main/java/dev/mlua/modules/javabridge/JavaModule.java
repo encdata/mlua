@@ -56,10 +56,10 @@ public final class JavaModule implements MLuaModule {
             "classOrObject: JavaClass or JavaObject", "string", "shared:Shared", null));
         docs.register(MLuaDocBuilder.Registration.method("Java", "Java:GetEnumConstants(enumClass)", "Returns the constants of a Java enum class.",
             "enumClass: JavaClass or fully qualified class name", "table", "shared:Shared", null));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:ToTable(value)", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, or keys that collide after conversion.",
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:ToTable(value)", "Copies a Java array, collection, or map into a Lua table. It raises an error for null entries, unsupported key types, colliding keys, cycles, or nesting deeper than 64 levels.",
             "value: Java array, collection, or map proxy", "table", "shared:Shared",
             "local snapshot = Minecraft:GetService(\"Java\"):ToTable(javaList)"));
-        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:FromTable(table, targetClass, elementClassOrKeyClass, valueClass)", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps.",
+        docs.register(MLuaDocBuilder.Registration.method("Java", "Java:FromTable(table, targetClass, elementClassOrKeyClass, valueClass)", "Converts a Lua table into a Java array, collection, or map and returns a live Java proxy. Optionally provide the element class for collections, or key and value classes for maps. Cycles and nesting deeper than 64 levels raise a Lua error.",
             "table: Lua table; targetClass: Java class or class name; elementClassOrKeyClass: optional Java class; valueClass: optional Java class for map values", "JavaObject", "shared:Shared",
             "local Java = Minecraft:GetService(\"Java\")\n" +
             "local list = Java:FromTable({\"knife\", \"key\"}, \"java.util.ArrayList\", \"java.lang.String\")\n" +

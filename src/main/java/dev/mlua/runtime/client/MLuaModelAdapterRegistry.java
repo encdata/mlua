@@ -30,6 +30,15 @@ public final class MLuaModelAdapterRegistry {
         public Owner {
             modId = modId == null ? "" : modId;
         }
+
+        @Override public boolean equals(Object other) {
+            return other instanceof Owner owner && runtimeSession == owner.runtimeSession
+                && modId.equals(owner.modId);
+        }
+
+        @Override public int hashCode() {
+            return 31 * System.identityHashCode(runtimeSession) + modId.hashCode();
+        }
     }
 
     private static final Owner LEGACY_OWNER = new Owner(null, "");
@@ -160,6 +169,16 @@ public final class MLuaModelAdapterRegistry {
     public static synchronized int registeredModelClassCount() { return ADAPTERS.size(); }
 
     public static synchronized int registeredPartCount() { return registeredPartCount; }
+
+    /** Returns the merged, deterministic mapping currently registered for one model class. */
+    public static synchronized Map<String, String> registeredMappings(String modelClass) {
+        String className = normalizeClassName(modelClass);
+        Map<Owner, Map<String, String>> owners = ADAPTERS.get(className);
+        if (owners == null || owners.isEmpty()) return Map.of();
+        java.util.TreeMap<String, String> merged = new java.util.TreeMap<>();
+        owners.values().forEach(merged::putAll);
+        return Collections.unmodifiableMap(new LinkedHashMap<>(merged));
+    }
 
     private static void clearMappingCaches() {
         RESOLVED_MAPPINGS.clear();

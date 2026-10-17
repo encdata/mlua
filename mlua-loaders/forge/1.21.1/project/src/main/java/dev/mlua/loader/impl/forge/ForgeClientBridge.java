@@ -2,6 +2,7 @@ package dev.mlua.loader.impl.forge;
 
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.loaderapi.ClientBridge;
+import dev.mlua.loaderapi.ClientOverlayRegistry;
 import dev.mlua.runtime.client.MLuaGuiRenderer;
 import dev.mlua.runtime.client.MLuaInputHandler;
 import net.minecraft.client.Minecraft;
@@ -20,9 +21,7 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -33,7 +32,7 @@ public class ForgeClientBridge implements ClientBridge {
     private static final ResourceLocation MLUA_GUI = ResourceLocation.fromNamespaceAndPath("mlua", "gui");
     private static final ResourceLocation MLUA_OVERLAYS = ResourceLocation.fromNamespaceAndPath("mlua", "overlays");
 
-    private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
+    private final ClientOverlayRegistry overlays = new ClientOverlayRegistry();
     private final List<KeyMapping> pendingKeyMappings = new ArrayList<>();
     private final List<ModelLayerRegistration> pendingModelLayers = new ArrayList<>();
     private boolean keyMappingsRegistered;
@@ -64,8 +63,7 @@ public class ForgeClientBridge implements ClientBridge {
 
     @Override
     public void registerOverlay(String id, Consumer<Object> renderer) {
-        ClientBridge.validateOverlayRegistration(id, renderer);
-        overlays.put(id, renderer);
+        overlays.register(id, renderer);
     }
 
     @Override
@@ -172,9 +170,7 @@ public class ForgeClientBridge implements ClientBridge {
                 );
             });
             addMethod.invoke(layeredDraw, MLUA_OVERLAYS, (LayeredDraw.Layer) (graphics, deltaTracker) -> {
-                for (Consumer<Object> renderer : overlays.values()) {
-                    renderer.accept(graphics);
-                }
+                overlays.render(graphics);
             });
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("[MLua] Failed to register AddGuiOverlayLayersEvent overlays", exception);
@@ -212,9 +208,7 @@ public class ForgeClientBridge implements ClientBridge {
                 if (guiOverlay) {
                     MLuaGuiRenderer.renderAll(graphics, (Integer) args[3], (Integer) args[4]);
                 } else {
-                    for (Consumer<Object> renderer : overlays.values()) {
-                        renderer.accept(graphics);
-                    }
+                    overlays.render(graphics);
                 }
                 return null;
             }

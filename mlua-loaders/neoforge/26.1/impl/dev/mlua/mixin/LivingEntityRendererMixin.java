@@ -6,6 +6,7 @@ import dev.mlua.runtime.client.MLuaClientRenderManager;
 import dev.mlua.runtime.client.MLuaRenderCallbacks;
 import dev.mlua.runtime.client.MLuaRenderStateEntityResolver;
 import dev.mlua.runtime.client.MLuaModelAdapterRegistry;
+import dev.mlua.runtime.client.MLuaClientModelManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -23,6 +24,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.entity.LivingEntity,
         S extends LivingEntityRenderState, M extends EntityModel<? super S>> {
     @Shadow protected M model;
+
+    @Inject(method = "submit", remap = false, at = @At("HEAD"))
+    private void mlua$restoreRegisteredModelOverrides(S state, PoseStack poseStack,
+            SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo info) {
+        MLuaClientModelManager.restoreOverrides(model);
+    }
+
+    @Inject(method = "submit", remap = false, at = @At("RETURN"))
+    private void mlua$clearRegisteredModelOverrides(S state, PoseStack poseStack,
+            SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo info) {
+        MLuaClientModelManager.restoreOverrides(model);
+    }
 
     @Inject(
         method = "submit",
@@ -42,9 +55,11 @@ public abstract class LivingEntityRendererMixin<T extends net.minecraft.world.en
         if (!(entity instanceof net.minecraft.world.entity.LivingEntity livingEntity)) return;
         MLuaEntityScope scope = MLuaEntityScope.of(livingEntity);
         Float partialTick = MLuaRenderStateEntityResolver.findPartialTick(state);
+        if (partialTick == null) partialTick = MLuaRenderCallbacks.currentClientPartialTick();
         MLuaModelAdapterRegistry.apply(model, scope);
         MLuaRenderCallbacks.render(livingEntity, model, poseStack, collector,
             partialTick == null ? 0.0F : partialTick, state.lightCoords, 0, partialTick != null);
-        MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, collector, state.lightCoords);
+        MLuaClientRenderManager.renderEntityAttachments(model, scope, poseStack, collector,
+            state.lightCoords, partialTick == null ? 1.0F : partialTick);
     }
 }

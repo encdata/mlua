@@ -411,7 +411,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return dev.mlua.runtime.client.MLuaRenderCallbacks.unregisterFirstPersonItem(itemId, id, renderOwnerContext());
     }
 
-    @MLuaDescription("Registers a callback while a matching item is rendered in a living entity's third-person hand. It receives the living entity and a frame-scoped RenderContext with the translated item pose, item stack, arm, hand, display context, render source, and light. PartialTick is unavailable at this render point and HasPartialTick is false.")
+    @MLuaDescription("Registers a callback while a matching item is rendered in a living entity's third-person hand. It receives the living entity and a frame-scoped RenderContext with the translated item pose, item stack, arm, hand, display context, render source, and light. MLua reads PartialTick from the render state when available, then falls back to Minecraft's client tick tracker; HasPartialTick is false only when neither source supplies a finite value.")
     public void RegisterThirdPersonItemRenderer(String itemId, LuaValue callback) {
         this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerThirdPersonItem(itemId, callback, renderOwnerContext());
@@ -473,8 +473,18 @@ public final class MLuaRenderService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns the cross-loader world render stage names supported by RenderService.")
     public LuaTable GetWorldRenderStages() {
+        this.requireClientSide(this.name());
         LuaTable stages = new LuaTable();
         java.util.List<String> supported = dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES;
+        for (int index = 0; index < supported.size(); index++) stages.set(index + 1, supported.get(index));
+        return stages;
+    }
+
+    @MLuaDescription("Returns the world render stages supported by managed Mesh and BBModel objects on this loader and Minecraft version.")
+    public LuaTable GetWorldModelRenderStages() {
+        this.requireClientSide(this.name());
+        LuaTable stages = new LuaTable();
+        java.util.List<String> supported = dev.mlua.loaderapi.LoaderApi.client().worldModelRenderStages();
         for (int index = 0; index < supported.size(); index++) stages.set(index + 1, supported.get(index));
         return stages;
     }

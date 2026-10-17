@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ public final class MLuaBBModelAsset {
    public static final int MAX_TEXTURES = 256;
    public static final int MAX_ANIMATIONS = 256;
    public static final int MAX_BONE_DEPTH = 256;
+   private static final int MAX_TEXTURE_DIMENSION = 16_384;
    public static final int MAX_JSON_CHARS = 8 * 1024 * 1024;
    private static final int MAX_KEYFRAMES_PER_ANIMATION = 32_768;
    private final String formatVersion;
@@ -44,7 +46,7 @@ public final class MLuaBBModelAsset {
       this.cubes = List.copyOf(cubes);
       this.bones = List.copyOf(bones);
       this.cubeParents = Map.copyOf(cubeParents);
-      this.animations = Map.copyOf(animations);
+      this.animations = Collections.unmodifiableMap(new LinkedHashMap<>(animations));
       this.cubeBoneChains = resolveBoneChains(this.bones, this.cubeParents);
    }
 
@@ -137,6 +139,7 @@ public final class MLuaBBModelAsset {
          }
       }
       while (embeddedTextures.size() < textures.size()) embeddedTextures.add("");
+      validateTextureDimensions(width, height);
       if (flipY) flipY(cubes, bones);
       return new MLuaBBModelAsset(version, format, flipY, width, height, textures, embeddedTextures, cubes, bones, cubeParents, animations);
    }
@@ -202,7 +205,7 @@ public final class MLuaBBModelAsset {
             throw new IllegalArgumentException("Blockbench animation file contains duplicate animation '" + name + "'");
          }
       }
-      return result;
+      return Collections.unmodifiableMap(new LinkedHashMap<>(result));
    }
 
    private static Map<String, List<Bone>> resolveBoneChains(List<Bone> bones, Map<String, String> cubeParents) {
@@ -254,6 +257,22 @@ public final class MLuaBBModelAsset {
    }
 
    public record Cube(String uuid, String name, float[] from, float[] to, Map<String, Face> faces) {
+      public Cube {
+         from = copyVector(from, 3, "cube from");
+         to = copyVector(to, 3, "cube to");
+         faces = Collections.unmodifiableMap(new LinkedHashMap<>(faces));
+      }
+
+      @Override public float[] from() { return from.clone(); }
+      @Override public float[] to() { return to.clone(); }
+      public float from(int axis) { return from[axis]; }
+      public float to(int axis) { return to[axis]; }
+      private void flipY() {
+         from[1] = -from[1];
+         to[1] = -to[1];
+         if (from[1] > to[1]) { float value = from[1]; from[1] = to[1]; to[1] = value; }
+      }
+
       static Cube from(JsonObject value) {
          return new Cube(string(value, "uuid", ""), string(value, "name", "cube"), vector(value.getAsJsonArray("from")),
             vector(value.getAsJsonArray("to")), parseFaces(value.getAsJsonObject("faces")));
@@ -265,8 +284,30 @@ public final class MLuaBBModelAsset {
       }
    }
 
-   public record Face(int texture, float[] uv, int rotation) { }
+   public record Face(int texture, float[] uv, int rotation) {
+      public Face {
+         uv = uv == null ? null : uv.clone();
+         if (uv != null) {
+            for (float component : uv) {
+               if (!Float.isFinite(component)) throw new IllegalArgumentException("Blockbench face UV values must be finite");
+            }
+         }
+      }
+      @Override public float[] uv() { return uv == null ? null : uv.clone(); }
+      public boolean hasUv() { return uv != null && uv.length >= 4; }
+      public float uv(int component) { return uv[component]; }
+   }
    public record Bone(String uuid, String name, String parent, float[] pivot, float[] rotation) {
+      public Bone {
+         pivot = copyVector(pivot, 3, "bone pivot");
+         rotation = copyVector(rotation, 3, "bone rotation");
+      }
+      @Override public float[] pivot() { return pivot.clone(); }
+      @Override public float[] rotation() { return rotation.clone(); }
+      public float pivot(int axis) { return pivot[axis]; }
+      public float rotation(int axis) { return rotation[axis]; }
+      private void flipY() { pivot[1] = -pivot[1]; rotation[0] = -rotation[0]; rotation[2] = -rotation[2]; }
+
       static Bone from(JsonObject value, String parent) {
          return new Bone(string(value, "uuid", string(value, "name", "root")), string(value, "name", "root"), parent,
             value.has("origin") && value.get("origin").isJsonArray() ? vector(value.getAsJsonArray("origin")) : new float[]{0, 0, 0},
@@ -274,6 +315,19 @@ public final class MLuaBBModelAsset {
       }
    }
    public record Animation(String name, String loop, float length, Map<String, Map<String, List<Keyframe>>> tracks) {
+      public Animation {
+         if (!Float.isFinite(length) || length < 0.0F) {
+            throw new IllegalArgumentException("Blockbench animation length must be finite and non-negative");
+         }
+         LinkedHashMap<String, Map<String, List<Keyframe>>> trackCopy = new LinkedHashMap<>();
+         tracks.forEach((bone, channels) -> {
+            LinkedHashMap<String, List<Keyframe>> channelCopy = new LinkedHashMap<>();
+            channels.forEach((channel, frames) -> channelCopy.put(channel, List.copyOf(frames)));
+            trackCopy.put(bone, Collections.unmodifiableMap(channelCopy));
+         });
+         tracks = Collections.unmodifiableMap(trackCopy);
+      }
+
       static Animation from(JsonObject value, String version) {
          Map<String, Map<String, List<Keyframe>>> tracks = new LinkedHashMap<>();
          JsonObject animators = object(value, "animators");
@@ -300,11 +354,20 @@ public final class MLuaBBModelAsset {
             tracks.put(animator.getKey(), channelMap);
          }
          return new Animation(string(value, "name", "animation"), string(value, "loop", "once"),
-            number(value, "length", 0.0F), tracks);
+            nonNegativeNumber(value, "length", 0.0F), tracks);
       }
    }
 
    public record Keyframe(float time, float[] value, String interpolation, String easing) {
+      public Keyframe {
+         if (!Float.isFinite(time) || time < 0.0F) {
+            throw new IllegalArgumentException("Blockbench keyframe time must be finite and non-negative");
+         }
+         value = copyVector(value, 3, "keyframe value");
+      }
+      @Override public float[] value() { return value.clone(); }
+      public float value(int axis) { return value[axis]; }
+
       static Keyframe from(JsonObject value, String version, String channel) {
          float[] points;
          JsonArray data = array(value, "data_points");
@@ -320,7 +383,7 @@ public final class MLuaBBModelAsset {
          if ((channel.equals("position") || channel.equals("rotation")) && (version.startsWith("4") || version.startsWith("3"))) {
             points[0] = -points[0];
          }
-         return new Keyframe(number(value, "time", 0.0F), points,
+         return new Keyframe(nonNegativeNumber(value, "time", 0.0F), points,
             string(value, "interpolation", "linear"), string(value, "easing", "linear"));
       }
    }
@@ -339,7 +402,9 @@ public final class MLuaBBModelAsset {
    private static float[] vector(JsonArray array) {
       if (array == null) return new float[]{0, 0, 0};
       float[] result = new float[Math.max(3, array.size())];
-      for (int i = 0; i < array.size(); i++) result[i] = array.get(i).getAsFloat();
+      for (int i = 0; i < array.size(); i++) {
+         result[i] = finiteFloat(array.get(i), "vector component " + (i + 1));
+      }
       return result;
    }
 
@@ -358,18 +423,18 @@ public final class MLuaBBModelAsset {
    }
 
    private static void flipY(List<Cube> cubes, List<Bone> bones) {
-      for (Cube cube : cubes) {
-         cube.from()[1] = -cube.from()[1];
-         cube.to()[1] = -cube.to()[1];
-         if (cube.from()[1] > cube.to()[1]) {
-            float value = cube.from()[1]; cube.from()[1] = cube.to()[1]; cube.to()[1] = value;
-         }
+      for (Cube cube : cubes) cube.flipY();
+      for (Bone bone : bones) bone.flipY();
+   }
+
+   private static float[] copyVector(float[] value, int minimumLength, String name) {
+      if (value == null || value.length < minimumLength) {
+         throw new IllegalArgumentException("Blockbench " + name + " must contain at least " + minimumLength + " values");
       }
-      for (Bone bone : bones) {
-         bone.pivot()[1] = -bone.pivot()[1];
-         bone.rotation()[0] = -bone.rotation()[0];
-         bone.rotation()[2] = -bone.rotation()[2];
+      for (float component : value) {
+         if (!Float.isFinite(component)) throw new IllegalArgumentException("Blockbench " + name + " values must be finite");
       }
+      return value.clone();
    }
 
    private static JsonObject object(JsonObject value, String key) {
@@ -392,6 +457,34 @@ public final class MLuaBBModelAsset {
    }
 
    private static float number(JsonObject value, String key, float fallback) {
-      try { return value.has(key) ? value.get(key).getAsFloat() : fallback; } catch (Exception ignored) { return fallback; }
+      return value != null && value.has(key) ? finiteFloat(value.get(key), key) : fallback;
+   }
+
+   private static float nonNegativeNumber(JsonObject value, String key, float fallback) {
+      float result = number(value, key, fallback);
+      if (result < 0.0F) {
+         throw new IllegalArgumentException("Blockbench " + key + " must not be negative");
+      }
+      return result;
+   }
+
+   private static float finiteFloat(JsonElement value, String field) {
+      final float number;
+      try {
+         number = value.getAsFloat();
+      } catch (RuntimeException invalid) {
+         throw new IllegalArgumentException("Blockbench " + field + " must be a finite number", invalid);
+      }
+      if (!Float.isFinite(number)) {
+         throw new IllegalArgumentException("Blockbench " + field + " must be a finite number");
+      }
+      return number;
+   }
+
+   private static void validateTextureDimensions(int width, int height) {
+      if (width < 1 || height < 1 || width > MAX_TEXTURE_DIMENSION || height > MAX_TEXTURE_DIMENSION) {
+         throw new IllegalArgumentException("Blockbench texture dimensions must be between 1 and "
+            + MAX_TEXTURE_DIMENSION + " pixels");
+      }
    }
 }

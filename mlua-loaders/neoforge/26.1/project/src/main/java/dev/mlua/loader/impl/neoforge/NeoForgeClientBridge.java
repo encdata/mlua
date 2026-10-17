@@ -1,6 +1,7 @@
 package dev.mlua.loader.impl.neoforge;
 
 import dev.mlua.loaderapi.ClientBridge;
+import dev.mlua.loaderapi.ClientOverlayRegistry;
 import dev.mlua.runtime.client.MLuaInputHandler;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.model.geom.ModelLayerLocation;
@@ -15,14 +16,12 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 public final class NeoForgeClientBridge implements ClientBridge {
     private final IEventBus modBus;
-    private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
+    private final ClientOverlayRegistry overlays = new ClientOverlayRegistry();
     private final List<KeyMapping> keyMappings = new ArrayList<>();
     private final List<ModelLayerRegistration> modelLayers = new ArrayList<>();
     private boolean keysRegistered;
@@ -53,19 +52,13 @@ public final class NeoForgeClientBridge implements ClientBridge {
     }
 
     private void registerGuiLayers(RegisterGuiLayersEvent event) {
-        synchronized (this) {
-            overlays.forEach((id, renderer) -> event.registerAboveAll(
-                ResourceLocation.fromNamespaceAndPath("mlua", id),
-                (graphics, delta) -> renderer.accept(graphics)));
-        }
+        event.registerAboveAll(ResourceLocation.fromNamespaceAndPath("mlua", "overlays"),
+            (graphics, delta) -> overlays.render(graphics));
     }
 
     @Override
-    public synchronized void registerOverlay(String id, Consumer<Object> renderer) {
-        ClientBridge.validateOverlayRegistration(id, renderer);
-        if (overlays.putIfAbsent(id, renderer) != null) {
-            throw new IllegalArgumentException("Overlay '" + id + "' is already registered");
-        }
+    public void registerOverlay(String id, Consumer<Object> renderer) {
+        overlays.register(id, renderer);
     }
 
     @Override
@@ -83,6 +76,11 @@ public final class NeoForgeClientBridge implements ClientBridge {
             case "AFTER_LEVEL" -> NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterLevel event) -> renderer.accept(event));
             default -> throw new IllegalArgumentException("Unsupported world render stage: " + stage);
         }
+    }
+
+    @Override
+    public java.util.List<String> worldModelRenderStages() {
+        return java.util.List.of("AFTER_ENTITIES");
     }
 
     @Override

@@ -1,6 +1,7 @@
 package dev.mlua.loader.impl.neoforge;
 
 import dev.mlua.loaderapi.LifecycleBridge;
+import dev.mlua.loaderapi.FrameClock;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import net.neoforged.bus.api.IEventBus;
@@ -8,7 +9,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -24,7 +25,7 @@ public final class NeoForgeLifecycleBridge implements LifecycleBridge {
     private Runnable clientTickEnd;
     private DoubleConsumer renderTickStart;
     private Runnable renderTickEnd;
-    private long lastRenderNanos = System.nanoTime();
+    private final FrameClock renderFrameClock = new FrameClock();
 
     public NeoForgeLifecycleBridge(IEventBus modBus) {
         this.modBus = modBus;
@@ -33,7 +34,8 @@ public final class NeoForgeLifecycleBridge implements LifecycleBridge {
         NeoForge.EVENT_BUS.addListener(this::handleRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::handleServerTickEnd);
         NeoForge.EVENT_BUS.addListener(this::handleClientTickEnd);
-        NeoForge.EVENT_BUS.addListener(this::handleRenderFrame);
+        NeoForge.EVENT_BUS.addListener(this::handleRenderFrameStart);
+        NeoForge.EVENT_BUS.addListener(this::handleRenderFrameEnd);
     }
 
     @Override public void onConstruct(Runnable callback) { callback.run(); }
@@ -76,12 +78,10 @@ public final class NeoForgeLifecycleBridge implements LifecycleBridge {
     private void handleClientTickEnd(ClientTickEvent.Post event) {
         if (clientTickEnd != null) clientTickEnd.run();
     }
-    private void handleRenderFrame(RenderGuiEvent.Post event) {
-        long now = System.nanoTime();
-        double delta = (now - lastRenderNanos) / 1.0E9;
-        lastRenderNanos = now;
-        if (delta <= 0.0 || delta > 0.1) delta = 0.05;
-        if (renderTickStart != null) renderTickStart.accept(delta);
+    private void handleRenderFrameStart(RenderFrameEvent.Pre event) {
+        if (renderTickStart != null) renderTickStart.accept(renderFrameClock.sampleSeconds());
+    }
+    private void handleRenderFrameEnd(RenderFrameEvent.Post event) {
         if (renderTickEnd != null) renderTickEnd.run();
     }
 }

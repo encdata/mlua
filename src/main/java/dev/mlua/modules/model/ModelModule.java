@@ -55,6 +55,7 @@ public final class ModelModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:ResolvePartName(name: string)", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:RegisterAdapter(modelClass: string, parts: table<string, string>)", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:UnregisterAdapter(modelClass: string)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:GetAdapter(modelClass: string)", "table<string, string>|nil"));
         docs.register(MLuaDocBuilder.Registration.signature("ModelService", "ModelService:GetAdapterLimits()", "ModelAdapterLimits"));
         docs.register(MLuaDocBuilder.Registration.type("ModelAdapterLimits", null, "Current global use and capacity for Lua-registered model adapters."));
         docs.register(MLuaDocBuilder.Registration.field("ModelAdapterLimits", "ActiveModels", "number", "Number of model classes with an active adapter."));
@@ -82,5 +83,8 @@ public final class ModelModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.guideStep("ModelService", "Map an addon model for animation",
             "Register the Java model class by its full class name. Keys are animation bone names; values are dot-separated ModelPart fields and child names. Multiple addons can add different bone names to one model class; duplicate names are rejected. A model subclass inherits its parent mappings, then replaces the bone names it declares. The resolver uses the merged mapping during rendering and never calls Lua from the render hook. GetAdapterLimits reports the shared capacity: 256 classes, 512 bones per class, and 8192 bones total.",
             "local Models = Minecraft:GetService(\"ModelService\")\nModels:RegisterAdapter(\"com.example.client.model.DragonModel\", {\n    body = \"root.body\",\n    head = \"root.neck.head\",\n    tail = \"root.body.tail\",\n    rightWing = \"root.rightWing\",\n})"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("ModelService", "Inspect an adapter",
+            "GetAdapter returns the merged mappings registered for one exact Java model class. It returns nil when that class has no adapter. Use it to verify a model part path or build animation data against bone names contributed by other addons.",
+            "local Models = Minecraft:GetService(\"ModelService\")\nlocal adapter = Models:GetAdapter(\"com.example.client.model.DragonModel\")\nif adapter then\n    for bone, partPath in pairs(adapter) do\n        print(bone, partPath)\n    end\nend"));
     }
 }

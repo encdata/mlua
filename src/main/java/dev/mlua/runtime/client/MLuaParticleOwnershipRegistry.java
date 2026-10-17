@@ -32,5 +32,14 @@ public final class MLuaParticleOwnershipRegistry {
 
     public record Owner(Object runtimeOwner, String ownerModId) {
         public Owner { if (ownerModId == null) ownerModId = ""; }
+
+        @Override public boolean equals(Object other) {
+            return other instanceof Owner owner && runtimeOwner == owner.runtimeOwner
+                && ownerModId.equals(owner.ownerModId);
+        }
+
+        @Override public int hashCode() {
+            return 31 * System.identityHashCode(runtimeOwner) + ownerModId.hashCode();
+        }
     }
 }

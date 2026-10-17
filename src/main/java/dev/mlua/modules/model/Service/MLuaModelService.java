@@ -74,6 +74,20 @@ public final class MLuaModelService extends MLuaReflectiveService {
         }
     }
 
+    @MLuaDescription("Returns the merged bone-to-part paths registered for a Java model class, or nil when no addon has registered an adapter for it.")
+    public LuaValue GetAdapter(String modelClass) {
+        this.requireClientSide(this.name());
+        try {
+            Map<String, String> mappings = MLuaModelAdapterRegistry.registeredMappings(modelClass);
+            if (mappings.isEmpty()) return LuaValue.NIL;
+            LuaTable result = new LuaTable();
+            mappings.forEach((bone, path) -> result.set(bone, LuaValue.valueOf(path)));
+            return result;
+        } catch (IllegalArgumentException invalid) {
+            throw new LuaError("[MLua] " + invalid.getMessage());
+        }
+    }
+
     @MLuaDescription("Returns current adapter usage and registration limits. Counts include adapters registered by all addons.")
     public LuaTable GetAdapterLimits() {
         this.requireClientSide(this.name());

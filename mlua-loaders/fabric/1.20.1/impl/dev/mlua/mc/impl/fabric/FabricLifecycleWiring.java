@@ -2,8 +2,8 @@ package dev.mlua.mc.impl.fabric;
 
 import com.mojang.brigadier.CommandDispatcher;
 import dev.mlua.loader.impl.fabric.FabricLifecycleBridge;
+import dev.mlua.loaderapi.FrameClock;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -11,6 +11,9 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 
 public final class FabricLifecycleWiring {
+    private static volatile FabricLifecycleBridge renderBridge;
+    private static FrameClock renderFrameClock;
+
     private FabricLifecycleWiring() {
     }
 
@@ -39,16 +42,18 @@ public final class FabricLifecycleWiring {
     }
 
     public static void wireRender(FabricLifecycleBridge bridge) {
-        long[] previousFrameNanos = {System.nanoTime()};
-        WorldRenderEvents.START.register(context -> {
-            long now = System.nanoTime();
-            double delta = (now - previousFrameNanos[0]) / 1.0E9;
-            previousFrameNanos[0] = now;
-            if (delta <= 0.0 || delta > 0.1) {
-                delta = 0.05;
-            }
-            bridge.fireRenderTickStart(delta);
-        });
-        WorldRenderEvents.END.register(context -> bridge.fireRenderTickEnd());
+        renderFrameClock = new FrameClock();
+        renderBridge = bridge;
+    }
+
+    public static void fireRenderFrameStart() {
+        FabricLifecycleBridge bridge = renderBridge;
+        FrameClock clock = renderFrameClock;
+        if (bridge != null && clock != null) bridge.fireRenderTickStart(clock.sampleSeconds());
+    }
+
+    public static void fireRenderFrameEnd() {
+        FabricLifecycleBridge bridge = renderBridge;
+        if (bridge != null) bridge.fireRenderTickEnd();
     }
 }

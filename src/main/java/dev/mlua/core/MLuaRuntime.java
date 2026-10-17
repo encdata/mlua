@@ -199,26 +199,35 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    public synchronized void replaceResourceScripts(List<MLuaScript> scripts) {
+      List<MLuaScript> previousResourceScripts = List.copyOf(this.resourceScripts);
       Set<Path> replacedScriptPaths = new HashSet<>();
       for (MLuaScript script : this.resourceScripts) replacedScriptPaths.add(script.path());
       this.resourceScripts.clear();
       this.resourceScripts.addAll(scripts);
       this.scriptsDirty = true;
       MLuaLogger.LOGGER.info("Loaded {} resource-pack MLua scripts", scripts.size());
-      this.onResourceScriptsReload(replacedScriptPaths);
+      this.onResourceScriptsReload(replacedScriptPaths,
+         nativeRegistryScriptsChanged(previousResourceScripts, this.resourceScripts));
    }
 
-   private void onResourceScriptsReload(Set<Path> replacedScriptPaths) {
+   private void onResourceScriptsReload(Set<Path> replacedScriptPaths, boolean nativeRegistryScriptsChanged) {
       this.lifecycleEpoch++;
       for (Path path : replacedScriptPaths) this.unregisterMixinScope(path);
-      this.clearRegistryScriptRegistrations(replacedScriptPaths);
+      boolean nativeRegistriesFrozen = LoaderApi.registry().isFrozen();
+      if (!nativeRegistriesFrozen) {
+         this.clearRegistryScriptRegistrations(replacedScriptPaths);
+      }
       this.session.serverScheduler().removeScripts(replacedScriptPaths);
       this.session.clientScheduler().removeScripts(replacedScriptPaths);
       this.forceRefreshScripts();
       this.session.clearModuleCache(Side.BOTH);
       MLuaModuleLoader.get().clearRuntimeState(this, this.session, Side.BOTH);
+      if (nativeRegistriesFrozen && nativeRegistryScriptsChanged) {
+         MLuaLogger.LOGGER.warn("[MLua] Native registry scripts changed during resource reload, but Minecraft registries are frozen. Existing registrations remain active; restart the game to apply the new script definitions.");
+      }
       for (MLuaScript script : this.resourceScripts) {
          if (script.type() != ScriptType.REGISTRY && script.type() != ScriptType.ENTRYPOINT) continue;
+         if (nativeRegistriesFrozen && script.type() == ScriptType.REGISTRY) continue;
          try {
             this.executeRegistryScript(script, script.type() == ScriptType.ENTRYPOINT);
          } catch (Throwable throwable) {
@@ -246,6 +255,21 @@ public final class MLuaRuntime implements MLuaRegistration {
       MixinRuleEngine.triggerRetransform();
       MLuaGeneratedAssetPack.generate();
       MLuaDocumentation.generate(LoaderApi.platform().gameDir());
+   }
+
+   private static boolean nativeRegistryScriptsChanged(List<MLuaScript> previous, List<MLuaScript> current) {
+      Map<Path, String> previousSources = registryScriptSources(previous);
+      Map<Path, String> currentSources = registryScriptSources(current);
+      return !previousSources.equals(currentSources);
+   }
+
+   private static Map<Path, String> registryScriptSources(List<MLuaScript> scripts) {
+      Map<Path, String> sources = new HashMap<>();
+      for (MLuaScript script : scripts) {
+         if (script.type() != ScriptType.REGISTRY) continue;
+         sources.put(script.path().toAbsolutePath().normalize(), script.source());
+      }
+      return sources;
    }
 
    private void registerBundledModScriptRoots() {

@@ -1,6 +1,7 @@
 package dev.mlua.loader.impl.forge;
 
 import dev.mlua.loaderapi.LifecycleBridge;
+import dev.mlua.loaderapi.FrameClock;
 import java.util.function.DoubleConsumer;
 import java.util.function.Consumer;
 import net.minecraftforge.common.MinecraftForge;
@@ -22,7 +23,7 @@ public class ForgeLifecycleBridge implements LifecycleBridge {
     private Runnable onClientTickEnd;
     private DoubleConsumer onRenderTickStart;
     private Runnable onRenderTickEnd;
-    private long lastRenderTimeNanos = System.nanoTime();
+    private final FrameClock renderFrameClock = new FrameClock();
 
     public ForgeLifecycleBridge(IEventBus modBus) {
         this.modBus = modBus;
@@ -131,13 +132,7 @@ public class ForgeLifecycleBridge implements LifecycleBridge {
     private void handleRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             if (onRenderTickStart != null) {
-                long now = System.nanoTime();
-                double deltaTime = (now - lastRenderTimeNanos) / 1.0E9;
-                lastRenderTimeNanos = now;
-                if (deltaTime <= 0.0 || deltaTime > 0.1) {
-                    deltaTime = 0.05;
-                }
-                onRenderTickStart.accept(deltaTime);
+                onRenderTickStart.accept(renderFrameClock.sampleSeconds());
             }
         } else if (event.phase == TickEvent.Phase.END && onRenderTickEnd != null) {
             onRenderTickEnd.run();

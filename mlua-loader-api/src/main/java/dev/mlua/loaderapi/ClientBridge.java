@@ -43,10 +43,27 @@ public interface ClientBridge {
             + String.join(", ", WORLD_RENDER_STAGES));
     }
 
+    /**
+     * Registers an ordered overlay callback. Re-registering an id replaces its callback in place.
+     * Implementations keep a stable render snapshot so callbacks may be registered during client play.
+     */
     void registerOverlay(String id, Consumer<Object> renderer);
     void registerWorldRenderer(Consumer<Object> renderer);
     /** Registers a world callback at one of the cross-loader render stages. */
     void registerWorldRenderer(String stage, Consumer<Object> renderer);
+    /** Returns stages where managed Mesh and BBModel objects can be drawn by this loader/version. */
+    default java.util.List<String> worldModelRenderStages() { return WORLD_RENDER_STAGES; }
+    /** Normalizes a managed-model stage and rejects stages this loader/version cannot draw. */
+    default String normalizeSupportedWorldModelStage(String stage) {
+        String normalized = normalizeWorldRenderStage(stage);
+        java.util.List<String> supported = worldModelRenderStages();
+        if (supported == null || !supported.contains(normalized)) {
+            throw new IllegalArgumentException("WorldModel render stage '" + normalized
+                + "' is unavailable on this loader/version. Supported stages: "
+                + (supported == null || supported.isEmpty() ? "none" : String.join(", ", supported)));
+        }
+        return normalized;
+    }
     void registerKeyBinding(Object keyMapping);
     void registerModelLayer(Object layerLocation, Object modelPart);
     void registerInputHandlers();

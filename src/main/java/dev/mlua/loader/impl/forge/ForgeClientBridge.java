@@ -1,6 +1,7 @@
 package dev.mlua.loader.impl.forge;
 
 import dev.mlua.loaderapi.ClientBridge;
+import dev.mlua.loaderapi.ClientOverlayRegistry;
 import dev.mlua.runtime.client.MLuaGuiRenderer;
 import dev.mlua.runtime.client.MLuaInputHandler;
 import net.minecraft.client.Minecraft;
@@ -16,15 +17,13 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 public class ForgeClientBridge implements ClientBridge {
 
     private final IEventBus modBus;
-    private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
+    private final ClientOverlayRegistry overlays = new ClientOverlayRegistry();
     private final List<KeyMapping> pendingKeyMappings = new ArrayList<>();
     private final List<ModelLayerRegistration> pendingModelLayers = new ArrayList<>();
     private boolean keyMappingsRegistered;
@@ -56,17 +55,14 @@ public class ForgeClientBridge implements ClientBridge {
                 MLuaGuiRenderer.renderAll(graphics, screenWidth, screenHeight);
             });
             event.registerAboveAll("mlua_overlays", (gui, graphics, partialTick, screenWidth, screenHeight) -> {
-                for (Consumer<Object> renderer : overlays.values()) {
-                    renderer.accept(graphics);
-                }
+                overlays.render(graphics);
             });
         });
     }
 
     @Override
     public void registerOverlay(String id, Consumer<Object> renderer) {
-        ClientBridge.validateOverlayRegistration(id, renderer);
-        overlays.put(id, renderer);
+        overlays.register(id, renderer);
     }
 
     @Override

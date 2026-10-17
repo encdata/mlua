@@ -8,6 +8,7 @@ import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.module.MLuaModule;
 import dev.mlua.module.MLuaModuleLoader;
 import dev.mlua.mcapi.MCApiRuntime;
+import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Function;
@@ -37,23 +38,23 @@ public final class RuntimeMLuaApiBridge implements MLuaApiBridge {
 
    @Override
    public RegistryHandle<Item> registerItem(String modId, String name, Supplier<Item> supplier) {
-      return LoaderApi.registry().register(RegistryKind.ITEM, modId, name, supplier);
+      return MLuaLoaderRegistry.register(RegistryKind.ITEM, modId, name, supplier);
    }
 
    @Override
    public RegistryHandle<Block> registerBlock(String modId, String name, Supplier<Block> supplier) {
-      return LoaderApi.registry().register(RegistryKind.BLOCK, modId, name, supplier);
+      return MLuaLoaderRegistry.register(RegistryKind.BLOCK, modId, name, supplier);
    }
 
    @Override
    public RegistryHandle<Item> registerBlockItem(String modId, String blockName) {
-      return LoaderApi.registry().register(RegistryKind.BLOCK_ITEM, modId, blockName, null);
+      return MLuaLoaderRegistry.register(RegistryKind.BLOCK_ITEM, modId, blockName, null);
    }
 
    @Override
    public RegistryHandle<CreativeModeTab> registerCreativeTab(String modId, String name, Function<CreativeModeTab.Builder, CreativeModeTab.Builder> config) {
       Objects.requireNonNull(config, "config");
-      return LoaderApi.registry().register(RegistryKind.CREATIVE_TAB, modId, name, () -> {
+      return MLuaLoaderRegistry.register(RegistryKind.CREATIVE_TAB, modId, name, () -> {
          CreativeModeTab.Builder builder = this.createCreativeTabBuilder()
             .title(Component.translatable("itemGroup." + modId + "." + name));
          return Objects.requireNonNull(config.apply(builder), "creative tab config returned null").build();

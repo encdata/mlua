@@ -100,19 +100,18 @@ final class MLuaRenderHelper {
    static void renderBBModelCube(PoseStack poseStack, MultiBufferSource buffer, MLuaBBModelAsset.Cube cube,
                                  List<ResourceLocation> textures, int textureWidth, int textureHeight,
                                  ResourceLocation fallback, int light, int overlay) {
-      float[] min = cube.from(), max = cube.to();
       drawBBFace(poseStack, buffer, cube.faces().get("north"), textures, textureWidth, textureHeight, fallback,
-         min[0], min[1], min[2], max[0], max[1], min[2], 0, 0, -1, light, overlay);
+         cube.from(0), cube.from(1), cube.from(2), cube.to(0), cube.to(1), cube.from(2), 0, 0, -1, light, overlay);
       drawBBFace(poseStack, buffer, cube.faces().get("south"), textures, textureWidth, textureHeight, fallback,
-         max[0], min[1], max[2], min[0], max[1], max[2], 0, 0, 1, light, overlay);
+         cube.to(0), cube.from(1), cube.to(2), cube.from(0), cube.to(1), cube.to(2), 0, 0, 1, light, overlay);
       drawBBFace(poseStack, buffer, cube.faces().get("west"), textures, textureWidth, textureHeight, fallback,
-         min[0], min[1], max[2], min[0], max[1], min[2], -1, 0, 0, light, overlay);
+         cube.from(0), cube.from(1), cube.to(2), cube.from(0), cube.to(1), cube.from(2), -1, 0, 0, light, overlay);
       drawBBFace(poseStack, buffer, cube.faces().get("east"), textures, textureWidth, textureHeight, fallback,
-         max[0], min[1], min[2], max[0], max[1], max[2], 1, 0, 0, light, overlay);
+         cube.to(0), cube.from(1), cube.from(2), cube.to(0), cube.to(1), cube.to(2), 1, 0, 0, light, overlay);
       drawBBFace(poseStack, buffer, cube.faces().get("up"), textures, textureWidth, textureHeight, fallback,
-         min[0], max[1], min[2], max[0], max[1], max[2], 0, 1, 0, light, overlay);
+         cube.from(0), cube.to(1), cube.from(2), cube.to(0), cube.to(1), cube.to(2), 0, 1, 0, light, overlay);
       drawBBFace(poseStack, buffer, cube.faces().get("down"), textures, textureWidth, textureHeight, fallback,
-         min[0], min[1], max[2], max[0], min[1], min[2], 0, -1, 0, light, overlay);
+         cube.from(0), cube.from(1), cube.to(2), cube.to(0), cube.from(1), cube.from(2), 0, -1, 0, light, overlay);
    }
 
    private static void drawBBFace(PoseStack poseStack, MultiBufferSource buffer, MLuaBBModelAsset.Face face,
@@ -121,9 +120,10 @@ final class MLuaRenderHelper {
                                   float nx, float ny, float nz, int light, int overlay) {
       ResourceLocation texture = fallback;
       if (face != null && face.texture() >= 0 && face.texture() < textures.size()) texture = textures.get(face.texture());
-      float[] uv = face == null || face.uv().length < 4 ? new float[]{0, 0, width, height} : face.uv();
-      float u1 = uv[0] / Math.max(1, width), v1 = uv[1] / Math.max(1, height);
-      float u2 = uv[2] / Math.max(1, width), v2 = uv[3] / Math.max(1, height);
+      float u1 = (face == null || !face.hasUv() ? 0 : face.uv(0)) / Math.max(1, width);
+      float v1 = (face == null || !face.hasUv() ? 0 : face.uv(1)) / Math.max(1, height);
+      float u2 = (face == null || !face.hasUv() ? width : face.uv(2)) / Math.max(1, width);
+      float v2 = (face == null || !face.hasUv() ? height : face.uv(3)) / Math.max(1, height);
       PoseStack.Pose pose = poseStack.last();
       Matrix4f matrix = pose.pose();
       Matrix3f normal = pose.normal();

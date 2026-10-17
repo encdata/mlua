@@ -1,11 +1,10 @@
 package dev.mlua.loader.impl.fabric;
 
 import dev.mlua.loaderapi.ClientBridge;
+import dev.mlua.loaderapi.ClientOverlayRegistry;
 import dev.mlua.runtime.client.MLuaInputHandler;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -23,21 +22,18 @@ import org.lwjgl.glfw.GLFWScrollCallbackI;
 public final class FabricClientBridge implements ClientBridge {
     private final List<Object> keyBindings = new ArrayList<>();
     private final List<Object[]> modelLayers = new ArrayList<>();
-    private final Map<String, Consumer<Object>> overlays = new LinkedHashMap<>();
+    private final ClientOverlayRegistry overlays = new ClientOverlayRegistry();
     private boolean glfwRegistered;
     private boolean overlayRegistered;
     private boolean inputHandlersRegistered;
 
-    @Override public void registerOverlay(String id, Consumer<Object> renderer) {
-        ClientBridge.validateOverlayRegistration(id, renderer);
-        overlays.put(id, renderer);
+    @Override public synchronized void registerOverlay(String id, Consumer<Object> renderer) {
+        overlays.register(id, renderer);
         if (!overlayRegistered) {
             overlayRegistered = true;
             HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("mlua", "overlays"),
                 (graphics, tickDelta) -> {
-                    for (Consumer<Object> overlay : overlays.values()) {
-                        overlay.accept(graphics);
-                    }
+                    overlays.render(graphics);
                 });
         }
     }

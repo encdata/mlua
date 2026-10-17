@@ -45,7 +45,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     private final Map<String, EntityVisualInfo> entityVisuals = new LinkedHashMap<>();
     private final Map<String, AtomicReference<BlockEntityType<MLuaVisualBlockEntity>>> visualBlockEntityTypes = new LinkedHashMap<>();
     private final Set<String> requestedVisualBlockEntityMods = new LinkedHashSet<>();
-    private boolean frozen;
+    private volatile boolean frozen;
 
     public record PendingRegistration(RegistryKind kind, String modId, String name, Supplier<?> supplier, Supplier<?> attributes) {
         public String key() {
@@ -76,7 +76,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
         return registerPending(RegistryKind.ENTITY, modId, name, supplier, attributes);
     }
 
-    private <T> RegistryHandle<T> registerPending(RegistryKind kind, String modId, String name,
+    private synchronized <T> RegistryHandle<T> registerPending(RegistryKind kind, String modId, String name,
                                                   Supplier<T> supplier, Supplier<?> attributes) {
         Objects.requireNonNull(kind, "registryKind");
         MLuaResourceNameValidator.validate(modId);
@@ -90,17 +90,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
             registryKey(kind), ignored -> new LinkedHashMap<>());
         if (byKind.containsKey(key)) throw new IllegalArgumentException("[MLua] Duplicate registration: " + key);
 
-        AtomicReference<RegistryHandle<?>> self = new AtomicReference<>();
-        RegistryHandle<T> handle = () -> {
-            RegistryHandle<?> resolved = byKind.get(key);
-            if (resolved == null || resolved == self.get()) {
-                throw new IllegalStateException("[MLua] Registry entry is not ready: " + key);
-            }
-            @SuppressWarnings("unchecked")
-            RegistryHandle<T> cast = (RegistryHandle<T>) resolved;
-            return cast.get();
-        };
-        self.set(handle);
+        RegistryHandle<T> handle = new PendingHandle<>(key);
         byKind.put(key, handle);
         pending.add(registration);
         return handle;
@@ -179,6 +169,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
 
     @Override
     public void registerVisualBlockEntityTypes() {
+        if (frozen) throw new IllegalStateException("[MLua] Cannot register native block entity types after Minecraft registries are frozen");
         pending.stream()
             .filter(reg -> reg.kind() == RegistryKind.BLOCK)
             .map(PendingRegistration::modId)
@@ -291,20 +282,48 @@ public final class FabricRegistryBridge implements RegistryBridge {
         return registeredHandles.getOrDefault(registryKey(registryKind), Map.of()).containsKey(namespace + ":" + path);
     }
 
-    public void flush(Consumer<PendingRegistration> action) {
-        List<PendingRegistration> copy = new ArrayList<>(pending);
-        for (PendingRegistration reg : copy) {
-            action.accept(reg);
-            pending.remove(reg);
+    public synchronized void flush(Consumer<PendingRegistration> action) {
+        Objects.requireNonNull(action, "action");
+        int index = 0;
+        while (index < pending.size()) {
+            PendingRegistration registration = pending.get(index);
+            try {
+                action.accept(registration);
+                RegistryHandle<?> handle = registeredHandles
+                    .getOrDefault(registryKey(registration.kind()), Map.of())
+                    .get(registration.key());
+                if (!(handle instanceof PendingHandle<?> pendingHandle) || !pendingHandle.isResolved()) {
+                    throw new IllegalStateException("Registration completed without resolving its handle");
+                }
+                pending.remove(index);
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
+            } catch (Throwable failure) {
+                IllegalStateException reported = new IllegalStateException("[MLua] Failed to register "
+                    + registration.kind() + " '" + registration.key() + "'", failure);
+                for (int remaining = index; remaining < pending.size(); remaining++) {
+                    failHandle(pending.get(remaining), reported);
+                }
+                pending.subList(index, pending.size()).clear();
+                throw reported;
+            }
         }
     }
 
-    public <T> void bindHandle(RegistryKind kind, String key, RegistryHandle<T> resolved) {
+    private void failHandle(PendingRegistration registration, Throwable failure) {
+        RegistryHandle<?> handle = registeredHandles
+            .getOrDefault(registryKey(registration.kind()), Map.of())
+            .get(registration.key());
+        if (handle instanceof PendingHandle<?> pendingHandle) pendingHandle.fail(failure);
+    }
+
+    public synchronized <T> void bindHandle(RegistryKind kind, String key, RegistryHandle<T> resolved) {
         Map<String, RegistryHandle<?>> byKind = registeredHandles.get(registryKey(kind));
-        if (byKind == null || !byKind.containsKey(key)) {
+        RegistryHandle<?> handle = byKind == null ? null : byKind.get(key);
+        if (!(handle instanceof PendingHandle<?> pendingHandle)) {
             throw new IllegalStateException("[MLua] No pending registry entry for " + kind + " " + key);
         }
-        byKind.put(key, Objects.requireNonNull(resolved, "resolved"));
+        pendingHandle.resolve(Objects.requireNonNull(resolved, "resolved"));
     }
 
     @Override
@@ -312,6 +331,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
         return net.minecraft.world.item.CreativeModeTab.builder(net.minecraft.world.item.CreativeModeTab.Row.TOP, 0);
     }
 
+    @Override
     public boolean isFrozen() {
         return frozen;
     }
@@ -321,6 +341,7 @@ public final class FabricRegistryBridge implements RegistryBridge {
     }
 
     public void registerPendingVisualBlockEntityTypes() {
+        if (frozen) throw new IllegalStateException("[MLua] Cannot register native block entity types after Minecraft registries are frozen");
         for (String modId : requestedVisualBlockEntityMods) {
             AtomicReference<BlockEntityType<MLuaVisualBlockEntity>> reference = visualBlockEntityTypes.computeIfAbsent(modId, ignored -> new AtomicReference<>());
             if (reference.get() != null) {
@@ -387,6 +408,39 @@ public final class FabricRegistryBridge implements RegistryBridge {
     private RegistryKind registryKey(RegistryKind kind) {
         Objects.requireNonNull(kind, "registryKind");
         return kind == RegistryKind.BLOCK_ITEM ? RegistryKind.ITEM : kind;
+    }
+
+    private static final class PendingHandle<T> implements RegistryHandle<T> {
+        private final String id;
+        private RegistryHandle<T> resolved;
+        private Throwable failure;
+
+        private PendingHandle(String id) { this.id = id; }
+
+        @SuppressWarnings("unchecked")
+        private synchronized void resolve(RegistryHandle<?> handle) {
+            if (resolved != null || failure != null) {
+                throw new IllegalStateException("[MLua] Registry handle has already completed: " + id);
+            }
+            resolved = (RegistryHandle<T>) handle;
+        }
+
+        private synchronized void fail(Throwable cause) {
+            if (resolved == null && failure == null) failure = cause;
+        }
+
+        private synchronized boolean isResolved() { return resolved != null; }
+
+        @Override
+        public synchronized T get() {
+            if (failure != null) {
+                throw new IllegalStateException("[MLua] Registry entry failed to register: " + id, failure);
+            }
+            if (resolved == null) {
+                throw new IllegalStateException("[MLua] Registry entry is not ready: " + id);
+            }
+            return resolved.get();
+        }
     }
 
     private <T> T getByPathOrName(Map<String, T> values, String namespace, String path) {

@@ -23,7 +23,7 @@ import org.luaj.vm2.Varargs;
 
 /** Addon-owned Lua callbacks attached to Minecraft's client render points. */
 public final class MLuaRenderCallbacks {
-    private static volatile float frameDeltaTime = 0.05F;
+    private static volatile double frameDeltaTime = 0.05D;
     private static volatile boolean hasFrameDeltaTime;
     private static final String DEFAULT_PASS_ID = "mlua:default";
     /** Bounds callback dispatch work even when many addons register render hooks. */
@@ -41,7 +41,7 @@ public final class MLuaRenderCallbacks {
     private static final ClassValue<PartialTickAccess> PARTIAL_TICK_ACCESS = new ClassValue<>() {
         @Override protected PartialTickAccess computeValue(Class<?> type) {
             return new PartialTickAccess(
-                findNoArg(type, "getPartialTick", "partialTick", "getPartialTickTime", "getTickDelta", "tickDelta"),
+                findNoArg(type, "getPartialTick", "partialTick", "getPartialTickTime", "getTickDelta", "tickDelta", "getFrameTime"),
                 findNoArg(type, "tickCounter", "getTickCounter", "deltaTracker", "getDeltaTracker", "timer", "getTimer"),
                 findNoArg(type, "getGameTimeDeltaPartialTick", "getTickDelta", "getPartialTick", "getPartialTickTime"),
                 findBooleanArg(type, "getGameTimeDeltaPartialTick", "getTickDelta"));
@@ -53,7 +53,7 @@ public final class MLuaRenderCallbacks {
     /** Stores the latest client render-frame duration in seconds for render callbacks. */
     public static void setFrameDeltaTime(double deltaTime) {
         if (Double.isFinite(deltaTime) && deltaTime >= 0.0D) {
-            frameDeltaTime = (float)Math.min(deltaTime, 1.0D);
+            frameDeltaTime = deltaTime;
             hasFrameDeltaTime = true;
         }
     }
@@ -109,11 +109,12 @@ public final class MLuaRenderCallbacks {
         if (typeId == null) return;
         HookBucket hooks = bucket(HookKind.ENTITY_DRAW, typeId.toString());
         if (hooks == null || hooks.isEmpty()) return;
+        Float validatedPartialTick = partialTick == null ? null : finitePartialTick(partialTick);
         LuaValue entityValue = MLuaEntityWrapper.entityTable(entity);
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {entityValue, renderContext(hook, "Entity", poseStack, bufferSource,
-                null, partialTick == null ? 0.0F : partialTick, packedLight, 0, nativeContext,
-                "HasPartialTick", LuaValue.valueOf(partialTick != null),
+                null, validatedPartialTick == null ? 0.0F : validatedPartialTick, packedLight, 0, nativeContext,
+                "HasPartialTick", LuaValue.valueOf(validatedPartialTick != null),
                 "Renderer", userdata(renderer))};
             invoke(hook, args, LuaValue.varargsOf(args));
         }
@@ -187,13 +188,14 @@ public final class MLuaRenderCallbacks {
         if (itemKey == null) return;
         HookBucket hooks = bucket(HookKind.THIRD_PERSON_ITEM, itemKey.toString());
         if (hooks == null) return;
+        Float framePartialTick = partialTick == null ? currentClientPartialTick() : finitePartialTick(partialTick);
         String hand = entity.getMainArm() == arm ? "MAIN_HAND" : "OFF_HAND";
         LuaValue entityValue = MLuaEntityWrapper.entityTable(entity);
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {entityValue, renderContext(hook, "ThirdPersonItem",
-                poseStack, bufferSource, null, partialTick == null ? 0.0F : partialTick,
+                poseStack, bufferSource, null, framePartialTick == null ? 0.0F : framePartialTick,
                 packedLight, 0, null,
-                "HasPartialTick", LuaValue.valueOf(partialTick != null),
+                "HasPartialTick", LuaValue.valueOf(framePartialTick != null),
                 "ItemStack", userdata(stack), "Hand", LuaValue.valueOf(hand),
                 "Arm", LuaValue.valueOf(arm.name()),
                 "DisplayContext", LuaValue.valueOf(displayContext.name()))};
@@ -217,11 +219,14 @@ public final class MLuaRenderCallbacks {
         if (itemKey == null) return;
         HookBucket hooks = bucket(HookKind.FIRST_PERSON_ITEM, itemKey.toString());
         if (hooks == null) return;
+        Float validatedPartialTick = finitePartialTick(partialTick);
         LuaValue playerValue = MLuaEntityWrapper.entityTable(player);
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {playerValue, renderContext(hook, "FirstPersonItem",
-                poseStack, bufferSource, null, partialTick, packedLight, 0, null,
+                poseStack, bufferSource, null, validatedPartialTick == null ? 0.0F : validatedPartialTick,
+                packedLight, 0, null,
                 "Player", playerValue,
+                "HasPartialTick", LuaValue.valueOf(validatedPartialTick != null),
                 "ItemStack", userdata(stack), "Hand", LuaValue.valueOf(hand.name()),
                 "Pitch", LuaValue.valueOf(pitch), "SwingProgress", LuaValue.valueOf(swingProgress),
                 "EquipProgress", LuaValue.valueOf(equipProgress))};
@@ -350,7 +355,7 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    private static Float readPartialTick(Object context) {
+    static Float readPartialTick(Object context) {
         if (context == null) return null;
         PartialTickAccess access = PARTIAL_TICK_ACCESS.get(context.getClass());
         Object direct = invoke(context, access.direct());
@@ -363,6 +368,10 @@ public final class MLuaRenderCallbacks {
         if (value != null) return value;
         value = finitePartialTick(invokeBoolean(source, sourceAccess.tickWithBoolean()));
         return value;
+    }
+
+    public static Float currentClientPartialTick() {
+        return readPartialTick(net.minecraft.client.Minecraft.getInstance());
     }
 
     private static Float finitePartialTick(Object value) {
@@ -598,7 +607,21 @@ public final class MLuaRenderCallbacks {
     }
 
     private record HookTarget(HookKind kind, String key) { }
-    private record Owner(Object session, String modId) { }
+    private record Owner(Object session, String modId) {
+        private Owner { if (modId == null) modId = ""; }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Owner owner
+                && session == owner.session()
+                && modId.equals(owner.modId());
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(session) + modId.hashCode();
+        }
+    }
     private record HookKey(Owner owner, String id) { }
     private record PreviousWorldHook(HookTarget target, Hook hook) { }
 
