@@ -109,6 +109,30 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
+    void propertiesCannotReuseAClassFunctionName() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        LuaTable classTable = registry.register("ModelPart", (String) null);
+        VarArgFunction isValid = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.TRUE; }
+        };
+        registry.registerFunction(classTable, "IsValid", isValid, "Checks whether this handle is live.");
+
+        IllegalStateException collision = assertThrows(IllegalStateException.class, () ->
+            registry.registerProperty("ModelPart", "IsValid", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) { return LuaValue.TRUE; }
+            }, LuaValue.NIL, "boolean", "shared:Shared", "Checks whether this handle is live."));
+
+        assertTrue(collision.getMessage().contains("already defines member 'IsValid'"));
+        assertTrue(classTable.rawget("IsValid") == isValid);
+        VarArgFunction validGetter = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.TRUE; }
+        };
+        registry.registerProperty("ModelPart", "Valid", validGetter, LuaValue.NIL,
+            "boolean", "shared:Shared", "Whether this handle is live.");
+        assertTrue(classTable.rawget("__mlua_properties").get("Valid").get("get") == validGetter);
+    }
+
+    @Test
     void serviceClassesCanOnlyBeMaterializedThroughTheirServiceLifecycle() {
         LuaTable serviceClass = new LuaTable();
         serviceClass.set("__mlua_service_class", LuaValue.valueOf(true));
