@@ -441,13 +441,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(callback, renderOwnerContext());
     }
 
-    @MLuaDescription("Registers a callback at a cross-loader world stage: BEFORE_ENTITIES, AFTER_ENTITIES, AFTER_TRANSLUCENT, or AFTER_LEVEL. MLua maps the stage to the nearest native Fabric, Forge, or NeoForge render event; the callback receives that native event/context in RenderContext.")
+    @MLuaDescription("Registers the addon's default callback at a cross-loader world stage: BEFORE_ENTITIES, AFTER_ENTITIES, AFTER_TRANSLUCENT, or AFTER_LEVEL. Registering it at another stage moves the same callback instead of leaving a duplicate at the old stage. MLua maps the stage to the nearest native Fabric, Forge, or NeoForge render event; the callback receives that native event/context in RenderContext.")
     public void RegisterWorldRendererAt(String stage, LuaValue callback) {
         this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(stage, callback, renderOwnerContext());
     }
 
-    @MLuaDescription("Registers an independently owned world render pass by resource id. The id can be removed without affecting other passes from this addon.")
+    @MLuaDescription("Registers an independently owned world render pass by resource id. Re-registering that id at another stage moves the pass. The id can be removed without affecting other passes from this addon.")
     public void RegisterWorldRenderPass(String id, String stage, LuaValue callback) {
         this.requireClientSide(this.name());
         dev.mlua.runtime.client.MLuaRenderCallbacks.registerWorld(id, stage, callback, renderOwnerContext());

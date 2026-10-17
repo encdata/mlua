@@ -274,7 +274,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                 String descriptor = args.checkjstring(targetIndex + 2);
                 Object target;
                 boolean staticCall;
-                if (targetValue.isstring() || isJavaClassProxy(targetValue)) {
+                if (targetValue.type() == LuaValue.TSTRING || isJavaClassProxy(targetValue)) {
                     target = resolveClassArg(targetValue);
                     staticCall = true;
                 } else {
@@ -444,7 +444,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             @Override
             public Varargs invoke(Varargs args) {
                 LuaValue key = args.arg(2);
-                if (!key.isstring()) {
+                if (key.type() != LuaValue.TSTRING) {
                     return LuaValue.NIL;
                 }
 
@@ -470,7 +470,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private Class<?> resolveClassArg(LuaValue value) {
-        if (value.isstring()) {
+        if (value.type() == LuaValue.TSTRING) {
             Class<?> resolved = tryResolveClass(value.tojstring());
             if (resolved == null) {
                 throw new LuaError("[MLua] Could not resolve Java class '" + value.tojstring() + "'");
@@ -634,7 +634,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             key = entry.arg1();
             if (key.isnil()) break;
             count++;
-            if (!key.isnumber() || key.todouble() < 1 || key.todouble() > Integer.MAX_VALUE
+            if (key.type() != LuaValue.TNUMBER || key.todouble() < 1 || key.todouble() > Integer.MAX_VALUE
                 || key.todouble() != Math.rint(key.todouble())) {
                 arrayKeys = false;
                 continue;
@@ -721,7 +721,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             Varargs entry = table.next(key);
             key = entry.arg1();
             if (key.isnil()) break;
-            if (!key.isnumber() || key.todouble() < 1 || key.todouble() > values.size()
+            if (key.type() != LuaValue.TNUMBER || key.todouble() < 1 || key.todouble() > values.size()
                 || key.todouble() != Math.rint(key.todouble())) {
                 throw new LuaError("[MLua] Java collection fields require a dense Lua array table");
             }
@@ -830,7 +830,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             @Override
             public Varargs invoke(Varargs args) {
                 LuaValue key = args.arg(2);
-                if (!key.isstring()) {
+                if (key.type() != LuaValue.TSTRING) {
                     return LuaValue.NIL;
                 }
 
@@ -871,7 +871,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             @Override
             public Varargs invoke(Varargs args) {
                 LuaValue key = args.arg(2);
-                if (!key.isstring()) throw new LuaError("[MLua] Java fields must be addressed by name");
+                if (key.type() != LuaValue.TSTRING) throw new LuaError("[MLua] Java fields must be addressed by name");
                 String fieldName = key.checkjstring();
                 Field field = resolveField(clazz, fieldName, true);
                 if (field == null) {
@@ -919,7 +919,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     return collectionValue;
                 }
 
-                if (!key.isstring()) {
+                if (key.type() != LuaValue.TSTRING) {
                     return LuaValue.NIL;
                 }
 
@@ -959,7 +959,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
                     return LuaValue.NONE;
                 }
 
-                if (!key.isstring()) {
+                if (key.type() != LuaValue.TSTRING) {
                     throw new LuaError("[MLua] Java object fields must be addressed by string name");
                 }
 
@@ -1017,7 +1017,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private LuaValue collectionIndex(Object instance, Type declaredType, LuaValue key) {
-        if (instance.getClass().isArray() && key.isnumber()) {
+        if (instance.getClass().isArray() && key.type() == LuaValue.TNUMBER) {
             int index = zeroBasedIndex(key);
             int length = Array.getLength(instance);
             if (index < 0 || index >= length) {
@@ -1026,7 +1026,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return wrapJavaValue(Array.get(instance, index), instance.getClass().getComponentType());
         }
 
-        if (instance instanceof List<?> list && key.isnumber()) {
+        if (instance instanceof List<?> list && key.type() == LuaValue.TNUMBER) {
             int index = zeroBasedIndex(key);
             if (index < 0 || index >= list.size()) {
                 return LuaValue.NIL;
@@ -1047,7 +1047,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private boolean applyCollectionWrite(Object instance, Type declaredType, LuaValue key, LuaValue value) {
-        if (instance.getClass().isArray() && key.isnumber()) {
+        if (instance.getClass().isArray() && key.type() == LuaValue.TNUMBER) {
             int index = zeroBasedIndex(key);
             int length = Array.getLength(instance);
             if (index < 0 || index >= length) {
@@ -1057,7 +1057,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             return true;
         }
 
-        if (instance instanceof List<?> rawList && key.isnumber()) {
+        if (instance instanceof List<?> rawList && key.type() == LuaValue.TNUMBER) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) rawList;
             int index = zeroBasedIndex(key);
@@ -1117,13 +1117,13 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     private Object unwrapMapKey(LuaValue key) {
-        if (key.isstring()) {
+        if (key.type() == LuaValue.TSTRING) {
             return key.tojstring();
         }
-        if (key.isnumber()) {
+        if (key.type() == LuaValue.TNUMBER) {
             return key.todouble();
         }
-        if (key.isboolean()) {
+        if (key.type() == LuaValue.TBOOLEAN) {
             return key.toboolean();
         }
         return unwrapJavaValue(key);
@@ -1131,7 +1131,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     private Object resolveMapKey(Map<?, ?> map, LuaValue key) {
         Object direct = unwrapMapKey(key);
-        if (map.containsKey(direct) || !key.isnumber()) return direct;
+        if (map.containsKey(direct) || key.type() != LuaValue.TNUMBER) return direct;
         double number = key.todouble();
         if (!Double.isFinite(number) || number != Math.rint(number)) return direct;
         if (number >= Integer.MIN_VALUE && number <= Integer.MAX_VALUE) {

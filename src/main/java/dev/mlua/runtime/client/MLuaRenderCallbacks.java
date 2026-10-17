@@ -34,6 +34,7 @@ public final class MLuaRenderCallbacks {
     private static final AtomicInteger REGISTERED_CALLBACKS = new AtomicInteger();
     /** One registry owns every render hook; the target kind prevents unrelated hooks colliding. */
     private static final ConcurrentMap<HookTarget, HookBucket> HOOKS = new ConcurrentHashMap<>();
+    private static final Object WORLD_REGISTRATION_LOCK = new Object();
     private static final HookTarget HUD_TARGET = new HookTarget(HookKind.HUD, "");
     private static final Class<?> RENDER_COLLECTOR_CLASS = findOptionalClass(
         "net.minecraft.client.renderer.SubmitNodeCollector");
@@ -237,17 +238,47 @@ public final class MLuaRenderCallbacks {
     }
 
     public static void registerWorld(String id, String stage, LuaValue callback, MLuaContext context) {
+        requireCallback(callback);
+        if (context == null) throw new IllegalArgumentException("Render callback needs its owning Lua context");
         String normalized = normalizeWorldStage(stage);
         String key = normalizeId(id);
         HookKey hookKey = new HookKey(owner(context), key);
-        registerTarget(new HookTarget(HookKind.WORLD, normalized), hookKey, callback, context,
-            "world pass '" + key + "' at " + normalized);
+        HookTarget destination = new HookTarget(HookKind.WORLD, normalized);
+        synchronized (WORLD_REGISTRATION_LOCK) {
+            HookBucket targetBucket = HOOKS.get(destination);
+            boolean alreadyAtDestination = targetBucket != null && targetBucket.contains(hookKey);
+            if (!alreadyAtDestination && targetBucket != null
+                && targetBucket.size() >= MAX_CALLBACKS_PER_TARGET) {
+                throw new IllegalStateException("Render target 'world stage " + normalized + "' already has the maximum of "
+                    + MAX_CALLBACKS_PER_TARGET + " callbacks");
+            }
+
+            List<PreviousWorldHook> previous = HOOKS.entrySet().stream()
+                .filter(entry -> entry.getKey().kind() == HookKind.WORLD
+                    && !entry.getKey().equals(destination))
+                .map(entry -> new PreviousWorldHook(entry.getKey(), entry.getValue().get(hookKey)))
+                .filter(entry -> entry.hook() != null)
+                .toList();
+            previous.forEach(entry -> unregisterTarget(entry.target(), hookKey));
+            try {
+                registerTarget(destination, hookKey, callback, context,
+                    "world pass '" + key + "' at " + normalized);
+            } catch (RuntimeException failure) {
+                for (PreviousWorldHook entry : previous) {
+                    Hook old = entry.hook();
+                    registerTarget(entry.target(), hookKey, old.callback, old.context, old.target);
+                }
+                throw failure;
+            }
+        }
     }
 
     public static boolean unregisterWorld(String stage, MLuaContext context) {
         String normalized = normalizeWorldStage(stage);
         HookKey key = new HookKey(owner(context), DEFAULT_PASS_ID);
-        return unregisterTarget(new HookTarget(HookKind.WORLD, normalized), key);
+        synchronized (WORLD_REGISTRATION_LOCK) {
+            return unregisterTarget(new HookTarget(HookKind.WORLD, normalized), key);
+        }
     }
 
     public static boolean unregisterWorld(MLuaContext context) {
@@ -256,11 +287,13 @@ public final class MLuaRenderCallbacks {
 
     public static boolean unregisterWorldPass(String id, MLuaContext context) {
         HookKey key = new HookKey(owner(context), normalizeId(id));
-        boolean removed = false;
-        for (HookTarget target : HOOKS.keySet()) {
-            if (target.kind() == HookKind.WORLD) removed |= unregisterTarget(target, key);
+        synchronized (WORLD_REGISTRATION_LOCK) {
+            boolean removed = false;
+            for (HookTarget target : HOOKS.keySet()) {
+                if (target.kind() == HookKind.WORLD) removed |= unregisterTarget(target, key);
+            }
+            return removed;
         }
-        return removed;
     }
 
     public static void registerHud(LuaValue callback, MLuaContext context) {
@@ -389,12 +422,16 @@ public final class MLuaRenderCallbacks {
 
     public static void clearOwned(Object session, String modId) {
         java.util.function.Predicate<Owner> matches = owner -> owner.session() == session && owner.modId().equals(modId);
-        removeOwned(matches);
+        synchronized (WORLD_REGISTRATION_LOCK) {
+            removeOwned(matches);
+        }
     }
 
     public static void clearRuntime(Object session) {
         java.util.function.Predicate<Owner> matches = owner -> owner.session() == session;
-        removeOwned(matches);
+        synchronized (WORLD_REGISTRATION_LOCK) {
+            removeOwned(matches);
+        }
     }
 
     private static void removeOwned(java.util.function.Predicate<Owner> predicate) {
@@ -563,6 +600,7 @@ public final class MLuaRenderCallbacks {
     private record HookTarget(HookKind kind, String key) { }
     private record Owner(Object session, String modId) { }
     private record HookKey(Owner owner, String id) { }
+    private record PreviousWorldHook(HookTarget target, Hook hook) { }
 
     /** Keeps a sorted immutable dispatch list so render frames do not allocate or sort callback snapshots. */
     private static final class HookBucket {
@@ -630,6 +668,18 @@ public final class MLuaRenderCallbacks {
 
         private boolean isEmpty() {
             return snapshot.isEmpty();
+        }
+
+        private synchronized boolean contains(HookKey key) {
+            return hooks.containsKey(key);
+        }
+
+        private synchronized int size() {
+            return hooks.size();
+        }
+
+        private synchronized Hook get(HookKey key) {
+            return hooks.get(key);
         }
 
         private List<Hook> snapshot() {
