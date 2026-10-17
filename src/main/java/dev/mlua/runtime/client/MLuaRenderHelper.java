@@ -119,7 +119,10 @@ final class MLuaRenderHelper {
                                   float x1, float y1, float z1, float x2, float y2, float z2,
                                   float nx, float ny, float nz, int light, int overlay) {
       ResourceLocation texture = fallback;
-      if (face != null && face.texture() >= 0 && face.texture() < textures.size()) texture = textures.get(face.texture());
+      if (face != null && face.texture() >= 0 && face.texture() < textures.size()) {
+         ResourceLocation resolved = textures.get(face.texture());
+         if (resolved != null) texture = resolved;
+      }
       float u1 = (face == null || !face.hasUv() ? 0 : face.uv(0)) / Math.max(1, width);
       float v1 = (face == null || !face.hasUv() ? 0 : face.uv(1)) / Math.max(1, height);
       float u2 = (face == null || !face.hasUv() ? width : face.uv(2)) / Math.max(1, width);

@@ -205,12 +205,7 @@ public final class MLuaClientRenderManager {
 
     private static void renderBBModelWorld(PoseStack pose, MultiBufferSource buffers, RenderObject object,
                                           int light, int overlay, float partialTick) {
-        List<ResourceLocation> textures = new ArrayList<>();
-        for (int index = 0; index < object.bbmodel.textures().size(); index++) {
-            ResourceLocation embedded = index < object.resolvedTextures.size() ? object.resolvedTextures.get(index) : null;
-            ResourceLocation location = embedded != null ? embedded : resolveModelTexture(object.bbmodel.textures().get(index));
-            if (location != null) textures.add(location);
-        }
+        List<ResourceLocation> textures = object.modelTextures;
         var animation = object.animationPlayer.active() == null ? null : object.bbmodel.animations().get(object.animationPlayer.active());
         float[] animatedPosition = new float[3];
         float[] animatedRotation = new float[3];
@@ -311,6 +306,7 @@ public final class MLuaClientRenderManager {
             RenderObject object = OBJECTS.get(id);
             object.bbmodel = asset;
             object.resolvedTextures = registerEmbeddedTextures(asset);
+            object.modelTextures = resolveModelTextures(asset, object.resolvedTextures);
             return id;
         } catch (RuntimeException failure) {
             remove(id, owner);
@@ -346,6 +342,16 @@ public final class MLuaClientRenderManager {
             }
         }
         return result;
+    }
+
+    private static List<ResourceLocation> resolveModelTextures(MLuaBBModelAsset asset,
+                                                               List<ResourceLocation> embeddedTextures) {
+        List<ResourceLocation> result = new ArrayList<>(asset.textures().size());
+        for (int index = 0; index < asset.textures().size(); index++) {
+            ResourceLocation embedded = index < embeddedTextures.size() ? embeddedTextures.get(index) : null;
+            result.add(embedded != null ? embedded : resolveModelTexture(asset.textures().get(index)));
+        }
+        return java.util.Collections.unmodifiableList(result);
     }
 
     static ResourceLocation embeddedTextureLocation(byte[] imageBytes, int index) {
@@ -906,6 +912,7 @@ public final class MLuaClientRenderManager {
         private MLuaMeshDefinition mesh;
         private MLuaBBModelAsset bbmodel;
         private List<ResourceLocation> resolvedTextures = List.of();
+        private List<ResourceLocation> modelTextures = List.of();
         private float modelScale = 1.0F;
         private String renderStage = "AFTER_ENTITIES";
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
@@ -1143,6 +1150,7 @@ public final class MLuaClientRenderManager {
             copy.mesh = mesh;
             copy.bbmodel = bbmodel;
             copy.resolvedTextures = resolvedTextures;
+            copy.modelTextures = modelTextures;
             copy.modelScale = modelScale;
             copy.renderStage = renderStage;
             copy.animationPlayer.copyStateFrom(animationPlayer);

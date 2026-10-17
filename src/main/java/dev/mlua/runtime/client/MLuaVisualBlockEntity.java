@@ -130,6 +130,18 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       this.setChanged();
    }
 
+   private int registeredContainerSlots() {
+      Block block = this.getBlockState().getBlock();
+      if (!(block instanceof MLuaScriptedBlock scripted)) return 0;
+      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
+      return definition == null ? 0 : definition.rows() * 9;
+   }
+
+   private int resolveLoadedContainerSize(int savedSize) {
+      int size = savedSize > 0 ? savedSize : this.registeredContainerSlots();
+      return Math.max(0, Math.min(MAX_CONTAINER_SLOTS, size));
+   }
+
    @Override public int getContainerSize() { return this.items.size(); }
 
    @Override public boolean isEmpty() {
@@ -183,7 +195,7 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
 //--version 1.20.1
    @Override public void load(CompoundTag tag) {
       super.load(tag);
-      int size = Math.max(0, Math.min(MAX_CONTAINER_SLOTS, tag.getInt("MLuaContainerSize")));
+      int size = this.resolveLoadedContainerSize(tag.getInt("MLuaContainerSize"));
       this.items = NonNullList.withSize(size, ItemStack.EMPTY);
       ContainerHelper.loadAllItems(tag, this.items);
    }
@@ -197,7 +209,7 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
 //--version 1.21.1
    @Override protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
       super.loadAdditional(tag, registries);
-      int size = Math.max(0, Math.min(MAX_CONTAINER_SLOTS, tag.getInt("MLuaContainerSize")));
+      int size = this.resolveLoadedContainerSize(tag.getInt("MLuaContainerSize"));
       this.items = NonNullList.withSize(size, ItemStack.EMPTY);
       ContainerHelper.loadAllItems(tag, this.items, registries);
    }
@@ -211,7 +223,7 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
 //--version 26.1
    @Override protected void loadAdditional(ValueInput input) {
       super.loadAdditional(input);
-      int size = Math.max(0, Math.min(MAX_CONTAINER_SLOTS, input.getIntOr("MLuaContainerSize", 0)));
+      int size = this.resolveLoadedContainerSize(input.getIntOr("MLuaContainerSize", 0));
       this.items = NonNullList.withSize(size, ItemStack.EMPTY);
       ContainerHelper.loadAllItems(input, this.items);
    }

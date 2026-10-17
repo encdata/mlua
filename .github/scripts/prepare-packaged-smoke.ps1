@@ -360,14 +360,21 @@ local propertyOk, renderTypeProperty = pcall(function() return renderText.Type e
 print("MLUA_CI_RENDER_PROPERTY_RESULT=" .. tostring(propertyOk) .. ":" .. tostring(renderTypeProperty))
 assert(propertyOk and renderTypeProperty == "text",
     "RenderObject render primitive was not exposed consistently through GetRenderType and Type")
+print("MLUA_CI_RENDER_GETALL_BEGIN")
 local renderTextSnapshot
-for _, object in ipairs(render:GetAll()) do
+local renderObjects = render:GetAll()
+print("MLUA_CI_RENDER_GETALL_RETURNED=" .. tostring(#renderObjects))
+for _, object in ipairs(renderObjects) do
+    print("MLUA_CI_RENDER_GETALL_HANDLE=" .. tostring(object.Id))
     if object.Id == renderText.Id then renderTextSnapshot = object end
 end
-assert(renderTextSnapshot ~= nil and renderText:Equals(renderTextSnapshot)
-    and type(renderText:GetHashCode()) == "number"
-    and renderText:ToString():find("RenderObject", 1, true),
-    "RenderObject identity methods did not produce stable, typed handles")
+print("MLUA_CI_RENDER_EQUALS_BEGIN")
+assert(renderTextSnapshot ~= nil and renderText:Equals(renderTextSnapshot),
+    "RenderObject handles did not compare equal to their service snapshot")
+print("MLUA_CI_RENDER_HASH_BEGIN")
+assert(type(renderText:GetHashCode()) == "number", "RenderObject:GetHashCode did not return a number")
+print("MLUA_CI_RENDER_TOSTRING_BEGIN")
+assert(renderText:ToString():find("RenderObject", 1, true), "RenderObject:ToString omitted the runtime class")
 renderText:Destroy()
 assert(renderText.IsDestroyed, "RenderObject handle did not remain readable after Destroy")
 print("MLUA_CI_ANIMATION_API_OK")
