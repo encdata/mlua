@@ -1149,7 +1149,7 @@ public final class MLuaGuiService implements MLuaService {
                 LuaValue fieldsValue = args.arg(4);
                 if (!fieldsValue.isnil() && !fieldsValue.istable()) throw new LuaError("[MLua] Gui:OpenScreen fields must be a table.");
                 if (fieldsValue.istable()) {
-                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "AddEditBox", "AddRenderableWidget", "SetOnClose", "SetOnRender");
+                    Set<String> reserved = Set.of("NativeScreen", "Close", "AddText", "AddButton", "AddEditBox", "AddRenderableWidget", "SetOnClose", "SetOnTick", "SetOnRender");
                     for (LuaValue key : fieldsValue.checktable().keys()) {
                         if (key.type() == LuaValue.TSTRING && reserved.contains(key.tojstring())) {
                             throw new LuaError("[MLua] Gui:OpenScreen fields cannot replace the native screen member '" + key.tojstring() + "'.");
@@ -1554,9 +1554,11 @@ public final class MLuaGuiService implements MLuaService {
         private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
         private final Set<String> failedInputMethods = ConcurrentHashMap.newKeySet();
         private LuaValue closed = LuaValue.NIL;
+        private LuaValue tickCallback = LuaValue.NIL;
         private LuaValue renderCallback = LuaValue.NIL;
         private boolean classInitialized;
         private boolean disposed;
+        private boolean tickFailed;
         private boolean renderFailed;
         private int nextNativeControlIndex = 1;
 
@@ -1594,6 +1596,7 @@ public final class MLuaGuiService implements MLuaService {
         @Override protected void init() {
             super.init();
             this.textLines.clear();
+            this.tickFailed = false;
             this.renderFailed = false;
             this.nextNativeControlIndex = 1;
             LuaTable builder = new LuaTable();
@@ -1602,6 +1605,15 @@ public final class MLuaGuiService implements MLuaService {
                     LuaValue callback = args.arg(2);
                     if (!callback.isfunction()) throw new LuaError("[MLua] Screen:SetOnClose expects a callback function.");
                     MLuaScriptScreen.this.closed = callback;
+                    return LuaValue.NONE;
+                }
+            });
+            builder.set("SetOnTick", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) {
+                    LuaValue callback = args.arg(2);
+                    if (!callback.isfunction()) throw new LuaError("[MLua] Screen:SetOnTick expects a callback function.");
+                    MLuaScriptScreen.this.tickCallback = callback;
+                    MLuaScriptScreen.this.tickFailed = false;
                     return LuaValue.NONE;
                 }
             });
@@ -1748,7 +1760,16 @@ public final class MLuaGuiService implements MLuaService {
 
         @Override public void tick() {
             super.tick();
-            if (!this.disposed) this.invokeClassMethod("Tick");
+            if (this.disposed) return;
+            if (this.luaInstance != null) {
+                this.invokeClassMethod("Tick");
+            } else if (!this.tickFailed && this.tickCallback.isfunction()) {
+                try { this.invokeLua(this.tickCallback, LuaValue.NONE); }
+                catch (RuntimeException failure) {
+                    this.tickFailed = true;
+                    MLuaLogger.LOGGER.error("Lua native screen tick callback failed; further tick callbacks are paused for this screen", failure);
+                }
+            }
         }
 
         //--version 1.20.1,1.21.1

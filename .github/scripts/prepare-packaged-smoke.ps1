@@ -404,6 +404,18 @@ print("MLUA_CI_RENDER_DESTROY_RETURNED")
 print("MLUA_CI_RENDER_DESTROYED_PROPERTY_BEGIN")
 assert(renderText.IsDestroyed, "RenderObject handle did not remain readable after Destroy")
 print("MLUA_CI_RENDER_DESTROYED_PROPERTY_OK")
+local gui = Minecraft:GetService("Gui")
+local screenTicks = 0
+local tickScreen
+tickScreen = gui:OpenNativeScreen("MLua CI screen lifecycle", function(screen)
+    screen:SetOnTick(function()
+        screenTicks = screenTicks + 1
+        if screenTicks == 1 then
+            print("MLUA_CI_NATIVE_SCREEN_TICK_OK")
+            tickScreen:Close()
+        end
+    end)
+end)
 print("MLUA_CI_ANIMATION_API_OK")
 print("MLUA_CI_SERVICE_PARITY_OK")
 print("MLUA_CI_CLIENT_SERVICE_SCRIPT_OK")
