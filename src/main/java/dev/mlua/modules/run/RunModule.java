@@ -17,7 +17,7 @@ public class RunModule implements MLuaModule {
 
     @Override
     public void onRenderFrame(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, double deltaTime) {
-        MLuaRunService.setDeltaTime(runtimeSession, dev.mlua.common.enums.Side.CLIENT, deltaTime);
+        MLuaRunService.setRenderDeltaTime(runtimeSession, deltaTime);
     }
 
     @Override

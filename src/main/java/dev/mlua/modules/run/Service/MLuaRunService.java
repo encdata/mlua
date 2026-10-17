@@ -5,6 +5,7 @@ import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.loaderapi.FrameClock;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.modules.events.Service.MLuaEventsService;
 import net.minecraft.SharedConstants;
@@ -40,23 +41,37 @@ public final class MLuaRunService extends MLuaReflectiveService {
 
    public static void setDeltaTime(Object runtimeSession, Side side, double value) {
       if (!(runtimeSession instanceof MLuaRuntimeSession session)) return;
-      double bounded = Math.max(0.0D, Math.min(1.0D, value));
+      double bounded = FrameClock.boundedSeconds(value);
       if (side == Side.BOTH) {
-         frameState(session, Side.SERVER).deltaTime = bounded;
-         frameState(session, Side.CLIENT).deltaTime = bounded;
+         frameState(session, Side.SERVER).simulationDeltaTime = bounded;
+         frameState(session, Side.CLIENT).simulationDeltaTime = bounded;
       } else if (side == Side.SERVER || side == Side.CLIENT) {
-         frameState(session, side).deltaTime = bounded;
+         frameState(session, side).simulationDeltaTime = bounded;
       }
+   }
+
+   public static void setRenderDeltaTime(Object runtimeSession, double value) {
+      if (!(runtimeSession instanceof MLuaRuntimeSession session)) return;
+      double bounded = FrameClock.boundedSeconds(value);
+      if (bounded <= 0.0D) return;
+      FrameState state = frameState(session, Side.CLIENT);
+      state.renderDeltaTime = bounded;
+      state.hasRenderDeltaTime = true;
    }
 
    @MLuaDescription("Returns the latest simulation frame delta time for this runtime side.")
    public double GetDeltaTime() {
-      return frameState().deltaTime;
+      return frameState().simulationDeltaTime;
    }
 
-   @MLuaDescription("Returns the latest render frame delta time for this runtime side.")
+   @MLuaDescription("Returns the latest client render-frame duration in seconds, capped at one second. Returns zero until a complete frame interval is observed and on the server.")
    public double GetRenderDeltaTime() {
-      return frameState().deltaTime;
+      return frameState().renderDeltaTime;
+   }
+
+   @MLuaDescription("Returns whether a complete client render-frame interval has been observed for this runtime session.")
+   public boolean HasRenderDeltaTime() {
+      return frameState().hasRenderDeltaTime;
    }
 
    @MLuaDescription("Returns whether this script is running on the server.")
@@ -101,6 +116,8 @@ public final class MLuaRunService extends MLuaReflectiveService {
    }
 
    private static final class FrameState {
-      private volatile double deltaTime = 0.05D;
+      private volatile double simulationDeltaTime = 0.05D;
+      private volatile double renderDeltaTime;
+      private volatile boolean hasRenderDeltaTime;
    }
 }

@@ -3,6 +3,7 @@ package dev.mlua.runtime.client;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.loaderapi.FrameClock;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import java.lang.reflect.Method;
@@ -23,7 +24,7 @@ import org.luaj.vm2.Varargs;
 
 /** Addon-owned Lua callbacks attached to Minecraft's client render points. */
 public final class MLuaRenderCallbacks {
-    private static volatile double frameDeltaTime = 0.05D;
+    private static volatile double frameDeltaTime;
     private static volatile boolean hasFrameDeltaTime;
     private static final String DEFAULT_PASS_ID = "mlua:default";
     /** Bounds callback dispatch work even when many addons register render hooks. */
@@ -56,8 +57,11 @@ public final class MLuaRenderCallbacks {
 
     /** Stores the latest client render-frame duration in seconds for render callbacks. */
     public static void setFrameDeltaTime(double deltaTime) {
-        if (Double.isFinite(deltaTime) && deltaTime >= 0.0D) {
-            frameDeltaTime = deltaTime;
+        // FrameClock returns zero on its first sample because no complete interval
+        // exists yet. Keep HasDeltaTime false until a real positive interval arrives.
+        double bounded = FrameClock.boundedSeconds(deltaTime);
+        if (bounded > 0.0D) {
+            frameDeltaTime = bounded;
             hasFrameDeltaTime = true;
         }
     }
@@ -117,8 +121,8 @@ public final class MLuaRenderCallbacks {
         LuaValue entityValue = MLuaEntityWrapper.entityTable(entity);
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {entityValue, renderContext(hook, "Entity", poseStack, bufferSource,
-                null, validatedPartialTick == null ? 0.0F : validatedPartialTick, packedLight, 0, nativeContext,
-                "HasPartialTick", LuaValue.valueOf(validatedPartialTick != null),
+                null, validatedPartialTick == null ? 0.0F : validatedPartialTick,
+                validatedPartialTick != null, packedLight, 0, nativeContext,
                 "Renderer", userdata(renderer))};
             invoke(hook, args, LuaValue.varargsOf(args));
         }
@@ -198,8 +202,7 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {entityValue, renderContext(hook, "ThirdPersonItem",
                 poseStack, bufferSource, null, framePartialTick == null ? 0.0F : framePartialTick,
-                packedLight, 0, null,
-                "HasPartialTick", LuaValue.valueOf(framePartialTick != null),
+                framePartialTick != null, packedLight, 0, null,
                 "ItemStack", userdata(stack), "Hand", LuaValue.valueOf(hand),
                 "Arm", LuaValue.valueOf(arm.name()),
                 "DisplayContext", LuaValue.valueOf(displayContext.name()))};
@@ -228,9 +231,8 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {playerValue, renderContext(hook, "FirstPersonItem",
                 poseStack, bufferSource, null, validatedPartialTick == null ? 0.0F : validatedPartialTick,
-                packedLight, 0, null,
+                validatedPartialTick != null, packedLight, 0, null,
                 "Player", playerValue,
-                "HasPartialTick", LuaValue.valueOf(validatedPartialTick != null),
                 "ItemStack", userdata(stack), "Hand", LuaValue.valueOf(hand.name()),
                 "Pitch", LuaValue.valueOf(pitch), "SwingProgress", LuaValue.valueOf(swingProgress),
                 "EquipProgress", LuaValue.valueOf(equipProgress))};
@@ -338,9 +340,8 @@ public final class MLuaRenderCallbacks {
         boolean partialTickAvailable = hasPartialTick && validatedPartialTick != null;
         for (Hook hook : registered.snapshot()) {
             LuaValue[] args = {MLuaEntityWrapper.entityTable(entity), renderContext(hook, "EntityModel", poseStack,
-                bufferSource, model, partialTickAvailable ? validatedPartialTick : 0.0F,
-                packedLight, packedOverlay, null,
-                "HasPartialTick", LuaValue.valueOf(partialTickAvailable))};
+                bufferSource, model, partialTickAvailable ? validatedPartialTick : 0.0F, partialTickAvailable,
+                packedLight, packedOverlay, null)};
             invoke(hook, args, LuaValue.varargsOf(args));
         }
     }
@@ -352,9 +353,8 @@ public final class MLuaRenderCallbacks {
         Float partialTick = readPartialTick(nativeContext);
         for (Hook hook : hooks.snapshot()) {
             LuaValue[] args = {renderContext(hook, "World", poseStack, bufferSource, null,
-                partialTick == null ? 0.0F : partialTick, 0, 0, nativeContext,
-                "Stage", LuaValue.valueOf(normalizedStage), "Camera", userdata(camera),
-                "HasPartialTick", LuaValue.valueOf(partialTick != null))};
+                partialTick == null ? 0.0F : partialTick, partialTick != null, 0, 0, nativeContext,
+                "Stage", LuaValue.valueOf(normalizedStage), "Camera", userdata(camera))};
             invoke(hook, args, LuaValue.varargsOf(args));
         }
     }
@@ -426,9 +426,8 @@ public final class MLuaRenderCallbacks {
         HookBucket hud = bucket(HookKind.HUD, "");
         if (hud == null) return;
         for (Hook hook : hud.snapshot()) {
-            LuaValue[] args = {renderContext(hook, "Hud", null, null, null, 0.0F, 0, 0, null,
-                "Graphics", userdata(graphics), "Width", LuaValue.valueOf(width), "Height", LuaValue.valueOf(height),
-                "HasPartialTick", LuaValue.FALSE)};
+            LuaValue[] args = {renderContext(hook, "Hud", null, null, null, 0.0F, false, 0, 0, null,
+                "Graphics", userdata(graphics), "Width", LuaValue.valueOf(width), "Height", LuaValue.valueOf(height))};
             invoke(hook, args, LuaValue.varargsOf(args));
         }
     }
@@ -542,7 +541,7 @@ public final class MLuaRenderCallbacks {
     }
 
     private static LuaValue renderContext(Hook hook, String target, Object poseStack, Object bufferSource,
-            Object model, float partialTick, int packedLight, int packedOverlay, Object nativeContext,
+            Object model, float partialTick, boolean hasPartialTick, int packedLight, int packedOverlay, Object nativeContext,
             Object... additionalFields) {
         var context = new org.luaj.vm2.LuaTable();
         MLuaRenderFrameScope frameScope = new MLuaRenderFrameScope();
@@ -553,7 +552,7 @@ public final class MLuaRenderCallbacks {
         context.set("RenderCollector", scopedUserdata(frameScope, isRenderCollector(bufferSource) ? bufferSource : null));
         context.set("Model", scopedUserdata(frameScope, model));
         context.set("PartialTick", LuaValue.valueOf(partialTick));
-        context.set("HasPartialTick", LuaValue.TRUE);
+        context.set("HasPartialTick", LuaValue.valueOf(hasPartialTick));
         context.set("DeltaTime", LuaValue.valueOf(frameDeltaTime));
         context.set("HasDeltaTime", LuaValue.valueOf(hasFrameDeltaTime));
         context.set("PackedLight", LuaValue.valueOf(packedLight));

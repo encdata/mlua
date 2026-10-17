@@ -609,12 +609,6 @@ public final class MLuaRuntime implements MLuaRegistration {
 
       });
       MLuaGeneratedAssetPack.generate();
-      if (LoaderApi.platform().isClient()) {
-         try {
-            MLuaMinecraftClient.instance().reloadResourcePacks();
-         } catch (Throwable var2) {
-         }
-      }
 
       this.registryScriptsRan = true;
       MixinRuleEngine.triggerRetransform();
