@@ -334,6 +334,7 @@ public final class MLuaClientRenderManager {
                 for (var bone : asset.boneChainForCube(cube.uuid())) {
                     object.animationPlayer.applyBoneTransform(pose, animation, bone, partialTick,
                         animatedPosition, animatedRotation, animatedScale);
+                    applyTransform(pose, object.modelPartTransform(bone.uuid()));
                 }
                 object.animationPlayer.applyCubeTransform(pose, animation, cube, partialTick,
                     animatedPosition, animatedRotation, animatedScale);
@@ -347,6 +348,14 @@ public final class MLuaClientRenderManager {
                 pose.popPose();
             }
         }
+    }
+
+    private static void applyTransform(PoseStack pose, MLuaCFrame transform) {
+        pose.translate(transform.x(), transform.y(), transform.z());
+        double[] angles = transform.toEulerAnglesXYZ();
+        pose.mulPose(Axis.XP.rotation((float) angles[0]));
+        pose.mulPose(Axis.YP.rotation((float) angles[1]));
+        pose.mulPose(Axis.ZP.rotation((float) angles[2]));
     }
 
     private static Identifier attachmentTexture(RenderObject object, MLuaBBModelAsset.Face face) {
@@ -695,6 +704,7 @@ public final class MLuaClientRenderManager {
         private float modelScale = 1.0F;
         private String renderStage = "AFTER_ENTITIES";
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
+        private final ConcurrentHashMap<String, MLuaCFrame> modelPartTransforms = new ConcurrentHashMap<>();
         private volatile Object executionLock = this;
 
         private RenderObject(int id, RenderType type, String resource) {
@@ -753,6 +763,25 @@ public final class MLuaClientRenderManager {
         public LuaValue followOffsetValue() { return followOffsetCallback.isfunction() ? followOffsetCallback : followOffset.toLua(); }
         public MLuaMeshDefinition mesh() { return mesh; }
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
+        public MLuaCFrame modelPartTransform(String boneId) {
+            return modelPartTransforms.getOrDefault(boneId, MLuaCFrame.IDENTITY);
+        }
+        public void setModelPartTransform(String boneId, MLuaCFrame transform) {
+            requireModelBone(boneId);
+            if (transform == null) throw new IllegalArgumentException("Model part transform cannot be null");
+            modelPartTransforms.put(boneId, transform);
+        }
+        public void resetModelPartTransform(String boneId) {
+            requireModelBone(boneId);
+            modelPartTransforms.remove(boneId);
+        }
+        private void requireModelBone(String boneId) {
+            MLuaBBModelAsset asset = this.bbmodel;
+            if (asset == null) throw new IllegalStateException("Model parts are available only on a loaded Blockbench model");
+            if (boneId == null || asset.boneById(boneId) == null) {
+                throw new IllegalArgumentException("Unknown Blockbench model part id: " + boneId);
+            }
+        }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
         public float modelScale() { return modelScale; }
         public String renderStage() { return renderStage; }
@@ -772,6 +801,7 @@ public final class MLuaClientRenderManager {
             followOffsetCallback = LuaValue.NIL;
             followOffsetContext = null;
             animationPlayer.stop();
+            modelPartTransforms.clear();
         }
         public void setZIndex(int zIndex) {
             if (this.zIndex == zIndex) return;
@@ -921,6 +951,7 @@ public final class MLuaClientRenderManager {
             copy.followEntityScope = followEntityScope;
             copy.mesh = mesh;
             copy.bbmodel = bbmodel;
+            copy.modelPartTransforms.putAll(modelPartTransforms);
             copy.resolvedTextures = resolvedTextures;
             copy.modelScale = modelScale;
             copy.renderStage = renderStage;

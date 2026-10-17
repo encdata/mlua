@@ -43,7 +43,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
     private static final String OBJECT_OPERATIONS = "__mlua_render_object_operations";
     private static final String MODEL_PART_HANDLE = "__mlua_render_model_part";
     public static final String OBJECT_ID = "__mlua_render_object_id";
-    private record ModelPartHandle(int objectId, MLuaRenderOwnershipRegistry.Owner owner, String partId) { }
+    private record ModelPartHandle(int objectId, MLuaRenderOwnershipRegistry.Owner owner, String partId,
+                                  MLuaRegistration registration) { }
     private record ResolvedModelPart(ModelPartHandle handle, MLuaClientRenderManager.RenderObject object,
                                      MLuaBBModelAsset.Bone bone) { }
     private static final Map<String, LuaValue> MODEL_PART_METHODS = Map.of(
@@ -136,11 +137,13 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             {"GetText", "Returns displayed text on text objects; otherwise nil."},
             {"SetText", "Changes displayed text on text objects."},
             {"GetAnimations", "Returns animation names available on a Blockbench model."},
+            {"GetAnimationName", "Returns the selected Blockbench animation name, or nil when no pose is selected."},
+            {"IsAnimationPlaying", "Returns whether the selected Blockbench animation is advancing."},
             {"GetModelParts", "Returns live RenderPart instances for a Blockbench model's bone hierarchy."},
             {"GetModelPart", "Returns a model part by its unique name or UUID, or nil when it does not exist."},
             {"GetModelPartById", "Returns a model part by its stable Blockbench UUID, or nil when it does not exist."},
             {"PlayAnimation", "Plays a named Blockbench model animation."},
-            {"StopAnimation", "Stops the current Blockbench model animation."},
+            {"StopAnimation", "Stops the current Blockbench model animation and restores the base pose."},
             {"GetAnimationTime", "Returns elapsed time for the current model animation."},
             {"Destroy", "Removes this render object."}
         };
@@ -615,6 +618,17 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                     for (String name : asset.animations().keySet()) animations.set(index++, name);
                     return animations;
                 }));
+                operations.set("GetAnimationName", fn(args -> {
+                    synchronized (object.executionLock()) {
+                        String name = object.animationPlayer().active();
+                        return name == null ? LuaValue.NIL : LuaValue.valueOf(name);
+                    }
+                }));
+                operations.set("IsAnimationPlaying", fn(args -> {
+                    synchronized (object.executionLock()) {
+                        return LuaValue.valueOf(object.animationPlayer().playing());
+                    }
+                }));
                 operations.set("PlayAnimation", fn(args -> {
                     String name = args.checkjstring(2);
                     MLuaAnimationOptions options = MLuaAnimationOptions.fromLua(args.arg(3), "RenderObject:PlayAnimation");
@@ -868,7 +882,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             LuaTable parts = new LuaTable();
             int index = 1;
             for (MLuaBBModelAsset.Bone bone : object.bbmodel().bones()) {
-                parts.set(index++, modelPartInstance(id, renderOwner, bone));
+                parts.set(index++, modelPartInstance(context.mlua().registration(), id, renderOwner, bone));
             }
             return parts;
         }));
@@ -876,7 +890,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             @Override public Varargs invoke(Varargs args) {
                 MLuaClientRenderManager.RenderObject object = requireModelObject(id);
                 MLuaBBModelAsset.Bone bone = findModelPart(object.bbmodel(), args.arg(2).checkjstring());
-                return bone == null ? LuaValue.NIL : modelPartInstance(id, renderOwner, bone);
+                return bone == null ? LuaValue.NIL
+                    : modelPartInstance(context.mlua().registration(), id, renderOwner, bone);
             }
         });
         operations.set("GetModelPartById", new VarArgFunction() {
@@ -884,7 +899,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 MLuaClientRenderManager.RenderObject object = requireModelObject(id);
                 String partId = args.arg(2).checkjstring();
                 MLuaBBModelAsset.Bone bone = object.bbmodel().boneById(partId);
-                return bone == null ? LuaValue.NIL : modelPartInstance(id, renderOwner, bone);
+                return bone == null ? LuaValue.NIL
+                    : modelPartInstance(context.mlua().registration(), id, renderOwner, bone);
             }
         });
         operations.set("GetResource", fn(args -> {
@@ -941,11 +957,11 @@ public final class MLuaRenderService extends MLuaReflectiveService {
         return object;
     }
 
-    private LuaTable modelPartInstance(int objectId, MLuaRenderOwnershipRegistry.Owner modelOwner,
-                                       MLuaBBModelAsset.Bone bone) {
+    private static LuaTable modelPartInstance(MLuaRegistration registration, int objectId,
+            MLuaRenderOwnershipRegistry.Owner modelOwner, MLuaBBModelAsset.Bone bone) {
         LuaTable fields = new LuaTable();
-        LuaTable part = context.mlua().registration().createClassInstance("RenderPart", fields);
-        ModelPartHandle handle = new ModelPartHandle(objectId, modelOwner, bone.uuid());
+        LuaTable part = registration.createClassInstance("RenderPart", fields);
+        ModelPartHandle handle = new ModelPartHandle(objectId, modelOwner, bone.uuid(), registration);
         part.rawset(MODEL_PART_HANDLE, LuaValue.userdataOf(handle));
         for (Map.Entry<String, LuaValue> method : MODEL_PART_METHODS.entrySet()) {
             MLuaClassMethods.setInstanceMethod(part, method.getKey(), method.getValue());
@@ -968,7 +984,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 ResolvedModelPart resolved = resolveModelPart(self);
                 String parentId = resolved.bone().parent();
                 MLuaBBModelAsset.Bone parent = parentId == null ? null : resolved.object().bbmodel().boneById(parentId);
-                yield parent == null ? LuaValue.NIL : modelPartInstance(
+                yield parent == null ? LuaValue.NIL : modelPartInstance(resolved.handle().registration(),
                     resolved.handle().objectId(), resolved.handle().owner(), parent);
             }
             case "GetChildren" -> {
@@ -976,7 +992,8 @@ public final class MLuaRenderService extends MLuaReflectiveService {
                 LuaTable children = new LuaTable();
                 int index = 1;
                 for (MLuaBBModelAsset.Bone child : resolved.object().bbmodel().childrenOf(resolved.bone().uuid())) {
-                    children.set(index++, modelPartInstance(resolved.handle().objectId(), resolved.handle().owner(), child));
+                    children.set(index++, modelPartInstance(resolved.handle().registration(),
+                        resolved.handle().objectId(), resolved.handle().owner(), child));
                 }
                 yield children;
             }

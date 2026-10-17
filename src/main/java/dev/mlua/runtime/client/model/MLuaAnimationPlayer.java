@@ -29,6 +29,7 @@ public final class MLuaAnimationPlayer {
    }
 
    public void stop() {
+      active = null;
       playing = false;
       time = previousTime = tickAdvance = 0.0F;
    }
