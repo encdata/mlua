@@ -200,6 +200,7 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("RenderObject", "RenderObject:Destroy()", "Removes this render object and releases its owned render state.", null, "void", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:GetName()", "Returns this bone's name from the loaded Blockbench model.", null, "string", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:GetId()", "Returns this bone's stable UUID. Use it to look up bones when names are duplicated.", null, "string", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:IsValid()", "Returns whether this handle still refers to a bone on a live Blockbench RenderObject.", null, "boolean", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:GetParent()", "Returns the direct parent part, or nil when this is a root bone.", null, "RenderPart|nil", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:GetChildren()", "Returns direct child parts in model order.", null, "RenderPart[]", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:GetTransform()", "Returns this part's local CFrame override, or the identity CFrame when no override is set. The override is applied after the Blockbench base pose and current animation pose.", null, "CFrame", "client:Client", null));
@@ -208,6 +209,7 @@ public final class RenderModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.method("RenderPart", "RenderPart:Equals(other: RenderPart)", "Returns true when both handles refer to the same bone on the same owned render object.", "Another RenderPart handle", "boolean", "client:Client", null));
         docs.register(MLuaDocBuilder.Registration.property("RenderPart", "RenderPart.Name", "string", "The Blockbench bone name.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("RenderPart", "RenderPart.Id", "string", "The stable Blockbench bone UUID.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("RenderPart", "RenderPart.Valid", "boolean", "Whether this handle still refers to a live model bone.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("RenderPart", "RenderPart.Parent", "RenderPart|nil", "The direct parent part, or nil for a root bone.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("RenderPart", "RenderPart.Children", "RenderPart[]", "The direct child parts in model order.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("RenderPart", "RenderPart.Transform", "CFrame", "The part's local CFrame override, composed with its base and animation pose.", "client:Client"));

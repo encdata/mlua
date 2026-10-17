@@ -158,7 +158,7 @@ public final class MLuaRenderService extends MLuaReflectiveService {
             "string", "client:Client", "The Blockbench bone name.");
         registration.registerClassProperty("RenderPart", "Id", MODEL_PART_METHODS.get("GetId"), LuaValue.NIL,
             "string", "client:Client", "The stable Blockbench bone UUID; use it when names are duplicated.");
-        registration.registerClassProperty("RenderPart", "IsValid", MODEL_PART_METHODS.get("IsValid"), LuaValue.NIL,
+        registration.registerClassProperty("RenderPart", "Valid", MODEL_PART_METHODS.get("IsValid"), LuaValue.NIL,
             "boolean", "client:Client", "Whether this handle still refers to a bone on a live Blockbench RenderObject.");
         registration.registerClassProperty("RenderPart", "Parent", MODEL_PART_METHODS.get("GetParent"), LuaValue.NIL,
             "RenderPart|nil", "client:Client", "The direct parent part, or nil for a root bone.");
