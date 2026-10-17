@@ -17,6 +17,10 @@ final class MLuaEntityWrapperCache {
 
     static Key key(Entity entity) {
         MLuaEntityScope scope = MLuaEntityScope.of(entity);
+        return key(scope);
+    }
+
+    static Key key(MLuaEntityScope scope) {
         return new Key(scope.side(), scope.dimension(), scope.uuid(), scope.entityId());
     }
 

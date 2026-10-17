@@ -225,7 +225,11 @@ public final class MLuaEntityComponentManager {
 
     public static void clearEntity(Entity entity) {
         if (entity == null) return;
-        MLuaEntityScope scope = MLuaEntityScope.of(entity);
+        clearEntity(MLuaEntityScope.of(entity));
+    }
+
+    public static void clearEntity(MLuaEntityScope scope) {
+        if (scope == null) return;
         for (Map.Entry<EntityComponentsKey, EntityComponents> entry : COMPONENTS.entrySet()) {
             if (!entry.getKey().scope().equals(scope)) continue;
             detachAll(entry.getKey(), entry.getValue())

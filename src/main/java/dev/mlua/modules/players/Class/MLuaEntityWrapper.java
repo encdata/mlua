@@ -84,14 +84,19 @@ public final class MLuaEntityWrapper {
 
    public static void removeFromCache(net.minecraft.world.entity.Entity entity) {
       if (entity == null) return;
-      MLuaEntityScope scope = MLuaEntityScope.of(entity);
-      MLuaEntityComponentManager.clearEntity(entity);
-      MLuaEntityWrapperCache.Key key = MLuaEntityWrapperCache.key(entity);
+      removeFromCache(MLuaEntityScope.of(entity));
+   }
+
+   /** Removes all Lua state attached to one exact entity identity after its world unloads it. */
+   public static void removeFromCache(MLuaEntityScope scope) {
+      if (scope == null) return;
+      MLuaEntityComponentManager.clearEntity(scope);
+      MLuaEntityWrapperCache.Key key = MLuaEntityWrapperCache.key(scope);
       LEGACY_CACHE.remove(key);
       synchronized (ENTITY_CACHES) { ENTITY_CACHES.values().forEach(cache -> cache.remove(key)); }
-      MLuaAnimationController.removeEntity(entity);
+      MLuaAnimationController.removeEntity(scope);
       if (scope.side() == dev.mlua.common.enums.Side.CLIENT) {
-         MLuaClientRenderManager.resetEntityModel(entity);
+         MLuaClientRenderManager.resetEntityModel(scope);
          MLuaClientModelManager.clearEntityForAllOwners(scope);
          MLuaClientSoundManager.removeFollowingEntity(scope);
          MLuaClientParticleManager.removeFollowingEntity(scope);

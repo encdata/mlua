@@ -3,6 +3,7 @@ package dev.mlua.modules.animation;
 import dev.mlua.minecraft.animation.MLuaAnimationController;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.minecraft.binding.MLuaAnimationBindings;
+import dev.mlua.modules.players.Class.MLuaEntityWrapper;
 import dev.mlua.loaderapi.EventBridge;
 import dev.mlua.common.enums.Side;
 import dev.mlua.module.MLuaDocBuilder;
@@ -188,11 +189,21 @@ public class AnimationModule implements MLuaModule {
     private static void tickTrackedEntities(Level level, boolean clientSide) {
         String dimension = level.dimension().location().toString();
         for (MLuaEntityScope scope : MLuaAnimationController.getTrackedEntities()) {
-            if (scope.side() != (clientSide ? dev.mlua.common.enums.Side.CLIENT : dev.mlua.common.enums.Side.SERVER)
-                || !scope.dimension().equals(dimension)) continue;
+            if (scope.side() != (clientSide ? dev.mlua.common.enums.Side.CLIENT : dev.mlua.common.enums.Side.SERVER)) continue;
+            if (!scope.dimension().equals(dimension)) {
+                // The client only owns one active level. When it changes dimensions,
+                // discard client-side state from the level that was just left.
+                if (clientSide) MLuaEntityWrapper.removeFromCache(scope);
+                continue;
+            }
             net.minecraft.world.entity.Entity entity = level.getEntity(scope.entityId());
             if (entity != null && entity.getUUID().equals(scope.uuid())) {
                 MLuaAnimationController.tickEntity(entity, 0.05f);
+            } else {
+                // Tracks and animated poses belong to the live entity instance. Entity ids
+                // can be reused after unload, so retaining the scope would leak state and
+                // risk applying an old pose to a later entity in this dimension.
+                MLuaEntityWrapper.removeFromCache(scope);
             }
         }
     }

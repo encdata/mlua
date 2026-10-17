@@ -74,6 +74,15 @@ try {
         }
 
         if ([DateTime]::UtcNow -ge $deadline) {
+            Write-Host "Timed out waiting for '$BootMarker'. Captured launcher output follows."
+            foreach ($path in @($stdoutPath, $stderrPath, $minecraftLogPath)) {
+                if (Test-Path $path) {
+                    Write-Host "--- $path (last 120 lines) ---"
+                    Get-Content $path -Tail 120 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+                } else {
+                    Write-Host "--- $path was not created ---"
+                }
+            }
             throw "Timed out waiting for '$BootMarker' while running Gradle task '$Task'."
         }
         Start-Sleep -Seconds 2
