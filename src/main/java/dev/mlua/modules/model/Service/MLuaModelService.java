@@ -64,6 +64,16 @@ public final class MLuaModelService extends MLuaReflectiveService {
         }
     }
 
+    @MLuaDescription("Adds or updates one animation bone mapping for the calling addon, preserving its other mappings and mappings from other addons.")
+    public void RegisterAdapterBone(String modelClass, String boneName, String partPath) {
+        this.requireClientSide(this.name());
+        try {
+            MLuaModelAdapterRegistry.registerBone(modelClass, boneName, partPath, adapterOwner());
+        } catch (IllegalArgumentException | IllegalStateException invalid) {
+            throw new LuaError("[MLua] " + invalid.getMessage());
+        }
+    }
+
     @MLuaDescription("Removes the model adapter registered by the calling addon for a Java model class.")
     public boolean UnregisterAdapter(String modelClass) {
         this.requireClientSide(this.name());

@@ -3,6 +3,7 @@ package dev.mlua.runtime.client;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaBonePose;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
+import dev.mlua.core.MLuaLogger;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,6 +11,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -45,6 +47,7 @@ public final class MLuaModelAdapterRegistry {
     private static final ConcurrentHashMap<String, Map<Owner, Map<String, String>>> ADAPTERS = new ConcurrentHashMap<>();
     private static int registeredPartCount;
     private static final ConcurrentMap<String, java.util.List<String>> PART_PATHS = new ConcurrentHashMap<>();
+    private static final Set<String> WARNED_MISSING_PATHS = ConcurrentHashMap.newKeySet();
     private static final ConcurrentMap<MLuaEntityScope, AppliedModel> APPLIED_MODELS = new ConcurrentHashMap<>();
     private static final ClassValue<ConcurrentMap<String, Optional<Field>>> MODEL_FIELDS = new ClassValue<>() {
         @Override protected ConcurrentMap<String, Optional<Field>> computeValue(Class<?> type) {
@@ -57,6 +60,13 @@ public final class MLuaModelAdapterRegistry {
     private record AppliedModel(Class<?> modelClass, java.util.Set<String> resolvedBones) { }
 
     private MLuaModelAdapterRegistry() {}
+
+    /** Adds or updates one mapping for an addon while preserving its other registered bones. */
+    public static void registerBone(String modelClass, String boneName, String partPath, Owner owner) {
+        LinkedHashMap<String, String> part = new LinkedHashMap<>();
+        part.put(boneName, partPath);
+        register(modelClass, part, owner);
+    }
 
     public static synchronized void register(String modelClass, Map<String, String> parts, Owner owner) {
         String className = normalizeClassName(modelClass);
@@ -242,6 +252,7 @@ public final class MLuaModelAdapterRegistry {
     private static void clearMappingCaches() {
         RESOLVED_MAPPINGS.clear();
         PART_PATHS.clear();
+        WARNED_MISSING_PATHS.clear();
     }
 
     /** Called by loader render hooks; it reads registered data and never invokes Lua. */
@@ -256,7 +267,10 @@ public final class MLuaModelAdapterRegistry {
         java.util.LinkedHashSet<String> applied = new java.util.LinkedHashSet<>();
         for (Map.Entry<String, String> entry : mapping.entrySet()) {
             ModelPart part = resolvePath(model, entry.getValue());
-            if (part == null) continue;
+            if (part == null) {
+                reportMissingPath(model.getClass(), entry.getKey(), entry.getValue());
+                continue;
+            }
             applied.add(entry.getKey());
             MLuaCFrame pose = animation == null ? null : animation.get(entry.getKey());
             if (pose != null) {
@@ -305,23 +319,46 @@ public final class MLuaModelAdapterRegistry {
         if (model == null || boneName == null || boneName.isBlank() || poseStack == null) return false;
         Map<String, String> mapping = findMapping(model.getClass());
         String path = mapping == null ? null : mapping.get(boneName);
-        if (path == null) return false;
+        if (path == null) {
+            reportMissingPath(model.getClass(), boneName, null);
+            return false;
+        }
         Object current = model;
         for (String segment : pathSegments(path)) {
-            if (segment.isBlank()) return false;
+            if (segment.isBlank()) {
+                reportMissingPath(model.getClass(), boneName, path);
+                return false;
+            }
             if (current instanceof ModelPart parent) {
                 try {
                     current = parent.getChild(segment);
                 } catch (RuntimeException missingChild) {
+                    reportMissingPath(model.getClass(), boneName, path);
                     return false;
                 }
             } else {
                 current = readField(current, segment);
             }
-            if (!(current instanceof ModelPart part)) return false;
+            if (!(current instanceof ModelPart part)) {
+                reportMissingPath(model.getClass(), boneName, path);
+                return false;
+            }
             part.translateAndRotate(poseStack);
         }
         return true;
+    }
+
+    private static void reportMissingPath(Class<?> modelClass, String boneName, String path) {
+        String className = modelClass.getName();
+        String key = className + '\u0000' + boneName + '\u0000' + String.valueOf(path);
+        if (!WARNED_MISSING_PATHS.add(key)) return;
+        if (path == null) {
+            MLuaLogger.LOGGER.warn("[MLua] Render model {} has no registered adapter path for bone '{}'; register one with ModelService:RegisterAdapter",
+                className, boneName);
+        } else {
+            MLuaLogger.LOGGER.warn("[MLua] Model adapter path '{}' for bone '{}' did not resolve on {}; check ModelService:RegisterAdapter",
+                path, boneName, className);
+        }
     }
 
     private static ModelPart resolvePath(Object root, String path) {

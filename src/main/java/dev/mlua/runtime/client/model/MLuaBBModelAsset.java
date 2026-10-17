@@ -30,6 +30,9 @@ public final class MLuaBBModelAsset {
    private final List<String> embeddedTextures;
    private final List<Cube> cubes;
    private final List<Bone> bones;
+   private final Map<String, Bone> bonesById;
+   private final Map<String, List<Bone>> bonesByName;
+   private final Map<String, List<Bone>> childrenByParent;
    private final Map<String, String> cubeParents;
    private final Map<String, Animation> animations;
    private final Map<String, List<Bone>> cubeBoneChains;
@@ -45,6 +48,23 @@ public final class MLuaBBModelAsset {
       this.embeddedTextures = List.copyOf(embeddedTextures);
       this.cubes = List.copyOf(cubes);
       this.bones = List.copyOf(bones);
+      Map<String, Bone> indexedBones = new LinkedHashMap<>();
+      Map<String, List<Bone>> indexedNames = new LinkedHashMap<>();
+      Map<String, List<Bone>> indexedChildren = new LinkedHashMap<>();
+      for (Bone bone : this.bones) {
+         if (indexedBones.putIfAbsent(bone.uuid(), bone) != null) {
+            throw new IllegalArgumentException("Blockbench model contains duplicate bone id '" + bone.uuid() + "'");
+         }
+         indexedNames.computeIfAbsent(bone.name(), ignored -> new ArrayList<>()).add(bone);
+         if (bone.parent() != null) indexedChildren.computeIfAbsent(bone.parent(), ignored -> new ArrayList<>()).add(bone);
+      }
+      this.bonesById = Map.copyOf(indexedBones);
+      Map<String, List<Bone>> immutableNames = new LinkedHashMap<>();
+      indexedNames.forEach((name, matches) -> immutableNames.put(name, List.copyOf(matches)));
+      this.bonesByName = Map.copyOf(immutableNames);
+      Map<String, List<Bone>> immutableChildren = new LinkedHashMap<>();
+      indexedChildren.forEach((parent, children) -> immutableChildren.put(parent, List.copyOf(children)));
+      this.childrenByParent = Map.copyOf(immutableChildren);
       this.cubeParents = Map.copyOf(cubeParents);
       this.animations = Collections.unmodifiableMap(new LinkedHashMap<>(animations));
       this.cubeBoneChains = resolveBoneChains(this.bones, this.cubeParents);
@@ -171,6 +191,9 @@ public final class MLuaBBModelAsset {
    public List<String> embeddedTextures() { return embeddedTextures; }
    public List<Cube> cubes() { return cubes; }
    public List<Bone> bones() { return bones; }
+   public Bone boneById(String uuid) { return uuid == null ? null : bonesById.get(uuid); }
+   public List<Bone> bonesNamed(String name) { return name == null ? List.of() : bonesByName.getOrDefault(name, List.of()); }
+   public List<Bone> childrenOf(String parentUuid) { return parentUuid == null ? List.of() : childrenByParent.getOrDefault(parentUuid, List.of()); }
    public List<Bone> boneChainForCube(String cubeUuid) {
       return cubeBoneChains.getOrDefault(cubeUuid, List.of());
    }

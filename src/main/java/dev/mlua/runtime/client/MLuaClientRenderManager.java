@@ -218,6 +218,7 @@ public final class MLuaClientRenderManager {
                 for (var bone : object.bbmodel.boneChainForCube(cube.uuid())) {
                     object.animationPlayer.applyBoneTransform(pose, animation, bone, partialTick,
                         animatedPosition, animatedRotation, animatedScale);
+                    applyTransform(pose, object.modelPartTransform(bone.uuid()));
                 }
                 object.animationPlayer.applyCubeTransform(pose, animation, cube, partialTick,
                     animatedPosition, animatedRotation, animatedScale);
@@ -980,6 +981,7 @@ public final class MLuaClientRenderManager {
         private volatile float modelScale = 1.0F;
         private volatile String renderStage = "AFTER_ENTITIES";
         private final MLuaAnimationPlayer animationPlayer = new MLuaAnimationPlayer();
+        private final ConcurrentHashMap<String, MLuaCFrame> modelPartTransforms = new ConcurrentHashMap<>();
 
         private RenderObject(int id, RenderType type, String resource) {
             this.id = id;
@@ -1033,6 +1035,28 @@ public final class MLuaClientRenderManager {
         public MLuaCFrame followOffset() { return followOffset; }
         public MLuaMeshDefinition mesh() { return mesh; }
         public MLuaBBModelAsset bbmodel() { return bbmodel; }
+        public MLuaCFrame modelPartTransform(String boneId) {
+            // This accessor is called for every model bone on every rendered cube.
+            // The renderer already walks bone ids from the immutable parsed asset,
+            // so validating by scanning all bones here would make rendering O(cubes*bones).
+            return modelPartTransforms.getOrDefault(boneId, MLuaCFrame.IDENTITY);
+        }
+        public void setModelPartTransform(String boneId, MLuaCFrame transform) {
+            requireModelBone(boneId);
+            if (transform == null) throw new IllegalArgumentException("Model part transform cannot be null");
+            modelPartTransforms.put(boneId, transform);
+        }
+        public void resetModelPartTransform(String boneId) {
+            requireModelBone(boneId);
+            modelPartTransforms.remove(boneId);
+        }
+        private void requireModelBone(String boneId) {
+            MLuaBBModelAsset asset = this.bbmodel;
+            if (asset == null) throw new IllegalStateException("Model parts are available only on a loaded Blockbench model");
+            if (asset.boneById(boneId) == null) {
+                throw new IllegalArgumentException("Unknown Blockbench model part id: " + boneId);
+            }
+        }
         public MLuaAnimationPlayer animationPlayer() { return animationPlayer; }
         public float modelScale() { return modelScale; }
         public String renderStage() { return renderStage; }
@@ -1051,6 +1075,7 @@ public final class MLuaClientRenderManager {
             setFollowEntityScope(null);
             followOffsetBinding = FollowOffsetBinding.NONE;
             animationPlayer.stop();
+            modelPartTransforms.clear();
         }
         public synchronized void setZIndex(int zIndex) {
             if (this.zIndex == zIndex) return;
@@ -1221,6 +1246,7 @@ public final class MLuaClientRenderManager {
             copy.followEntityScope = followEntityScope;
             copy.mesh = mesh;
             copy.bbmodel = bbmodel;
+            copy.modelPartTransforms.putAll(modelPartTransforms);
             copy.resolvedTextures = resolvedTextures;
             copy.modelTextures = modelTextures;
             copy.modelScale = modelScale;
