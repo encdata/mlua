@@ -1272,40 +1272,8 @@ public final class MLuaModelAdapterRegistry {
             reportMissingPath(model.getClass(), boneName, null);
             return false;
         }
-        Object current = model;
-        String[] segments = MLuaModelFieldAccess.pathSegments(path).toArray(String[]::new);
-        IdentityHashMap<ModelPart, String> boneByPart = new IdentityHashMap<>();
-        if (scope != null) {
-            resolvedParts(model, mapping).forEach((bone, part) -> boneByPart.put(part, bone));
-        }
-        for (int index = 0; index < segments.length; index++) {
-            String segment = segments[index];
-            if (segment.isBlank()) {
-                reportMissingPath(model.getClass(), boneName, path);
-                return false;
-            }
-            if (current instanceof ModelPart parent) {
-                try {
-                    current = parent.getChild(segment);
-                } catch (RuntimeException missingChild) {
-                    reportMissingPath(model.getClass(), boneName, path);
-                    return false;
-                }
-            } else {
-                current = MLuaModelFieldAccess.readField(current, segment);
-            }
-            if (!(current instanceof ModelPart part)) {
-                reportMissingPath(model.getClass(), boneName, path);
-                return false;
-            }
-            String mappedBone = scope == null ? null : boneByPart.get(part);
-            if (mappedBone == null) {
-                part.translateAndRotate(poseStack);
-                continue;
-            }
-            if (!applyBonePartTransform(model, part, mappedBone, scope, poseStack)) return false;
-        }
-        return true;
+        return MLuaModelPartTransforms.applyMapped(model, boneName, path, poseStack, scope,
+            mapping == null ? Map.of() : mapping);
     }
 
     /** Applies the transform already present on a rendered model part without adding MLua poses again. */
@@ -1320,61 +1288,7 @@ public final class MLuaModelAdapterRegistry {
             reportMissingPath(model.getClass(), boneName, path);
             return false;
         }
-        Object current = model;
-        for (String segment : MLuaModelFieldAccess.pathSegments(path)) {
-            if (segment.isBlank()) {
-                reportMissingPath(model.getClass(), boneName, path);
-                return false;
-            }
-            if (current instanceof ModelPart parent) {
-                try {
-                    current = parent.getChild(segment);
-                } catch (RuntimeException missingChild) {
-                    reportMissingPath(model.getClass(), boneName, path);
-                    return false;
-                }
-            } else {
-                current = MLuaModelFieldAccess.readField(current, segment);
-            }
-            if (!(current instanceof ModelPart part)) {
-                reportMissingPath(model.getClass(), boneName, path);
-                return false;
-            }
-            if (!part.visible) return false;
-            part.translateAndRotate(poseStack);
-        }
-        return true;
-    }
-
-    private static boolean applyBonePartTransform(Object model, ModelPart part, String bone,
-            MLuaEntityScope scope, PoseStack poseStack) {
-        MLuaCFrame pose = renderPose(scope).get(bone);
-        MLuaClientModelManager.PartState state = MLuaClientModelManager.getPartState(scope, bone);
-        if (state != null && Boolean.FALSE.equals(state.visible())) return false;
-        if (pose == null && state == null) {
-            part.translateAndRotate(poseStack);
-            return true;
-        }
-        MLuaClientModelManager.rememberOverridePose(model, part);
-        try {
-            if (pose != null) applyPose(part, pose);
-            MLuaClientModelManager.applyState(model, part, state);
-            part.translateAndRotate(poseStack);
-            if (state != null && state.scale() != null) {
-                LuaTable scale = state.scale();
-                poseStack.scale((float) dimension(scale, "X"), (float) dimension(scale, "Y"),
-                    (float) dimension(scale, "Z"));
-            }
-        } finally {
-            MLuaClientModelManager.restoreOverridePose(model, part);
-        }
-        return true;
-    }
-
-    private static double dimension(LuaTable vector, String component) {
-        LuaValue value = vector.get(component);
-        if (value.isnil()) value = vector.get(component.toLowerCase(java.util.Locale.ROOT));
-        return value.checkdouble();
+        return MLuaModelPartTransforms.applyCurrent(model, boneName, path, poseStack);
     }
 
     private static void reportMissingPath(Class<?> modelClass, String boneName, String path) {
@@ -1385,7 +1299,7 @@ public final class MLuaModelAdapterRegistry {
         return MLuaModelPartResolver.resolvePath(root, path);
     }
 
-    private static Map<String, ModelPart> resolvedParts(Object model, Map<String, String> mappings) {
+    static Map<String, ModelPart> resolvedParts(Object model, Map<String, String> mappings) {
         return MLuaModelPartResolver.resolvedParts(model, mappings, MAPPING_GENERATION);
     }
 
