@@ -243,7 +243,7 @@ public final class MLuaServiceProperties {
          existingNewIndex.set(key, value);
          return LuaValue.NONE;
       }
-      return existingNewIndex.invoke(self, key, value, LuaValue.NONE);
+      return existingNewIndex.invoke(LuaValue.varargsOf(new LuaValue[]{self, key, value}));
    }
 
    private static LuaValue storeBase(LuaValue value) {

@@ -1194,7 +1194,7 @@ public final class MLuaClassRegistry {
             if (instanceNewIndexFallback.istable()) {
                instanceNewIndexFallback.set(key, value);
             } else if (instanceNewIndexFallback.isfunction()) {
-               instanceNewIndexFallback.invoke(receiver, key, value, LuaValue.NONE);
+               instanceNewIndexFallback.invoke(LuaValue.varargsOf(new LuaValue[]{receiver, key, value}));
             } else if (receiver.istable()) {
                receiver.checktable().rawset(key, value);
             }

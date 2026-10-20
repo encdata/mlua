@@ -15,19 +15,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Base64;
-import java.io.ByteArrayInputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.DynamicTexture;
-import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.gui.GuiGraphics;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -311,12 +304,7 @@ public final class MLuaClientRenderManager {
         for (MLuaBBModelRenderPlan.TextureBatch batch : batches) {
             ResourceLocation texture = batch.texture();
             boolean embeddedLease = object.resolvedTextures.contains(texture);
-            if (embeddedLease) EMBEDDED_TEXTURES.acquire(texture);
-            AtomicBoolean leaseReleased = new AtomicBoolean();
-            Runnable releaseLease = () -> {
-                if (embeddedLease && leaseReleased.compareAndSet(false, true)
-                        && EMBEDDED_TEXTURES.release(texture)) releaseEmbeddedTexture(texture);
-            };
+            Runnable releaseLease = embeddedLease ? EMBEDDED_TEXTURES.acquireLease(texture) : () -> { };
             if (embeddedLease) DEFERRED_RENDER_CLEANUPS.add(releaseLease);
             net.minecraft.client.renderer.RenderType renderType =
                 net.minecraft.client.renderer.RenderType.entityCutoutNoCull(texture);
@@ -707,12 +695,12 @@ public final class MLuaClientRenderManager {
             synchronized (object.executionLock()) {
                 if (object.destroyed || OBJECTS.get(id) != object) return;
                 try {
-                    object.resolvedTextures = registerEmbeddedTextures(asset);
-                    object.modelTextures = resolveModelTextures(asset, object.resolvedTextures);
+                    object.resolvedTextures = EMBEDDED_TEXTURES.registerModelTextures(asset);
+                    object.modelTextures = EMBEDDED_TEXTURES.resolveModelTextures(asset, object.resolvedTextures);
                     object.bbModelRenderPlan = MLuaBBModelRenderPlan.prepare(asset, object.modelTextures);
                     object.initialized = true;
                 } catch (RuntimeException | Error failure) {
-                    releaseEmbeddedTextures(object);
+                    EMBEDDED_TEXTURES.releaseModelTextures(object.resolvedTextures);
                     object.resolvedTextures = List.of();
                     object.bbModelRenderPlan = MLuaBBModelRenderPlan.empty();
                     MLuaLogger.LOGGER.error("[MLua] Failed to initialize BBModel render resources for RenderObject {}", id, failure);
@@ -754,53 +742,8 @@ public final class MLuaClientRenderManager {
         }
     }
 
-    private static List<ResourceLocation> registerEmbeddedTextures(MLuaBBModelAsset asset) {
-        List<ResourceLocation> result = new ArrayList<>();
-        for (int index = 0; index < asset.textures().size(); index++) {
-            String data = index < asset.embeddedTextures().size() ? asset.embeddedTextures().get(index) : "";
-            if (data == null || !data.startsWith("data:")) {
-                result.add(null);
-                continue;
-            }
-            try {
-                int comma = data.indexOf(',');
-                byte[] bytes = Base64.getDecoder().decode(data.substring(comma + 1));
-                ResourceLocation location = embeddedTextureLocation(bytes, index);
-                boolean acquired = EMBEDDED_TEXTURES.acquire(location);
-                if (acquired) {
-                    try {
-                        NativeImage image = NativeImage.read(new ByteArrayInputStream(bytes));
-                        Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(image));
-                    } catch (RuntimeException | java.io.IOException e) {
-                        if (EMBEDDED_TEXTURES.release(location)) releaseEmbeddedTexture(location);
-                        throw e;
-                    }
-                }
-                result.add(location);
-            } catch (RuntimeException | java.io.IOException ignored) {
-                result.add(null);
-            }
-        }
-        return result;
-    }
-
-    private static List<ResourceLocation> resolveModelTextures(MLuaBBModelAsset asset,
-                                                               List<ResourceLocation> embeddedTextures) {
-        List<ResourceLocation> result = new ArrayList<>(asset.textures().size());
-        for (int index = 0; index < asset.textures().size(); index++) {
-            ResourceLocation embedded = index < embeddedTextures.size() ? embeddedTextures.get(index) : null;
-            result.add(embedded != null ? embedded : resolveModelTexture(asset.textures().get(index)));
-        }
-        return java.util.Collections.unmodifiableList(result);
-    }
-
     static ResourceLocation embeddedTextureLocation(byte[] imageBytes, int index) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(imageBytes);
-            return MLuaResourceLocations.build("mlua", "bbmodel/" + HexFormat.of().formatHex(digest) + "/" + index);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is unavailable", e);
-        }
+        return MLuaEmbeddedTextureRegistry.embeddedTextureLocation(imageBytes, index);
     }
 
     public static RenderObject get(int id) {
@@ -824,7 +767,7 @@ public final class MLuaClientRenderManager {
         if (removed != null) {
             synchronized (removed.executionLock()) {
                 removed.markDestroyed();
-                releaseEmbeddedTextures(removed);
+                EMBEDDED_TEXTURES.releaseModelTextures(removed.resolvedTextures);
             }
             invalidateDrawOrder();
         }
@@ -874,27 +817,7 @@ public final class MLuaClientRenderManager {
         invalidateDrawOrder();
         RENDER_TARGET_INDEX.clear();
         OWNERS.clear();
-        EMBEDDED_TEXTURES.drain().forEach(MLuaClientRenderManager::releaseEmbeddedTexture);
-    }
-
-    private static void releaseEmbeddedTextures(RenderObject object) {
-        for (ResourceLocation location : object.resolvedTextures) {
-            if (location != null && EMBEDDED_TEXTURES.release(location)) releaseEmbeddedTexture(location);
-        }
-    }
-
-    private static void releaseEmbeddedTexture(ResourceLocation location) {
-        Minecraft minecraft = Minecraft.getInstance();
-        Runnable release = () -> {
-            if (EMBEDDED_TEXTURES.isReferenced(location)) return;
-            try {
-                minecraft.getTextureManager().release(location);
-            } catch (RuntimeException failure) {
-                MLuaLogger.LOGGER.warn("Could not release embedded MLua render texture {}", location, failure);
-            }
-        };
-        if (dev.mlua.runtime.client.MLuaClientThread.isClientThread()) release.run();
-        else minecraft.execute(release);
+        EMBEDDED_TEXTURES.releaseAll();
     }
 
     public static void attachToEntity(int renderId, int entityId) {
@@ -1092,24 +1015,6 @@ public final class MLuaClientRenderManager {
         ResourceLocation location = MLuaResourceLocations.tryParseOrNull(candidate);
         return location != null && Minecraft.getInstance().getResourceManager().getResource(location).isPresent()
             ? location : MLuaRenderHelper.fallbackTexture();
-    }
-
-    private static ResourceLocation resolveModelTexture(String path) {
-        if (path == null || path.isBlank()) return null;
-        String normalized = path.replace('\\', '/');
-        if (normalized.startsWith("data:")) return null;
-        if (normalized.startsWith("assets/")) {
-            String remainder = normalized.substring("assets/".length());
-            int slash = remainder.indexOf('/');
-            if (slash > 0) {
-                return MLuaResourceLocations.tryParseOrNull(remainder.substring(0, slash) + ":" + remainder.substring(slash + 1));
-            }
-        }
-        int namespaceSlash = normalized.indexOf('/');
-        if (namespaceSlash > 0 && normalized.substring(namespaceSlash + 1).startsWith("textures/")) {
-            return MLuaResourceLocations.tryParseOrNull(normalized.substring(0, namespaceSlash) + ":" + normalized.substring(namespaceSlash + 1));
-        }
-        return MLuaResourceLocations.tryParseOrNull(normalized);
     }
 
     static ItemStack resolveStack(String id, boolean block) {
