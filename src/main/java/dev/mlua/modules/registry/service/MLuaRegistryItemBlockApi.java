@@ -46,7 +46,7 @@ final class MLuaRegistryItemBlockApi {
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "ItemProperties", "Registry.Items:Register");
             List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
-            Map<String, Object> props = service.registryPropertiesMap(propsTable,
+            Map<String, Object> props = MLuaRegistryLuaValues.registryPropertiesMap(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             try {
                service.itemFactory.validateTypeDefinition(props);
@@ -56,7 +56,7 @@ final class MLuaRegistryItemBlockApi {
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
             String className = MLuaRegistryDefinitions.requireContentClass(registration, propsTable, "Item");
-            Map<String, LuaValue> itemCallbacks = service.collectCallbacks(propsTable,
+            Map<String, LuaValue> itemCallbacks = MLuaRegistryLuaValues.collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             boolean hasCallbacks = !itemCallbacks.isEmpty();
             boolean copyModel = MLuaRegistryDefinitions.booleanProperty(propsTable, "copyModel", "CopyModel");
@@ -104,7 +104,7 @@ final class MLuaRegistryItemBlockApi {
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "BlockProperties", "Registry.Blocks:Register");
             List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
-            Map<String, Object> props = new HashMap(service.registryPropertiesMap(propsTable,
+            Map<String, Object> props = new HashMap(MLuaRegistryLuaValues.registryPropertiesMap(propsTable,
                "onRightClick", "onPlace", "onBreak", "onStepOn", "onEntityInside",
                "onNeighborChanged", "onRemove", "onRandomTick", "onTick", "onFallOn", "onProjectileHit"));
             try {
@@ -126,9 +126,9 @@ final class MLuaRegistryItemBlockApi {
                   throw new LuaError("[MLua] Content class '" + blockEntityClass + "' must be registered and inherit from BlockEntity");
                }
             }
-            Map<String, LuaValue> blockEntityCallbacks = service.collectCallbacks(blockEntityProperties,
+            Map<String, LuaValue> blockEntityCallbacks = MLuaRegistryLuaValues.collectCallbacks(blockEntityProperties,
                "onLoad", "onUnload", "onOpen", "onClose", "onContainerChanged");
-            Map<String, LuaValue> blockCallbacks = service.collectCallbacks(propsTable,
+            Map<String, LuaValue> blockCallbacks = MLuaRegistryLuaValues.collectCallbacks(propsTable,
                "onRightClick", "onPlace", "onBreak", "onStepOn", "onEntityInside",
                "onNeighborChanged", "onRemove", "onRandomTick", "onTick", "onFallOn", "onProjectileHit");
             MLuaBehaviorRegistry.ContainerDefinition requestedContainer = null;
@@ -213,7 +213,7 @@ final class MLuaRegistryItemBlockApi {
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "ItemProperties", "Registry.Blocks:RegisterItem");
             List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
-            Map<String, Object> props = service.registryPropertiesMap(propsTable,
+            Map<String, Object> props = MLuaRegistryLuaValues.registryPropertiesMap(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             try {
                service.itemFactory.validateItemProperties(props);
@@ -223,7 +223,7 @@ final class MLuaRegistryItemBlockApi {
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
             String className = MLuaRegistryDefinitions.requireContentClass(registration, propsTable, "BlockItem");
-            Map<String, LuaValue> itemCallbacks = service.collectCallbacks(propsTable,
+            Map<String, LuaValue> itemCallbacks = MLuaRegistryLuaValues.collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             boolean hasCallbacks = !itemCallbacks.isEmpty();
 

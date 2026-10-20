@@ -1,7 +1,6 @@
 package dev.mlua.modules.registry.service;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +23,6 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.MLuaRuntimeSession;
-import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.loaderapi.GeneratedAssetKind;
@@ -471,57 +469,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       LuaTable result = new LuaTable();
       types.forEach((name, description) -> result.set(name, description));
       return result;
-   }
-
-   static Map<String, LuaValue> collectCallbacks(LuaTable properties, String... eventNames) {
-      Map<String, LuaValue> callbacks = new HashMap<>();
-      if (properties != null) {
-         for (String eventName : eventNames) {
-            LuaValue callback = properties.get(eventName);
-            if (callback.isnil()) continue;
-            if (!callback.isfunction()) {
-               throw new LuaError("[MLua] Registry callback '" + eventName + "' must be a function");
-            }
-         }
-         for (String eventName : eventNames) {
-            LuaValue callback = properties.get(eventName);
-            if (!callback.isnil()) callbacks.put(eventName, callback);
-         }
-      }
-      return Map.copyOf(callbacks);
-   }
-
-   static Map<String, Object> registryPropertiesMap(LuaTable properties, String... callbackNames) {
-      if (properties == null) return Map.of();
-      Set<String> callbacks = Set.of(callbackNames);
-      LuaTable values = new LuaTable();
-      LuaValue key = LuaValue.NIL;
-      while (true) {
-         Varargs next = properties.next(key);
-         key = next.arg1();
-         if (key.isnil()) break;
-         if (key.type() == LuaValue.TSTRING && callbacks.contains(key.tojstring())) continue;
-         LuaValue value = next.arg(2);
-         if (key.type() == LuaValue.TSTRING
-            && (key.tojstring().equals("blockEntity") || key.tojstring().equals("BlockEntity"))
-            && value.istable()) {
-            LuaTable blockEntity = new LuaTable();
-            LuaTable source = value.checktable();
-            LuaValue nestedKey = LuaValue.NIL;
-            while (true) {
-               Varargs nested = source.next(nestedKey);
-               nestedKey = nested.arg1();
-               if (nestedKey.isnil()) break;
-               if (nestedKey.type() == LuaValue.TSTRING
-                  && Set.of("onLoad", "onUnload", "onOpen", "onClose", "onContainerChanged")
-                     .contains(nestedKey.tojstring())) continue;
-               blockEntity.set(nestedKey, nested.arg(2));
-            }
-            value = blockEntity;
-         }
-         values.set(key, value);
-      }
-      return MLuaLuaBindings.mapFromLua(values);
    }
 
    void replaceBehaviors(String domain, String key, Map<String, LuaValue> requested) {

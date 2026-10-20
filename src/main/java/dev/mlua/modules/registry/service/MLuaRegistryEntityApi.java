@@ -173,7 +173,7 @@ final class MLuaRegistryEntityApi {
                throw new LuaError("[MLua] Entity '" + entityName + "' not registered yet. Register the entity before its spawn egg.");
             }
 
-            Map<String, LuaValue> itemCallbacks = service.collectCallbacks(propsTable,
+            Map<String, LuaValue> itemCallbacks = MLuaRegistryLuaValues.collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             MLuaLoaderRegistry.registerSpawnEgg(owner, name, entityType, primaryColor, secondaryColor);
             service.updateVisualMetadata(RegistryKind.ITEM, owner, name, previous ->
