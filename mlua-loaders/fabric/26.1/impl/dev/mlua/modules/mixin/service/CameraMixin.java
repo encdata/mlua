@@ -1,6 +1,7 @@
 package dev.mlua.modules.mixin.service;
 
 import dev.mlua.minecraft.client.MLuaCameraController;
+import dev.mlua.math.MLuaCFrame;
 import dev.mlua.runtime.client.MLuaRenderCallbacks;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
@@ -18,14 +19,11 @@ public abstract class CameraMixin {
         Float renderPartialTick = MLuaRenderCallbacks.readPartialTick(deltaTracker);
         float partialTick = renderPartialTick == null
             ? MLuaCameraController.currentRenderPartialTick() : renderPartialTick;
-        Vec3 position = MLuaCameraController.getScriptablePosition(partialTick);
-        if (position == null) return;
+        MLuaCFrame frame = MLuaCameraController.getScriptableCFrame(partialTick);
+        if (frame == null) return;
 
         CameraInvoker camera = (CameraInvoker) (Object) this;
-        camera.mlua$invokeSetPosition(position.x, position.y, position.z);
-        camera.mlua$invokeSetRotation(
-            MLuaCameraController.getScriptableYaw(((Camera) (Object) this).yRot(), partialTick),
-            MLuaCameraController.getScriptablePitch(((Camera) (Object) this).xRot(), partialTick)
-        );
+        camera.mlua$invokeSetPosition(frame.x(), frame.y(), frame.z());
+        camera.mlua$invokeSetRotation(frame.minecraftYaw(), frame.minecraftPitch());
     }
 }
