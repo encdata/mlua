@@ -89,12 +89,16 @@ public final class MLuaModelAdapterRegistry {
     private static final AtomicLong MAPPING_GENERATION = new AtomicLong();
     private static final Map<Class<?>, Map<String, String>> RESOLVED_MAPPINGS =
         Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<Class<?>, Map<CustomAdapter, List<String>>> RESOLVED_CUSTOM_ADAPTERS =
+    private static final Map<Class<?>, CustomAdapterResolution> RESOLVED_CUSTOM_ADAPTERS =
         Collections.synchronizedMap(new WeakHashMap<>());
     private static final MLuaWeakIdentityMap<Object, Map<String, String>> RESOLVED_INSTANCE_MAPPINGS =
         new MLuaWeakIdentityMap<>();
     private record AppliedModel(Class<?> modelClass, Map<String, String> mappings,
                                 java.util.Set<String> resolvedBones, java.util.Set<String> customBones) { }
+    private record CustomAdapterResolution(Map<CustomAdapter, List<String>> adapters,
+                                           Map<String, CustomAdapter> byBone) {
+        private static final CustomAdapterResolution EMPTY = new CustomAdapterResolution(Map.of(), Map.of());
+    }
 
     private static final class AdapterResolver {
         private final String modelClass;
@@ -168,7 +172,7 @@ public final class MLuaModelAdapterRegistry {
                 Map<String, String> safeMappings = mappings == null ? Map.of() : mappings;
                 resolvedParts(model, safeMappings).forEach((bone, part) -> bones.put(part, bone));
                 java.util.LinkedHashSet<String> customBones = new java.util.LinkedHashSet<>();
-                customAdaptersForModel(adaptedModel.getClass()).forEach((adapter, names) -> {
+                customAdaptersForModel(adaptedModel.getClass()).adapters().forEach((adapter, names) -> {
                     if (invokeCustomApply(adapter, adaptedModel, scope, names)) customBones.addAll(names);
                 });
                 java.util.LinkedHashSet<String> resolved = new java.util.LinkedHashSet<>(bones.values());
@@ -803,7 +807,7 @@ public final class MLuaModelAdapterRegistry {
             else reportMissingPath(model.getClass(), entry.getKey(), entry.getValue());
         }
         java.util.LinkedHashSet<String> customBones = new java.util.LinkedHashSet<>();
-        customAdaptersForModel(model.getClass()).values().forEach(customBones::addAll);
+        customAdaptersForModel(model.getClass()).adapters().values().forEach(customBones::addAll);
         resolved.addAll(customBones);
         java.util.Set<String> snapshot = Collections.unmodifiableSet(resolved);
         APPLIED_MODELS.put(scope, new AppliedModel(model.getClass(), mappings, snapshot,
@@ -875,13 +879,13 @@ public final class MLuaModelAdapterRegistry {
 
     private static boolean isAdaptedModel(Object model) {
         return model != null && (findMappingForModel(model) != null
-            || !customAdaptersForModel(model.getClass()).isEmpty());
+            || !customAdaptersForModel(model.getClass()).adapters().isEmpty());
     }
 
-    private static Map<CustomAdapter, List<String>> customAdaptersForModel(Class<?> modelClass) {
-        if (modelClass == null) return Map.of();
+    private static CustomAdapterResolution customAdaptersForModel(Class<?> modelClass) {
+        if (modelClass == null) return CustomAdapterResolution.EMPTY;
         synchronized (RESOLVED_CUSTOM_ADAPTERS) {
-            Map<CustomAdapter, List<String>> cached = RESOLVED_CUSTOM_ADAPTERS.get(modelClass);
+            CustomAdapterResolution cached = RESOLVED_CUSTOM_ADAPTERS.get(modelClass);
             if (cached != null) return cached;
             ArrayList<Class<?>> hierarchy = new ArrayList<>();
             for (Class<?> type = modelClass; type != null; type = type.getSuperclass()) hierarchy.add(type);
@@ -904,18 +908,16 @@ public final class MLuaModelAdapterRegistry {
                 for (String bone : adapter.bones) if (winners.get(bone) == adapter) bones.add(bone);
                 if (!bones.isEmpty()) selected.put(adapter, List.copyOf(bones));
             }
-            Map<CustomAdapter, List<String>> result = selected.isEmpty() ? Map.of()
-                : Collections.unmodifiableMap(selected);
+            CustomAdapterResolution result = selected.isEmpty() ? CustomAdapterResolution.EMPTY
+                : new CustomAdapterResolution(Collections.unmodifiableMap(selected),
+                    Collections.unmodifiableMap(new LinkedHashMap<>(winners)));
             RESOLVED_CUSTOM_ADAPTERS.put(modelClass, result);
             return result;
         }
     }
 
     private static CustomAdapter customAdapterForBone(Class<?> modelClass, String boneName) {
-        for (Map.Entry<CustomAdapter, List<String>> entry : customAdaptersForModel(modelClass).entrySet()) {
-            if (entry.getValue().contains(boneName)) return entry.getKey();
-        }
-        return null;
+        return customAdaptersForModel(modelClass).byBone().get(boneName);
     }
 
     private static LuaTable customBoneStates(MLuaEntityScope scope, List<String> bones) {
@@ -1033,7 +1035,7 @@ public final class MLuaModelAdapterRegistry {
         if (model == null || scope == null) return java.util.Set.of();
         if (!MLuaClientRenderThread.require("model adapter")) return java.util.Set.of();
         Map<String, String> mapping = findMappingForModel(model);
-        Map<CustomAdapter, List<String>> customAdapters = customAdaptersForModel(model.getClass());
+        Map<CustomAdapter, List<String>> customAdapters = customAdaptersForModel(model.getClass()).adapters();
         if (mapping == null && customAdapters.isEmpty()) {
             APPLIED_MODELS.remove(scope);
             return java.util.Set.of();

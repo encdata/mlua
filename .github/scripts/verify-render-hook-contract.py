@@ -367,6 +367,19 @@ for operation in ("RENDER_TARGET_INDEX.orderedEntityModels(scope)",
         fail(f"render manager does not delegate target indexing: {operation}")
 if "MLuaClientRenderManager.registerEntityModel(followEntityScope, this.id);" not in render_object:
     fail("render object attachment changes must update the manager-owned target index")
+for overlay in (
+    ROOT / "mlua-loaders/fabric/26.1/project/src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java",
+    ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java",
+):
+    if not overlay.is_file():
+        fail(f"26.1 render manager overlay is missing: {overlay.relative_to(ROOT)}")
+    overlay_source = overlay.read_text(encoding="utf-8")
+    if "public static final class RenderObject extends MLuaRenderObject" not in overlay_source:
+        fail(f"{overlay.relative_to(ROOT)} must use the common render-object state owner")
+    if "static void updateHeldItemModelIndex(MLuaRenderObject object" not in overlay_source:
+        fail(f"{overlay.relative_to(ROOT)} must preserve held-item indexing for shared render objects")
+    if "static void invalidateRenderTargetOrder()" not in overlay_source:
+        fail(f"{overlay.relative_to(ROOT)} must invalidate cached order for shared render objects")
 if "ENTITY_MODELS" in render_manager or "HELD_ITEM_MODELS" in render_manager:
     fail("render manager must not own target index storage")
 

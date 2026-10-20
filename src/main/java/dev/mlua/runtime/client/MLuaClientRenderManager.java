@@ -136,6 +136,10 @@ public final class MLuaClientRenderManager {
         RENDER_TARGET_INDEX.updateHeldItem(object);
     }
 
+    static void updateHeldItemModelIndex(MLuaRenderObject object, RenderTarget previousTarget, String previousItemId) {
+        RENDER_TARGET_INDEX.updateHeldItem(object);
+    }
+
     static void registerEntityModel(MLuaEntityScope scope, int id) {
         RENDER_TARGET_INDEX.registerEntityModel(scope, id);
     }

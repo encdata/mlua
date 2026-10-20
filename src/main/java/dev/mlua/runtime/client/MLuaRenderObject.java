@@ -191,6 +191,7 @@ class MLuaRenderObject {
     synchronized void markDestroyed() {
         if (destroyed) return;
         destroyed = true;
+        MLuaClientRenderManager.updateHeldItemModelIndex(this, renderTarget, heldItemId);
         visible = false;
         clearEntityAttachment();
         followOffsetBinding = FollowOffsetBinding.NONE;
@@ -210,10 +211,12 @@ class MLuaRenderObject {
             dev.mlua.loaderapi.LoaderApi.client().normalizeSupportedWorldModelStage(renderStage);
         }
         if (!worldSpace) clearEntityAttachment();
+        MLuaClientRenderManager.RenderTarget previousTarget = renderTarget;
+        String previousItemId = heldItemId;
         renderTarget = !worldSpace ? MLuaClientRenderManager.RenderTarget.HUD
             : (type == MLuaClientRenderManager.RenderType.MESH || type == MLuaClientRenderManager.RenderType.BBMODEL
                 ? MLuaClientRenderManager.RenderTarget.WORLD_MODEL : MLuaClientRenderManager.RenderTarget.WORLD_OVERLAY);
-        MLuaClientRenderManager.updateRenderTargetIndex(this);
+        MLuaClientRenderManager.updateHeldItemModelIndex(this, previousTarget, previousItemId);
     }
     public synchronized void setTarget(MLuaClientRenderManager.RenderTarget target) {
         if (target == null) throw new IllegalArgumentException("Render target cannot be null");
@@ -222,8 +225,10 @@ class MLuaRenderObject {
             if (!model) throw new IllegalArgumentException("Manual target requires a Mesh or BBModel object");
             clearEntityAttachment();
             followBoneName = null;
+            MLuaClientRenderManager.RenderTarget previousTarget = renderTarget;
+            String previousItemId = heldItemId;
             renderTarget = MLuaClientRenderManager.RenderTarget.MANUAL;
-            MLuaClientRenderManager.updateRenderTargetIndex(this);
+            MLuaClientRenderManager.updateHeldItemModelIndex(this, previousTarget, previousItemId);
             return;
         }
         if ((target == MLuaClientRenderManager.RenderTarget.WORLD_MODEL || target == MLuaClientRenderManager.RenderTarget.ENTITY_MODEL
@@ -240,13 +245,16 @@ class MLuaRenderObject {
             clearEntityAttachment();
             followBoneName = null;
         }
+        MLuaClientRenderManager.RenderTarget previousTarget = renderTarget;
+        String previousItemId = heldItemId;
         renderTarget = target;
-        MLuaClientRenderManager.updateRenderTargetIndex(this);
+        MLuaClientRenderManager.updateHeldItemModelIndex(this, previousTarget, previousItemId);
     }
     public synchronized void setHeldItemId(String itemId) {
+        String previousItemId = heldItemId;
         if (itemId == null || itemId.isBlank()) {
             this.heldItemId = null;
-            MLuaClientRenderManager.updateRenderTargetIndex(this);
+            MLuaClientRenderManager.updateHeldItemModelIndex(this, renderTarget, previousItemId);
             return;
         }
         String oldItemId = this.heldItemId;
@@ -256,7 +264,7 @@ class MLuaRenderObject {
             this.heldItemId = oldItemId;
             throw new IllegalArgumentException("Invalid held item id: " + itemId, invalid);
         }
-        MLuaClientRenderManager.updateRenderTargetIndex(this);
+        MLuaClientRenderManager.updateHeldItemModelIndex(this, renderTarget, previousItemId);
     }
     public synchronized void setWorldPosition(double x, double y, double z) {
         double nextX = finite(x, "WorldX");
