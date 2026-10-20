@@ -4,22 +4,16 @@ import dev.mlua.api.MLuaApiPolicy;
 import dev.mlua.api.MLuaLuaCoercions;
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.enums.Side;
-import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.core.signal.MLuaConnection;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.loaderapi.LoaderApi;
-import dev.mlua.runtime.server.MLuaServerThread;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.module.MLuaModuleLoader;
-import java.lang.ref.WeakReference;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
-import net.minecraft.server.MinecraftServer;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -29,15 +23,10 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
-import org.luaj.vm2.lib.jse.CoerceJavaToLua;
-import org.luaj.vm2.LuaThread;
 
 public final class MLuaLuaBindings {
-   private static final ThreadLocal<WeakReference<MLuaContext>> ACTIVE_CONTEXT = new ThreadLocal<>();
-   private static final Map<Globals, Set<String>> CONTEXT_GLOBAL_NAMES = new WeakHashMap<>();
    private static final String API_VERSION = MLuaApiPolicy.VERSION;
    private static final List<String> CAPABILITIES = MLuaApiPolicy.capabilities().stream().sorted().toList();
-   private static final LuaValue CONTEXT_KEY = LuaValue.valueOf("__mlua_context");
 
    private MLuaLuaBindings() {
    }
@@ -554,135 +543,27 @@ public final class MLuaLuaBindings {
    }
 
    public static void bindContext(Globals globals, MLuaContext context) {
-      if (context == null) ACTIVE_CONTEXT.remove();
-      else ACTIVE_CONTEXT.set(new WeakReference<>(context));
-      if (globals != null) {
-         globals.set(CONTEXT_KEY, context != null ? CoerceJavaToLua.coerce(context) : LuaValue.NIL);
-         if (context != null) globals.set("Docs", context.documentationTable(() -> MLuaDocumentationBindings.table(context)));
-      }
+      MLuaContextBindings.bindContext(globals, context);
    }
 
-   /** Binds all globals whose values depend on the active script context. */
    public static void configureContextGlobals(Globals globals, MLuaContext context) {
-      if (globals == null) return;
-      if (context == null) {
-         bindContext(globals, null);
-         clearContextGlobals(globals);
-         return;
-      }
-      synchronized (context) {
-         long moduleRevision = MLuaModuleLoader.get().globalsRevision();
-         if (context.contextGlobalsConfigured() && context.contextGlobalsRevision() == moduleRevision) {
-            boolean alreadyBound = boundContext(globals) == context;
-            bindContext(globals, context);
-            if (!alreadyBound) applyContextGlobals(globals, context);
-            return;
-         }
-         // Addon modules can be registered or closed while a runtime is live. Remove
-         // the previous context snapshot before collecting the current module set so
-         // removed globals do not linger and newly registered globals become visible.
-         clearContextGlobals(globals);
-         Map<String, LuaValue> before = snapshotGlobals(globals);
-         bindContext(globals, context);
-         LuaTable task = taskTable(context.scheduler(), globals);
-         globals.set("task", task);
-         globals.set("wait", task.get("wait"));
-         globals.set("Minecraft", minecraftTable(context));
-         MLuaModuleLoader.get().contributeContextGlobals(globals, context);
-         Map<String, LuaValue> after = snapshotGlobals(globals);
-         Map<String, LuaValue> bindings = new LinkedHashMap<>();
-         Set<String> keys = new java.util.TreeSet<>(before.keySet());
-         keys.addAll(after.keySet());
-         for (String key : keys) {
-            LuaValue previous = before.getOrDefault(key, LuaValue.NIL);
-            LuaValue current = after.getOrDefault(key, LuaValue.NIL);
-            if (previous != current) bindings.put(key, current);
-         }
-         context.configureContextGlobals(bindings, moduleRevision);
-         synchronized (CONTEXT_GLOBAL_NAMES) {
-            Set<String> names = CONTEXT_GLOBAL_NAMES.computeIfAbsent(globals, ignored -> new java.util.TreeSet<>());
-            names.addAll(bindings.keySet());
-         }
-      }
+      MLuaContextBindings.configureContextGlobals(globals, context);
    }
 
-   private static void clearContextGlobals(Globals globals) {
-      synchronized (CONTEXT_GLOBAL_NAMES) {
-         Set<String> names = CONTEXT_GLOBAL_NAMES.get(globals);
-         if (names != null) for (String name : names) globals.set(name, LuaValue.NIL);
-      }
-   }
-
-   private static Map<String, LuaValue> snapshotGlobals(Globals globals) {
-      Map<String, LuaValue> snapshot = new LinkedHashMap<>();
-      for (LuaValue key : globals.keys()) {
-         if (key.isstring()) snapshot.put(key.tojstring(), globals.rawget(key));
-      }
-      return snapshot;
-   }
-
-   private static void applyContextGlobals(Globals globals, MLuaContext context) {
-      Map<String, LuaValue> bindings = context.contextGlobals();
-      synchronized (CONTEXT_GLOBAL_NAMES) {
-         Set<String> names = CONTEXT_GLOBAL_NAMES.computeIfAbsent(globals, ignored -> new java.util.TreeSet<>());
-         names.addAll(bindings.keySet());
-         for (String name : names) globals.set(name, bindings.getOrDefault(name, LuaValue.NIL));
-      }
-      // The context marker and documentation table are bound by bindContext.
-   }
-
-   /** Runs Java-dispatched Lua work with its owner context and lock, restoring the caller context afterward. */
    public static <T> T withContext(MLuaContext context, java.util.function.Supplier<T> callback) {
-      java.util.Objects.requireNonNull(callback, "callback");
-      if (context == null) return callback.get();
-      Globals globals = context.globals();
-      return withExecutionLock(context, () -> {
-         MLuaContext previous = currentContext();
-         MLuaContext previousBound = boundContext(globals);
-         MLuaContext restore = previous != null && previous.globals() == globals ? previous : previousBound;
-         // The server owner thread may pump a nested Lua event while a coroutine
-         // is suspended with the execution lock held.
-         configureContextGlobals(globals, context);
-         try {
-            return callback.get();
-         } finally {
-            configureContextGlobals(globals, restore);
-         }
-      });
+      return MLuaContextBindings.withContext(context, callback);
    }
 
-   /** Runs a Java callback under the Lua environment's execution lock when that lock is required. */
    public static <T> T withExecutionLock(MLuaContext context, java.util.function.Supplier<T> callback) {
-      java.util.Objects.requireNonNull(callback, "callback");
-      if (context == null) return callback.get();
-      Globals globals = context.globals();
-      LuaThread running = globals == null ? null : globals.running;
-      if (canBypassExecutionLock(context, running)) return callback.get();
-      synchronized (context.executionLock()) {
-         return callback.get();
-      }
+      return MLuaContextBindings.withExecutionLock(context, callback);
    }
 
-   private static boolean canBypassExecutionLock(MLuaContext context, LuaThread running) {
-      if (running == null) return false;
-      if (running.isRunningOnCurrentThread()) return true;
-      MinecraftServer server = context.server();
-      return server != null && server.isSameThread()
-         && MLuaServerThread.isExecutingLuaOwnerWork(server);
-   }
-
-   /** Returns the Lua context active on this thread for a Java-backed callback. */
    public static MLuaContext activeContext(MLuaRegistration registration) {
-      MLuaContext context = currentContext();
-      return context != null && context.registration() == registration ? context : null;
+      return MLuaContextBindings.activeContext(registration);
    }
 
-   /** Returns the context active on this thread, if any. */
    public static MLuaContext currentContext() {
-      WeakReference<MLuaContext> reference = ACTIVE_CONTEXT.get();
-      MLuaContext context = reference == null ? null : reference.get();
-      if (context == null && reference != null) ACTIVE_CONTEXT.remove();
-      return context;
+      return MLuaContextBindings.currentContext();
    }
 
    private static Map<String, String> readServiceMethodDescriptions(LuaValue value) {
@@ -706,12 +587,7 @@ public final class MLuaLuaBindings {
    }
 
    public static MLuaContext boundContext(Globals globals) {
-      if (globals == null) {
-         return null;
-      }
-
-      LuaValue value = globals.get(CONTEXT_KEY);
-      return value.isuserdata(MLuaContext.class) ? (MLuaContext)value.touserdata(MLuaContext.class) : null;
+      return MLuaContextBindings.boundContext(globals);
    }
 
    public static LuaTable taskTable(final MLuaTaskSchedulerView scheduler, final Globals globals) {
