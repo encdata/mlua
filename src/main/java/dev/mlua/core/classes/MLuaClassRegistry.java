@@ -309,7 +309,7 @@ public final class MLuaClassRegistry {
          if (!entry.getValue().contains(mixinName)) continue;
          String mixinOwner = entry.getKey();
          for (String candidate : this.classes.keySet()) {
-            if (candidate.equals(mixinOwner) || this.inheritsFrom(candidate, mixinOwner, new HashSet<>())) {
+            if (candidate.equals(mixinOwner) || this.inheritsFrom(candidate, mixinOwner)) {
                this.refreshInheritedMethodDescriptions(candidate);
             }
          }
@@ -334,7 +334,7 @@ public final class MLuaClassRegistry {
          if (!entry.getValue().contains(mixinName)) continue;
          String mixinOwner = entry.getKey();
          for (String candidate : this.classes.keySet()) {
-            if (candidate.equals(mixinOwner) || this.inheritsFrom(candidate, mixinOwner, new HashSet<>())) {
+            if (candidate.equals(mixinOwner) || this.inheritsFrom(candidate, mixinOwner)) {
                this.refreshInheritedMethodDescriptions(candidate);
             }
          }
@@ -399,7 +399,7 @@ public final class MLuaClassRegistry {
          String methodName = candidateKey.tojstring();
          for (String candidateClass : this.classes.keySet()) {
             if (!candidateClass.equals(className)
-                && !this.inheritsFrom(candidateClass, className, new HashSet<>())) continue;
+                && !this.inheritsFrom(candidateClass, className)) continue;
             if (this.hasPropertyDefinition(candidateClass, methodName, new HashSet<>())) {
                throw new IllegalStateException("Cannot apply behavior mixin '" + mixinName + "' to class '"
                   + className + "': method '" + methodName + "' conflicts with a property on class '"
@@ -410,7 +410,7 @@ public final class MLuaClassRegistry {
       }
       for (String affectedClass : this.classes.keySet()) {
          if (!affectedClass.equals(className)
-             && !this.inheritsFrom(affectedClass, className, new HashSet<>())) continue;
+             && !this.inheritsFrom(affectedClass, className)) continue;
          for (String existingName : this.effectiveMixins(affectedClass, new HashSet<>())) {
             if (existingName.equals(mixinName)) continue;
             LuaTable existing = this.mixins.get(existingName);
@@ -692,7 +692,7 @@ public final class MLuaClassRegistry {
       for (Map.Entry<LuaTable, LuaTable> entry : this.instanceClasses.entrySet()) {
          LuaTable instanceClass = entry.getValue();
          String instanceClassName = instanceClass.rawget("__type").optjstring("");
-         if ((instanceClassName.equals(className) || this.inheritsFrom(instanceClassName, className, new HashSet<>()))
+         if ((instanceClassName.equals(className) || this.inheritsFrom(instanceClassName, className))
              && !entry.getKey().rawget(propertyName).isnil()) {
             throw new IllegalStateException("Cannot register class property '" + propertyName
                + "': a live " + instanceClassName + " instance already has that field");
@@ -704,7 +704,7 @@ public final class MLuaClassRegistry {
       for (Map.Entry<LuaTable, LuaTable> entry : this.instanceClasses.entrySet()) {
          LuaTable instanceClass = entry.getValue();
          String instanceClassName = instanceClass.rawget("__type").optjstring("");
-         if ((instanceClassName.equals(className) || this.inheritsFrom(instanceClassName, className, new HashSet<>()))
+         if ((instanceClassName.equals(className) || this.inheritsFrom(instanceClassName, className))
              && !entry.getKey().rawget(methodName).isnil()
              && !entry.getKey().rawget(methodName).isfunction()) {
             throw new IllegalStateException("Cannot register class method '" + methodName
@@ -718,7 +718,7 @@ public final class MLuaClassRegistry {
          LuaTable instanceClass = entry.getValue();
          String instanceClassName = instanceClass.rawget("__type").optjstring("");
          if (!instanceClassName.equals(changedClass)
-             && !this.inheritsFrom(instanceClassName, changedClass, new HashSet<>())) continue;
+             && !this.inheritsFrom(instanceClassName, changedClass)) continue;
          LuaTable descriptions = new LuaTable();
          this.collectPropertyDescriptions(instanceClassName, descriptions, new HashSet<>());
          entry.getKey().rawset("__mlua_doc_properties", descriptions);
@@ -787,8 +787,8 @@ public final class MLuaClassRegistry {
       LuaTable currentClass = this.instanceClasses.get(instance);
       if (currentClass != null && currentClass != classTable) {
          String currentName = currentClass.rawget("__type").optjstring("");
-         if (!this.inheritsFrom(className, currentName, new HashSet<>())) {
-            if (this.inheritsFrom(currentName, className, new HashSet<>())) {
+         if (!this.inheritsFrom(className, currentName)) {
+            if (this.inheritsFrom(currentName, className)) {
                if (parentName != null && !parentName.isBlank()
                   && !this.isClassOrParent(className, parentName)) {
                   throw new IllegalArgumentException("Lua class '" + className
@@ -972,20 +972,27 @@ public final class MLuaClassRegistry {
 
    private void refreshInheritedMethodDescriptionsFrom(String changedClass) {
       for (String candidate : this.classes.keySet()) {
-         if (candidate.equals(changedClass) || this.inheritsFrom(candidate, changedClass, new HashSet<>())) {
+         if (candidate.equals(changedClass) || this.inheritsFrom(candidate, changedClass)) {
             this.refreshInheritedMethodDescriptions(candidate);
          }
       }
    }
 
-   private boolean inheritsFrom(String className, String ancestor, Set<String> visited) {
-      if (!visited.add(className)) return false;
-      String parent = this.parents.get(className);
-      return parent != null && (parent.equals(ancestor) || this.inheritsFrom(parent, ancestor, visited));
+   private boolean inheritsFrom(String className, String ancestor) {
+      if (className == null || ancestor == null) return false;
+      String current = className;
+      int remaining = this.parents.size() + 1;
+      while (remaining-- > 0) {
+         String parent = this.parents.get(current);
+         if (parent == null) return false;
+         if (parent.equals(ancestor)) return true;
+         current = parent;
+      }
+      return false;
    }
 
    private boolean isClassOrParent(String className, String expectedName) {
-      return className.equals(expectedName) || this.inheritsFrom(className, expectedName, new HashSet<>());
+      return className.equals(expectedName) || this.inheritsFrom(className, expectedName);
    }
 
    private void refreshInheritedMethodDescriptions(String className) {
@@ -1433,9 +1440,9 @@ public final class MLuaClassRegistry {
       String actualName = this.classNameOf(value);
       if (actualName == null) actualName = "";
       if (targetName.equals(actualName)) return true;
-      Set<String> visited = new HashSet<>();
       String parent = this.parents.get(actualName);
-      while (parent != null && visited.add(parent)) {
+      int remaining = this.parents.size() + 1;
+      while (parent != null && remaining-- > 0) {
          if (targetName.equals(parent)) return true;
          parent = this.parents.get(parent);
       }
@@ -1470,9 +1477,9 @@ public final class MLuaClassRegistry {
    }
 
    private boolean wouldCreateCycle(String child, String parent) {
-      Set<String> visited = new HashSet<>();
       String current = parent;
-      while (current != null && visited.add(current)) {
+      int remaining = this.parents.size() + 1;
+      while (current != null && remaining-- > 0) {
          if (child.equals(current)) return true;
          current = this.parents.get(current);
       }

@@ -45,8 +45,24 @@ final class MLuaClassRegistryTest {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         registry.register("First", (String) null);
         registry.register("Second", "First");
+        registry.register("Third", "Second");
 
-        assertThrows(IllegalStateException.class, () -> registry.register("First", "Second"));
+        assertThrows(IllegalStateException.class, () -> registry.register("First", "Third"));
+    }
+
+    @Test
+    void ancestryQueriesWalkDeepSingleParentChains() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        registry.register("Root", (String) null);
+        registry.register("Middle", "Root");
+        registry.register("Leaf", "Middle");
+        LuaTable instance = new LuaTable();
+        registry.attachInstance(instance, "Leaf", null);
+
+        assertTrue(registry.isA(instance, "Leaf"));
+        assertTrue(registry.isA(instance, "Middle"));
+        assertTrue(registry.isA(instance, "Root"));
+        assertFalse(registry.isA(instance, "Unrelated"));
     }
 
     @Test
