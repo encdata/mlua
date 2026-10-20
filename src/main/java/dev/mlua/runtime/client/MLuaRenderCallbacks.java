@@ -186,11 +186,11 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue entityValue = MLuaEntityWrapper.entityTable(entity, hook.context.registration());
-                return new LuaValue[] {entityValue, renderContext(hook, "Entity", poseStack, bufferSource,
+                return LuaValue.varargsOf(entityValue, renderContext(hook, "Entity", poseStack, bufferSource,
                     null, validatedPartialTick == null ? 0.0F : validatedPartialTick,
                     validatedPartialTick != null, packedLight, 0, nativeContext,
                     "Entity", entityValue,
-                    "Renderer", userdata(renderer))};
+                    "Renderer", userdata(renderer)));
             });
         }
     }
@@ -232,11 +232,11 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue entityValue = MLuaEntityWrapper.entityTable(entity, hook.context.registration());
-                return new LuaValue[] {entityValue, renderContext(hook, "EntityPostRender", poseStack, bufferSource,
+                return LuaValue.varargsOf(entityValue, renderContext(hook, "EntityPostRender", poseStack, bufferSource,
                     model, validatedPartialTick == null ? 0.0F : validatedPartialTick,
                     validatedPartialTick != null, packedLight, 0, nativeContext,
                     "Entity", entityValue,
-                    "Renderer", userdata(renderer))};
+                    "Renderer", userdata(renderer)));
             });
         }
     }
@@ -311,13 +311,13 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue entityValue = MLuaEntityWrapper.entityTable(entity, hook.context.registration());
-                return new LuaValue[] {entityValue, renderContext(hook, "ThirdPersonItem",
+                return LuaValue.varargsOf(entityValue, renderContext(hook, "ThirdPersonItem",
                     poseStack, bufferSource, null, framePartialTick == null ? 0.0F : framePartialTick,
                     framePartialTick != null, packedLight, 0, null,
                     "Entity", entityValue,
                     "ItemStack", userdata(stack), "Hand", LuaValue.valueOf(hand),
                     "Arm", LuaValue.valueOf(arm.name()),
-                    "DisplayContext", LuaValue.valueOf(displayContext.name()))};
+                    "DisplayContext", LuaValue.valueOf(displayContext.name())));
             });
         }
     }
@@ -381,7 +381,7 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue playerValue = MLuaEntityWrapper.entityTable(player, hook.context.registration());
-                return new LuaValue[] {playerValue, renderContext(hook, "FirstPersonItem",
+                return LuaValue.varargsOf(playerValue, renderContext(hook, "FirstPersonItem",
                     poseStack, bufferSource, null, validatedPartialTick == null ? 0.0F : validatedPartialTick,
                     validatedPartialTick != null, packedLight, 0, null,
                     "Entity", playerValue,
@@ -390,7 +390,7 @@ public final class MLuaRenderCallbacks {
                     "Arm", LuaValue.valueOf(renderedArm.name()),
                     "DisplayContext", LuaValue.valueOf(displayContext.name()),
                     "Pitch", LuaValue.valueOf(validatedPitch), "SwingProgress", LuaValue.valueOf(validatedSwingProgress),
-                    "EquipProgress", LuaValue.valueOf(validatedEquipProgress))};
+                    "EquipProgress", LuaValue.valueOf(validatedEquipProgress)));
             });
         }
     }
@@ -532,11 +532,11 @@ public final class MLuaRenderCallbacks {
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue entityValue = MLuaEntityWrapper.entityTable(entity, hook.context.registration());
-                return new LuaValue[] {entityValue, renderContext(hook, "EntityModel", poseStack,
+                return LuaValue.varargsOf(entityValue, renderContext(hook, "EntityModel", poseStack,
                     bufferSource, model, partialTickAvailable ? validatedPartialTick : 0.0F, partialTickAvailable,
                     packedLight, packedOverlay, null,
                     "Entity", entityValue,
-                    "RenderState", userdata(renderState))};
+                    "RenderState", userdata(renderState)));
             });
         }
     }
@@ -551,10 +551,10 @@ public final class MLuaRenderCallbacks {
         if (partialTick == null) partialTick = currentClientPartialTick();
         Float renderPartialTick = partialTick;
         for (Hook hook : renderHooks) {
-            invokeSafely(hook, () -> new LuaValue[] {renderContext(hook, "World", poseStack, bufferSource, null,
+            invokeSafely(hook, () -> renderContext(hook, "World", poseStack, bufferSource, null,
                 renderPartialTick == null ? 0.0F : renderPartialTick, renderPartialTick != null,
                 DEFAULT_WORLD_RENDER_LIGHT, 0, nativeContext,
-                "Stage", LuaValue.valueOf(normalizedStage), "Camera", userdata(camera))});
+                "Stage", LuaValue.valueOf(normalizedStage), "Camera", userdata(camera)));
         }
     }
 
@@ -568,10 +568,10 @@ public final class MLuaRenderCallbacks {
         if (partialTick == null) partialTick = currentClientPartialTick();
         Float renderPartialTick = partialTick;
         for (Hook hook : renderHooks) {
-            invokeSafely(hook, () -> new LuaValue[] {renderContext(hook, "WorldGeometry", poseStack, renderSource, null,
+            invokeSafely(hook, () -> renderContext(hook, "WorldGeometry", poseStack, renderSource, null,
                 renderPartialTick == null ? 0.0F : renderPartialTick, renderPartialTick != null,
                 DEFAULT_WORLD_RENDER_LIGHT, 0, nativeContext,
-                "Stage", LuaValue.valueOf("CUSTOM_GEOMETRY"), "Camera", userdata(camera))});
+                "Stage", LuaValue.valueOf("CUSTOM_GEOMETRY"), "Camera", userdata(camera)));
         }
     }
 
@@ -655,8 +655,8 @@ public final class MLuaRenderCallbacks {
         List<Hook> renderHooks = renderHooks(hud);
         if (renderHooks.isEmpty()) return;
         for (Hook hook : renderHooks) {
-            invokeSafely(hook, () -> new LuaValue[] {renderContext(hook, "Hud", null, null, null, 0.0F, false, 0, 0, null,
-                "Graphics", userdata(graphics), "Width", LuaValue.valueOf(width), "Height", LuaValue.valueOf(height))});
+            invokeSafely(hook, () -> renderContext(hook, "Hud", null, null, null, 0.0F, false, 0, 0, null,
+                "Graphics", userdata(graphics), "Width", LuaValue.valueOf(width), "Height", LuaValue.valueOf(height)));
         }
     }
 
@@ -704,13 +704,13 @@ public final class MLuaRenderCallbacks {
     }
 
     /** Includes Lua wrapper and frame-context construction in the per-addon failure boundary. */
-    private static void invokeSafely(Hook hook, Supplier<LuaValue[]> argumentFactory) {
+    private static void invokeSafely(Hook hook, Supplier<Varargs> argumentFactory) {
         if (hook == null || !hook.active || hook.failed) return;
         if (!MLuaClientRenderThread.require("Lua render callback setup")) return;
         try {
-            LuaValue[] args = argumentFactory.get();
+            Varargs args = argumentFactory.get();
             if (args == null) throw new IllegalStateException("Render callback argument factory returned null");
-            invoke(hook, args, LuaValue.varargsOf(args));
+            invoke(hook, args);
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
@@ -718,8 +718,8 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    private static void invoke(Hook hook, LuaValue[] args, Varargs invocationArgs) {
-        FrameContextBinding frameBinding = findFrameScope(args);
+    private static void invoke(Hook hook, Varargs invocationArgs) {
+        FrameContextBinding frameBinding = findFrameScope(invocationArgs);
         if (!hook.active || hook.failed) {
             closeFrameScope(frameBinding);
             return;
@@ -851,9 +851,10 @@ public final class MLuaRenderCallbacks {
             hook.id, hook.key.owner().modId(), hook.target, failure);
     }
 
-    private static FrameContextBinding findFrameScope(LuaValue[] args) {
+    private static FrameContextBinding findFrameScope(Varargs args) {
         if (args == null) return null;
-        for (LuaValue argument : args) {
+        for (int index = 1; index <= args.narg(); index++) {
+            LuaValue argument = args.arg(index);
             if (argument == null || !argument.istable()) continue;
             LuaTable context = argument.checktable();
             synchronized (FRAME_SCOPES) {
