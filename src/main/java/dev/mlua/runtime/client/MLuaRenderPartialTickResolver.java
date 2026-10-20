@@ -23,15 +23,15 @@ public final class MLuaRenderPartialTickResolver {
         if (context == null) return null;
         Accessors accessors = ACCESSORS.get(context.getClass());
         Object direct = invoke(context, accessors.direct());
-        Float partialTick = finitePartialTick(direct);
+        Float partialTick = normalize(direct);
         if (partialTick != null) return partialTick;
 
         Object tracker = direct != null ? direct : invoke(context, accessors.tracker());
         if (tracker == null) return null;
         Accessors trackerAccessors = ACCESSORS.get(tracker.getClass());
-        partialTick = finitePartialTick(invoke(tracker, trackerAccessors.tickNoArg()));
+        partialTick = normalize(invoke(tracker, trackerAccessors.tickNoArg()));
         if (partialTick != null) return partialTick;
-        return finitePartialTick(invokeBoolean(tracker, trackerAccessors.tickWithBoolean()));
+        return normalize(invokeBoolean(tracker, trackerAccessors.tickWithBoolean()));
     }
 
     /** Reads the current client's tracker when a render hook does not provide one. */
