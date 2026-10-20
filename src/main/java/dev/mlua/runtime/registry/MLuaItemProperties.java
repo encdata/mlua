@@ -29,13 +29,16 @@ import org.luaj.vm2.LuaError;
 /** Owns built-in item definition validation and Minecraft Item.Properties construction. */
 final class MLuaItemProperties {
    private static final Map<String, Tier> TIERS = itemTiers();
+   private static final List<String> TIER_NAMES = List.copyOf(TIERS.keySet());
+   private static final List<String> RARITY_NAMES = java.util.Arrays.stream(Rarity.values())
+      .map(value -> value.name().toLowerCase(Locale.ROOT)).sorted().toList();
 
    static List<String> tierNames() {
-      return TIERS.keySet().stream().sorted().toList();
+      return TIER_NAMES;
    }
 
    static List<String> rarityNames() {
-      return java.util.Arrays.stream(Rarity.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).sorted().toList();
+      return RARITY_NAMES;
    }
 
    void validateItemProperties(Map<String, Object> properties) {

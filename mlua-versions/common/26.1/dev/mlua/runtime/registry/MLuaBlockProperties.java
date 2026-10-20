@@ -4,6 +4,7 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -20,13 +21,15 @@ import net.minecraft.world.level.material.PushReaction;
 final class MLuaBlockProperties {
     private static final Map<String, SoundType> SOUNDS = namedValues(SoundType.class, SoundType.class);
     private static final Map<String, MapColor> MAP_COLORS = mapColors();
+    private static final List<String> SOUND_NAMES = List.copyOf(SOUNDS.keySet());
+    private static final List<String> MAP_COLOR_NAMES = List.copyOf(MAP_COLORS.keySet());
 
-    static java.util.List<String> soundNames() {
-        return SOUNDS.keySet().stream().sorted().toList();
+    static List<String> soundNames() {
+        return SOUND_NAMES;
     }
 
-    static java.util.List<String> mapColorNames() {
-        return MAP_COLORS.keySet().stream().sorted().toList();
+    static List<String> mapColorNames() {
+        return MAP_COLOR_NAMES;
     }
 
     static void validateCopyDefinition(Map<String, Object> properties) {
