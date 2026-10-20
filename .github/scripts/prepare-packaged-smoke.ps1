@@ -577,8 +577,18 @@ Events.ItemPickup:Connect(function(event)
 end)
 Events.EntityHurt:Connect(function(event)
     if ciTestSheepUuid == nil or event.Entity:GetUUID() ~= ciTestSheepUuid then return end
-    assert(event.Player ~= nil and event.Player:GetUUID() == ciTestPlayer:GetUUID(),
-        "the server attributed the sheep hit to a different player")
+    -- The spawned sheep can take fall damage before the client submits its attack.
+    -- Only treat player-sourced damage as the attack under test; the runner still
+    -- requires the confirmation marker, so a missing player attack remains a failure.
+    if event.Player == nil then
+        if event.Attacker ~= nil and event.Attacker:IsA("Player") then
+            error("EntityHurt omitted Player for attacker " .. event.Attacker:GetUUID())
+        end
+        return
+    end
+    assert(ciTestPlayer ~= nil and event.Player:GetUUID() == ciTestPlayer:GetUUID(),
+        "the server attributed the sheep hit to " .. event.Player:GetUUID()
+            .. " instead of " .. (ciTestPlayer and ciTestPlayer:GetUUID() or "the test player"))
     assert(event.Amount > 0, "client attack did not produce positive server-side damage")
     print("MLUA_CI_PLAYER_ATTACK_CONFIRMED")
     ciTestPlayer:SendMessage("MLUA_CI_PLAYER_ATTACK_CONFIRMED")
@@ -1097,6 +1107,8 @@ local headAnimation = Animation.new({
     { Time = 0, Data = { head = CFrame.new(0.08, 0, 0) } },
 })
 local playerSeen = false
+local heartbeatTicks = 0
+local localPlayerNilReported = false
 local chatSent = false
 local firstPersonRendered = false
 local thirdPersonRequested = false
@@ -1271,8 +1283,16 @@ Gui.ChatLineAdding:Connect(function(line)
     end
 end)
 connection = RunService.Heartbeat:Connect(function()
+    heartbeatTicks = heartbeatTicks + 1
+    if heartbeatTicks == 1 then print("MLUA_CI_PLAYER_HEARTBEAT_FIRED") end
     local player = Players:GetLocalPlayer()
-    if player == nil then return end
+    if player == nil then
+        if heartbeatTicks >= 20 and not localPlayerNilReported then
+            localPlayerNilReported = true
+            print("MLUA_CI_PLAYER_HEARTBEAT_LOCAL_PLAYER_NIL")
+        end
+        return
+    end
     if not playerSeen then
         playerSeen = true
         print("MLUA_CI_PLAYER_CLIENT_JOINED:" .. player.Name)
