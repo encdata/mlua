@@ -1,6 +1,7 @@
 package dev.mlua.modules.world;
 
 import dev.mlua.module.MLuaDocBuilder;
+import dev.mlua.modules.entity.MLuaEntityQuery;
 
 /** Owns the published World, Chunk, BlockState, and dimension guide entries. */
 final class MLuaWorldDocumentation {

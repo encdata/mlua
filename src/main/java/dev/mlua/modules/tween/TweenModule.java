@@ -1,18 +1,15 @@
 package dev.mlua.modules.tween;
 
 import dev.mlua.common.enums.Side;
-import dev.mlua.common.enums.EasingStyle;
-import dev.mlua.common.enums.EasingDirection;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.modules.tween.service.MLuaTweenService;
+import dev.mlua.modules.tween.service.MLuaTweenInfo;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;
 import dev.mlua.module.MLuaRegistration;
-import dev.mlua.modules.enums.MLuaEnumValue;
 import dev.mlua.loaderapi.LoaderApi;
 import java.util.List;
 import org.luaj.vm2.Globals;
-import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -35,22 +32,7 @@ public final class TweenModule implements MLuaModule {
             @Override public Varargs invoke(Varargs args) {
                 LuaValue receiver = args.arg1() == library ? args.arg1() : LuaValue.NIL;
                 int offset = receiver.isnil() ? 0 : 1;
-                double duration = args.arg(offset + 1).checkdouble();
-                if (!Double.isFinite(duration) || duration < 0.0 || duration > 86_400.0) {
-                    throw new LuaError("[MLua] TweenInfo.new duration must be finite and between 0 and 86400 seconds.");
-                }
-                LuaValue styleValue = args.arg(offset + 2);
-                LuaValue directionValue = args.arg(offset + 3);
-                EasingStyle easingStyle = MLuaEnumValue.toJava(styleValue, EasingStyle.class);
-                EasingDirection easingDirection = MLuaEnumValue.toJava(directionValue, EasingDirection.class);
-                String style = easingStyle != null ? easingStyle.name() : styleValue.optjstring("Linear");
-                String direction = easingDirection != null ? easingDirection.name() : directionValue.optjstring("Out");
-                LuaTable info = new LuaTable();
-                info.set("Duration", duration);
-                info.set("EasingStyle", style);
-                info.set("EasingDirection", direction);
-                info.set("__type", "TweenInfo");
-                return info;
+                return MLuaTweenInfo.fromArguments(args, offset).toLuaTable();
             }
         });
         globals.set("TweenInfo", library);
