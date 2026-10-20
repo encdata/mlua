@@ -27,6 +27,9 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public abstract class MLuaReflectiveService extends MLuaServiceBase {
+   private static final ThreadLocal<MLuaServiceArgumentBuffers> ARGUMENT_BUFFERS =
+      ThreadLocal.withInitial(MLuaServiceArgumentBuffers::new);
+
    private record DescribedMethod(Method method, MethodHandle invoker, String description, Type[] genericParameterTypes,
                                   Class<?>[] parameterTypes, boolean varArgs, int minimumArgumentCount,
                                   Type varArgComponentType) {
@@ -187,9 +190,11 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          table.set(name, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
+               MLuaServiceArgumentBuffers buffers = ARGUMENT_BUFFERS.get();
+               Object[] javaArgs = buffers.acquire(describedMethod.parameterTypes().length);
                try {
                   int offset = serviceArgIndex(args, table);
-                  Object[] javaArgs = convertArguments(describedMethod, args, offset);
+                  convertArguments(describedMethod, args, offset, javaArgs);
                   Object result = MLuaReflectiveService.this.invokeServiceMethod(
                      () -> MLuaReflectiveService.this.invoke(describedMethod, invoker, javaArgs));
                   try {
@@ -217,6 +222,8 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
                } catch (Exception e) {
                   throw new LuaError(new RuntimeException("[MLua] Failed to invoke Java service method '" + name
                      + "' on '" + MLuaReflectiveService.this.name() + "'", e));
+               } finally {
+                  buffers.release(javaArgs);
                }
             }
          });
@@ -277,10 +284,9 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       return MLuaLuaCoercions.toLuaValue(value);
    }
 
-   private Object[] convertArguments(DescribedMethod plan, Varargs args, int offset) {
+   private void convertArguments(DescribedMethod plan, Varargs args, int offset, Object[] converted) {
       Method method = plan.method();
       int parameterCount = plan.parameterTypes().length;
-      Object[] converted = new Object[parameterCount];
       int suppliedCount = Math.max(0, args.narg() - offset);
       if (!plan.varArgs()) {
          int minimumCount = plan.minimumArgumentCount();
@@ -295,7 +301,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
             LuaValue value = index < suppliedCount ? args.arg(index + 1 + offset) : LuaValue.NIL;
             converted[index] = toJavaValue(value, plan.genericParameterTypes()[index]);
          }
-         return converted;
+         return;
       }
 
       int fixedCount = plan.minimumArgumentCount();
@@ -336,7 +342,6 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          }
       }
       converted[fixedCount] = packed;
-      return converted;
    }
 
    private static MLuaLuaCoercions.LuaValueValidator validateArgument(
