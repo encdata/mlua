@@ -21,6 +21,9 @@ import dev.mlua.runtime.client.MLuaRenderCallbacks;
 public final class MLuaCameraController {
    private static MLuaCFrame scriptableCFrame;
    private static MLuaCFrame previousScriptableCFrame;
+   private record CameraFrameSample(MLuaCFrame previous, MLuaCFrame current,
+                                    int partialTickBits, MLuaCFrame value) { }
+   private static volatile CameraFrameSample cameraFrameSample;
    private static Double fovOverride;
    private static Double previousFovOverride;
    private static double fovMultiplier = 1.0;
@@ -127,10 +130,17 @@ public final class MLuaCameraController {
    /** Returns the camera pose blended between script updates for this rendered frame. */
    public static MLuaCFrame getScriptableCFrame(float partialTick) {
       if (scriptableCFrame == null || !"Scriptable".equals(mode)) return null;
+      MLuaCFrame current = scriptableCFrame;
       MLuaCFrame previous = previousScriptableCFrame;
-      if (previous == null) return scriptableCFrame;
+      if (previous == null) return current;
       double alpha = Float.isFinite(partialTick) ? Math.max(0.0D, Math.min(1.0D, partialTick)) : 1.0D;
-      return previous.lerp(scriptableCFrame, alpha);
+      int partialTickBits = Float.floatToIntBits(partialTick);
+      CameraFrameSample cached = cameraFrameSample;
+      if (cached != null && cached.previous() == previous && cached.current() == current
+            && cached.partialTickBits() == partialTickBits) return cached.value();
+      MLuaCFrame value = previous.lerp(current, alpha);
+      cameraFrameSample = new CameraFrameSample(previous, current, partialTickBits, value);
+      return value;
    }
 
    /** Uses the current Minecraft frame fraction when a loader hook has no direct DeltaTracker parameter. */
@@ -143,6 +153,7 @@ public final class MLuaCameraController {
       if (cframe == null) throw new IllegalArgumentException("Camera CFrame cannot be null");
       previousScriptableCFrame = scriptableCFrame == null ? cframe : scriptableCFrame;
       scriptableCFrame = cframe;
+      cameraFrameSample = null;
    }
 
    public static void setFov(double fov) {
@@ -261,6 +272,7 @@ public final class MLuaCameraController {
       Minecraft mc = MLuaMinecraftClient.instance();
       scriptableCFrame = null;
       previousScriptableCFrame = null;
+      cameraFrameSample = null;
       fovOverride = null;
       previousFovOverride = null;
       fovMultiplier = 1.0;
@@ -310,7 +322,7 @@ public final class MLuaCameraController {
       double alpha = Float.isFinite(partialTick) ? Math.max(0.0D, Math.min(1.0D, partialTick)) : 1.0D;
       if (fovOverride != null || fovMultiplier != 1.0) {
          double fov = fovOverride == null ? currentFov
-            : lerp(previousFovOverride == null ? fovOverride : previousFovOverride, fovOverride, alpha);
+            : lerp(previousFovOverride == null ? currentFov : previousFovOverride, fovOverride, alpha);
          double multiplier = lerp(previousFovMultiplier, fovMultiplier, alpha);
          return fov * multiplier;
       }
