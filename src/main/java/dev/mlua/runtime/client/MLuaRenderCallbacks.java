@@ -555,7 +555,8 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    static Float readPartialTick(Object context) {
+    /** Reads the render fraction from loader-specific contexts and delta trackers. */
+    public static Float readPartialTick(Object context) {
         if (context == null) return null;
         PartialTickAccess access = PARTIAL_TICK_ACCESS.get(context.getClass());
         Object direct = invoke(context, access.direct());
