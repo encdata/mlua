@@ -54,7 +54,7 @@ final class RegistryEndpointCatalog {
         return new ArrayList<>(new TreeSet<>(this.endpoints.values().stream().map(RegistryEndpoint::table).toList()));
     }
 
-    private static String normalize(String alias) {
+    static String normalize(String alias) {
         return alias.trim().toLowerCase(java.util.Locale.ROOT);
     }
 

@@ -159,7 +159,7 @@ final class MLuaRegistryApi {
       table.set("Register", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = service.resolveEndpoint(category, "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(category, "category", table);
              LuaTable target = table.get(endpoint.table()).checktable();
              LuaValue register = target.get(endpoint.registerMethod());
              if (!register.isfunction()) throw new LuaError("[MLua] Registry category '" + category + "' does not support generic registration");
@@ -173,7 +173,7 @@ final class MLuaRegistryApi {
        });
       table.set("RegisterType", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = service.resolveEndpoint(args.checkjstring(2), "type domain", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(args.checkjstring(2), "type domain", table);
              LuaTable target = table.get(endpoint.typeTable()).checktable();
              return target.get("RegisterType").invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3), args.arg(4)}));
           }
@@ -182,7 +182,7 @@ final class MLuaRegistryApi {
       MLuaRegistryRootQueries.install(service, table);
        service.installGeneratedAssetLookupApi(recipes, GeneratedAssetKind.RECIPE);
        service.installGeneratedAssetLookupApi(loot, GeneratedAssetKind.LOOT_TABLE);
-       for (RegistryEndpoint endpoint : service.registryEndpoints.uniqueEndpoints()) {
+       for (RegistryEndpoint endpoint : service.endpointResolver.uniqueEndpoints()) {
           if (!endpoint.table().equals(endpoint.typeTable())) continue;
           if (service.dynamicRegistry.category(endpoint.table()) != null) continue;
           LuaTable target = table.get(endpoint.table()).checktable();

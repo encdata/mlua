@@ -18,14 +18,14 @@ final class MLuaRegistryRootQueries {
     static void install(MLuaRegistryService service, LuaTable table) {
       table.set("GetTypes", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = service.resolveEndpoint(args.checkjstring(2), "type domain", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(args.checkjstring(2), "type domain", table);
              LuaTable target = table.get(endpoint.typeTable()).checktable();
              return target.get("GetTypes").invoke(target);
           }
        });
       table.set("ResolveType", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = service.resolveEndpoint(args.checkjstring(2), "type domain", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(args.checkjstring(2), "type domain", table);
              LuaTable target = table.get(endpoint.typeTable()).checktable();
              return target.get("ResolveType").invoke(LuaValue.varargsOf(new LuaValue[]{target, args.arg(3)}));
           }
@@ -38,7 +38,7 @@ final class MLuaRegistryRootQueries {
        table.set("GetEntries", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = service.resolveEndpoint(category, "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(category, "category", table);
              if (service.isGeneratedDataEndpoint(endpoint.table())) {
                 return service.generatedDataEntryList(
                    args.checkjstring(3), service.optionalNamespace(args.arg(4)));
@@ -95,10 +95,10 @@ final class MLuaRegistryRootQueries {
        });
        table.set("GetCategories", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             service.refreshDynamicCategoryEndpoints(table);
+             service.endpointResolver.refresh(table);
              LuaTable result = new LuaTable();
              int index = 1;
-             java.util.TreeSet<String> categories = new java.util.TreeSet<>(service.registryEndpoints.categoryNames());
+             java.util.TreeSet<String> categories = new java.util.TreeSet<>(service.endpointResolver.categoryNames());
              service.dynamicRegistry.categories().forEach(category -> categories.add(category.name()));
              for (String category : categories) {
                 result.set(index++, LuaValue.valueOf(category));
@@ -108,14 +108,14 @@ final class MLuaRegistryRootQueries {
        });
        table.set("GetCategory", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = service.resolveEndpoint(args.checkjstring(2), "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(args.checkjstring(2), "category", table);
              return table.get(endpoint.table()).checktable();
           }
        });
        table.set("Get", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = service.resolveEndpoint(category, "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(category, "category", table);
              if (service.isGeneratedDataEndpoint(endpoint.table())) {
                 return service.generatedDataResource(args.checkjstring(3), args.checkjstring(4));
              }
@@ -137,7 +137,7 @@ final class MLuaRegistryRootQueries {
        table.set("GetAll", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = service.resolveEndpoint(category, "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(category, "category", table);
              if (service.isGeneratedDataEndpoint(endpoint.table())) {
                 return service.generatedDataEntryMap(
                    args.checkjstring(3), service.optionalNamespace(args.arg(4)));
@@ -157,7 +157,7 @@ final class MLuaRegistryRootQueries {
        table.set("GetIds", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = service.resolveEndpoint(category, "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(category, "category", table);
              if (service.isGeneratedDataEndpoint(endpoint.table())) {
                 return service.stringArray(service.generatedDataIds(
                    args.checkjstring(3), service.optionalNamespace(args.arg(4))));
@@ -176,7 +176,7 @@ final class MLuaRegistryRootQueries {
        });
        table.set("GetEntry", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
-             RegistryEndpoint endpoint = service.resolveEndpoint(args.checkjstring(2), "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(args.checkjstring(2), "category", table);
              if (service.isGeneratedDataEndpoint(endpoint.table())) {
                 return service.generatedDataResource(args.checkjstring(3), args.checkjstring(4));
              }
@@ -187,7 +187,7 @@ final class MLuaRegistryRootQueries {
        table.set("Exists", new VarArgFunction() {
           @Override public Varargs invoke(Varargs args) {
              String category = args.checkjstring(2);
-             RegistryEndpoint endpoint = service.resolveEndpoint(category, "category", table);
+             RegistryEndpoint endpoint = service.endpointResolver.resolve(category, "category", table);
              if (service.isGeneratedDataEndpoint(endpoint.table())) {
                 return LuaValue.valueOf(!service.generatedDataResource(
                    args.checkjstring(3), args.checkjstring(4)).isnil());

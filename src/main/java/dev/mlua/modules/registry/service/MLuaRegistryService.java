@@ -1,10 +1,7 @@
 package dev.mlua.modules.registry.service;
 
-import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import com.google.gson.JsonObject;
 
@@ -15,8 +12,6 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-
-import net.minecraft.resources.ResourceLocation;
 
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.enums.Side;
@@ -38,10 +33,10 @@ import dev.mlua.runtime.registry.MLuaBlockFactory;
 import dev.mlua.runtime.registry.MLuaCreativeTabFactory;
 import dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog;
 import dev.mlua.runtime.registry.MLuaItemFactory;
+import net.minecraft.resources.ResourceLocation;
 
 public final class MLuaRegistryService extends MLuaServiceBase {
-   final RegistryEndpointCatalog registryEndpoints = new RegistryEndpointCatalog();
-   final Set<String> dynamicCategoryEndpoints = java.util.concurrent.ConcurrentHashMap.newKeySet();
+   final MLuaRegistryEndpointResolver endpointResolver;
    final MLuaDynamicRegistryCatalog dynamicRegistry = this.sharedState(
       "dynamic-categories", MLuaDynamicRegistryCatalog.class, MLuaDynamicRegistryCatalog::new);
    final MLuaItemFactory itemFactory = new MLuaItemFactory();
@@ -57,6 +52,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
 
    public MLuaRegistryService(MLuaService.Context context) {
       super(context);
+      this.endpointResolver = new MLuaRegistryEndpointResolver(this);
       this.generatedResources = new MLuaRegistryGeneratedResources(context, this::registryId);
       this.tagOperations = new MLuaRegistryTagOperations(this);
       this.visualOperations = new MLuaRegistryVisualOperations(this);
@@ -293,25 +289,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       this.dynamicCategoryInstaller.installCategoryRegistration(registry);
    }
 
-   static String registryCategory(String value) {
-      String candidate = value == null ? "" : value.trim();
-      if (candidate.length() > MLuaDynamicRegistryCatalog.MAX_CATEGORY_NAME_LENGTH) {
-         throw new LuaError("[MLua] Registry category names cannot exceed "
-            + MLuaDynamicRegistryCatalog.MAX_CATEGORY_NAME_LENGTH + " characters");
-      }
-      ResourceLocation id = candidate.contains(":")
-         ? MLuaResourceLocations.tryParseOrNull(candidate) : null;
-      if (id == null || !id.toString().equals(candidate)) {
-         throw new LuaError("[MLua] Registry category must be a valid lowercase namespaced identifier, such as 'addon:weapons'");
-      }
-      return id.toString();
-   }
-
-   static String dynamicContentTypeDomain(String owner, String category) {
-      String encodedCategory = HexFormat.of().formatHex(category.getBytes(StandardCharsets.UTF_8));
-      return "addon." + owner + ".category." + encodedCategory;
-   }
-
    static void documentRegistryTable(LuaTable target, String category) {
       target.rawset("__mlua_doc_description", LuaValue.valueOf(
          "Registry".equals(category)
@@ -404,43 +381,6 @@ public final class MLuaRegistryService extends MLuaServiceBase {
             + owner + "'; got '" + id + "'");
       }
       return id;
-   }
-
-   RegistryEndpoint resolveEndpoint(String category, String purpose, LuaTable registry) {
-      String key = category.trim().toLowerCase(java.util.Locale.ROOT);
-      MLuaDynamicRegistryCatalog.Category dynamicCategory = this.dynamicRegistry.category(key);
-      RegistryEndpoint endpoint;
-      if (dynamicCategory != null) {
-         endpoint = new RegistryEndpoint(dynamicCategory.name(), "Register", dynamicCategory.domain(),
-            dynamicCategory.name(), null, 2, List.of());
-         if (!endpoint.equals(this.registryEndpoints.get(key))) {
-            this.registryEndpoints.remove(key);
-            registry.set(dynamicCategory.name(), LuaValue.NIL);
-            this.installDynamicCategory(registry, dynamicCategory);
-         }
-         endpoint = this.registryEndpoints.get(key);
-      } else {
-         endpoint = this.registryEndpoints.builtIn(key);
-         RegistryEndpoint active = this.registryEndpoints.get(key);
-         if (endpoint == null) {
-            RegistryEndpoint stale = this.registryEndpoints.remove(key);
-            if (stale != null) registry.set(stale.table(), LuaValue.NIL);
-            this.dynamicCategoryEndpoints.remove(key);
-         } else if (active != endpoint) {
-            this.registryEndpoints.putIfAbsent(key, endpoint);
-         }
-      }
-      if (endpoint == null) throw new LuaError("[MLua] Unknown or unsupported Registry " + purpose + " '" + category + "'");
-      return endpoint;
-   }
-
-   void refreshDynamicCategoryEndpoints(LuaTable registry) {
-      for (String key : List.copyOf(this.dynamicCategoryEndpoints)) {
-         if (this.dynamicRegistry.category(key) != null) continue;
-         RegistryEndpoint stale = this.registryEndpoints.remove(key);
-         this.dynamicCategoryEndpoints.remove(key);
-         if (stale != null) registry.set(stale.table(), LuaValue.NIL);
-      }
    }
 
    void ensureRegistryPhase() {

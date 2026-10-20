@@ -27,7 +27,7 @@ final class MLuaRegistryDynamicCategoryInstaller {
       registry.set("RegisterCategory", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             service.ensureRegistryPhase();
-            String category = MLuaRegistryService.registryCategory(args.checkjstring(2));
+            String category = MLuaRegistryEndpointResolver.categoryName(args.checkjstring(2));
             String key = category.toLowerCase(java.util.Locale.ROOT);
             String description = args.checkjstring(3);
             LuaValue register = args.checkfunction(4);
@@ -36,17 +36,17 @@ final class MLuaRegistryDynamicCategoryInstaller {
                throw new LuaError("[MLua] Registry category descriptions cannot exceed "
                   + MLuaDynamicRegistryCatalog.MAX_CATEGORY_DESCRIPTION_LENGTH + " characters");
             }
-            service.refreshDynamicCategoryEndpoints(registry);
+            service.endpointResolver.refresh(registry);
             String owner = service.apiContext().mlua().ownerModId();
             String namespace = category.substring(0, category.indexOf(':'));
             if (!owner.equals(namespace)) {
                throw new LuaError("[MLua] Registry category '" + category
                   + "' must use the registering addon's namespace '" + owner + "'");
             }
-            if (service.registryEndpoints.contains(key)) {
+            if (service.endpointResolver.contains(key)) {
                throw new LuaError("[MLua] Registry category '" + category + "' is already registered");
             }
-            String domain = service.dynamicContentTypeDomain(owner, category);
+            String domain = MLuaRegistryEndpointResolver.contentTypeDomain(owner, category);
             dev.mlua.core.MLuaContext callbackContext = MLuaLuaBindings.boundContext(
                service.apiContext().mlua().globals());
             if (callbackContext == null || !owner.equals(callbackContext.ownerModId())) {
@@ -61,8 +61,7 @@ final class MLuaRegistryDynamicCategoryInstaller {
                if (service.dynamicRegistry.unregister(key, registered)) {
                   RegistryEndpoint endpoint = new RegistryEndpoint(
                      category, "Register", domain, category, null, 2, List.of());
-                  service.registryEndpoints.remove(key, endpoint);
-                  service.dynamicCategoryEndpoints.remove(key);
+                  service.endpointResolver.removeDynamic(key, endpoint);
                   registry.set(category, LuaValue.NIL);
                }
             };
@@ -81,9 +80,8 @@ final class MLuaRegistryDynamicCategoryInstaller {
       String key = categoryName.trim().toLowerCase(java.util.Locale.ROOT);
       RegistryEndpoint endpoint = new RegistryEndpoint(categoryName, "Register", categoryDomain,
          categoryName, null, 2, List.of());
-      RegistryEndpoint existing = service.registryEndpoints.putIfAbsent(key, endpoint);
+      RegistryEndpoint existing = service.endpointResolver.registerDynamic(key, endpoint);
       if (existing != null) return;
-      service.dynamicCategoryEndpoints.add(key);
       LuaTable target = service.registryTable(categoryName);
       target.set("Register", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
