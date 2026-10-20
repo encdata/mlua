@@ -21,6 +21,7 @@ final class MLuaModuleRegistrations {
     private final Map<MLuaRegistration, Map<MLuaModule, List<String>>> addedMixins = new WeakHashMap<>();
     private final Map<MLuaRegistration, Map<MLuaModule, List<MixinApplication>>> appliedMixins = new WeakHashMap<>();
     private final Map<MLuaRegistration, Map<MLuaModule, List<Runnable>>> rollbackActions = new WeakHashMap<>();
+    private final Map<MLuaModule, MLuaModuleDocumentation> documentationByModule = new IdentityHashMap<>();
     private final MLuaModuleServiceRegistrations serviceLifecycle = new MLuaModuleServiceRegistrations();
 
     boolean registerClasses(MLuaModule module, MLuaRegistration registration) {
@@ -36,7 +37,8 @@ final class MLuaModuleRegistrations {
 
         try {
             module.registerClasses(tracked);
-            for (Map.Entry<String, String> entry : declaredDescriptions(module, MLuaDocBuilder.DocEntryType.CLASS).entrySet()) {
+            MLuaModuleDocumentation documentation = this.documentation(module);
+            for (Map.Entry<String, String> entry : documentation.descriptions(MLuaDocBuilder.DocEntryType.CLASS).entrySet()) {
                 LuaTable classTable = registration.classTable(entry.getKey());
                 if (classTable == null) continue;
                 LuaValue existing = classTable.rawget("__mlua_doc_description");
@@ -51,7 +53,7 @@ final class MLuaModuleRegistrations {
                     classTable.rawset("__mlua_doc_description", LuaValue.valueOf(entry.getValue()));
                 }
             }
-            declaredMethods(module).forEach((receiver, methods) -> {
+            documentation.methodsByReceiver().forEach((receiver, methods) -> {
                 LuaTable classTable = registration.classTable(receiver);
                 if (classTable == null) return;
                 snapshotClass(registration, receiver, snapshots);
@@ -105,8 +107,9 @@ final class MLuaModuleRegistrations {
         MLuaRegistration tracked = trackedRegistration(module, registration, added, snapshots, newMixins, newMixinApplications, moduleRollbackActions);
 
         try {
-            Map<String, String> descriptions = declaredDescriptions(module, MLuaDocBuilder.DocEntryType.SERVICE);
-            Map<String, Map<String, String>> methodDescriptions = declaredMethods(module);
+            MLuaModuleDocumentation documentation = this.documentation(module);
+            Map<String, String> descriptions = documentation.descriptions(MLuaDocBuilder.DocEntryType.SERVICE);
+            Map<String, Map<String, String>> methodDescriptions = documentation.methodsByReceiver();
             for (MLuaModule.ServiceEntry service : serviceEntries(module)) {
                 String description = mergeServiceDescription(service.name(), descriptions.get(service.name()), service.description());
                 Map<String, String> methods = mergeFunctionDescriptions(service.name(),
@@ -137,6 +140,9 @@ final class MLuaModuleRegistrations {
     }
 
     void rollbackClasses(MLuaModule module, MLuaRegistration registration) {
+        synchronized (this) {
+            this.documentationByModule.remove(module);
+        }
         if (registration != null) {
             this.rollbackClassesFrom(module, registration);
             return;
@@ -809,11 +815,15 @@ final class MLuaModuleRegistrations {
     }
 
     boolean registerServices(MLuaModule module, MLuaServiceRegistry registry) {
-        return this.serviceLifecycle.registerServices(module, registry);
+        return this.serviceLifecycle.registerServices(module, registry, this.documentation(module));
     }
 
     List<MLuaServiceRegistry.Registration> serviceRegistrations(MLuaModule module) {
-        return this.serviceLifecycle.serviceRegistrations(module);
+        return this.serviceLifecycle.serviceRegistrations(module, this.documentation(module));
+    }
+
+    private synchronized MLuaModuleDocumentation documentation(MLuaModule module) {
+        return this.documentationByModule.computeIfAbsent(module, MLuaModuleDocumentation::collect);
     }
 
     private List<MLuaModule.ServiceEntry> serviceEntries(MLuaModule module) {
@@ -836,78 +846,14 @@ final class MLuaModuleRegistrations {
         this.serviceLifecycle.rememberServices(registry, module, registrations);
     }
 
-    void unregisterServices(MLuaModule module) {
+    synchronized void unregisterServices(MLuaModule module) {
         this.serviceLifecycle.unregisterServices(module);
+        this.documentationByModule.remove(module);
     }
 
-    void forgetServiceEntries(MLuaModule module) {
+    synchronized void forgetServiceEntries(MLuaModule module) {
         this.serviceLifecycle.forgetServiceEntries(module);
+        this.documentationByModule.remove(module);
     }
 
-    static Map<String, String> declaredDescriptions(MLuaModule module, MLuaDocBuilder.DocEntryType type) {
-        MLuaDocBuilder docs = collectDocs(module);
-        Map<String, String> descriptions = new java.util.LinkedHashMap<>();
-        for (MLuaDocBuilder.DocEntry entry : docs.entries()) {
-            if (entry.type() == type && entry.desc() != null && !entry.desc().isBlank()) {
-                putConsistentDescription(descriptions, entry.name(), entry.desc(), entry.type() + " '" + entry.name() + "'");
-            }
-        }
-        return descriptions;
-    }
-
-    static Map<String, Map<String, String>> declaredMethods(MLuaModule module) {
-        MLuaDocBuilder docs = collectDocs(module);
-        Map<String, Map<String, Map<String, String>>> overloads = new java.util.LinkedHashMap<>();
-        for (MLuaDocBuilder.MethodDoc method : docs.methods()) {
-            String name = methodName(method.signature());
-            if (name == null || method.description() == null || method.description().isBlank()) continue;
-            Map<String, Map<String, String>> receiverMethods = overloads.computeIfAbsent(
-                method.receiver(), ignored -> new java.util.LinkedHashMap<>());
-            Map<String, String> signatures = receiverMethods.computeIfAbsent(name,
-                ignored -> new java.util.LinkedHashMap<>());
-            putConsistentDescription(signatures, method.signature().trim(), method.description(),
-                "overload '" + method.signature() + "'");
-        }
-        Map<String, Map<String, String>> methods = new java.util.LinkedHashMap<>();
-        overloads.forEach((receiver, receiverOverloads) -> {
-            Map<String, String> descriptions = new java.util.LinkedHashMap<>();
-            receiverOverloads.forEach((name, signatures) -> {
-                String description = signatures.size() == 1
-                    ? signatures.values().iterator().next()
-                    : signatures.entrySet().stream()
-                        .map(entry -> entry.getKey() + " — " + entry.getValue())
-                        .collect(java.util.stream.Collectors.joining("; "));
-                descriptions.put(name, description);
-            });
-            methods.put(receiver, descriptions);
-        });
-        return methods;
-    }
-
-    private static void putConsistentDescription(Map<String, String> descriptions, String key,
-                                                  String description, String displayName) {
-        String existing = descriptions.putIfAbsent(key, description);
-        if (existing != null && !existing.equals(description)) {
-            throw new IllegalStateException("Conflicting descriptions registered for " + displayName);
-        }
-    }
-
-    private static String methodName(String signature) {
-        if (signature == null) return null;
-        int separator = Math.max(signature.lastIndexOf(':'), signature.lastIndexOf('.'));
-        int start = separator + 1;
-        int end = signature.indexOf('(', start);
-        if (start >= signature.length() || end <= start) return null;
-        return signature.substring(start, end).trim();
-    }
-
-    private static MLuaDocBuilder collectDocs(MLuaModule module) {
-        MLuaDocBuilder docs = new MLuaDocBuilder();
-        try {
-            module.contributeDocs(docs);
-        } catch (Throwable error) {
-            MLuaLogger.LOGGER.warn("MLua module '{}' failed while contributing API descriptions", module.id(), error);
-        }
-        return docs;
-    }
 }

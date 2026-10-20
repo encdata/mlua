@@ -15,11 +15,12 @@ final class MLuaModuleServiceRegistrations {
         new WeakHashMap<>();
     private final Map<MLuaModule, List<MLuaModule.ServiceEntry>> entriesByModule = new IdentityHashMap<>();
 
-    synchronized boolean registerServices(MLuaModule module, MLuaServiceRegistry registry) {
+    synchronized boolean registerServices(MLuaModule module, MLuaServiceRegistry registry,
+                                          MLuaModuleDocumentation documentation) {
         List<MLuaServiceRegistry.Registration> batch = new ArrayList<>();
         try {
             List<MLuaModule.ServiceEntry> entries = serviceEntries(module);
-            List<MLuaServiceRegistry.Registration> declared = serviceRegistrations(module, entries);
+            List<MLuaServiceRegistry.Registration> declared = serviceRegistrations(module, entries, documentation);
             registry.registerBatch(module.side(), declared);
             batch.addAll(declared);
             rememberServices(registry, module, batch);
@@ -39,8 +40,9 @@ final class MLuaModuleServiceRegistrations {
         }
     }
 
-    List<MLuaServiceRegistry.Registration> serviceRegistrations(MLuaModule module) {
-        return serviceRegistrations(module, serviceEntries(module));
+    List<MLuaServiceRegistry.Registration> serviceRegistrations(MLuaModule module,
+                                                                 MLuaModuleDocumentation documentation) {
+        return serviceRegistrations(module, serviceEntries(module), documentation);
     }
 
     synchronized List<MLuaModule.ServiceEntry> serviceEntries(MLuaModule module) {
@@ -49,10 +51,10 @@ final class MLuaModuleServiceRegistrations {
     }
 
     private static List<MLuaServiceRegistry.Registration> serviceRegistrations(
-            MLuaModule module, List<MLuaModule.ServiceEntry> entries) {
-        Map<String, String> documentedServices = MLuaModuleRegistrations.declaredDescriptions(
-            module, MLuaDocBuilder.DocEntryType.SERVICE);
-        Map<String, Map<String, String>> documentedMethods = MLuaModuleRegistrations.declaredMethods(module);
+            MLuaModule module, List<MLuaModule.ServiceEntry> entries,
+            MLuaModuleDocumentation documentation) {
+        Map<String, String> documentedServices = documentation.descriptions(MLuaDocBuilder.DocEntryType.SERVICE);
+        Map<String, Map<String, String>> documentedMethods = documentation.methodsByReceiver();
         return entries.stream().map(entry -> {
             String description = MLuaModuleRegistrations.mergeServiceDescription(
                 entry.name(), documentedServices.get(entry.name()), entry.description());
