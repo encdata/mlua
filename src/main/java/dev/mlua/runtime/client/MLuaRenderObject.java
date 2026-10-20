@@ -16,7 +16,7 @@ import net.minecraft.resources.ResourceLocation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.luaj.vm2.LuaValue;
 
-final class MLuaRenderObject {
+class MLuaRenderObject {
     final int id;
     final MLuaClientRenderManager.RenderType type;
     volatile String luaClassName = "RenderObject";

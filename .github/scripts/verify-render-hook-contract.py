@@ -326,7 +326,7 @@ render_manager = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRender
 render_object = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderObject.java").read_text(encoding="utf-8")
 if "public static final class RenderObject extends MLuaRenderObject" not in render_manager:
     fail("render manager must keep its public RenderObject compatibility type")
-for contract in ("final class MLuaRenderObject", "executionLock()", "setFollowEntityScope(",
+for contract in ("class MLuaRenderObject", "executionLock()", "setFollowEntityScope(",
                  "setFollowOffsetCallback(", "copy()"):
     if contract not in render_object:
         fail(f"dedicated render object state owner is missing {contract}")

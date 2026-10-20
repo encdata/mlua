@@ -33,6 +33,17 @@ public final class MLuaServerThread {
         }
     }
 
+    private static <T> T withLuaOwnerWorkChecked(MinecraftServer server, CheckedSupplier<T> callback) throws Exception {
+        MinecraftServer previousServer = LUA_OWNER_WORK_SERVER.get();
+        LUA_OWNER_WORK_SERVER.set(server);
+        try {
+            return callback.get();
+        } finally {
+            if (previousServer == null) LUA_OWNER_WORK_SERVER.remove();
+            else LUA_OWNER_WORK_SERVER.set(previousServer);
+        }
+    }
+
     public static <T> T call(MinecraftServer server, Supplier<T> action) {
         try {
             return callChecked(server, action::get);
@@ -51,7 +62,7 @@ public final class MLuaServerThread {
         CompletableFuture<T> result = new CompletableFuture<>();
         server.execute(() -> {
             try {
-                result.complete(withLuaOwnerWork(server, action::get));
+                result.complete(withLuaOwnerWorkChecked(server, action));
             } catch (Throwable failure) {
                 result.completeExceptionally(failure);
             }

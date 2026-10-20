@@ -209,4 +209,47 @@ final class MLuaClassRegistryTest {
         classTable.set("ClassConstant", "value");
         assertEquals("value", classTable.get("ClassConstant").tojstring());
     }
+
+    @Test
+    void behaviorMixinDefinitionsAreSharedAndInheritedByInstances() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        LuaTable parent = registry.register("Parent", (String) null);
+        registry.register("Child", "Parent");
+        LuaTable mixin = registry.registerMixin("Interactable", "Adds a shared interaction action.");
+        VarArgFunction interact = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return LuaValue.valueOf("interacted:" + args.arg1().get("name").tojstring());
+            }
+        };
+
+        registry.registerMixinFunction("Interactable", "Interact", interact, "Runs the interaction action.");
+        registry.applyMixin("Parent", "Interactable");
+        LuaTable first = new LuaTable();
+        first.set("name", "door");
+        registry.attachInstance(first, "Child", null);
+
+        assertTrue(registry.mixin("Interactable") == mixin);
+        assertTrue(registry.hasMixin("Child", "Interactable"));
+        assertTrue(mixin.get("Interact") == interact);
+        assertEquals("interacted:door", first.get("Interact").call(first).tojstring());
+        assertEquals("Runs the interaction action.",
+            parent.rawget("__mlua_doc_inherited_methods").get("Interact").tojstring());
+    }
+
+    @Test
+    void pendingMixinRemovalWaitsUntilItsLastClassDetachesIt() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        registry.register("Widget", (String) null);
+        registry.registerMixin("Shared", "Adds a shared method.");
+        registry.registerMixinFunction("Shared", "Use", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
+        }, "Uses the shared behavior.");
+        registry.applyMixin("Widget", "Shared");
+
+        assertFalse(registry.removeMixin("Shared"));
+        assertTrue(registry.hasMixin("Widget", "Shared"));
+        assertTrue(registry.removeMixin("Widget", "Shared"));
+        assertFalse(registry.hasMixin("Widget", "Shared"));
+        assertTrue(registry.mixin("Shared") == null);
+    }
 }

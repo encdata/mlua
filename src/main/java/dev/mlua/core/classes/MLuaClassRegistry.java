@@ -22,19 +22,27 @@ public final class MLuaClassRegistry {
    private final Map<String, LuaTable> classes = new HashMap<>();
    private final Set<LuaTable> registeredClassTables = Collections.newSetFromMap(new IdentityHashMap<>());
    private final MLuaClassHierarchy hierarchy = new MLuaClassHierarchy();
-   private final Map<String, LuaTable> mixins = new HashMap<>();
+   private final MLuaClassMixinRegistry mixinRegistry;
    private final Map<String, List<String>> appliedMixins = new HashMap<>();
    private final Set<String> pendingClassRemovals = new HashSet<>();
-   private final Set<String> pendingMixinRemovals = new HashSet<>();
    private final Map<LuaTable, LuaTable> instanceClasses = new WeakHashMap<>();
    private final Map<LuaTable, InstanceDescription> instanceDescriptions = new WeakHashMap<>();
 
    public MLuaClassRegistry() {
+      this.mixinRegistry = new MLuaClassMixinRegistry(new MLuaClassMixinRegistry.Host() {
+         @Override public boolean classExists(String name) { return MLuaClassRegistry.this.classes.containsKey(name); }
+         @Override public void validateMethodRegistration(String mixinName, String methodName) {
+            MLuaClassRegistry.this.validateMixinMethodAvailability(mixinName, methodName);
+         }
+         @Override public void refreshAppliedClasses(String mixinName) {
+            MLuaClassRegistry.this.refreshClassesUsingMixin(mixinName);
+         }
+      });
    }
 
    public synchronized LuaTable register(String name, String parentName) {
       requireClassName(name);
-      if (this.mixins.containsKey(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
+      if (this.mixinRegistry.contains(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
       if (parentName == null || parentName.isBlank()) {
          parentName = null;
       } else {
@@ -81,7 +89,7 @@ public final class MLuaClassRegistry {
 
    public synchronized LuaTable register(String name, LuaTable classTable, String parentName) {
       requireClassName(name);
-      if (this.mixins.containsKey(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
+      if (this.mixinRegistry.contains(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
       Objects.requireNonNull(classTable, "classTable");
       this.validateDeclaredClassMethods(name, classTable);
       if (this.instanceClasses.containsKey(classTable)) {
@@ -188,145 +196,25 @@ public final class MLuaClassRegistry {
    }
 
    public synchronized LuaTable registerMixin(String name, String description) {
-      requireClassName(name);
-      if (description == null || description.isBlank()) {
-         throw new IllegalArgumentException("Lua mixin description must be non-empty");
-      }
-      LuaTable existing = this.mixins.get(name);
-      if (existing != null) {
-         LuaValue oldDescription = existing.rawget("__mlua_doc_description");
-         if (oldDescription.isstring() && !description.equals(oldDescription.tojstring())) {
-            throw new IllegalStateException("Lua mixin '" + name + "' is already registered with a different description");
-         }
-         this.pendingMixinRemovals.remove(name);
-         return existing;
-      }
-      if (this.classes.containsKey(name)) {
-         throw new IllegalStateException("Lua class already uses mixin name: " + name);
-      }
-      LuaTable mixin = new LuaTable();
-      mixin.rawset("__mixin_name", LuaValue.valueOf(name));
-      mixin.rawset("__mixin", LuaValue.TRUE);
-      mixin.rawset("__mlua_doc_description", LuaValue.valueOf(description));
-      mixin.rawset("__mlua_doc_methods", new LuaTable());
-      this.installMixinWriteGuard(mixin);
-      this.mixins.put(name, mixin);
-      return mixin;
-   }
-
-   private void installMixinWriteGuard(LuaTable mixin) {
-      LuaValue current = mixin.getmetatable();
-      LuaTable meta = current != null && current.istable() ? current.checktable() : new LuaTable();
-      LuaTable methods = new LuaTable();
-      meta.rawset("__mlua_mixin_methods", methods);
-      LuaValue previousIndex = meta.rawget("__index");
-      meta.rawset("__mlua_mixin_index_fallback", previousIndex.isnil() ? LuaValue.FALSE : previousIndex);
-      LuaValue indexFallback = meta.rawget("__mlua_mixin_index_fallback");
-      meta.rawset("__index", new VarArgFunction() {
-         @Override
-         public Varargs invoke(Varargs args) {
-            LuaValue key = args.arg(2);
-            LuaValue method = methods.get(key);
-            if (!method.isnil()) return method;
-            if (indexFallback.istable()) return indexFallback.get(key);
-            if (indexFallback.isfunction()) return indexFallback.invoke(args).arg1();
-            return LuaValue.NIL;
-         }
-      });
-      meta.rawset("__mlua_mixin_newindex", LuaValue.TRUE);
-      meta.rawset("__newindex", new VarArgFunction() {
-         @Override
-         public Varargs invoke(Varargs args) {
-            LuaValue key = args.arg(2);
-            LuaValue value = args.arg(3);
-            if (!methods.rawget(key).isnil()) {
-               throw new LuaError("[MLua] Cannot replace registered behavior mixin function '"
-                  + key.tojstring() + "' directly; use Minecraft:RegisterBehaviorMixinFunction.");
-            }
-            if (key.isstring()) {
-               String field = key.tojstring();
-               if (field.equals("__mixin") || field.equals("__mixin_name") || field.startsWith("__mlua_")) {
-                  throw new LuaError("[MLua] Cannot assign behavior mixin metadata field '" + field + "'.");
-               }
-               if (value.isfunction()) {
-                  throw new LuaError("[MLua] Register behavior mixin function '" + field
-                     + "' with Minecraft:RegisterBehaviorMixinFunction and a non-empty description.");
-               }
-            }
-            throw new LuaError("[MLua] Behavior mixin tables are managed by MLua; register functions with "
-               + "Minecraft:RegisterBehaviorMixinFunction.");
-         }
-      });
-      if (current == null || !current.istable()) mixin.setmetatable(meta);
+      return this.mixinRegistry.register(name, description);
    }
 
    public synchronized LuaTable mixin(String name) {
-      return this.mixins.get(name);
-   }
-
-   private static LuaTable mixinMethods(LuaTable mixin) {
-      LuaValue meta = mixin == null ? LuaValue.NIL : mixin.getmetatable();
-      LuaValue methods = meta.istable() ? meta.checktable().rawget("__mlua_mixin_methods") : LuaValue.NIL;
-      if (!methods.istable()) throw new IllegalStateException("Lua behavior mixin has invalid method storage");
-      return methods.checktable();
+      return this.mixinRegistry.get(name);
    }
 
    public synchronized Set<String> mixinNames() {
-      return Collections.unmodifiableSet(new TreeSet<>(this.mixins.keySet()));
+      return this.mixinRegistry.names();
    }
 
    public synchronized LuaTable registerMixinFunction(String mixinName, String functionName,
                                                        LuaValue function, String description) {
-      LuaTable mixin = this.mixins.get(mixinName);
-      if (mixin == null) throw new IllegalStateException("Lua mixin is not registered: " + mixinName);
-      if (functionName == null || functionName.isBlank()) throw new IllegalArgumentException("Function name must be non-empty");
-      if (MLuaRegistration.isReservedFunctionName(functionName)) {
-         throw new IllegalArgumentException("Mixin function name is reserved for MLua metadata: " + functionName);
-      }
-      if (function == null || !function.isfunction()) throw new IllegalArgumentException("Registered function must be a Lua function");
-      if (description == null || description.isBlank()) throw new IllegalArgumentException("Function description must be non-empty");
-      LuaValue existing = this.mixinMethods(mixin).rawget(functionName);
-      if (!existing.isnil() && existing != function) {
-         throw new IllegalStateException("Lua mixin '" + mixinName + "' already defines function '" + functionName + "'");
-      }
-      LuaValue docsValue = mixin.rawget("__mlua_doc_methods");
-      if (!docsValue.istable()) throw new IllegalStateException("Lua mixin '" + mixinName + "' has invalid method descriptions");
-      LuaValue oldDescription = docsValue.checktable().rawget(functionName);
-      if (oldDescription.isstring() && !description.equals(oldDescription.tojstring())
-         && existing != function) {
-         throw new IllegalStateException("Lua mixin '" + mixinName + "' function '" + functionName
-            + "' is already registered with a different description");
-      }
-      if (!oldDescription.isnil() && !oldDescription.isstring()) {
-         throw new IllegalStateException("Lua mixin '" + mixinName + "' function '" + functionName
-            + "' has invalid description metadata");
-      }
-      if (existing.isnil()) this.validateMixinMethodAvailability(mixinName, functionName);
-      this.pendingMixinRemovals.remove(mixinName);
-      this.mixinMethods(mixin).rawset(functionName, function);
-      mixin.rawget("__mlua_doc_methods").checktable().rawset(functionName, LuaValue.valueOf(description));
-      for (Map.Entry<String, List<String>> entry : this.appliedMixins.entrySet()) {
-         if (!entry.getValue().contains(mixinName)) continue;
-         String mixinOwner = entry.getKey();
-         for (String candidate : this.classes.keySet()) {
-            if (candidate.equals(mixinOwner) || this.inheritsFrom(candidate, mixinOwner)) {
-               this.refreshInheritedMethodDescriptions(candidate);
-            }
-         }
-      }
-      return mixin;
+      return this.mixinRegistry.registerFunction(mixinName, functionName, function, description);
    }
 
    public synchronized boolean unregisterMixinFunction(String mixinName, String functionName,
                                                         LuaValue expectedFunction) {
-      LuaTable mixin = this.mixins.get(mixinName);
-      if (mixin == null || functionName == null || expectedFunction == null
-         || this.mixinMethods(mixin).rawget(functionName) != expectedFunction) return false;
-      this.mixinMethods(mixin).rawset(functionName, LuaValue.NIL);
-      LuaValue docs = mixin.rawget("__mlua_doc_methods");
-      if (docs.istable()) docs.checktable().rawset(functionName, LuaValue.NIL);
-      this.refreshClassesUsingMixin(mixinName);
-      return true;
+      return this.mixinRegistry.unregisterFunction(mixinName, functionName, expectedFunction);
    }
 
    private void refreshClassesUsingMixin(String mixinName) {
@@ -343,14 +231,14 @@ public final class MLuaClassRegistry {
 
    public synchronized void applyMixin(String className, String mixinName) {
       if (!this.classes.containsKey(className)) throw new IllegalStateException("Lua class is not registered: " + className);
-      if (!this.mixins.containsKey(mixinName)) throw new IllegalStateException("Lua mixin is not registered: " + mixinName);
+      if (!this.mixinRegistry.contains(mixinName)) throw new IllegalStateException("Lua mixin is not registered: " + mixinName);
       if (this.effectiveMixins(className, new HashSet<>()).contains(mixinName)) {
          this.pendingClassRemovals.remove(className);
          return;
       }
       this.validateMixinApplication(className, mixinName);
       this.pendingClassRemovals.remove(className);
-      this.pendingMixinRemovals.remove(mixinName);
+      this.mixinRegistry.cancelPendingRemoval(mixinName);
       List<String> applied = this.appliedMixins.computeIfAbsent(className, ignored -> new ArrayList<>());
       applied.add(mixinName);
       this.refreshParentLookup(this.classes.get(className), className);
@@ -358,9 +246,9 @@ public final class MLuaClassRegistry {
    }
 
    public synchronized boolean removeMixin(String mixinName) {
-      if (!this.mixins.containsKey(mixinName)) return false;
+      if (!this.mixinRegistry.contains(mixinName)) return false;
       if (this.isMixinApplied(mixinName)) {
-         this.pendingMixinRemovals.add(mixinName);
+         this.mixinRegistry.markPendingRemoval(mixinName);
          return false;
       }
       this.removeMixinEntry(mixinName);
@@ -372,14 +260,13 @@ public final class MLuaClassRegistry {
    }
 
    private void removePendingMixinIfUnused(String mixinName) {
-      if (this.pendingMixinRemovals.contains(mixinName) && !this.isMixinApplied(mixinName)) {
+      if (this.mixinRegistry.isPendingRemoval(mixinName) && !this.isMixinApplied(mixinName)) {
          this.removeMixinEntry(mixinName);
       }
    }
 
    private void removeMixinEntry(String mixinName) {
-      if (this.mixins.remove(mixinName) == null) return;
-      this.pendingMixinRemovals.remove(mixinName);
+      if (this.mixinRegistry.remove(mixinName) == null) return;
       this.appliedMixins.values().forEach(values -> values.remove(mixinName));
       this.appliedMixins.entrySet().removeIf(entry -> entry.getValue().isEmpty());
       for (String className : this.classes.keySet()) this.refreshParentLookup(this.classes.get(className), className);
@@ -388,8 +275,8 @@ public final class MLuaClassRegistry {
    }
 
    private void validateMixinApplication(String className, String mixinName) {
-      LuaTable candidate = this.mixins.get(mixinName);
-      LuaTable candidateMethods = this.mixinMethods(candidate);
+      LuaTable candidate = this.mixinRegistry.get(mixinName);
+      LuaTable candidateMethods = MLuaClassMixinRegistry.methods(candidate);
       LuaValue candidateKey = LuaValue.NIL;
       while (true) {
          Varargs method = candidateMethods.next(candidateKey);
@@ -413,9 +300,9 @@ public final class MLuaClassRegistry {
              && !this.inheritsFrom(affectedClass, className)) continue;
          for (String existingName : this.effectiveMixins(affectedClass, new HashSet<>())) {
             if (existingName.equals(mixinName)) continue;
-            LuaTable existing = this.mixins.get(existingName);
+            LuaTable existing = this.mixinRegistry.get(existingName);
             if (existing == null) continue;
-            LuaTable existingMethods = this.mixinMethods(existing);
+            LuaTable existingMethods = MLuaClassMixinRegistry.methods(existing);
             LuaValue key = LuaValue.NIL;
             while (true) {
                Varargs entry = existingMethods.next(key);
@@ -442,7 +329,7 @@ public final class MLuaClassRegistry {
          this.ensureNoExistingInstanceFieldShadowingMethod(className, functionName);
          for (String otherName : effective) {
             if (otherName.equals(mixinName)) continue;
-            LuaTable other = this.mixins.get(otherName);
+            LuaTable other = this.mixinRegistry.get(otherName);
             if (other != null && other.get(functionName).isfunction()) {
                throw new IllegalStateException("Cannot add method '" + functionName + "' to behavior mixin '"
                   + mixinName + "': class '" + className + "' already receives it from mixin '"
@@ -895,7 +782,7 @@ public final class MLuaClassRegistry {
          }
       }
       for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         LuaTable mixin = this.mixins.get(mixinName);
+         LuaTable mixin = this.mixinRegistry.get(mixinName);
          if (mixin == null) continue;
          LuaValue descriptions = mixin.rawget("__mlua_doc_methods");
          if (!descriptions.istable()) continue;
@@ -939,9 +826,9 @@ public final class MLuaClassRegistry {
          }
       }
       for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         LuaTable mixin = this.mixins.get(mixinName);
+         LuaTable mixin = this.mixinRegistry.get(mixinName);
          if (mixin == null) continue;
-         LuaTable methods = this.mixinMethods(mixin);
+         LuaTable methods = MLuaClassMixinRegistry.methods(mixin);
          LuaValue key = LuaValue.NIL;
          while (true) {
             Varargs next = methods.next(key);
@@ -993,7 +880,7 @@ public final class MLuaClassRegistry {
       Set<String> ancestry = new HashSet<>();
       ancestry.add(className);
       for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         LuaTable mixin = this.mixins.get(mixinName);
+         LuaTable mixin = this.mixinRegistry.get(mixinName);
          if (mixin == null) continue;
          LuaValue descriptions = mixin.rawget("__mlua_doc_methods");
          if (!descriptions.istable()) continue;
@@ -1368,7 +1255,7 @@ public final class MLuaClassRegistry {
             LuaTable inheritedParent;
             synchronized (MLuaClassRegistry.this) {
                for (String mixinName : orderedMixins) {
-                  LuaTable mixin = MLuaClassRegistry.this.mixins.get(mixinName);
+                  LuaTable mixin = MLuaClassRegistry.this.mixinRegistry.get(mixinName);
                   if (mixin != null) {
                      LuaValue mixed = mixin.get(key);
                      if (!mixed.isnil()) return mixed;
@@ -1474,7 +1361,7 @@ public final class MLuaClassRegistry {
       }
    }
 
-   private static void requireClassName(String name) {
+   static void requireClassName(String name) {
       if (name == null || name.isBlank()) {
          throw new IllegalArgumentException("Lua class name must be non-empty");
       }
