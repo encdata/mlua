@@ -31,4 +31,18 @@ final class MLuaServiceArgumentBuffersTest {
         buffers.release(inner);
         buffers.release(outer);
     }
+
+    @Test
+    void deepAndWideCallsDoNotGrowTheRetainedBufferPoolWithoutBound() {
+        MLuaServiceArgumentBuffers buffers = new MLuaServiceArgumentBuffers();
+        Object[][] nested = new Object[17][];
+        for (int index = 0; index < nested.length; index++) nested[index] = buffers.acquire(2);
+        for (int index = nested.length - 1; index >= 0; index--) buffers.release(nested[index]);
+
+        Object[] wide = buffers.acquire(33);
+        buffers.release(wide);
+        Object[] anotherWide = buffers.acquire(33);
+        assertNotSame(wide, anotherWide);
+        buffers.release(anotherWide);
+    }
 }
