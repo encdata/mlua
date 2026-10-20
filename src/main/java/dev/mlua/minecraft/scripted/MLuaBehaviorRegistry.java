@@ -42,7 +42,21 @@ public final class MLuaBehaviorRegistry {
                               int activeBlockContainers, int blockContainersForAddon,
                               int activeContainerTypes, int containerTypesForAddon,
                               int activeEntityAIConfigs, int entityAIConfigsForAddon) { }
-   private record BehaviorSet(Map<String, LuaValue> callbacks, MLuaContext context) { }
+   private static final class BehaviorSet {
+      private final Map<String, LuaValue> callbacks;
+      private final MLuaContext context;
+      private final Snapshot snapshot;
+
+      private BehaviorSet(Map<String, LuaValue> callbacks, MLuaContext context,
+                          String domain, String key) {
+         this.callbacks = Map.copyOf(callbacks);
+         this.context = context;
+         this.snapshot = new Snapshot(this.callbacks, context, domain, key, this);
+      }
+
+      private Map<String, LuaValue> callbacks() { return this.callbacks; }
+      private MLuaContext context() { return this.context; }
+   }
    public static final class Snapshot {
       private final Map<String, LuaValue> callbacks;
       private final MLuaContext context;
@@ -52,12 +66,15 @@ public final class MLuaBehaviorRegistry {
 
       /** Creates an unversioned snapshot for rollback and compatibility callers. */
       public Snapshot(Map<String, LuaValue> callbacks, MLuaContext context) {
-         this(callbacks, context, null, null, null);
+         this(callbacks == null ? Map.of() : Map.copyOf(callbacks), context, null, null, null);
       }
 
       private Snapshot(Map<String, LuaValue> callbacks, MLuaContext context,
                        String domain, String key, BehaviorSet definition) {
-         this.callbacks = callbacks == null ? Map.of() : Map.copyOf(callbacks);
+         // BehaviorSet callbacks are immutable snapshots created when the behavior is
+         // registered or updated. Keep that map by reference on this hot path: scripted
+         // item/entity hooks can request a snapshot every tick or interaction.
+         this.callbacks = callbacks == null ? Map.of() : callbacks;
          this.context = context;
          this.domain = domain;
          this.key = key;
@@ -250,7 +267,7 @@ public final class MLuaBehaviorRegistry {
                definitions.computeIfPresent(key, (ignored, current) -> {
                   Map<String, LuaValue> updated = new java.util.HashMap<>(current.callbacks());
                   updated.remove(event);
-                  return updated.isEmpty() ? null : new BehaviorSet(Map.copyOf(updated), current.context());
+                  return updated.isEmpty() ? null : new BehaviorSet(updated, current.context(), domain, key);
                });
                return definitions.isEmpty() ? null : definitions;
             });
@@ -269,7 +286,7 @@ public final class MLuaBehaviorRegistry {
          SCRIPTED_BEHAVIORS.compute(domain, (ignoredDomain, currentDefinitions) -> {
             ConcurrentMap<String, BehaviorSet> result = currentDefinitions == null
                ? new ConcurrentHashMap<>() : currentDefinitions;
-            result.put(key, new BehaviorSet(Map.copyOf(updated), current == null ? null : current.context()));
+            result.put(key, new BehaviorSet(updated, current == null ? null : current.context(), domain, key));
             return result;
          });
       }
@@ -318,7 +335,7 @@ public final class MLuaBehaviorRegistry {
             ConcurrentMap<String, BehaviorSet> result = definitions == null
                ? new ConcurrentHashMap<>() : definitions;
             if (definition.isEmpty()) result.remove(key);
-            else result.put(key, new BehaviorSet(Map.copyOf(definition), context));
+            else result.put(key, new BehaviorSet(definition, context, domain, key));
             return result.isEmpty() ? null : result;
          });
       }
@@ -337,8 +354,7 @@ public final class MLuaBehaviorRegistry {
 
    public static Snapshot snapshotBehaviors(String domain, String key) {
       BehaviorSet definition = definition(domain, key);
-      return definition == null ? new Snapshot(Map.of(), null, domain, key, null)
-         : new Snapshot(definition.callbacks(), definition.context(), domain, key, definition);
+      return definition == null ? new Snapshot(Map.of(), null, domain, key, null) : definition.snapshot;
    }
 
    public static Varargs invokeBehavior(String domain, String key, String event, Varargs args) {
@@ -429,7 +445,7 @@ public final class MLuaBehaviorRegistry {
                    || current != null && current.context() != expectedContext) return current;
                restored.set(true);
                return previous == null || previous.callbacks().isEmpty() ? null
-                  : new BehaviorSet(Map.copyOf(previous.callbacks()), previous.context());
+                  : new BehaviorSet(previous.callbacks(), previous.context(), domain, key);
             });
             return values.isEmpty() ? null : values;
          });
