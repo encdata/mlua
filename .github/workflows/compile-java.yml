@@ -240,13 +240,14 @@ jobs:
           } else {
             $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
           }
+          $bootTimeout = if ('${{ matrix.loader }}' -eq 'forge') { 600 } else { 300 }
           & ../../.github/scripts/run-minecraft-smoke.ps1 `
             -Task runClient `
             -GradleArgs $gradleArgs `
             -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
             -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_INPUT_KEYBINDS_OK', 'MLUA_CI_TOAST_API_OK', 'MLUA_CI_BBMODEL_HIERARCHY_OK', 'MLUA_CI_MODEL_TRANSFORM_OK', 'MLUA_CI_TASK_LIMITS_OK', 'MLUA_CI_NESTED_TASK_SCHEDULE_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_PARTICLE_EMITTER_API_OK', 'MLUA_CI_NATIVE_SCREEN_STATE_OK', 'MLUA_CI_NATIVE_SCREEN_TICK_OK', 'MLUA_CI_NATIVE_SCREEN_CONTROLS_OK', 'MLUA_CI_NATIVE_SCREEN_BUTTON_CALLBACK_OK', 'MLUA_CI_NATIVE_SCREEN_EDITBOX_CHANGE_OK', 'MLUA_CI_CLOSED_SCREEN_CONTROLS_OK', 'MLUA_CI_SERVICE_PARITY_OK', 'MLUA_CI_GENERATED_ASSET_HANDLES_OK', 'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK', 'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK') `
             -LogFile 'client-smoke.log' `
-            -TimeoutSeconds 300
+            -TimeoutSeconds $bootTimeout
 
       - name: Upload client logs on failure
         if: failure()

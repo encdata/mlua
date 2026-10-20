@@ -6,12 +6,10 @@ import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.signal.MLuaConnection;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.module.MLuaRegistration;
-import dev.mlua.loaderapi.FrameClock;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,7 +25,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -44,7 +41,6 @@ import org.luaj.vm2.LuaTable;
 public final class MLuaRenderCallbacks {
     public static final long MAX_LUA_INSTRUCTIONS_PER_CALLBACK = MLuaCallbackBudget.MAX_INSTRUCTIONS;
     private static final int DEFAULT_WORLD_RENDER_LIGHT = 15_728_880;
-    private static volatile RenderFrameTime frameTime = RenderFrameTime.EMPTY;
     private static final String DEFAULT_PASS_ID = "mlua:default";
     /** Bounds callback dispatch work even when many addons register render hooks. */
     public static final int MAX_CALLBACKS = 4096;
@@ -71,26 +67,12 @@ public final class MLuaRenderCallbacks {
         "net.minecraft.client.renderer.MultiBufferSource");
     private static final Class<?> ENTITY_RENDER_STATE_CLASS = findOptionalClass(
         "net.minecraft.client.renderer.entity.state.EntityRenderState");
-    private static final ClassValue<PartialTickAccess> PARTIAL_TICK_ACCESS = new ClassValue<>() {
-        @Override protected PartialTickAccess computeValue(Class<?> type) {
-            return new PartialTickAccess(
-                findNoArg(type, "getPartialTick", "partialTick", "getPartialTickTime", "getTickDelta", "tickDelta", "getFrameTime"),
-                findNoArg(type, "tickCounter", "getTickCounter", "deltaTracker", "getDeltaTracker", "timer", "getTimer"),
-                findNoArg(type, "getGameTimeDeltaPartialTick", "getTickDelta", "getPartialTick", "getPartialTickTime"),
-                findBooleanArg(type, "getGameTimeDeltaPartialTick", "getTickDelta"));
-        }
-    };
     private MLuaRenderCallbacks() { }
 
     /** Stores the latest client render-frame duration in seconds for render callbacks. */
     public static void setFrameDeltaTime(double deltaTime) {
-        double bounded = FrameClock.boundedSeconds(deltaTime);
-        // Treat this as the latest sample, including the first sample from a
-        // newly initialized frame clock. Retaining an older positive value would
-        // make contexts claim to have a current interval before one exists.
-        frameTime = bounded > 0.0D
-            ? new RenderFrameTime(bounded, true)
-            : RenderFrameTime.EMPTY;
+        // Each frame replaces the previous sample, including an unavailable one.
+        MLuaRenderFrameClock.publish(deltaTime);
     }
 
     public static MLuaConnection register(String entityId, LuaValue callback, MLuaContext context) {
@@ -557,28 +539,11 @@ public final class MLuaRenderCallbacks {
 
     /** Reads the render fraction from loader-specific contexts and delta trackers. */
     public static Float readPartialTick(Object context) {
-        if (context == null) return null;
-        PartialTickAccess access = PARTIAL_TICK_ACCESS.get(context.getClass());
-        Object direct = invoke(context, access.direct());
-        Float value = finitePartialTick(direct);
-        if (value != null) return value;
-        Object source = direct != null ? direct : invoke(context, access.tracker());
-        if (source == null) return null;
-        PartialTickAccess sourceAccess = PARTIAL_TICK_ACCESS.get(source.getClass());
-        value = finitePartialTick(invoke(source, sourceAccess.tickNoArg()));
-        if (value != null) return value;
-        value = finitePartialTick(invokeBoolean(source, sourceAccess.tickWithBoolean()));
-        return value;
+        return MLuaRenderPartialTickResolver.read(context);
     }
 
     public static Float currentClientPartialTick() {
-        return readPartialTick(Minecraft.getInstance());
-    }
-
-    private static Float finitePartialTick(Object value) {
-        if (!(value instanceof Number number)) return null;
-        float partialTick = number.floatValue();
-        return Float.isFinite(partialTick) ? Math.max(0.0F, Math.min(1.0F, partialTick)) : null;
+        return MLuaRenderPartialTickResolver.currentClient();
     }
 
     private static float finiteOrZero(float value) {
@@ -587,47 +552,6 @@ public final class MLuaRenderCallbacks {
 
     private static float unitOrZero(float value) {
         return Float.isFinite(value) ? Math.max(0.0F, Math.min(1.0F, value)) : 0.0F;
-    }
-
-    private static Method findNoArg(Class<?> type, String... names) {
-        for (String name : names) {
-            try {
-                return type.getMethod(name);
-            } catch (NoSuchMethodException ignored) { }
-        }
-        return null;
-    }
-
-    private static Method findBooleanArg(Class<?> type, String... names) {
-        for (String name : names) {
-            try {
-                return type.getMethod(name, boolean.class);
-            } catch (NoSuchMethodException ignored) { }
-        }
-        return null;
-    }
-
-    private static Object invoke(Object target, Method method) {
-        if (target == null || method == null) return null;
-        try {
-            return method.invoke(target);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private static Object invokeBoolean(Object target, Method method) {
-        if (target == null || method == null) return null;
-        try {
-            return method.invoke(target, false);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private record PartialTickAccess(Method direct, Method tracker, Method tickNoArg, Method tickWithBoolean) { }
-    private record RenderFrameTime(double deltaTime, boolean available) {
-        private static final RenderFrameTime EMPTY = new RenderFrameTime(0.0D, false);
     }
 
     public static void renderHud(Object graphics, int width, int height) {
@@ -666,7 +590,7 @@ public final class MLuaRenderCallbacks {
 
     /** Resets per-frame timing when the client leaves a world without unregistering script hooks. */
     public static void resetFrameTime() {
-        frameTime = RenderFrameTime.EMPTY;
+        MLuaRenderFrameClock.reset();
     }
 
     private static void removeOwned(java.util.function.Predicate<Owner> predicate) {
@@ -892,7 +816,7 @@ public final class MLuaRenderCallbacks {
             contextValues.set("Model", scopedUserdata(frameScope, model));
             contextValues.set("PartialTick", LuaValue.valueOf(partialTick));
             contextValues.set("HasPartialTick", LuaValue.valueOf(hasPartialTick));
-            RenderFrameTime currentFrame = frameTime;
+            MLuaRenderFrameClock.Snapshot currentFrame = MLuaRenderFrameClock.current();
             contextValues.set("DeltaTime", LuaValue.valueOf(currentFrame.deltaTime()));
             contextValues.set("HasDeltaTime", LuaValue.valueOf(currentFrame.available()));
             contextValues.set("PackedLight", LuaValue.valueOf(packedLight));
