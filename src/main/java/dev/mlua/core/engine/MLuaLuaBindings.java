@@ -7,9 +7,6 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
-import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
-import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.core.signal.MLuaConnection;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.loaderapi.LoaderApi;
@@ -23,7 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.WeakHashMap;
 import net.minecraft.server.MinecraftServer;
 import org.luaj.vm2.Globals;
@@ -54,31 +50,13 @@ public final class MLuaLuaBindings {
         final LuaTable behaviorMixins = registeredBehaviorMixins(context.registration());
         table.set("GetService", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue name) {
-                return MLuaLuaBindings.liveServiceProxy(context, name.checkjstring());
+                return MLuaServiceBindings.liveServiceProxy(context, name.checkjstring());
             }
         });
         table.set("GetServiceNames", new ZeroArgFunction() {
             @Override
             public LuaValue call() {
-                LuaTable names = new LuaTable();
-                int index = 1;
-                Set<String> available = new TreeSet<>(context.services().availableNames(context.side()));
-                MLuaRegistration registration = context.registration();
-                if (registration != null) {
-                    Set<String> registeredServiceNames = context.services().names();
-                    for (String className : registration.classNames()) {
-                        LuaTable serviceClass = registration.classTable(className);
-                        if (serviceClass == null || !serviceClass.rawget("__mlua_service_class").toboolean()) continue;
-                        String serviceName = serviceClass.rawget("__mlua_service_name").optjstring("");
-                        if (!serviceName.isBlank() && !registeredServiceNames.contains(serviceName)) {
-                            available.add(serviceName);
-                        }
-                    }
-                }
-                for (String name : available) {
-                    names.rawset(index++, LuaValue.valueOf(name));
-                }
-                return names;
+                return MLuaServiceBindings.serviceNames(context);
             }
         });
         table.set("RegisterClass", new VarArgFunction() {
@@ -436,7 +414,7 @@ public final class MLuaLuaBindings {
         table.set("Capabilities", capabilitiesTable());
         table.set("Classes", classes);
         table.set("BehaviorMixins", behaviorMixins);
-        addDynamicServiceLookup(table, context);
+        MLuaServiceBindings.addDynamicLookup(table, context);
 
         return table;
     }
@@ -562,30 +540,6 @@ public final class MLuaLuaBindings {
         }
     }
 
-    private static void addDynamicServiceLookup(LuaTable table, MLuaContext context) {
-        LuaTable meta = new LuaTable();
-        meta.set("__index", new TwoArgFunction() {
-            @Override
-            public LuaValue call(LuaValue self, LuaValue key) {
-                if (!key.isstring()) return LuaValue.NIL;
-                String name = key.tojstring();
-                if (!context.services().isAvailable(name, context.side())
-                    && (context.services().isRegistered(name)
-                        || !isLuaBackedService(context.registration(), name))) return LuaValue.NIL;
-                return liveServiceProxy(context, name);
-            }
-        });
-        table.setmetatable(meta);
-    }
-
-   private static boolean isLuaBackedService(MLuaRegistration registration, String serviceName) {
-      if (registration == null) return false;
-      String className = registration.serviceClassName(serviceName);
-      LuaTable type = registration.classTable(className);
-      return type != null && type.rawget("__mlua_service_class").toboolean()
-         && serviceName.equals(type.rawget("__mlua_service_name").optjstring(""));
-   }
-
     public static LuaTable scriptContextTable(final MLuaContext context) {
         LuaTable table = minecraftTable(context);
         table.set("Minecraft", table);
@@ -597,168 +551,8 @@ public final class MLuaLuaBindings {
         return table;
     }
 
-   private static LuaTable liveServiceProxy(final MLuaContext context, final String serviceName) {
-      return context.serviceProxy(serviceName, () -> {
-         MLuaRegistration registration = context.registration();
-         String serviceClassName = null;
-         if (registration != null) {
-            String candidate = registration.serviceClassName(serviceName);
-            LuaTable serviceClass = registration.classTable(candidate);
-            boolean registeredJavaService = context.services().isRegistered(serviceName);
-            if (registeredJavaService) {
-               if (serviceClass == null || !serviceClass.rawget("__mlua_service_class").toboolean()
-                   || !serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring(""))) {
-                  throw missingServiceClass(serviceName, candidate);
-               }
-               serviceClassName = candidate;
-            } else if (serviceClass != null && serviceClass.rawget("__mlua_service_class").toboolean()
-                && serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring(""))) {
-               serviceClassName = candidate;
-            }
-         }
-         LuaTable proxy = new LuaTable();
-         LuaTable meta = new LuaTable();
-         meta.rawset("__mlua_service_name", LuaValue.valueOf(serviceName));
-         meta.set("__mlua_service_resolver", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-               LuaTable service = MLuaLuaBindings.resolveServiceTable(context, serviceName);
-               meta.rawset("__mlua_service_instance", service);
-               return service;
-            }
-         });
-         meta.set("__index", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-               LuaTable service = MLuaLuaBindings.resolveServiceTable(context, serviceName);
-               meta.rawset("__mlua_service_instance", service);
-               LuaValue key = args.arg(2);
-               if (registration != null) {
-                  String activeClassName = attachServiceClassIfAvailable(
-                     context, registration, serviceName, proxy);
-                  LuaTable serviceClass = activeClassName == null
-                     ? null : registration.classTable(activeClassName);
-                  LuaValue registeredMethod = serviceClass == null ? LuaValue.NIL : serviceClass.get(key);
-                  if (registeredMethod.isfunction()) return registeredMethod;
-                  if (service.rawget(key).isfunction()) return LuaValue.NIL;
-               }
-               return service.get(key);
-            }
-         });
-         meta.set("__newindex", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-               LuaTable service = MLuaLuaBindings.resolveServiceTable(context, serviceName);
-               meta.rawset("__mlua_service_instance", service);
-               LuaValue key = args.arg(2);
-               LuaValue value = args.arg(3);
-               service.set(key, value);
-               return LuaValue.NONE;
-            }
-         });
-         proxy.setmetatable(meta);
-         if (registration != null && serviceClassName != null) {
-            registration.attachClassInstance(proxy, serviceClassName, registration.serviceBaseClassName());
-         }
-         return proxy;
-      });
-   }
-
-   private static String attachServiceClassIfAvailable(MLuaContext context, MLuaRegistration registration,
-                                                       String serviceName, LuaTable proxy) {
-      String className = proxy.rawget("__type").optjstring(null);
-      LuaTable serviceClass = className == null ? null : registration.classTable(className);
-      if (serviceClass == null || !serviceClass.rawget("__mlua_service_class").toboolean()
-          || !serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring(""))) {
-         className = registration.serviceClassName(serviceName);
-         serviceClass = registration.classTable(className);
-      }
-      boolean registeredJavaService = context.services().isRegistered(serviceName);
-      if (registeredJavaService && (serviceClass == null
-          || !serviceClass.rawget("__mlua_service_class").toboolean()
-          || !serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring("")))) {
-         throw missingServiceClass(serviceName, className);
-      }
-      if (serviceClass == null || !serviceClass.rawget("__mlua_service_class").toboolean()
-          || !serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring(""))) {
-         return null;
-      }
-      if (!className.equals(proxy.rawget("__type").optjstring(""))) {
-         registration.attachClassInstance(proxy, className, registration.serviceBaseClassName());
-      }
-      return className;
-   }
-
-   private static LuaError missingServiceClass(String serviceName, String className) {
-      return new LuaError("[MLua] Service '" + serviceName + "' has no registered Lua class '"
-         + className + "'. Register its service class before scripts request it.");
-   }
-
-   private static LuaTable resolveServiceTable(final MLuaContext context, final String serviceName) {
-      return context.materializeService(serviceName, () -> {
-         if (!context.services().isRegistered(serviceName)) {
-            MLuaRegistration registration = context.registration();
-            if (registration != null) {
-               String className = registration.serviceClassName(serviceName);
-               LuaTable serviceClass = registration.classTable(className);
-               if (serviceClass != null && serviceClass.rawget("__mlua_service_class").toboolean()
-                   && serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring(""))) {
-                  java.util.function.Supplier<LuaTable> createInstance = () -> {
-                     LuaTable instance = new LuaTable();
-                     instance.rawset("__service", LuaValue.TRUE);
-                     LuaValue description = serviceClass.rawget("__mlua_doc_description");
-                     if (description.isstring()) instance.rawset("__mlua_doc_description", description);
-                     registration.attachClassInstance(instance, className, registration.serviceBaseClassName());
-                     context.recordMaterializedService(serviceName, instance);
-                     try {
-                        registration.initializeClassInitializers(instance, className, new LuaTable());
-                     } catch (RuntimeException | Error failure) {
-                        context.forgetMaterializedService(serviceName, instance);
-                        throw failure;
-                     }
-                     return instance;
-                  };
-                  LuaTable instance = context.session() == null ? createInstance.get()
-                     : context.session().materializeLuaService(context.side(), serviceName, serviceClass, createInstance);
-                  context.recordMaterializedService(serviceName, instance);
-                  return instance;
-               }
-            }
-         }
-         MLuaService service = context.services().create(serviceName, context);
-         try {
-            LuaTable table = service.toLua();
-            if (table == null) throw new LuaError("[MLua] Service '" + serviceName + "' returned no Lua table");
-            table.rawset("__service", LuaValue.TRUE);
-            MLuaServiceBase.normalizeServiceCalls(table, serviceName);
-            table = MLuaServiceProperties.attach(table);
-            attachServiceClass(context.registration(), table, serviceName);
-            return table;
-         } catch (RuntimeException failure) {
-            throw new LuaError(new RuntimeException("[MLua] Could not materialize service '" + serviceName
-               + "' for mod '" + context.ownerModId() + "' on " + context.side()
-               + " scripts during " + context.phase() + ": " + failure.getMessage(), failure));
-         }
-      });
-   }
-
-   private static void attachServiceClass(MLuaRegistration registration, LuaTable instance, String serviceName) {
-      if (registration == null) return;
-      String className = registration.serviceClassName(serviceName);
-      LuaTable serviceClass = registration.classTable(className);
-      if (serviceClass == null || !serviceClass.rawget("__mlua_service_class").toboolean()
-          || !serviceName.equals(serviceClass.rawget("__mlua_service_name").optjstring(""))) {
-         throw missingServiceClass(serviceName, className);
-      }
-      LuaValue description = instance.rawget("__mlua_doc_description");
-      registration.registerServiceClass(serviceName, className,
-         description.isstring() ? description.tojstring() : null);
-      MLuaClassMethods.registerServiceMethods(registration, className, instance);
-      registration.attachClassInstance(instance, className, registration.serviceBaseClassName());
-   }
-
    public static LuaTable materializeServiceTable(MLuaContext context, String serviceName) {
-      return resolveServiceTable(context, serviceName);
+      return MLuaServiceBindings.materializeServiceTable(context, serviceName);
    }
 
    public static void bindContext(Globals globals, MLuaContext context) {
