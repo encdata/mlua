@@ -357,7 +357,7 @@ for operation in ("ConcurrentMap<HeldItemKey, OrderedObjects> orderedHeldItems",
                   "void invalidateOrder()"):
     if operation not in target_index:
         fail(f"render target index is missing ordered snapshot caching: {operation}")
-if "RENDER_TARGET_INDEX.invalidateOrder();" not in render_manager or "MLuaClientRenderManager.invalidateRenderTargetOrder();" not in render_object:
+if "RENDER_TARGET_INDEX.invalidateOrder();" not in render_manager or "MLuaClientRenderManager.invalidateRenderOrder();" not in render_object:
     fail("render object z-order changes must invalidate cached target ordering through the manager")
 for operation in ("RENDER_TARGET_INDEX.orderedEntityModels(scope)",
                   "RENDER_TARGET_INDEX.orderedHeldItemModels(target, itemId)",
@@ -378,7 +378,7 @@ for overlay in (
         fail(f"{overlay.relative_to(ROOT)} must use the common render-object state owner")
     if "static void updateHeldItemModelIndex(MLuaRenderObject object" not in overlay_source:
         fail(f"{overlay.relative_to(ROOT)} must preserve held-item indexing for shared render objects")
-    if "static void invalidateRenderTargetOrder()" not in overlay_source:
+    if "static void invalidateRenderOrder()" not in overlay_source:
         fail(f"{overlay.relative_to(ROOT)} must invalidate cached order for shared render objects")
 if "ENTITY_MODELS" in render_manager or "HELD_ITEM_MODELS" in render_manager:
     fail("render manager must not own target index storage")

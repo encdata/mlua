@@ -202,8 +202,7 @@ class MLuaRenderObject {
     public synchronized void setZIndex(int zIndex) {
         if (this.zIndex == zIndex) return;
         this.zIndex = zIndex;
-        MLuaClientRenderManager.invalidateDrawOrder();
-        MLuaClientRenderManager.invalidateRenderTargetOrder();
+        MLuaClientRenderManager.invalidateRenderOrder();
     }
     public synchronized void setWorldSpace(boolean worldSpace) {
         if (worldSpace && renderTarget == MLuaClientRenderManager.RenderTarget.ENTITY_MODEL) return;

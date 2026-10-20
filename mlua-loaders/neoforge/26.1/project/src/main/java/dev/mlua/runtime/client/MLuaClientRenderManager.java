@@ -162,7 +162,7 @@ public final class MLuaClientRenderManager {
         });
     }
 
-    static void invalidateRenderTargetOrder() {
+    static void invalidateRenderOrder() {
         invalidateDrawOrder();
     }
 

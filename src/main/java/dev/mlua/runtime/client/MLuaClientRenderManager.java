@@ -128,7 +128,8 @@ public final class MLuaClientRenderManager {
         }
     }
 
-    static void invalidateRenderTargetOrder() {
+    static void invalidateRenderOrder() {
+        invalidateDrawOrder();
         RENDER_TARGET_INDEX.invalidateOrder();
     }
 
