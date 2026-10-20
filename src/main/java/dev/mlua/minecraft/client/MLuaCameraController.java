@@ -22,7 +22,9 @@ public final class MLuaCameraController {
    private static MLuaCFrame scriptableCFrame;
    private static MLuaCFrame previousScriptableCFrame;
    private static Double fovOverride;
+   private static Double previousFovOverride;
    private static double fovMultiplier = 1.0;
+   private static double previousFovMultiplier = 1.0;
    private static String mode = "Custom";
    private static final MLuaHandPoseRegistry HAND_POSES = new MLuaHandPoseRegistry();
 
@@ -144,10 +146,12 @@ public final class MLuaCameraController {
    }
 
    public static void setFov(double fov) {
+      previousFovOverride = fovOverride;
       fovOverride = Math.max(1.0, Math.min(179.0, fov));
    }
 
    public static void setFovMultiplier(double multiplier) {
+      previousFovMultiplier = fovMultiplier;
       fovMultiplier = Math.max(0.0, multiplier);
    }
 
@@ -258,7 +262,9 @@ public final class MLuaCameraController {
       scriptableCFrame = null;
       previousScriptableCFrame = null;
       fovOverride = null;
+      previousFovOverride = null;
       fovMultiplier = 1.0;
+      previousFovMultiplier = 1.0;
       if (owner == null) clearHandOffsets();
       else HAND_POSES.clearOwned(owner);
       mode = "Custom";
@@ -296,11 +302,27 @@ public final class MLuaCameraController {
    }
 
    public static double applyFovOverride(double currentFov) {
+      return applyFovOverride(currentFov, 1.0F);
+   }
+
+   /** Interpolates scripted FOV writes across Minecraft's tick and render phases. */
+   public static double applyFovOverride(double currentFov, float partialTick) {
+      double alpha = Float.isFinite(partialTick) ? Math.max(0.0D, Math.min(1.0D, partialTick)) : 1.0D;
       if (fovOverride != null || fovMultiplier != 1.0) {
-         double fov = fovOverride != null ? fovOverride : currentFov;
-         return fov * fovMultiplier;
+         double fov = fovOverride == null ? currentFov
+            : lerp(previousFovOverride == null ? fovOverride : previousFovOverride, fovOverride, alpha);
+         double multiplier = lerp(previousFovMultiplier, fovMultiplier, alpha);
+         return fov * multiplier;
+      }
+      if (previousFovOverride != null) {
+         double fov = lerp(previousFovOverride, currentFov, alpha);
+         return fov * lerp(previousFovMultiplier, fovMultiplier, alpha);
       }
       return currentFov;
+   }
+
+   private static double lerp(double from, double to, double alpha) {
+      return from + (to - from) * alpha;
    }
 
 }

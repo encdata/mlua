@@ -21,6 +21,7 @@ public final class MLuaForgeCameraEvents {
 
    @SubscribeEvent
    public static void onFov(ViewportEvent.ComputeFov event) {
-      event.setFOV(MLuaCameraController.applyFovOverride(event.getFOV()));
+      event.setFOV(MLuaCameraController.applyFovOverride(
+         event.getFOV(), MLuaCameraController.currentRenderPartialTick()));
    }
 }
