@@ -28,6 +28,17 @@ final class MLuaOwnedIdRegistry<O> {
         idsByOwner.computeIfAbsent(owner, ignored -> new HashSet<>()).add(id);
     }
 
+    synchronized boolean tryRegister(int id, O owner, int totalLimit, int ownerLimit) {
+        if (owners.containsKey(id)) throw new IllegalArgumentException(resourceName + " id is already owned: " + id);
+        if (totalLimit < 1 || ownerLimit < 1) {
+            throw new IllegalArgumentException(resourceName + " limits must be positive");
+        }
+        if (owners.size() >= totalLimit || countOwned(owner) >= ownerLimit) return false;
+        owners.put(id, owner);
+        idsByOwner.computeIfAbsent(owner, ignored -> new HashSet<>()).add(id);
+        return true;
+    }
+
     O ownerOf(int id) { return owners.get(id); }
     boolean owns(int id, O owner) { return owner.equals(owners.get(id)); }
     int size() { return owners.size(); }

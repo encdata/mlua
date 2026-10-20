@@ -2,6 +2,8 @@ package dev.mlua.runtime.client;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,5 +42,19 @@ final class MLuaRenderOwnershipRegistryTest {
         assertEquals(java.util.List.of(2), registry.ids(sameRuntimeOtherMod));
         assertEquals(java.util.List.of(2), registry.clearRuntime(firstSession));
         assertEquals(java.util.List.of(3), registry.ids(otherRuntime));
+    }
+
+    @Test
+    void registrationLimitsAreAtomicAndDuplicateIdsRemainErrors() {
+        var registry = new MLuaRenderOwnershipRegistry();
+        var firstOwner = new MLuaRenderOwnershipRegistry.Owner(new Object(), "one");
+        var secondOwner = new MLuaRenderOwnershipRegistry.Owner(new Object(), "two");
+
+        assertTrue(registry.tryRegister(1, firstOwner, 2, 1));
+        assertFalse(registry.tryRegister(2, firstOwner, 2, 1));
+        assertTrue(registry.tryRegister(2, secondOwner, 2, 1));
+        assertFalse(registry.tryRegister(3, secondOwner, 2, 1));
+        assertThrows(IllegalArgumentException.class, () -> registry.tryRegister(1, secondOwner, 2, 1));
+        assertThrows(IllegalArgumentException.class, () -> registry.tryRegister(3, secondOwner, 0, 1));
     }
 }
