@@ -6,11 +6,16 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.luaj.vm2.LuaError;
 
 /** Bounded, deterministic view of the JVM members exposed by the Lua Java bridge. */
 final class MLuaJavaReflectionCatalog {
@@ -19,6 +24,7 @@ final class MLuaJavaReflectionCatalog {
     private final BoundedCache<Class<?>, List<Field>> fields = new BoundedCache<>(MAX_ENTRIES);
     private final BoundedCache<Class<?>, List<Constructor<?>>> constructors = new BoundedCache<>(MAX_ENTRIES);
     private final BoundedCache<MethodLookup, List<Method>> lookups = new BoundedCache<>(MAX_ENTRIES);
+    private final BoundedCache<FieldLookup, Optional<Field>> fieldLookups = new BoundedCache<>(MAX_ENTRIES);
 
     List<Method> methods(Class<?> type) {
         return methods.computeIfAbsent(type, this::discoverMethods);
@@ -45,6 +51,101 @@ final class MLuaJavaReflectionCatalog {
             if (!exact.isEmpty()) return List.copyOf(exact);
             return hasSingleName(fallback) ? List.copyOf(fallback) : List.of();
         });
+    }
+
+    Field field(Class<?> type, String name, boolean requireStatic) {
+        return fieldLookups.computeIfAbsent(new FieldLookup(type, name, requireStatic), this::resolveField).orElse(null);
+    }
+
+    private Optional<Field> resolveField(FieldLookup lookup) {
+        Class<?> type = lookup.type;
+        String name = lookup.name;
+        boolean requireStatic = lookup.requireStatic;
+        String normalizedName = normalize(name);
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            for (Field field : current.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) == requireStatic
+                    && field.getName().equals(name)
+                    && prepareAccessible(field)) {
+                    return Optional.of(field);
+                }
+            }
+        }
+
+        if (requireStatic) {
+            List<Field> exactInterfaceFields = interfaceFields(type, name, false);
+            if (exactInterfaceFields.size() == 1) return Optional.of(exactInterfaceFields.get(0));
+            if (exactInterfaceFields.size() > 1) throw ambiguousInterfaceField(name, type, exactInterfaceFields);
+        }
+
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            Field match = null;
+            for (Field field : current.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) == requireStatic
+                    && normalize(field.getName()).equals(normalizedName)
+                    && prepareAccessible(field)) {
+                    if (match != null) {
+                        throw new LuaError("[MLua] Java field name '" + name + "' is ambiguous in "
+                            + current.getName() + "; use an exact Java field name");
+                    }
+                    match = field;
+                }
+            }
+            if (match != null) return Optional.of(match);
+        }
+
+        if (requireStatic) {
+            List<Field> normalizedInterfaceFields = interfaceFields(type, name, true);
+            if (normalizedInterfaceFields.size() == 1) return Optional.of(normalizedInterfaceFields.get(0));
+            if (normalizedInterfaceFields.size() > 1) throw ambiguousInterfaceField(name, type, normalizedInterfaceFields);
+        }
+        return Optional.empty();
+    }
+
+    private List<Field> interfaceFields(Class<?> type, String name, boolean normalized) {
+        String expected = normalized ? normalize(name) : name;
+        Set<Class<?>> visited = new LinkedHashSet<>();
+        List<Class<?>> pending = new ArrayList<>();
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            Collections.addAll(pending, current.getInterfaces());
+        }
+
+        List<Field> matches = new ArrayList<>();
+        for (int index = 0; index < pending.size(); index++) {
+            Class<?> iface = pending.get(index);
+            if (!visited.add(iface)) continue;
+            for (Field field : iface.getDeclaredFields()) {
+                String candidate = normalized ? normalize(field.getName()) : field.getName();
+                if (Modifier.isStatic(field.getModifiers()) && candidate.equals(expected)
+                    && prepareAccessible(field)) {
+                    addInterfaceField(matches, field);
+                }
+            }
+            Collections.addAll(pending, iface.getInterfaces());
+        }
+        return List.copyOf(matches);
+    }
+
+    private static void addInterfaceField(List<Field> fields, Field candidate) {
+        for (int index = fields.size() - 1; index >= 0; index--) {
+            Field existing = fields.get(index);
+            Class<?> existingOwner = existing.getDeclaringClass();
+            Class<?> candidateOwner = candidate.getDeclaringClass();
+            if (existingOwner == candidateOwner && existing.getName().equals(candidate.getName())) return;
+            if (!existing.getName().equals(candidate.getName())) continue;
+            if (existingOwner.isAssignableFrom(candidateOwner)) fields.remove(index);
+            else if (candidateOwner.isAssignableFrom(existingOwner)) return;
+        }
+        fields.add(candidate);
+    }
+
+    private static LuaError ambiguousInterfaceField(String name, Class<?> type, List<Field> fields) {
+        List<String> declarations = fields.stream()
+            .map(field -> field.getDeclaringClass().getName() + "." + field.getName())
+            .sorted()
+            .toList();
+        return new LuaError("[MLua] Java interface field '" + name + "' is ambiguous on "
+            + type.getName() + "; use Java:GetField with an interface class. Candidates: " + declarations);
     }
 
     private List<Method> discoverMethods(Class<?> type) {
@@ -120,6 +221,7 @@ final class MLuaJavaReflectionCatalog {
     }
 
     private record MethodLookup(Class<?> type, String name, boolean requireStatic) { }
+    private record FieldLookup(Class<?> type, String name, boolean requireStatic) { }
 
     /** Access-ordered cache; arbitrary reflected classes cannot grow memory without bound. */
     private static final class BoundedCache<K, V> {
