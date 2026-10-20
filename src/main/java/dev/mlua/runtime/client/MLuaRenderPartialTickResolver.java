@@ -39,7 +39,7 @@ public final class MLuaRenderPartialTickResolver {
         return read(Minecraft.getInstance());
     }
 
-    private static Float finitePartialTick(Object value) {
+    static Float normalize(Object value) {
         if (!(value instanceof Number number)) return null;
         float partialTick = number.floatValue();
         return Float.isFinite(partialTick) ? Math.max(0.0F, Math.min(1.0F, partialTick)) : null;

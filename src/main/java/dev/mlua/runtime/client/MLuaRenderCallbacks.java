@@ -144,7 +144,7 @@ public final class MLuaRenderCallbacks {
         if (hooks == null || hooks.isEmpty()) return;
         List<Hook> renderHooks = renderHooks(hooks);
         if (renderHooks.isEmpty()) return;
-        Float validatedPartialTick = partialTick == null ? null : finitePartialTick(partialTick);
+        Float validatedPartialTick = partialTick == null ? null : MLuaRenderPartialTickResolver.normalize(partialTick);
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue entityValue = MLuaEntityWrapper.entityTable(entity, hook.context.registration());
@@ -190,7 +190,7 @@ public final class MLuaRenderCallbacks {
         if (hooks == null || hooks.isEmpty()) return;
         List<Hook> renderHooks = renderHooks(hooks);
         if (renderHooks.isEmpty()) return;
-        Float validatedPartialTick = partialTick == null ? null : finitePartialTick(partialTick);
+        Float validatedPartialTick = partialTick == null ? null : MLuaRenderPartialTickResolver.normalize(partialTick);
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
                 LuaValue entityValue = MLuaEntityWrapper.entityTable(entity, hook.context.registration());
@@ -262,7 +262,8 @@ public final class MLuaRenderCallbacks {
         var itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (itemKey == null) return;
         HookBucket hooks = bucket(HookKind.THIRD_PERSON_ITEM, itemKey.toString());
-        Float framePartialTick = partialTick == null ? currentClientPartialTick() : finitePartialTick(partialTick);
+        Float framePartialTick = partialTick == null ? currentClientPartialTick()
+            : MLuaRenderPartialTickResolver.normalize(partialTick);
         MLuaClientRenderManager.renderHeldItemModels(
             MLuaClientRenderManager.RenderTarget.THIRD_PERSON_ITEM, itemKey.toString(), poseStack,
             bufferSource, packedLight, framePartialTick == null ? 1.0F : framePartialTick);
@@ -321,7 +322,7 @@ public final class MLuaRenderCallbacks {
         var itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (itemKey == null) return;
         HookBucket hooks = bucket(HookKind.FIRST_PERSON_ITEM, itemKey.toString());
-        Float validatedPartialTick = partialTick == null ? null : finitePartialTick(partialTick);
+        Float validatedPartialTick = partialTick == null ? null : MLuaRenderPartialTickResolver.normalize(partialTick);
         MLuaClientRenderManager.renderHeldItemModels(
             MLuaClientRenderManager.RenderTarget.FIRST_PERSON_ITEM, itemKey.toString(), poseStack,
             bufferSource, packedLight, validatedPartialTick == null ? 1.0F : validatedPartialTick);
@@ -489,7 +490,7 @@ public final class MLuaRenderCallbacks {
         if (registered == null || registered.isEmpty()) return;
         List<Hook> renderHooks = renderHooks(registered);
         if (renderHooks.isEmpty()) return;
-        Float validatedPartialTick = finitePartialTick(partialTick);
+        Float validatedPartialTick = MLuaRenderPartialTickResolver.normalize(partialTick);
         boolean partialTickAvailable = hasPartialTick && validatedPartialTick != null;
         for (Hook hook : renderHooks) {
             invokeSafely(hook, () -> {
@@ -937,7 +938,7 @@ public final class MLuaRenderCallbacks {
         if (!(nativePose instanceof PoseStack poseStack)) {
             throw new LuaError("[MLua] RenderContext:WithPose is unavailable because this callback has no PoseStack.");
         }
-        PoseStackBoundary poseBoundary = new PoseStackBoundary(poseStack);
+        MLuaRenderPoseScope poseBoundary = MLuaRenderPoseScope.open(poseStack);
         try {
             return callback.invoke();
         } finally {
