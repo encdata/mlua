@@ -1,0 +1,26 @@
+rootProject.ext.filterMluaVersionMarkers = { Project projectRef, File directory, String targetVersion ->
+    projectRef.fileTree(directory).matching { include '**/*.java' }.each { file ->
+        def filtered = []
+        def parentActivity = []
+        boolean active = true
+        file.readLines().eachWithIndex { line, index ->
+            def trimmed = line.trim()
+            if (trimmed.startsWith('//--version ')) {
+                def versions = trimmed.substring('//--version '.length()).tokenize(',')*.trim()
+                parentActivity.add(active)
+                active = active && versions.contains(targetVersion)
+            } else if (trimmed == '//--endversion') {
+                if (parentActivity.isEmpty()) {
+                    throw new GradleException("Unmatched //--endversion in ${file}:${index + 1}")
+                }
+                active = parentActivity.remove(parentActivity.size() - 1)
+            } else {
+                if (active) filtered << line
+            }
+        }
+        if (!parentActivity.isEmpty()) {
+            throw new GradleException("Unclosed //--version block in ${file}")
+        }
+        file.setText(filtered.join(System.getProperty('line.separator')), 'UTF-8')
+    }
+}

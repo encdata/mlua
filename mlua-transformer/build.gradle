@@ -1,0 +1,32 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+dependencies {
+    implementation project(':mlua-luaj')
+    implementation project(':mlua-common')
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'com.google.code.gson:gson:2.10'
+    compileOnly "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    compileOnly "org.spongepowered:mixin:0.8.5"
+    compileOnly "cpw.mods:modlauncher:10.0.9"
+    compileOnly "cpw.mods:securejarhandler:2.1.10"
+}
+
+tasks.named('processResources').configure {
+    dependsOn rootProject.tasks.named('processResources')
+    from(rootProject.tasks.named('processResources')) {
+        include 'official_to_srg.json'
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    from(project(':mlua-common').sourceSets.main.output)
+    from(project(':mlua-luaj').sourceSets.main.output)
+}
+
+

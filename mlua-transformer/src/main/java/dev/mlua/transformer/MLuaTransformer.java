@@ -1,0 +1,78 @@
+package dev.mlua.transformer;
+
+import cpw.mods.modlauncher.api.ITransformer;
+import cpw.mods.modlauncher.api.ITransformerVotingContext;
+import cpw.mods.modlauncher.api.TransformerVoteResult;
+import dev.mlua.common.mixin.MLuaMixinRule;
+import dev.mlua.common.mixin.MLuaMixinMapping;
+import dev.mlua.common.mixin.MixinRuleEngine;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.objectweb.asm.tree.ClassNode;
+
+public final class MLuaTransformer implements ITransformer<ClassNode> {
+   private static final System.Logger LOGGER = System.getLogger("MLuaTransformer");
+   private final Map<String, Map<String, String>> nameMapping;
+
+   public MLuaTransformer() {
+      this.nameMapping = loadNameMapping();
+   }
+
+   static Map<String, Map<String, String>> loadNameMapping() {
+      return MLuaMixinMapping.load(MLuaTransformer.class.getClassLoader());
+   }
+
+   public static String resolveMethodName(String className, String officialName, String descriptor,
+                                          Map<String, Map<String, String>> mapping) {
+      return MLuaMixinMapping.resolveMethodName(className, officialName, descriptor, mapping);
+   }
+
+    @Override
+    public ClassNode transform(ClassNode input, ITransformerVotingContext context) {
+       List<MLuaMixinRule> matchingRules = List.of();
+       try {
+          String binaryName = context.getClassName();
+          if (binaryName == null) {
+             return input;
+          }
+
+          matchingRules = MixinRuleEngine.get().getRules().stream()
+            .filter(rule -> rule.targetsClass(binaryName))
+            .toList();
+
+         if (matchingRules.isEmpty()) return input;
+
+         LOGGER.log(System.Logger.Level.INFO, "[MLua] Transforming class '" + binaryName + "' with " + matchingRules.size() + " mixin rules");
+         ClassNode transformed = MLuaMixinClassWriter.applyToClassNodeCopy(input, binaryName, matchingRules, nameMapping);
+         if (transformed != input) {
+            LOGGER.log(System.Logger.Level.INFO, "[MLua] Class '" + binaryName + "' transformed successfully");
+         }
+         MixinRuleEngine.get().clearApplicationFailure(binaryName);
+         return transformed;
+       } catch (Exception e) {
+          LOGGER.log(System.Logger.Level.ERROR, "[MLua] Transform error for class '" + context.getClassName() + "'", e);
+          MixinRuleEngine.get().recordApplicationFailure(context.getClassName(), matchingRules, e);
+          return input;
+       }
+    }
+
+   @Override
+   public TransformerVoteResult castVote(ITransformerVotingContext context) {
+      return TransformerVoteResult.YES;
+   }
+
+   @Override
+   public Set<Target> targets() {
+      try {
+         return MixinRuleEngine.get().getRules().stream()
+            .map(rule -> MLuaMixinRule.normalizeClassName(rule.targetClassName()))
+            .map(ITransformer.Target::targetClass)
+            .collect(Collectors.toSet());
+      } catch (Exception e) {
+         LOGGER.log(System.Logger.Level.WARNING, "[MLua] targets() failed: " + e.getMessage(), e);
+         return Set.of();
+      }
+   }
+}

@@ -1,0 +1,87 @@
+{
+  "defaultTarget": "1.20.1",
+  "targets": [
+    {
+      "minecraft": "1.20.1",
+      "javaVersion": 17,
+      "minecraftVersionRange": "[1.20.1,1.20.2)",
+      "forgeVersion": "47.2.0",
+      "forgeVersionRange": "[47,)",
+      "loaderVersionRange": "[47,)",
+      "fabricLoaderVersion": "0.16.10",
+      "fabricApiVersion": "0.92.9+1.20.1",
+      "loaders": [
+        "forge",
+        "fabric"
+      ]
+    },
+    {
+      "minecraft": "1.21.1",
+      "inherits": "1.20.1",
+      "javaVersion": 21,
+      "minecraftVersionRange": "[1.21.1,1.21.2)",
+      "forgeVersion": "52.1.14",
+      "forgeVersionRange": "[52,)",
+      "loaderVersionRange": "[52,)",
+      "neoForgeVersion": "21.1.228",
+      "neoForgeVersionRange": "[21.1,)",
+      "neoForgeLoaderVersionRange": "[4,)",
+      "fabricLoaderVersion": "0.16.14",
+      "fabricApiVersion": "0.116.13+1.21.1",
+      "loaders": [
+        "forge",
+        "neoforge",
+        "fabric"
+      ]
+    },
+    {
+      "minecraft": "26.1",
+      "minecraftDependencyVersion": "26.1",
+      "inherits": "1.21.1",
+      "javaVersion": 25,
+      "minecraftVersionRange": "[26.1,26.2)",
+      "neoForgeVersion": "26.1.2.6-beta",
+      "neoForgeVersionRange": "[26.1,27)",
+      "neoForgeLoaderVersionRange": "[4,)",
+      "fabricLoaderVersion": "0.19.3",
+      "fabricApiVersion": "0.154.2+26.1.2",
+      "loaders": [
+        "neoforge",
+        "fabric"
+      ],
+      "experimental": true
+    },
+    {
+      "minecraft": "26.1.1",
+      "minecraftDependencyVersion": "26.1.1",
+      "implementationTarget": "26.1",
+      "inherits": "26.1",
+      "javaVersion": 25,
+      "minecraftVersionRange": "[26.1.1,26.1.2)",
+      "fabricLoaderVersion": "0.19.3",
+      "fabricApiVersion": "0.154.2+26.1.2",
+      "loaders": [
+        "fabric"
+      ],
+      "experimental": true
+    },
+    {
+      "minecraft": "26.1.2",
+      "minecraftDependencyVersion": "26.1.2",
+      "implementationTarget": "26.1",
+      "inherits": "26.1",
+      "javaVersion": 25,
+      "minecraftVersionRange": "[26.1.2,26.2)",
+      "neoForgeVersion": "26.1.2.6-beta",
+      "neoForgeVersionRange": "[26.1,27)",
+      "neoForgeLoaderVersionRange": "[4,)",
+      "fabricLoaderVersion": "0.19.3",
+      "fabricApiVersion": "0.154.2+26.1.2",
+      "loaders": [
+        "neoforge",
+        "fabric"
+      ],
+      "experimental": true
+    }
+  ]
+}

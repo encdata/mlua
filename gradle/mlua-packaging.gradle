@@ -1,0 +1,26 @@
+/** Shared MLua loader packaging conventions. */
+ext.configureMluaIcon = { ProcessResources resourcesTask ->
+    resourcesTask.from(rootProject.file('src/main/resources/Icon.png')) {
+        into ''
+    }
+    resourcesTask.from(rootProject.file('src/main/resources/Icon.png')) {
+        into ''
+        rename { 'icon.png' }
+    }
+}
+
+ext.configureMluaJarManifest = { Jar jarTask, String title = mod_id ->
+    jarTask.manifest.attributes([
+        'Automatic-Module-Name': 'mlua',
+        'Specification-Title': title,
+        'Specification-Vendor': mod_authors,
+        'Specification-Version': '1',
+        'Implementation-Title': project.name,
+        'Implementation-Version': project.jar.archiveVersion,
+        'Implementation-Vendor': mod_authors
+    ])
+}
+
+ext.excludeMluaExternalScripts = { Jar jarTask ->
+    jarTask.exclude('mlua/scripts/**')
+}

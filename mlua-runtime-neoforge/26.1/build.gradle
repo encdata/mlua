@@ -1,0 +1,9 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+ext.mluaRuntimeTargetVersion = projectDir.name
+apply from: rootProject.file('gradle/mlua-runtime-neoforge-target.gradle')

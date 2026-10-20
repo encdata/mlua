@@ -1,0 +1,64 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'java-library'
+    id 'net.minecraftforge.gradle' version '6.0.54' apply false
+}
+
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+
+def selectedTarget = providers.gradleProperty('mluaTarget')
+    .orElse(providers.gradleProperty('default_minecraft_target'))
+    .get().replace('_', '.')
+def target = findMluaTarget(selectedTarget)
+def forgeApiBuild = target.loaders.contains('forge') && !gradle.gradleVersion.startsWith('9.')
+
+if (forgeApiBuild) {
+    apply plugin: 'net.minecraftforge.gradle'
+}
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = target.minecraft
+def minecraft_version = target.minecraft
+def forge_version = resolveMluaTargetValue(targetVersion, 'forgeVersion')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+
+base { archivesName = "${mod_id}-api" }
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+if (forgeApiBuild) {
+    minecraft { mappings channel: 'official', version: minecraft_version }
+} else {
+    // 26.1 loader projects compile these API sources directly. Keep the
+    // legacy project as an empty compatibility artifact for dependency edges.
+    sourceSets.main.java.setSrcDirs([])
+}
+
+repositories { mavenCentral() }
+dependencies {
+    if (forgeApiBuild) {
+        minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    }
+    implementation project(':mlua-common')
+    implementation project(':mlua-luaj')
+    implementation project(':mlua-loader-api')
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+            'Automatic-Module-Name': 'mlua.api', 'Specification-Title': "${mod_id}-api",
+            'Specification-Vendor': mod_authors, 'Specification-Version': '1',
+            'Implementation-Title': project.name, 'Implementation-Version': project.jar.archiveVersion,
+            'Implementation-Vendor': mod_authors
+        ])
+    }
+}
+
+publishing {
+    publications { register('mavenJava', MavenPublication) { artifact jar } }
+    repositories { maven { url "file://${project.projectDir}/repo" } }
+}

@@ -1,0 +1,53 @@
+name: Generate Lua API docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Minecraft target to document
+        required: true
+        type: choice
+        default: 1.21.1
+        options:
+          - 1.21.1
+          - 1.20.1
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Generate HTML docs
+        run: >-
+          gradle --no-daemon
+          --build-cache
+          -PmluaDocsOnly
+          -PmluaTarget=${{ inputs.target }}
+          -Dorg.gradle.java.installations.paths=${JAVA_HOME_17_X64},${JAVA_HOME_21_X64}
+          :mlua-runtime-${{ inputs.target }}:gendocs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlua-html-docs-${{ inputs.target }}
+          path: mlua-runtime/${{ inputs.target }}/run/mlua/docs/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,99 @@
+{
+  "MLua service wrapper": {
+    "prefix": "mlua-service",
+    "body": [
+      "local ${1:name} = Minecraft:GetService(\"${2:ServiceName}\")",
+      "$0"
+    ],
+    "description": "Get an MLua service"
+  },
+  "MLua event connection": {
+    "prefix": "mlua-event",
+    "body": [
+      "local connection = ${1:service}.${2:Event}:Connect(function(${3:args})",
+      "  $0",
+      "end)"
+    ],
+    "description": "Connect to an MLua event"
+  },
+  "MLua command": {
+    "prefix": "mlua-command",
+    "body": [
+      "Commands:RegisterCommand({",
+      "  Name = \"${1:name}\",",
+      "  Description = \"${2:description}\",",
+      "  Category = \"${3:category}\",",
+      "  Run = function(ctx)",
+      "    $0",
+      "  end",
+      "})"
+    ],
+    "description": "Register an MLua command"
+  },
+  "MLua registry block": {
+    "prefix": "mlua-block",
+    "body": [
+      "Registry:RegisterBlock({",
+      "  Id = \"${1:mod_id}:${2:name}\",",
+      "  Material = \"${3:stone}\",",
+      "  Hardness = ${4:1.0},",
+      "  $0",
+      "})"
+    ],
+    "description": "Register a block"
+  },
+  "MLua registry item": {
+    "prefix": "mlua-item",
+    "body": [
+      "Registry:RegisterItem({",
+      "  Id = \"${1:mod_id}:${2:name}\",",
+      "  Type = \"${3:basic}\",",
+      "  $0",
+      "})"
+    ],
+    "description": "Register an item"
+  },
+  "MLua task spawn": {
+    "prefix": "mlua-spawn",
+    "body": [
+      "task.spawn(function()",
+      "  $0",
+      "end)"
+    ],
+    "description": "Spawn a task"
+  },
+  "MLua player event": {
+    "prefix": "mlua-player-event",
+    "body": [
+      "local player = Minecraft:GetService(\"Players\").LocalPlayer",
+      "print(player.Name, player:GetHealth())",
+      "$0"
+    ],
+    "description": "Print local player info"
+  },
+  "MLua Java class viewer": {
+    "prefix": "mlua-class-viewer",
+    "body": [
+      "local Java = Minecraft:GetService(\"Java\")",
+      "print(Java:ViewClass(\"${1:net.minecraft.client.renderer.entity.LivingEntityRenderer}\"))",
+      "$0"
+    ],
+    "description": "Print a Lua-like view of a Minecraft Java class"
+  },
+  "MLua mixin overwrite": {
+    "prefix": "mlua-overwrite",
+    "body": [
+      "local Java = Minecraft:GetService(\"Java\")",
+      "local Mixin = Minecraft:GetService(\"Mixin\")",
+      "local classInfo = Java:Inspect(\"${1:net.minecraft.client.renderer.entity.LivingEntityRenderer}\")",
+      "print(Java:ViewClass(\"${1}\"))",
+      "Mixin:Overwrite(\"${1}\", \"${2:render}\", {",
+      "  descriptor = \"${3}\",",
+      "  callback = function(self, ...)",
+      "    $0",
+      "  end",
+      "})"
+    ],
+    "description": "Inspect a Minecraft class and create an overwrite template"
+  }
+}

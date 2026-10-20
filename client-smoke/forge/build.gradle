@@ -1,0 +1,70 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '6.0.54'
+}
+
+version = '1.0.0'
+group = 'dev.mlua.ci'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(providers.gradleProperty('javaVersion').get().toInteger())
+
+minecraft {
+    mappings channel: 'official', version: providers.gradleProperty('minecraftVersion').get()
+    runs {
+        client {
+            workingDirectory project.file(providers.gradleProperty('mluaClientRunDir').getOrElse('run'))
+            if (providers.gradleProperty('minecraftVersion').get() == '1.20.1') {
+                // The packaged Forge 1.20.1 refmap targets production SRG names,
+                // while this ForgeGradle smoke client loads named development classes.
+                jvmArgs '-Dmixin.env.disableRefMap=true'
+            }
+        }
+        server {
+            workingDirectory project.file(providers.gradleProperty('mluaServerRunDir').getOrElse('run'))
+            args '--nogui'
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${providers.gradleProperty('minecraftVersion').get()}-${providers.gradleProperty('forgeVersion').get()}"
+}
+
+sourceSets {
+    smoke {
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+        java.srcDir '../common/src/main/java'
+        resources.srcDir '../common/src/main/resources'
+        compileClasspath += files('compile-libs/mlua.jar', 'compile-libs/mlua-runtime.jar')
+    }
+}
+
+def smokeModJar = tasks.register('smokeModJar', Jar) {
+    archiveClassifier = 'smoke'
+    from sourceSets.smoke.output
+}
+
+tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
+    dependsOn smokeModJar
+    doFirst {
+        file("$buildDir/classes/java/main").mkdirs()
+        file("$buildDir/resources/main").mkdirs()
+        copy {
+            from smokeModJar.get().archiveFile
+            into project.file('run/mods')
+        }
+    }
+}
+
+tasks.named('processSmokeResources').configure {
+    inputs.properties([
+        minecraftVersion: providers.gradleProperty('minecraftVersion').get(),
+        forgeVersion: providers.gradleProperty('forgeVersion').get(),
+        forgeLoaderRange: providers.gradleProperty('forgeLoaderRange').get()
+    ])
+    filesMatching('META-INF/mods.toml') {
+        expand minecraftVersion: providers.gradleProperty('minecraftVersion').get(),
+            forgeVersion: providers.gradleProperty('forgeVersion').get(),
+            forgeLoaderRange: providers.gradleProperty('forgeLoaderRange').get()
+    }
+}

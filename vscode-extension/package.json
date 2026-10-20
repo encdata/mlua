@@ -1,0 +1,95 @@
+{
+  "name": "mlua-vscode",
+  "displayName": "MLua",
+  "description": "VS Code support for MLua scripts — sidebar, setup, completions, and generated API definitions on top of sumneko.lua.",
+  "version": "0.3.0",
+  "icon": "resources/icon.png",
+  "publisher": "EncData",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "extensionDependencies": [
+    "sumneko.lua"
+  ],
+  "keywords": [
+    "mlua",
+    "lua",
+    "luaj",
+    "luau",
+    "minecraft"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onExtension:sumneko.lua",
+    "onView:mlua-sidebar",
+    "onLanguage:lua"
+  ],
+  "contributes": {
+    "grammars": [
+      {
+        "scopeName": "mlua.injection",
+        "path": "./syntaxes/mlua.tmLanguage.json",
+        "injectTo": [
+          "source.lua"
+        ]
+      }
+    ],
+    "configurationDefaults": {
+      "files.associations": {
+        "*.client.lua": "lua",
+        "*.server.lua": "lua",
+        "*.registry.lua": "lua",
+        "*.commands.lua": "lua",
+        "*.mixin.lua": "lua",
+        "*.client.mixin.lua": "lua"
+      }
+    },
+    "commands": [
+      {
+        "command": "mlua.openDiscord",
+        "title": "MLua: Join Discord"
+      },
+      {
+        "command": "mlua.openDocumentation",
+        "title": "MLua: Open Documentation"
+      },
+      {
+        "command": "mlua.syncRuntime",
+        "title": "MLua: Sync Runtime"
+      },
+      {
+        "command": "mlua.insertClassViewer",
+        "title": "MLua: Insert Java Class Viewer"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mlua-sidebar-container",
+          "title": "MLua",
+"icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "mlua-sidebar-container": [
+        {
+          "type": "webview",
+          "id": "mlua-sidebar",
+          "name": "MLua"
+        }
+      ]
+    },
+    "snippets": [
+      {
+        "language": "lua",
+        "path": "./snippets/mlua.json"
+      }
+    ]
+  }
+}

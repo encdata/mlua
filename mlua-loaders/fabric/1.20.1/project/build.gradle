@@ -1,0 +1,8 @@
+plugins {
+    id 'fabric-loom' version '1.11.8'
+}
+
+// Keep version and loader source selection in the shared target-aware script.
+// This target only supplies its Loom plugin; its Java sources live in the
+// version overlays selected by gradle/mlua-fabric-project.gradle.
+apply from: rootProject.file('gradle/mlua-fabric-project.gradle')

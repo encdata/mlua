@@ -1,0 +1,177 @@
+import groovy.json.JsonSlurper
+
+// These classes have one source owner in mlua-core. Runtime artifacts compile
+// this selected core surface into their own JAR rather than shadowing it with
+// another copy under src/main/java.
+ext.mluaCoreRuntimeSources = [
+    'dev/mlua/core/MLuaLogger.java',
+    'dev/mlua/core/MLuaPathRules.java',
+    'dev/mlua/core/MLuaTrustConfig.java',
+    'dev/mlua/agent/MLuaAgentAttacher.java',
+    'dev/mlua/agent/MLuaAgentBootstrap.java',
+    'dev/mlua/agent/MLuaMixinAgent.java',
+    'dev/mlua/core/engine/MLuaEnvironment.java',
+    'dev/mlua/core/engine/MLuaLuauTranspiler.java',
+    'dev/mlua/core/engine/MLuaLuauTypes.java',
+    'dev/mlua/core/engine/MLuaValue.java',
+    'dev/mlua/core/require/MLuaModuleCache.java',
+    'dev/mlua/core/MLuaThreadHandoff.java',
+    'dev/mlua/core/script/MLuaScript.java',
+    'dev/mlua/core/script/MLuaScriptLoader.java',
+    'dev/mlua/core/script/MLuaScriptRoot.java',
+    'dev/mlua/core/signal/MLuaConnection.java',
+    'dev/mlua/core/util/MLuaWeakIdentityMap.java',
+    'dev/mlua/math/MLuaCFrame.java',
+    'dev/mlua/math/MLuaMat3.java',
+    'dev/mlua/math/MLuaMat4.java',
+    'dev/mlua/math/MLuaNoise.java',
+    'dev/mlua/math/MLuaVector.java',
+    'dev/mlua/math/MLuaVec4.java'
+]
+
+ext.loadMluaTargetConfig = {
+    if (!rootProject.ext.has('mluaTargetConfig')) {
+        rootProject.ext.mluaTargetConfig = new JsonSlurper().parse(rootProject.file('gradle/mlua-targets.json'))
+    }
+    rootProject.ext.mluaTargetConfig
+}
+
+ext.selectMluaBuildTargets = { Map config, Object requested, boolean documentationOnly ->
+    def targetName = requested?.toString()?.replace('_', '.')
+    if (targetName == null && documentationOnly) targetName = config.defaultTarget?.toString()
+    if (targetName == null) return config.targets
+
+    def exact = config.targets.findAll { it.minecraft == targetName }
+    def selected = exact.isEmpty() ? config.targets.findAll {
+        it.minecraft.startsWith(targetName + '.')
+    } : exact
+    if (selected.isEmpty()) throw new GradleException("Unknown MLua target '${targetName}'")
+    selected
+}
+
+ext.validateMluaTargetConfig = { Map config ->
+    def targets = config.targets
+    if (!(targets instanceof List) || targets.isEmpty()) {
+        throw new GradleException('gradle/mlua-targets.json must define a non-empty targets array')
+    }
+    def knownLoaders = ['fabric', 'forge', 'neoforge'] as Set
+    def names = [] as Set
+    targets.each { target ->
+        def name = target.minecraft?.toString()
+        if (!name || !names.add(name)) throw new GradleException("Duplicate or missing Minecraft target '${name}'")
+        if (!(target.loaders instanceof List) || target.loaders.isEmpty()) {
+            throw new GradleException("Target ${name} must define at least one loader")
+        }
+        def loaders = target.loaders.collect { it.toString() }
+        def unknown = loaders.findAll { !knownLoaders.contains(it) }
+        if (!unknown.isEmpty()) throw new GradleException("Target ${name} has unknown loader(s): ${unknown.join(', ')}")
+        if (loaders.size() != loaders.toSet().size()) throw new GradleException("Target ${name} contains duplicate loaders")
+        if (!(target.javaVersion instanceof Number) || target.javaVersion < 17) {
+            throw new GradleException("Target ${name} must define a Java version of at least 17")
+        }
+        if (target.containsKey('inherits') && !target.inherits) {
+            throw new GradleException("Target ${name} has an empty inherits value")
+        }
+    }
+    targets.each { target ->
+        def parent = target.inherits?.toString()
+        if (parent && !names.contains(parent)) throw new GradleException("Target ${target.minecraft} inherits unknown target ${parent}")
+    }
+    targets.each { target ->
+        def seen = [] as Set
+        def cursor = target.minecraft.toString()
+        while (cursor) {
+            if (!seen.add(cursor)) throw new GradleException("Circular target inheritance involving ${cursor}")
+            def current = targets.find { it.minecraft.toString() == cursor }
+            cursor = current?.inherits?.toString()
+        }
+    }
+    def defaultTarget = config.defaultTarget?.toString()
+    if (defaultTarget && !names.contains(defaultTarget)) throw new GradleException("Unknown default target ${defaultTarget}")
+    true
+}
+
+ext.findMluaTarget = { String minecraftVersion ->
+    minecraftVersion = minecraftVersion.replace('_', '.')
+    def config = loadMluaTargetConfig()
+    def target = config.targets.find { it.minecraft == minecraftVersion }
+    if (target == null) {
+        target = config.targets.find { it.minecraft.startsWith(minecraftVersion + '.') }
+    }
+    if (target == null) {
+        throw new GradleException("Unknown MLua target '${minecraftVersion}' in gradle/mlua-targets.json")
+    }
+    target
+}
+
+ext.resolveMluaTargetChain = { String minecraftVersion ->
+    def seen = [] as Set
+    def chain = []
+    def cursor = minecraftVersion
+    while (cursor != null) {
+        if (!seen.add(cursor)) {
+            throw new GradleException("Circular MLua target inheritance detected at '${cursor}'")
+        }
+        def target = findMluaTarget(cursor)
+        chain.add(0, target.minecraft)
+        cursor = target.containsKey('inherits') ? target.inherits : null
+    }
+    chain
+}
+
+ext.resolveMluaTargetValue = { String minecraftVersion, String key, Object defaultValue = null ->
+    def chain = resolveMluaTargetChain(minecraftVersion)
+    for (int i = chain.size() - 1; i >= 0; i--) {
+        def target = findMluaTarget(chain[i])
+        if (target.containsKey(key)) {
+            return target[key]
+        }
+    }
+    defaultValue
+}
+
+ext.targetPathChain = { String pattern, String minecraftVersion ->
+    def paths = [] as Set
+    resolveMluaTargetChain(minecraftVersion).each { version ->
+        def implementationVersion = resolveMluaTargetValue(version, 'implementationTarget', version).toString()
+        paths.add(rootProject.file(String.format(pattern, implementationVersion)))
+    }
+    paths as List
+}
+
+ext.commonVersionPathChain = { String minecraftVersion ->
+    [rootProject.file('mlua-versions/common/shared')] + targetPathChain('mlua-versions/common/%s', minecraftVersion)
+}
+
+/** Finds shared source files replaced by a target's common Minecraft implementation. */
+ext.commonVersionRootExcludes = { String minecraftVersion ->
+    File sourceRoot = rootProject.file('src/main/java')
+    if (!sourceRoot.exists()) return []
+    def duplicates = new TreeSet<String>()
+    ([rootProject.file('mlua-versions/common/shared')] +
+        rootProject.ext.targetPathChain('mlua-versions/common/%s', minecraftVersion))
+        .findAll { it.exists() && it.isDirectory() }.each { File overlayRoot ->
+        rootProject.fileTree(overlayRoot).matching { include '**/*.java' }.each { File overlaySource ->
+            def relative = overlayRoot.toPath().relativize(overlaySource.toPath()).toString()
+                .replace(File.separator, '/')
+            if (new File(sourceRoot, relative).isFile()) duplicates.add(relative)
+        }
+    }
+    duplicates as List
+}
+
+ext.registerMergedTree = { Project projectRef, String taskName, List<File> roots, List<String> excludes = [] ->
+    projectRef.tasks.register(taskName, Sync) {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        inputs.property('mluaSourceRoots', roots.collect { it.absolutePath }.join(File.pathSeparator))
+        inputs.property('mluaSourceExcludes', excludes.join('\n'))
+        // Roots are declared from fallback to most specific; the most specific
+        // source owner must win when an inherited target replaces a same-path file.
+        roots.findAll { it.exists() }.reverseEach { root ->
+            from(projectRef.fileTree(root)) {
+                excludes.each { exclude it }
+            }
+        }
+        into(projectRef.layout.buildDirectory.dir("generated/${taskName}"))
+    }
+}

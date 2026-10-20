@@ -1,0 +1,39 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.mlua.modules.mixin.service",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "BlockItemMixin",
+    "FabricAdvancementMixin",
+    "FabricContainerEventsMixin",
+    "FabricExplosionMixin",
+    "FabricItemCraftMixin",
+    "FabricItemDropMixin",
+    "FabricItemPickupMixin",
+    "FabricProjectileHitMixin",
+    "PackRepositoryAccessor",
+    "PackRepositoryMixin"
+  ],
+  "client": [
+    "GameRendererFrameMixin",
+    "CameraInvoker",
+    "CameraMixin",
+    "EntityRenderDispatcherMixin",
+    "ModelPartMixin",
+    "ModelFeatureRendererMixin",
+    "FirstPersonItemRendererMixin",
+    "ThirdPersonItemRendererMixin",
+    "HumanoidModelMixin",
+    "LivingEntityRendererMixin",
+    "PlayerModelMixin",
+    "ScreenLayoutMixin",
+    "ChatLineMixin",
+    "ChatHudMixin",
+    "GuiHudMixin",
+    "ExperienceBarRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,252 @@
+package dev.mlua.runtime.registry;
+
+import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.minecraft.scripted.MLuaScriptedBlock;
+import dev.mlua.runtime.client.MLuaVisualBlockEntity;
+import java.util.Locale;
+import java.util.Map;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Collections;
+import java.util.TreeMap;
+import java.util.function.Supplier;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.MapColor;
+
+/** Dedicated 26.1 block-property adapter. */
+public final class MLuaBlockFactory {
+    private static final MLuaRegisteredTypeCatalog<TypeProvider> REGISTERED_TYPES = new MLuaRegisteredTypeCatalog<>();
+    private static final Map<String, SoundType> SOUNDS = namedValues(SoundType.class, SoundType.class);
+    private static final Map<String, MapColor> MAP_COLORS = mapColors();
+
+    public static java.util.List<String> soundNames() {
+        return SOUNDS.keySet().stream().sorted().toList();
+    }
+
+    public static java.util.List<String> mapColorNames() {
+        return MAP_COLORS.keySet().stream().sorted().toList();
+    }
+
+    public static void registerType(String name, String description, TypeProvider provider) {
+        registerType("mlua", name, description, provider);
+    }
+
+    public static void registerType(String owner, String name, String description, TypeProvider provider) {
+        String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
+        if ("default".equals(key)) throw new IllegalArgumentException("[MLua] Block type 'default' is reserved by MLua");
+        if (provider == null) throw new IllegalArgumentException("[MLua] Block type provider is required");
+        REGISTERED_TYPES.register(owner, key, description, provider, "Block");
+    }
+
+    public static boolean unregisterType(String owner, String name) {
+        String key = MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
+        if ("default".equals(key)) return false;
+        return REGISTERED_TYPES.remove(owner, key, "Block");
+    }
+
+    public static int unregisterTypes(String owner) {
+        return REGISTERED_TYPES.removeOwner(owner);
+    }
+
+    public static Map<String, String> registeredTypes() {
+        Map<String, String> types = new TreeMap<>();
+        types.put("default", "A standard block with configurable Minecraft properties and scripted callbacks.");
+        return REGISTERED_TYPES.descriptions(types);
+    }
+
+    public static void validateTypeDefinition(Map<String, Object> properties) {
+        String name = selectedType(properties);
+        if (name != null && !"default".equals(name) && !REGISTERED_TYPES.contains(name, "Block"))
+            throw new IllegalArgumentException("[MLua] Unknown block type: " + name);
+        if (properties == null) return;
+        Object strength = aliased(properties, "hardness", "strength");
+        Object resistance = aliased(properties, "resistance", "explosionResistance");
+        validateNumber(strength, "hardness", -1.0, Float.MAX_VALUE);
+        validateNumber(resistance, "resistance", 0.0, Float.MAX_VALUE);
+        if (resistance != null && strength == null)
+            throw new IllegalArgumentException("[MLua] Block resistance requires a hardness value");
+        validateNumber(properties.get("lightLevel"), "lightLevel", 0.0, 15.0);
+        validateNumber(properties.get("friction"), "friction", 0.0, Float.MAX_VALUE);
+        validateNumber(properties.get("speedFactor"), "speedFactor", 0.0, Float.MAX_VALUE);
+        validateNumber(properties.get("jumpFactor"), "jumpFactor", 0.0, Float.MAX_VALUE);
+        for (String property : new String[]{"requiresCorrectTool", "collision", "noCollision", "noOcclusion", "randomTicks"}) {
+            Object value = properties.get(property);
+            if (value != null && !(value instanceof Boolean))
+                throw new IllegalArgumentException("[MLua] Block property '" + property + "' must be a boolean");
+        }
+        if (Boolean.TRUE.equals(properties.get("collision")) && Boolean.TRUE.equals(properties.get("noCollision")))
+            throw new IllegalArgumentException("[MLua] Block properties 'collision' and 'noCollision' conflict");
+        Object sound = properties.get("sound");
+        if (sound != null && !(sound instanceof String))
+            throw new IllegalArgumentException("[MLua] Block property 'sound' must be a string");
+        Object mapColor = properties.get("mapColor");
+        if (mapColor != null && !(mapColor instanceof String))
+            throw new IllegalArgumentException("[MLua] Block property 'mapColor' must be a string");
+        if (sound instanceof String value) sound(value);
+        if (mapColor instanceof String value) color(value);
+        Object copy = properties.get("copy");
+        if (copy != null && (!(copy instanceof String id) || id.isBlank()))
+            throw new IllegalArgumentException("[MLua] Block copy must be a non-empty block identifier");
+        if (copy instanceof String id) {
+            var location = MLuaResourceLocations.tryParseOrNull(id);
+            if (location == null) throw new IllegalArgumentException("[MLua] Invalid block copy identifier '" + id + "'");
+            if (BuiltInRegistries.BLOCK.getOptional(location).isEmpty())
+                throw new IllegalArgumentException("[MLua] Unknown block in copy property: " + id);
+        }
+        TypeProvider provider = registeredType(properties);
+        if (provider != null) provider.validateDefinition(MLuaDefinitionSnapshot.freeze(properties));
+    }
+
+    private static Object aliased(Map<String, Object> properties, String canonical, String alternate) {
+        Object primary = properties.get(canonical);
+        Object alias = properties.get(alternate);
+        if (primary != null && alias != null)
+            throw new IllegalArgumentException("[MLua] Provide only one of block properties '" + canonical + "' and '" + alternate + "'");
+        return primary != null ? primary : alias;
+    }
+
+    private static void validateNumber(Object raw, String name, double minimum, double maximum) {
+        if (raw == null) return;
+        if (!(raw instanceof Number number) || !Double.isFinite(number.doubleValue())
+            || number.doubleValue() < minimum || number.doubleValue() > maximum) {
+            throw new IllegalArgumentException("[MLua] Block property '" + name + "' must be a finite number from " + minimum + " to " + maximum);
+        }
+    }
+
+    private static Map<String, MapColor> mapColors() {
+        Map<String, MapColor> values = new TreeMap<>(namedValues(MapColor.class, MapColor.class));
+        for (Map.Entry<String, MapColor> entry : new java.util.ArrayList<>(values.entrySet())) {
+            String name = entry.getKey();
+            if (name.startsWith("color_")) values.putIfAbsent(name.substring("color_".length()), entry.getValue());
+            if (name.startsWith("terracotta_")) values.putIfAbsent(name.substring("terracotta_".length()) + "_terracotta", entry.getValue());
+            if (name.endsWith("_nylium")) values.putIfAbsent(name.substring(0, name.length() - "_nylium".length()), entry.getValue());
+        }
+        MapColor lime = values.get("color_light_green");
+        if (lime != null) values.putIfAbsent("lime", lime);
+        return Collections.unmodifiableMap(values);
+    }
+
+    private static <T> Map<String, T> namedValues(Class<?> owner, Class<T> valueType) {
+        Map<String, T> values = new TreeMap<>();
+        for (Field field : owner.getFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) || !valueType.isAssignableFrom(field.getType())) continue;
+            try {
+                Object value = field.get(null);
+                if (value != null) values.put(field.getName().toLowerCase(Locale.ROOT), valueType.cast(value));
+            } catch (IllegalAccessException ignored) {
+                // Omit inaccessible fields from the current version's supported values.
+            }
+        }
+        return Collections.unmodifiableMap(values);
+    }
+
+    public Block create(Map<String, Object> properties, String registryName,
+                        Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
+        TypeProvider custom = registeredType(properties);
+        BlockBehaviour.Properties registered = makeRegisteredProperties(properties, registryName);
+        if (custom != null) {
+            Map<String, Object> definition = MLuaDefinitionSnapshot.validateAndFreeze(
+                properties, custom::validateDefinition);
+            return custom.createNamed(definition, registered, registryName, blockEntityType);
+        }
+        return new Block(registered);
+    }
+
+    public Block createScripted(Map<String, Object> properties, String behaviorKey,
+                                Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType) {
+        TypeProvider custom = registeredType(properties);
+        BlockBehaviour.Properties registered = makeRegisteredProperties(properties, behaviorKey);
+        if (custom != null) {
+            Map<String, Object> definition = MLuaDefinitionSnapshot.validateAndFreeze(
+                properties, custom::validateDefinition);
+            return custom.createScripted(definition, registered, behaviorKey, blockEntityType);
+        }
+        return MLuaScriptedBlock.create(registered, behaviorKey, blockEntityType);
+    }
+
+    public BlockBehaviour.Properties makeRegisteredProperties(Map<String, Object> properties, String registryName) {
+        BlockBehaviour.Properties result = makeProperties(properties);
+        result.setId(ResourceKey.create(Registries.BLOCK, MLuaResourceLocations.parse(registryName)));
+        return result;
+    }
+
+    public BlockBehaviour.Properties makeProperties(Map<String, Object> properties) {
+        if (properties == null) properties = Map.of();
+        BlockBehaviour.Properties props = copyProperties(properties);
+        Object strength = properties.containsKey("hardness") ? properties.get("hardness") : properties.get("strength");
+        Object resistance = properties.containsKey("resistance") ? properties.get("resistance") : properties.get("explosionResistance");
+        if (strength instanceof Number s && resistance instanceof Number r) props.strength(s.floatValue(), r.floatValue());
+        else if (strength instanceof Number s) props.strength(s.floatValue());
+        if (Boolean.TRUE.equals(properties.get("requiresCorrectTool"))) props.requiresCorrectToolForDrops();
+        if (Boolean.FALSE.equals(properties.get("collision")) || Boolean.TRUE.equals(properties.get("noCollision"))) props.noCollision();
+        if (Boolean.TRUE.equals(properties.get("noOcclusion"))) props.noOcclusion();
+        if (Boolean.TRUE.equals(properties.get("randomTicks"))) props.randomTicks();
+        if (properties.get("lightLevel") instanceof Number light) props.lightLevel(state -> Math.max(0, Math.min(15, light.intValue())));
+        if (properties.get("friction") instanceof Number value) props.friction(Math.max(0.0F, value.floatValue()));
+        if (properties.get("speedFactor") instanceof Number value) props.speedFactor(Math.max(0.0F, value.floatValue()));
+        if (properties.get("jumpFactor") instanceof Number value) props.jumpFactor(Math.max(0.0F, value.floatValue()));
+        if (properties.get("sound") instanceof String sound) props.sound(sound(sound));
+        if (properties.get("mapColor") instanceof String color) props.mapColor(color(color));
+        return props;
+    }
+
+    private static TypeProvider registeredType(Map<String, Object> properties) {
+        String type = selectedType(properties);
+        return type == null || "default".equals(type) ? null : REGISTERED_TYPES.get(type, "Block");
+    }
+
+    private static String selectedType(Map<String, Object> properties) {
+        if (properties == null) return null;
+        Object value = properties.containsKey("type") ? properties.get("type") : properties.get("Type");
+        if (value == null) return null;
+        if (!(value instanceof String name) || name.isBlank()) throw new IllegalArgumentException("[MLua] Block type must be a non-empty string");
+        return MLuaRegisteredTypeCatalog.normalizeName(name, "Block");
+    }
+
+
+    public interface TypeProvider {
+        default void validateDefinition(Map<String, Object> definition) { }
+        Block createNamed(Map<String, Object> definition, BlockBehaviour.Properties properties, String registryName,
+                          Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType);
+        Block createScripted(Map<String, Object> definition, BlockBehaviour.Properties properties, String behaviorKey,
+                             Supplier<BlockEntityType<MLuaVisualBlockEntity>> blockEntityType);
+    }
+
+    private BlockBehaviour.Properties copyProperties(Map<String, Object> properties) {
+        Object copy = properties.get("copy");
+        if (copy instanceof String id) {
+            Block block = BuiltInRegistries.BLOCK.getOptional(MLuaResourceLocations.parse(id)).orElse(null);
+            if (block == null) throw new IllegalArgumentException("[MLua] Unknown block in copy property: " + id);
+            return BlockBehaviour.Properties.ofFullCopy(block);
+        }
+        return BlockBehaviour.Properties.ofFullCopy(Blocks.STONE);
+    }
+
+    private static SoundType sound(String name) {
+        SoundType value = SOUNDS.get(normalizeValue(name));
+        if (value == null) value = SOUNDS.get(normalizeValue(name).replace("_", ""));
+        if (value == null) throw new IllegalArgumentException("[MLua] Unknown block sound: " + name
+            + ". Use Registry.Blocks:GetSounds() to list values available in this Minecraft version.");
+        return value;
+    }
+
+    private static MapColor color(String name) {
+        String normalized = normalizeValue(name);
+        MapColor value = MAP_COLORS.get(normalized);
+        if (value == null) value = MAP_COLORS.get(normalized.replace("_", ""));
+        if (value == null) throw new IllegalArgumentException("[MLua] Unknown block mapColor: " + name
+            + ". Use Registry.Blocks:GetMapColors() to list values available in this Minecraft version.");
+        return value;
+    }
+
+    private static String normalizeValue(String value) {
+        return value.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+    }
+}

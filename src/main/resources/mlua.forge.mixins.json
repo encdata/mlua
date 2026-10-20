@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.mlua.modules.mixin.service",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "mlua.refmap.json",
+  "client": [
+    "CameraInvoker",
+    "CameraMixin",
+    "EntityRenderDispatcherMixin",
+    "ModelPartMixin",
+    "MouseHandlerMixin",
+    "HumanoidModelMixin",
+    "LivingEntityRendererMixin",
+    "ThirdPersonItemRendererMixin",
+    "PlayerModelMixin",
+    "ScreenLayoutMixin",
+    "ChatLineMixin",
+    "ChatHudMixin",
+    "GuiHudMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

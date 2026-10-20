@@ -1,0 +1,89 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "net.fabricmc:fabric-loom:${providers.gradleProperty('loomVersion').get()}"
+    }
+}
+
+def loomPluginId = providers.gradleProperty('loomVersion').get().startsWith('1.15')
+    ? 'net.fabricmc.fabric-loom' : 'fabric-loom'
+apply plugin: loomPluginId
+
+version = '1.0.0'
+group = 'dev.mlua.ci'
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+    mavenCentral()
+}
+
+def targetMinecraftVersion = providers.gradleProperty('minecraftVersion').get()
+if (targetMinecraftVersion.startsWith('26.')) {
+    configurations.create('smokeFabricMods') {
+        transitive = false
+    }
+}
+
+dependencies {
+    def modDependencyConfiguration = targetMinecraftVersion.startsWith('26.')
+        ? 'implementation' : 'modImplementation'
+    minecraft "com.mojang:minecraft:${targetMinecraftVersion}"
+    if (!targetMinecraftVersion.startsWith('26.')) {
+        mappings loom.officialMojangMappings()
+    }
+    def fabricLoader = "net.fabricmc:fabric-loader:${providers.gradleProperty('fabricLoaderVersion').get()}"
+    def fabricApi = "net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty('fabricApiVersion').get()}"
+    add(modDependencyConfiguration, fabricLoader)
+    add(modDependencyConfiguration, fabricApi)
+
+    // Fabric packages the runtime classes directly in the outer MLua JAR.
+    def mluaCompileJars = files('compile-libs/mlua.jar')
+    if (targetMinecraftVersion.startsWith('26.')) {
+        compileOnly mluaCompileJars
+    } else {
+        modCompileOnly mluaCompileJars
+    }
+
+    if (targetMinecraftVersion.startsWith('26.')) {
+        smokeFabricMods fabricLoader
+        smokeFabricMods fabricApi
+    }
+}
+
+sourceSets.main.java.srcDir '../common/src/main/java'
+sourceSets.main.resources.srcDir '../common/src/main/resources'
+
+loom {
+    runs {
+        client {
+            runDir providers.gradleProperty('mluaClientRunDir').getOrElse('run')
+        }
+        server {
+            runDir providers.gradleProperty('mluaServerRunDir').getOrElse('run')
+            programArgs '--nogui'
+        }
+    }
+    mods {
+        mlua_ci_smoke { sourceSet sourceSets.main }
+    }
+}
+
+if (providers.gradleProperty('minecraftVersion').get().startsWith('26.')) {
+    def installSmokeFabricMods = tasks.register('installSmokeFabricMods', Copy) {
+        from configurations.smokeFabricMods
+        into layout.projectDirectory.dir('run/mods')
+    }
+    tasks.named('runClient').configure { dependsOn installSmokeFabricMods }
+    tasks.named('runServer').configure { dependsOn installSmokeFabricMods }
+}
+
+processResources {
+    inputs.property 'minecraftVersion', providers.gradleProperty('minecraftVersion').get()
+    filesMatching('fabric.mod.json') {
+        expand minecraftVersion: providers.gradleProperty('minecraftVersion').get()
+    }
+}

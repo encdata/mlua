@@ -1,0 +1,83 @@
+import groovy.json.JsonSlurper
+
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.neoforged.net/releases' }
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://maven.fabricmc.net/' }
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        maven { url = 'https://maven.neoforged.net/releases' }
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://maven.fabricmc.net/' }
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'MLua'
+apply from: file('gradle/mlua-targets.gradle')
+def requestedBuildTarget = startParameter.projectProperties.get('mluaTarget')
+def requestedBuildLoader = startParameter.projectProperties.get('mluaLoader')
+def documentationOnly = startParameter.projectProperties.containsKey('mluaDocsOnly')
+def baseProjects = ['mlua-luaj', 'mlua-common', 'mlua-core', 'mlua-mc-api', 'mlua-loader-api']
+if (!documentationOnly) baseProjects.addAll(['mlua-api', 'fabric', 'forge', 'neoforge'])
+if (!documentationOnly && requestedBuildTarget == null) {
+    baseProjects.add('mlua-runtime')
+    baseProjects.add('mlua-mc')
+}
+include baseProjects
+
+if (!documentationOnly && requestedBuildTarget == null) {
+    project(':mlua-mc').projectDir = file('mlua-mc')
+}
+if (findProject(':fabric') != null) project(':fabric').projectDir = file('mlua-loaders/fabric')
+if (findProject(':forge') != null) project(':forge').projectDir = file('mlua-loaders/forge')
+if (findProject(':neoforge') != null) project(':neoforge').projectDir = file('mlua-loaders/neoforge')
+
+def targetConfig = new JsonSlurper().parse(file('gradle/mlua-targets.json'))
+validateMluaTargetConfig(targetConfig)
+def configuredTargets = selectMluaBuildTargets(targetConfig, requestedBuildTarget, documentationOnly)
+configuredTargets.each { target ->
+    def version = target.minecraft
+    if (documentationOnly && !target.loaders.contains('forge')) {
+        throw new GradleException("Documentation generation currently requires a Forge target; ${version} has no Forge loader")
+    }
+    if (requestedBuildLoader != null && !target.loaders.contains(requestedBuildLoader)) {
+        throw new GradleException("Minecraft ${version} does not define the ${requestedBuildLoader} loader")
+    }
+    def targetLoaders = documentationOnly ? [] : (requestedBuildLoader == null ? target.loaders : [requestedBuildLoader])
+    if (documentationOnly) {
+        include "mlua-runtime-${version}"
+        project(":mlua-runtime-${version}").projectDir = file("mlua-runtime/${version}")
+        include "mlua-mc:${version}"
+        project(":mlua-mc:${version}").projectDir = file("mlua-mc/${version}")
+    }
+    // Forge's legacy runtime and implementation projects are only included for
+    // targets that actually publish a Forge loader. Fabric/NeoForge targets use
+    // their own runtime path and must not be forced through ForgeGradle.
+    if (targetLoaders.contains('forge')) {
+        include "mlua-runtime-${version}"
+        project(":mlua-runtime-${version}").projectDir = file("mlua-runtime/${version}")
+    }
+
+    if (targetLoaders.contains('neoforge')) {
+        include "mlua-runtime-neoforge-${version}"
+        def runtimeVersion = (target.containsKey('implementationTarget') ? target.implementationTarget : version).toString()
+        project(":mlua-runtime-neoforge-${version}").projectDir = file("mlua-runtime-neoforge/${runtimeVersion}")
+    }
+
+    if (targetLoaders.contains('forge')) {
+        include "mlua-mc:${version}"
+        project(":mlua-mc:${version}").projectDir = file("mlua-mc/${version}")
+    }
+
+    targetLoaders.each { loader ->
+        include "${loader}:${version}"
+        project(":${loader}:${version}").projectDir = file("mlua-loaders/${loader}/${version}/project")
+    }
+}

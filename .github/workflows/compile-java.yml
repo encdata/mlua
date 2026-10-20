@@ -1,0 +1,333 @@
+name: Build and boot packaged Minecraft
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      test_target:
+        description: Build and simulate a player for one target, or run the full matrix
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - 1.20.1-fabric
+          - 1.20.1-forge
+          - 1.21.1-fabric
+          - 1.21.1-forge
+          - 1.21.1-neoforge
+          - 26.1-fabric
+          - 26.1-neoforge
+          - 26.1.1-fabric
+          - 26.1.2-fabric
+          - 26.1.2-neoforge
+
+permissions:
+  contents: read
+
+jobs:
+  select-targets:
+    name: Select build and player-test targets
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate target selection
+        id: select
+        run: |
+          python .github/scripts/verify-ci-targets.py
+          python .github/scripts/select-ci-targets.py
+        env:
+          MLUA_TEST_TARGET: ${{ inputs.test_target || 'all' }}
+
+  build:
+    name: Build ${{ matrix.target }} / ${{ matrix.loader }} (Linux)
+    needs: select-targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.select-targets.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate player simulation harness contract
+        run: python .github/scripts/verify-player-smoke-contract.py
+
+      - name: Validate versioned source ownership
+        run: python .github/scripts/verify-source-ownership-contract.py
+
+      - name: Validate GUI layout ownership contract
+        run: python .github/scripts/verify-gui-layout-ownership-contract.py
+
+      - name: Validate cross-loader render hook contract
+        run: python .github/scripts/verify-render-hook-contract.py
+
+      - name: Validate cross-loader event bridge contract
+        run: python .github/scripts/verify-event-bridge-contract.py
+
+      - name: Validate registry rollback contract
+        run: python .github/scripts/verify-registry-lifecycle-contract.py
+
+      - name: Validate World service call convention
+        run: python .github/scripts/verify-world-service-call-contract.py
+
+      - name: Validate scripted entity callback state ownership
+        run: python .github/scripts/verify-scripted-entity-state-contract.py
+
+      - name: Validate Java input conversion ownership
+        run: python .github/scripts/verify-java-conversion-ownership-contract.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
+
+      - name: Build and validate the packaged mod JAR
+        run: >-
+          gradle --no-daemon --stacktrace
+          -PmluaTarget=${{ matrix.target }}
+          -PmluaLoader=${{ matrix.loader }}
+          assemble validateLoaderArtifacts
+
+      - name: Upload Java regression test reports
+        if: failure() && matrix.target == '1.20.1' && matrix.loader == 'forge'
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-regression-test-reports
+          path: mlua-runtime/1.20.1/build/reports/tests/test/
+          if-no-files-found: ignore
+          retention-days: 5
+
+      - name: Upload packaged mod JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlua-${{ matrix.loader }}-${{ matrix.target }}
+          path: build/loader-jars/*.jar
+          if-no-files-found: error
+          retention-days: 2
+
+  regression-tests:
+    name: Java regression tests (Linux)
+    needs: select-targets
+    if: ${{ contains(needs.select-targets.outputs.matrix, '1.20.1-forge') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Run Java regression tests
+        run: >-
+          gradle --no-daemon --stacktrace
+          -PmluaTarget=1.20.1
+          -PmluaLoader=forge
+          test
+
+      - name: Upload Java regression test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-regression-test-reports
+          path: mlua-runtime/1.20.1/build/reports/tests/test/
+          if-no-files-found: ignore
+          retention-days: 5
+
+  run-client:
+    name: Boot packaged ${{ matrix.target }} / ${{ matrix.loader }} client and server (Windows)
+    needs: [select-targets, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.select-targets.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse Windows smoke scripts before downloading Minecraft
+        shell: pwsh
+        run: |
+          $scripts = @(
+            '.github/scripts/prepare-packaged-smoke.ps1',
+            '.github/scripts/run-minecraft-smoke.ps1',
+            '.github/scripts/run-player-smoke.ps1',
+            '.github/scripts/smoke-process.ps1'
+          )
+          foreach ($path in $scripts) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $env:GITHUB_WORKSPACE $path),
+              [ref]$tokens,
+              [ref]$parseErrors
+            ) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $details = ($parseErrors | ForEach-Object { $_.Message }) -join [Environment]::NewLine
+              throw "PowerShell syntax errors in ${path}:`n$details"
+            }
+          }
+          Write-Host "Parsed $($scripts.Count) PowerShell smoke scripts."
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mlua-${{ matrix.loader }}-${{ matrix.target }}
+          path: client-smoke/mod
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Install Mesa software OpenGL renderer
+        uses: f3d-app/install-mesa-windows-action@0bf56c0087f284825523b99b5a5320cb17ac6f43
+        with:
+          path: ${{ env.JAVA_HOME }}/bin
+          version: 23.3.5
+
+      - name: Force software OpenGL rendering
+        shell: pwsh
+        run: |
+          'GALLIUM_DRIVER=llvmpipe' >> $env:GITHUB_ENV
+          'LIBGL_ALWAYS_SOFTWARE=1' >> $env:GITHUB_ENV
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
+
+      - name: Prepare isolated test mod with the packaged MLua JAR
+        id: prepare
+        shell: pwsh
+        run: pwsh -File .github/scripts/prepare-packaged-smoke.ps1
+        env:
+          MLUA_LOADER: ${{ matrix.loader }}
+          MLUA_TARGET: ${{ matrix.target }}
+          MLUA_JAVA_VERSION: ${{ matrix.java }}
+          MLUA_GRADLE_VERSION: ${{ matrix.gradle }}
+          MLUA_LOADER_VERSION: ${{ matrix.loaderVersion }}
+          MLUA_FABRIC_API_VERSION: ${{ matrix.fabricApi }}
+          MLUA_LOOM_VERSION: ${{ matrix.loom }}
+          MLUA_FORGE_VERSION: ${{ matrix.forgeVersion }}
+          MLUA_FORGE_LOADER_RANGE: ${{ matrix.forgeLoaderRange }}
+          MLUA_NEOFORGE_VERSION: ${{ matrix.neoForgeVersion }}
+
+      - name: Boot Minecraft client with the packaged MLua JAR
+        shell: pwsh
+        working-directory: client-smoke/${{ matrix.loader }}
+        run: |
+          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
+          if ('${{ matrix.loader }}' -eq 'fabric') {
+            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
+          } elseif ('${{ matrix.loader }}' -eq 'forge') {
+            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
+          } else {
+            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
+          }
+          & ../../.github/scripts/run-minecraft-smoke.ps1 `
+            -Task runClient `
+            -GradleArgs $gradleArgs `
+            -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_INPUT_KEYBINDS_OK', 'MLUA_CI_TOAST_API_OK', 'MLUA_CI_BBMODEL_HIERARCHY_OK', 'MLUA_CI_MODEL_TRANSFORM_OK', 'MLUA_CI_TASK_LIMITS_OK', 'MLUA_CI_NESTED_TASK_SCHEDULE_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_PARTICLE_EMITTER_API_OK', 'MLUA_CI_NATIVE_SCREEN_STATE_OK', 'MLUA_CI_NATIVE_SCREEN_TICK_OK', 'MLUA_CI_NATIVE_SCREEN_CONTROLS_OK', 'MLUA_CI_NATIVE_SCREEN_BUTTON_CALLBACK_OK', 'MLUA_CI_NATIVE_SCREEN_EDITBOX_CHANGE_OK', 'MLUA_CI_CLOSED_SCREEN_CONTROLS_OK', 'MLUA_CI_SERVICE_PARITY_OK', 'MLUA_CI_GENERATED_ASSET_HANDLES_OK', 'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK', 'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK') `
+            -LogFile 'client-smoke.log' `
+            -TimeoutSeconds 300
+
+      - name: Upload client logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-logs-${{ matrix.loader }}-${{ matrix.target }}
+          path: |
+            ${{ github.workspace }}/client-smoke/**/*.log*
+            ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt
+          if-no-files-found: ignore
+          retention-days: 5
+
+      - name: Boot dedicated server with the packaged MLua JAR
+        if: ${{ always() && !cancelled() }}
+        shell: pwsh
+        working-directory: client-smoke/${{ matrix.loader }}
+        run: |
+          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
+          if ('${{ matrix.loader }}' -eq 'fabric') {
+            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
+          } elseif ('${{ matrix.loader }}' -eq 'forge') {
+            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
+          } else {
+            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
+          }
+          & ../../.github/scripts/run-minecraft-smoke.ps1 `
+            -Task runServer `
+            -GradleArgs $gradleArgs `
+            -BootMarker 'MLUA_PACKAGED_SERVER_BOOT_OK' `
+            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK', 'MLUA_CI_SERVER_SERVICE_SCRIPT_OK', 'MLUA_CI_ITEM_PROPERTIES_APPLIED_OK', 'MLUA_CI_TIERED_TOOL_CREATED_OK', 'MLUA_CI_NATIVE_BOW_CREATED_OK', 'MLUA_CI_SCRIPTED_BOW_CREATED_OK', 'MLUA_CI_ITEM_COPY_CREATED_OK', 'MLUA_CI_ITEM_PICKUP_EVENT_OK', 'MLUA_CI_SCOREBOARD_CLASSES_OK', 'MLUA_CI_GENERATED_ASSET_HANDLES_OK', 'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK', 'MLUA_CI_COOKING_RESULT_COUNT_OK', 'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK') `
+            -LogFile 'server-smoke.log' `
+            -TimeoutSeconds 600
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-${{ matrix.loader }}-${{ matrix.target }}
+          path: |
+            ${{ github.workspace }}/client-smoke/**/*.log*
+            ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt
+          if-no-files-found: ignore
+          retention-days: 5
+
+      - name: Simulate player gameplay against the dedicated server
+        if: ${{ success() }}
+        shell: pwsh
+        working-directory: client-smoke/${{ matrix.loader }}
+        run: |
+          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
+          if ('${{ matrix.loader }}' -eq 'fabric') {
+            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
+          } elseif ('${{ matrix.loader }}' -eq 'forge') {
+            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
+          } else {
+            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
+          }
+          & ../../.github/scripts/run-player-smoke.ps1 -GradleArgs $gradleArgs -TimeoutSeconds 360
+          $playerSummary = @"
+          ### Player simulation passed
+
+          - Minecraft client connected to the isolated dedicated server as the same player.
+          - Client chat reached the server, and the server greeting reached the client.
+          - Client `Entity:Attack()` hit the identified sheep; the server confirmed its hurt event and notified the client.
+          - Server-dropped items were picked up with the expected stack count.
+          - A simulated right-click opened the scripted block container on client and server; its registered slot rules and data passed.
+          - Scripted entity spawn, tick, and AI callbacks passed.
+          - A native Minecraft screen exposed a button and edit box; edit-box property changes reached Lua.
+          - Simulated key and mouse input moved the player and released cleanly.
+          - World geometry validated `RenderContext.DeltaTime` and submitted a Mesh with its `ModelTransform`; held-item passes and player and sheep model adapters with animation poses ran.
+          "@
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $playerSummary
+
+      - name: Upload simulated player logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-logs-${{ matrix.loader }}-${{ matrix.target }}
+          path: |
+            ${{ github.workspace }}/client-smoke/${{ matrix.loader }}/player-*.log*
+            ${{ github.workspace }}/client-smoke/${{ matrix.loader }}/run/player-*/run/logs/latest.log
+            ${{ github.workspace }}/client-smoke/${{ matrix.loader }}/run/player-*/run/crash-reports/*.txt
+          if-no-files-found: ignore
+          retention-days: 5

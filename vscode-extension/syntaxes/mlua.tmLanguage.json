@@ -1,0 +1,72 @@
+{
+  "scopeName": "mlua.injection",
+  "name": "MLua Injections",
+  "information_for_contributors": [
+    "This grammar injects MLua/LuaJ/Luau-specific tokens into source.lua."
+  ],
+  "injectionSelector": "L:source.lua",
+  "patterns": [
+    {
+      "include": "#mlua-keywords"
+    },
+    {
+      "include": "#mlua-operators"
+    },
+    {
+      "include": "#mlua-globals"
+    },
+    {
+      "include": "#mlua-numbers"
+    }
+  ],
+  "repository": {
+    "mlua-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.lua",
+          "match": "\\bcontinue\\b"
+        }
+      ]
+    },
+    "mlua-operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.compound.mlua",
+          "match": "(?<!\\S)(?:\\+=|-=|\\*=|/=|//=|%=|\\^=|\\.\\.=)(?!\\S)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.mlua",
+          "match": "//"
+        }
+      ]
+    },
+    "mlua-globals": {
+      "patterns": [
+        {
+          "name": "support.class.mlua",
+          "match": "\\b(?:Minecraft|Enum|Vector2|Vector3|CFrame|Color3|UDim|UDim2|Random|DateTime|Signal)\\b"
+        },
+        {
+          "name": "support.function.mlua",
+          "match": "\\b(?:Require|typeof)\\b"
+        },
+        {
+          "name": "support.variable.mlua",
+          "match": "\\btask\\b"
+        }
+      ]
+    },
+    "mlua-numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.binary.mlua",
+          "match": "\\b0[bB][01](?:_?[01])*\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.mlua",
+          "match": "\\b\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?\\b"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+plugins {
+    id 'java-library'
+}
+
+version = mod_version
+group = mod_group_id
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':mlua-common')
+    implementation project(':mlua-luaj')
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Automatic-Module-Name': 'mlua.mcapi',
+                'Specification-Title': "${mod_id}-mcapi",
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': archiveVersion,
+                'Implementation-Vendor': mod_authors
+        ])
+    }
+}

@@ -1,0 +1,298 @@
+#!/usr/bin/env python3
+"""Check that every World service implementation normalizes colon and dot calls."""
+
+from pathlib import Path
+import json
+import re
+import sys
+
+
+ROOT = Path(__file__).resolve().parents[2]
+TARGETS = ROOT / "gradle/mlua-targets.json"
+SHARED = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldService.java"
+FABRIC_120 = ROOT / "mlua-loaders/fabric/1.20.1/impl/dev/mlua/modules/world/service/MLuaWorldService.java"
+COMMON_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldService.java"
+GAME_RULES_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/MLuaWorldGameRules26.java"
+GAME_RULES_SHARED = ROOT / "src/main/java/dev/mlua/modules/world/MLuaWorldGameRules.java"
+GAME_RULE_ENTRY = ROOT / "src/main/java/dev/mlua/modules/world/MLuaWorldGameRuleEntry.java"
+RAYCAST_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldRaycastOperations26.java"
+RAYCAST_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldRaycastApi26.java"
+ENVIRONMENT_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldEnvironmentApi26.java"
+BLOCK_MUTATION_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldBlockMutationApi26.java"
+EFFECTS_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldEffectsApi26.java"
+ENTITY_QUERY_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldEntityQueryApi26.java"
+DATA_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldDataApi26.java"
+WORLD_MODULE = ROOT / "src/main/java/dev/mlua/modules/world/WorldModule.java"
+SCRIPTED_BLOCK = ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaScriptedBlock.java"
+
+
+def fail(message: str) -> None:
+    print(f"World service call contract error: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def method_body(source: str, signature: str) -> str:
+    match = re.search(signature, source)
+    if match is None:
+        fail(f"could not find {signature}")
+    opening = source.find("{", match.end())
+    if opening < 0:
+        fail(f"could not find body for {signature}")
+    depth = 0
+    for index in range(opening, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[opening + 1:index]
+    fail(f"unterminated body for {signature}")
+
+
+targets = json.loads(TARGETS.read_text(encoding="utf-8"))["targets"]
+pairs = sorted({(str(target["minecraft"]), loader)
+                for target in targets for loader in target["loaders"]})
+implementations = {}
+for version, loader in pairs:
+    if version == "1.20.1" and loader == "fabric":
+        path = FABRIC_120
+    elif version.startswith("26."):
+        path = COMMON_26
+    else:
+        path = SHARED
+    if not path.is_file():
+        fail(f"{loader} {version} selects a missing implementation: {path}")
+    implementations.setdefault(path, []).append((version, loader))
+
+for path, covered_targets in implementations.items():
+    source = path.read_text(encoding="utf-8")
+    body = method_body(source, r"\bpublic\s+LuaTable\s+toLua\s*\(\s*\)")
+    if "supportColonAndDotCalls(table)" not in body:
+        labels = ", ".join(f"{loader} {version}" for version, loader in covered_targets)
+        fail(f"{labels} World service does not normalize colon and dot calls")
+    if not re.search(r'table\.set\("Get"\s*,', body):
+        labels = ", ".join(f"{loader} {version}" for version, loader in covered_targets)
+        fail(f"{labels} World service no longer exposes Get")
+
+bounds_helper = ROOT / "src/main/java/dev/mlua/modules/entity/MLuaEntityBounds.java"
+if not bounds_helper.is_file():
+    fail("shared EntityBounds implementation is missing")
+for path in (SHARED, FABRIC_120, COMMON_26):
+    source = path.read_text(encoding="utf-8")
+    if path == SHARED:
+        raycast_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldRaycastApi.java"
+        entity_query_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEntityQueryApi.java"
+        environment_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEnvironmentApi.java"
+        if not raycast_api.is_file() or not entity_query_api.is_file():
+            fail("shared world raycast API binding is missing")
+        if not environment_api.is_file():
+            fail("shared world environment API binding is missing")
+        source += (raycast_api.read_text(encoding="utf-8")
+                   + entity_query_api.read_text(encoding="utf-8")
+                   + environment_api.read_text(encoding="utf-8"))
+    elif path == COMMON_26:
+        source += "\n".join(owner.read_text(encoding="utf-8") for owner in (
+            RAYCAST_26, RAYCAST_API_26, ENVIRONMENT_API_26, BLOCK_MUTATION_API_26,
+            EFFECTS_API_26, ENTITY_QUERY_API_26, DATA_API_26))
+    if "MLuaEntityBounds.fromLua(" not in source or "MLuaEntityBounds.rayHitNormal(" not in source:
+        fail(f"{path} does not delegate bounds conversion and hit normals to the entity module")
+    if re.search(r"\bprivate\s+static\s+(?:AABB|Vec3)\s+(?:entityBounds|rayHitNormal)\s*\(", source):
+        fail(f"{path} duplicates EntityBounds geometry implementation")
+
+# World binders may install instance methods either as pending raw methods or
+# directly into the class instance method store. Keep both paths valid.
+world_module_text = WORLD_MODULE.read_text(encoding="utf-8")
+world_binder = method_body(world_module_text,
+                           r"\bpublic\s+static\s+void\s+bindWorldInstanceMethods\s*\(")
+if '"__mlua_instance_methods"' not in world_binder:
+    fail("World method finalization no longer recognizes methods installed by shared binders")
+
+# The Fabric 1.20.1 source overlay must use the shared GameRuleEntry instance
+# factory; the old reserved __mlua_* callback fields conflict with class metadata.
+fabric_120_text = FABRIC_120.read_text(encoding="utf-8")
+if "MLuaWorldGameRules.list(" not in fabric_120_text \
+        or "MLuaWorldGameRules.entry(" not in fabric_120_text \
+        or "__mlua_get_game_rule_value" in fabric_120_text:
+    fail("Fabric 1.20.1 World service does not use the shared typed gamerule implementation")
+
+scripted_block_text = SCRIPTED_BLOCK.read_text(encoding="utf-8")
+block_entity_factory = method_body(scripted_block_text,
+                                   r"\bpublic\s+BlockEntity\s+newBlockEntity\s*\(")
+if "configureContainer(container.rows() * 9)" not in block_entity_factory:
+    fail("scripted containers are not initialized when their block entity is created")
+
+query_helper = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEntityQueries.java"
+if not query_helper.is_file():
+    fail("shared world entity query result implementation is missing")
+query_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEntityQueryApi.java"
+if not query_api.is_file():
+    fail("shared world entity query API binding is missing")
+for path in (SHARED, FABRIC_120, COMMON_26):
+    source = path.read_text(encoding="utf-8")
+    if path == SHARED:
+        source += query_api.read_text(encoding="utf-8")
+    elif path == COMMON_26:
+        source += ENTITY_QUERY_API_26.read_text(encoding="utf-8")
+    if "MLuaWorldEntityQueries." not in source:
+        fail(f"{path} does not use shared world entity query results")
+
+shared_world = SHARED.read_text(encoding="utf-8")
+query_api_source = query_api.read_text(encoding="utf-8")
+world_factory = method_body(shared_world, r"\bprivate\s+synchronized\s+LuaTable\s+worldTable\s*\(")
+environment_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEnvironmentApi.java"
+block_query_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldBlockQueryApi.java"
+data_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldDataApi.java"
+if "MLuaWorldEnvironmentApi.bind(table, supplier, context)" not in world_factory:
+    fail("shared World service does not delegate environment and dimension methods")
+for binding, owner in (
+    ("MLuaWorldBlockQueryApi.bind(table, supplier, context)", block_query_api),
+    ("MLuaWorldDataApi.bind(table, supplier, context)", data_api),
+):
+    if binding not in world_factory:
+        fail(f"shared World service does not delegate to {owner.name}")
+environment_source = environment_api.read_text(encoding="utf-8")
+if 'table.rawset("GetId"' not in environment_source:
+    fail("live World instances must install methods without triggering registered-class __newindex checks")
+for owner in (environment_api, block_query_api, data_api):
+    owner_source = owner.read_text(encoding="utf-8")
+    if not owner_source.startswith("//--version 1.20.1,1.21.1\n") or "//--endversion" not in owner_source:
+        fail(f"{owner.name} must be excluded from 26.x, which has its own World API implementation")
+for owner, methods in (
+    (environment_api, ("GetId", "GetDimension", "GetTime", "SetTime", "AddTime", "GetWeather",
+                       "IsRaining", "IsThundering", "IsRainingAt", "SetWeather", "GetDifficulty",
+                       "SetDifficulty", "ListGameRules", "GetGameRule", "GetGameRuleEntry", "SetGameRule")),
+    (block_query_api, ("GetBlock", "GetBlockEntity", "GetBlockState", "GetFluid", "GetFluidState",
+                       "GetBiome", "GetLightLevel", "GetSkyLight", "GetBlockLight", "CanSeeSky",
+                       "GetSurfaceY", "GetBlockInventory")),
+    (data_api, ("GetPersistentData", "GetSyncedData", "GetData", "SetData", "RemoveData")),
+):
+    owner_source = owner.read_text(encoding="utf-8")
+    for method in methods:
+        binding = f'table.rawset("{method}"'
+        if binding not in owner_source:
+            fail(f"{owner.name} does not own the World:{method} binding")
+        if binding in shared_world:
+            fail(f"World:{method} is still bound inline in MLuaWorldService")
+if re.search(r"\btable\.set\(\"(?:Get|Set|Is|Can|Load|Unload|Force|Add|Remove|List|Raycast|Spawn|Drop|Break|Explode)", world_factory):
+    fail("live World method implementations must use raw instance setup before class dispatch binding")
+if "for (Player player : level.players())" not in query_api_source:
+    fail("shared World:FindNearestPlayer must query the world's player list directly")
+if "this.players(level)" in query_api_source or "allEntities(Level level)" in query_api_source:
+    fail("shared World service must not rescan every loaded entity to collect players")
+
+mutation_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldMutationApi.java"
+if not mutation_api.is_file() or "MLuaWorldMutationApi.bind(" not in shared_world:
+    fail("shared World service does not delegate server-side changes to the mutation API owner")
+mutation_api_source = mutation_api.read_text(encoding="utf-8")
+for method in ("SetBlock", "SetBlockState", "BreakBlock", "PlaySound", "SpawnParticle",
+               "SpawnEntity", "DropItem", "Explode", "SpawnLightning"):
+    if f'table.rawset("{method}"' not in mutation_api_source:
+        fail(f"world mutation API owner is missing {method}")
+
+raycast_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldRaycastApi.java"
+if not raycast_api.is_file() or "MLuaWorldRaycastApi.bind(" not in shared_world:
+    fail("shared World service does not delegate raycasts to their API owner")
+for method in ("Raycast", "RaycastEntity", "RaycastAABB"):
+    if f'table.rawset("{method}"' not in raycast_api.read_text(encoding="utf-8"):
+        fail(f"world raycast API owner is missing {method}")
+
+query_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEntityQueryApi.java"
+query_api_source = query_api.read_text(encoding="utf-8")
+for method in ("GetPlayers", "GetEntities", "FindEntitiesInRadius", "GetEntitiesInRadius",
+               "GetEntitiesNearby", "FindEntitiesInBox", "FindEntitiesInBounds",
+               "FindPlayersInBounds", "FindPlayersInRadius", "GetPlayersNearby",
+               "FindNearestPlayer", "GetNearestPlayer", "FindNearestEntity"):
+    if f'table.rawset("{method}"' not in query_api_source:
+        fail(f"world entity query API owner is missing internal binding for {method}")
+
+instance_cache = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldInstanceCache.java"
+if not instance_cache.is_file():
+    fail("shared world instance cache is missing")
+for path in (SHARED, FABRIC_120, COMMON_26):
+    source = path.read_text(encoding="utf-8")
+    if "new MLuaWorldInstanceCache()" not in source:
+        fail(f"{path} does not use shared world wrapper identity management")
+    if "WeakHashMap<Level" in source or "WeakReference<LuaTable>" in source:
+        fail(f"{path} duplicates world wrapper cache ownership")
+
+common26_source = COMMON_26.read_text(encoding="utf-8")
+raycast_26_source = RAYCAST_26.read_text(encoding="utf-8")
+raycast_api_26_source = RAYCAST_API_26.read_text(encoding="utf-8")
+data_api_26_source = DATA_API_26.read_text(encoding="utf-8")
+game_rules_26_source = GAME_RULES_26.read_text(encoding="utf-8")
+for required_import in (
+    "import dev.mlua.modules.entity.MLuaEntityBounds;",
+    "import dev.mlua.modules.entity.MLuaEntityQuery;",
+    "import dev.mlua.modules.world.MLuaPositionArguments;",
+    "import net.minecraft.world.level.ClipContext;",
+):
+    if required_import not in raycast_26_source:
+        fail(f"26.1 raycast owner is missing version-correct import {required_import}")
+if "import dev.mlua.modules.world.MLuaWorldGameRules26;" not in data_api_26_source:
+    fail("26.1 World data API is missing the extracted gamerule helper import")
+for operation in (".list(world,", ".get(world,", ".entry(world,", ".set(serverLevel,"):
+    if f"MLuaWorldGameRules26{operation}" not in data_api_26_source:
+        fail(f"26.1 World data API is missing gamerule delegation {operation}")
+if "MLuaWorldGameRules26.set(serverLevel, name, value, serverSupplier.get())" not in game_rules_26_source:
+    fail("26.1 gamerule entry setter does not resolve to the typed helper")
+if "camelCaseName(rule.getIdentifier().getPath()).equals(name)" not in game_rules_26_source:
+    fail("26.1 gamerule lookup must accept Minecraft camelCase names as well as registry ids")
+if "table.set(camelCaseName(name), entry.get(\"Value\"))" not in game_rules_26_source:
+    fail("26.1 gamerule listing must expose Minecraft camelCase names")
+for binding, delegated in (
+    ('"RaycastAABB"', "MLuaWorldRaycastOperations26.raycastBounds"),
+    ('"RaycastEntity"', "MLuaWorldRaycastOperations26.raycastEntity"),
+):
+    if binding not in raycast_api_26_source or delegated not in raycast_api_26_source:
+        fail(f"26.1 World raycast API is missing the dedicated raycast owner for {binding}")
+if "private LuaValue raycastBounds(" in common26_source or "private LuaValue raycastEntity(" in common26_source:
+    fail("26.1 World service still owns ray traversal implementations inline")
+for method in ("raycastBounds", "raycastEntity", "requireFinite"):
+    if f"{method}(" not in raycast_26_source:
+        fail(f"26.1 raycast owner is missing {method}")
+
+world_factory_26 = method_body(common26_source, r"\bprivate\s+synchronized\s+LuaTable\s+world\s*\(")
+for binding in (
+    "MLuaWorldEnvironmentApi26.bind(", "MLuaWorldBlockQueryApi26.bind(",
+    "MLuaWorldRaycastApi26.bind(", "MLuaWorldBlockMutationApi26.bind(",
+    "MLuaWorldEffectsApi26.bind(", "MLuaWorldDataApi26.bind(",
+    "MLuaWorldEntityQueryApi26.bind(",
+):
+    if binding not in world_factory_26:
+        fail(f"26.1 World instance factory is missing its API owner: {binding}")
+for owner, methods in (
+    (ENVIRONMENT_API_26, ("GetId", "GetDimension", "GetTime", "SetTime", "GetWeather", "SetWeather")),
+    (BLOCK_MUTATION_API_26, ("SetBlock", "SetBlockState", "BreakBlock", "DestroyBlock")),
+    (EFFECTS_API_26, ("PlaySound", "SpawnParticle", "SpawnEntity", "DropItem", "Explode", "SpawnLightning")),
+    (DATA_API_26, ("GetPersistentData", "GetSyncedData", "GetData", "SetData", "RemoveData",
+                   "ListGameRules", "GetGameRule", "GetGameRuleEntry", "SetGameRule")),
+    (ENTITY_QUERY_API_26, ("GetPlayers", "GetEntities", "FindEntitiesInRadius", "FindPlayersInRadius",
+                           "FindNearestPlayer", "FindNearestEntity", "FindEntitiesInBounds")),
+    (RAYCAST_API_26, ("Raycast", "RaycastEntity", "RaycastAABB")),
+):
+    if not owner.is_file():
+        fail(f"26.1 World API owner is missing: {owner}")
+    owner_source = owner.read_text(encoding="utf-8")
+    for method in methods:
+        if f'"{method}"' not in owner_source:
+            fail(f"{owner.name} does not own the World:{method} binding")
+
+for path in (GAME_RULES_SHARED, GAME_RULES_26):
+    source = path.read_text(encoding="utf-8")
+    if "MLuaWorldGameRuleEntry.create(" not in source:
+        fail(f"{path} does not delegate GameRuleEntry shape to the shared builder")
+    if "__mlua_get_game_rule_value" in source or "__mlua_set_game_rule_value" in source:
+        fail(f"{path} uses version-specific GameRuleEntry backing fields")
+
+if not GAME_RULE_ENTRY.is_file():
+    fail("shared GameRuleEntry builder is missing")
+game_rule_entry_source = GAME_RULE_ENTRY.read_text(encoding="utf-8")
+for backing_field in (
+    'fields.set("__game_rule_name"',
+    'fields.set("__game_rule_get_value"',
+    'fields.set("__game_rule_set_value"',
+):
+    if backing_field not in game_rule_entry_source:
+        fail(f"shared GameRuleEntry builder is missing its backing contract: {backing_field}")
+
+print(f"World service call contract passed ({len(pairs)} supported loader/version targets).")
