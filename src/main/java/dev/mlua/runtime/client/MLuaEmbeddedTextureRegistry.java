@@ -60,7 +60,13 @@ public final class MLuaEmbeddedTextureRegistry {
                 if (this.acquire(location)) {
                     try {
                         NativeImage image = NativeImage.read(new ByteArrayInputStream(bytes));
+                        //--version 26.1
+                        Minecraft.getInstance().getTextureManager().register(location,
+                            new DynamicTexture(() -> location.toString(), image));
+                        //--endversion
+                        //--version 1.20.1,1.21.1
                         Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(image));
+                        //--endversion
                     } catch (RuntimeException | IOException failure) {
                         if (this.release(location)) this.releaseUnreferenced(location);
                         throw failure;
