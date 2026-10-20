@@ -11,10 +11,8 @@ import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -82,24 +80,6 @@ public final class MLuaRenderCallbacks {
                 findBooleanArg(type, "getGameTimeDeltaPartialTick", "getTickDelta"));
         }
     };
-    private static final ClassValue<PoseStackDepthAccess> POSE_STACK_DEPTH_ACCESS = new ClassValue<>() {
-        @Override protected PoseStackDepthAccess computeValue(Class<?> type) {
-            for (String name : List.of("lastIndex", "poses", "poseStack")) {
-                for (Class<?> current = type; current != null; current = current.getSuperclass()) {
-                    try {
-                        Field field = current.getDeclaredField(name);
-                        boolean index = field.getType() == int.class;
-                        if (!index && !Collection.class.isAssignableFrom(field.getType())) continue;
-                        field.setAccessible(true);
-                        return new PoseStackDepthAccess(field, index);
-                    } catch (ReflectiveOperationException | RuntimeException ignored) { }
-                }
-            }
-            return PoseStackDepthAccess.UNAVAILABLE;
-        }
-    };
-    private static final java.util.Set<Class<?>> WARNED_POSE_STACK_DEPTH = ConcurrentHashMap.newKeySet();
-
     private MLuaRenderCallbacks() { }
 
     /** Stores the latest client render-frame duration in seconds for render callbacks. */
@@ -730,12 +710,12 @@ public final class MLuaRenderCallbacks {
         }
         MLuaContext context = hook.context;
         MLuaRenderFrameScope.ScopeBinding activeFrame = null;
-        PoseStackBoundary callbackPoseBoundary = null;
+        MLuaRenderPoseScope callbackPoseBoundary = null;
         try {
             if (frameBinding != null) {
                 activeFrame = frameBinding.scope().view().enter();
                 PoseStack callbackPose = framePoseStack(frameBinding);
-                if (callbackPose != null) callbackPoseBoundary = new PoseStackBoundary(callbackPose);
+                callbackPoseBoundary = MLuaRenderPoseScope.open(callbackPose);
             }
             MLuaLuaBindings.withContext(context, () -> {
                 if (!hook.active || hook.failed) return null;
@@ -768,69 +748,6 @@ public final class MLuaRenderCallbacks {
         Object nativePose = ((MLuaRenderFrameScope.MLuaScopedRenderObject) value.touserdata(
             MLuaRenderFrameScope.MLuaScopedRenderObject.class)).unwrap();
         return nativePose instanceof PoseStack pose ? pose : null;
-    }
-
-    private record PoseStackDepthAccess(Field field, boolean indexBased) {
-        private static final PoseStackDepthAccess UNAVAILABLE = new PoseStackDepthAccess(null, false);
-    }
-
-    /** Keeps a callback's stack pushes and pose mutations inside the callback's own frame. */
-    private static final class PoseStackBoundary implements AutoCloseable {
-        private final PoseStack stack;
-        private final int depthBefore;
-        private boolean closed;
-
-        private PoseStackBoundary(PoseStack stack) {
-            this.stack = stack;
-            this.depthBefore = poseStackDepth(stack);
-            stack.pushPose();
-        }
-
-        @Override public void close() {
-            if (closed) return;
-            closed = true;
-            try {
-                if (depthBefore < 0) {
-                    stack.popPose();
-                    return;
-                }
-                int depth = poseStackDepth(stack);
-                if (depth < depthBefore) {
-                    warnPoseStackDepth(stack.getClass());
-                    return;
-                }
-                while (depth > depthBefore) {
-                    stack.popPose();
-                    int nextDepth = poseStackDepth(stack);
-                    if (nextDepth < 0 || nextDepth >= depth) {
-                        warnPoseStackDepth(stack.getClass());
-                        return;
-                    }
-                    depth = nextDepth;
-                }
-            } catch (RuntimeException failure) {
-                warnPoseStackDepth(stack.getClass());
-            }
-        }
-    }
-
-    private static int poseStackDepth(PoseStack stack) {
-        PoseStackDepthAccess access = POSE_STACK_DEPTH_ACCESS.get(stack.getClass());
-        if (access.field() == null) return -1;
-        try {
-            if (access.indexBased()) return access.field().getInt(stack) + 1;
-            Object poses = access.field().get(stack);
-            return poses instanceof Collection<?> collection ? collection.size() : -1;
-        } catch (IllegalAccessException | RuntimeException ignored) {
-            return -1;
-        }
-    }
-
-    private static void warnPoseStackDepth(Class<?> stackClass) {
-        if (WARNED_POSE_STACK_DEPTH.add(stackClass)) {
-            MLuaLogger.LOGGER.warn("[MLua] Could not fully restore PoseStack depth after a render callback on {}; "
-                + "avoid unmatched pushPose()/popPose() calls", stackClass.getName());
-        }
     }
 
     /**
