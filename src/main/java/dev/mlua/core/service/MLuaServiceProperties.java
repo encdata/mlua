@@ -83,7 +83,7 @@ public final class MLuaServiceProperties {
             if (key.isstring()) {
                LuaValue getter = propertyGetters.rawget(key);
                if (getter.isfunction()) {
-                  return getter.invoke(LuaValue.varargsOf(new LuaValue[]{self}));
+                  return getter.invoke(self, LuaValue.NONE);
                }
             }
 
@@ -104,7 +104,7 @@ public final class MLuaServiceProperties {
             if (key.isstring()) {
                LuaValue setter = propertySetters.rawget(key);
                if (setter.isfunction()) {
-                  setter.invoke(LuaValue.varargsOf(new LuaValue[]{self, value}));
+                  setter.invoke(self, value, LuaValue.NONE);
                   return LuaValue.NONE;
                }
             }
@@ -235,7 +235,7 @@ public final class MLuaServiceProperties {
       if (existingIndex.istable()) {
          return existingIndex.get(key);
       }
-      return existingIndex.invoke(LuaValue.varargsOf(new LuaValue[]{self, key}));
+      return existingIndex.invoke(self, key, LuaValue.NONE);
    }
 
    private static Varargs invokeNewIndex(LuaValue existingNewIndex, LuaValue self, LuaValue key, LuaValue value) {
@@ -243,7 +243,7 @@ public final class MLuaServiceProperties {
          existingNewIndex.set(key, value);
          return LuaValue.NONE;
       }
-      return existingNewIndex.invoke(LuaValue.varargsOf(new LuaValue[]{self, key, value}));
+      return existingNewIndex.invoke(self, key, value, LuaValue.NONE);
    }
 
    private static LuaValue storeBase(LuaValue value) {

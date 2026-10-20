@@ -164,4 +164,25 @@ final class MLuaServiceRegistrationBindings {
       }
    }
 
+    private static Map<String, String> readServiceMethodDescriptions(LuaValue value) {
+        if (!value.istable()) {
+            throw new LuaError("[MLua] RegisterServiceClass method descriptions must be a table of function names to descriptions.");
+        }
+        Map<String, String> descriptions = new LinkedHashMap<>();
+        LuaTable table = value.checktable();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = table.next(key);
+            key = entry.arg1();
+            if (key.isnil()) break;
+            LuaValue description = entry.arg(2);
+            if (!key.isstring() || key.tojstring().isBlank()
+                || !description.isstring() || description.tojstring().isBlank()) {
+                throw new LuaError("[MLua] RegisterServiceClass method descriptions must use non-empty function names and descriptions.");
+            }
+            descriptions.put(key.tojstring(), description.tojstring());
+        }
+        return descriptions;
+    }
+
 }

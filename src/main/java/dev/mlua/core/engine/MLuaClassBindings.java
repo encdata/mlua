@@ -20,7 +20,7 @@ final class MLuaClassBindings {
         table.set("RegisterClass", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 String name = args.arg(2).checkjstring();
                 LuaValue parent = args.arg(3);
                 String description = args.arg(4).checkjstring();
@@ -37,7 +37,7 @@ final class MLuaClassBindings {
             @Override
             public LuaValue call(LuaValue self, LuaValue name) {
                 String className = name.checkjstring();
-                boolean removed = requireMutableRegistration(context).unregisterClass(className);
+                boolean removed = MLuaLuaBindings.requireMutableRegistration(context).unregisterClass(className);
                 if (removed) classes.rawset(className, LuaValue.NIL);
                 return LuaValue.valueOf(removed);
             }
@@ -74,7 +74,7 @@ final class MLuaClassBindings {
         table.set("RegisterBehaviorMixin", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 String name = args.arg(2).checkjstring();
                 String description = args.arg(3).checkjstring();
                 LuaTable mixin = MLuaBehaviorMixinApi.register(registration, name, description, args.arg(4));
@@ -85,7 +85,7 @@ final class MLuaClassBindings {
         table.set("RegisterBehaviorMixinFunction", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                return requireMutableRegistration(context).registerBehaviorMixinFunction(
+                return MLuaLuaBindings.requireMutableRegistration(context).registerBehaviorMixinFunction(
                     args.arg(2).checkjstring(), args.arg(3).checkjstring(), args.arg(4), args.arg(5).checkjstring());
             }
         });
@@ -93,7 +93,7 @@ final class MLuaClassBindings {
             @Override
             public LuaValue call(LuaValue self, LuaValue name) {
                 String mixinName = name.checkjstring();
-                boolean removed = requireMutableRegistration(context).unregisterBehaviorMixin(mixinName);
+                boolean removed = MLuaLuaBindings.requireMutableRegistration(context).unregisterBehaviorMixin(mixinName);
                 if (removed) behaviorMixins.rawset(mixinName, LuaValue.NIL);
                 return LuaValue.valueOf(removed);
             }
@@ -101,7 +101,7 @@ final class MLuaClassBindings {
         table.set("UnregisterBehaviorMixinFunction", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 String mixinName = args.arg(2).checkjstring();
                 String functionName = args.arg(3).checkjstring();
                 LuaTable mixin = registration.behaviorMixinTable(mixinName);
@@ -112,21 +112,21 @@ final class MLuaClassBindings {
         table.set("ApplyBehaviorMixin", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                requireMutableRegistration(context).applyBehaviorMixin(args.arg(2).checkjstring(), args.arg(3).checkjstring());
+                MLuaLuaBindings.requireMutableRegistration(context).applyBehaviorMixin(args.arg(2).checkjstring(), args.arg(3).checkjstring());
                 return LuaValue.NONE;
             }
         });
         table.set("RemoveBehaviorMixin", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                return LuaValue.valueOf(requireMutableRegistration(context).removeBehaviorMixin(
+                return LuaValue.valueOf(MLuaLuaBindings.requireMutableRegistration(context).removeBehaviorMixin(
                     args.arg(2).checkjstring(), args.arg(3).checkjstring()));
             }
         });
         table.set("RegisterClassFunction", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 return registration.registerClassFunction(args.arg(2).checkjstring(),
                     args.arg(3).checkjstring(), args.arg(4), args.arg(5).checkjstring());
             }
@@ -134,7 +134,7 @@ final class MLuaClassBindings {
         table.set("UnregisterClassFunction", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 String className = args.arg(2).checkjstring();
                 String functionName = args.arg(3).checkjstring();
                 LuaTable type = registration.classTable(className);
@@ -145,7 +145,7 @@ final class MLuaClassBindings {
         table.set("RegisterClassProperty", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 String className = args.arg(2).checkjstring();
                 String propertyName = args.arg(3).checkjstring();
                 LuaValue getter = args.arg(4);
@@ -173,7 +173,7 @@ final class MLuaClassBindings {
         table.set("UnregisterClassProperty", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                MLuaRegistration registration = requireMutableRegistration(context);
+                MLuaRegistration registration = MLuaLuaBindings.requireMutableRegistration(context);
                 String className = args.arg(2).checkjstring();
                 String propertyName = args.arg(3).checkjstring();
                 LuaTable type = registration.classTable(className);
@@ -292,13 +292,5 @@ final class MLuaClassBindings {
         });
         mixins.setmetatable(meta);
       return mixins;
-    }
-
-    private static MLuaRegistration requireRegistration(MLuaContext context) {
-        MLuaRegistration registration = context.registration();
-        if (registration == null) {
-            throw new LuaError("[MLua] Class registration is unavailable in this script context.");
-        }
-        return registration;
     }
 }

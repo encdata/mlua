@@ -1113,7 +1113,7 @@ public final class MLuaClassRegistry {
                ? MLuaClassRegistry.this.findPropertyDescriptor(className, key.tojstring(), new HashSet<>()) : null;
             if (property != null) {
                LuaValue getter = property.rawget("get");
-               return getter.invoke(LuaValue.varargsOf(new LuaValue[]{args.arg1()})).arg1();
+               return getter.call(args.arg1());
             }
             LuaValue inherited = classTable.get(key);
             if (!inherited.isnil()) {
@@ -1136,12 +1136,7 @@ public final class MLuaClassRegistry {
                            if (first == boundInstance || isServiceReceiver(first, className, serviceName)) {
                               return dispatcher.invoke(callArgs);
                            }
-                           LuaValue[] withReceiver = new LuaValue[callArgs.narg() + 1];
-                           withReceiver[0] = boundInstance;
-                           for (int index = 1; index < withReceiver.length; index++) {
-                              withReceiver[index] = callArgs.arg(index);
-                           }
-                           return dispatcher.invoke(LuaValue.varargsOf(withReceiver));
+                           return dispatcher.invoke(LuaValue.varargsOf(boundInstance, callArgs));
                         }
                      };
                   }
@@ -1192,14 +1187,14 @@ public final class MLuaClassRegistry {
                   if (!setter.isfunction()) {
                      throw new LuaError("[MLua] Property '" + name + "' is read-only.");
                   }
-                  setter.invoke(LuaValue.varargsOf(new LuaValue[]{receiver, value}));
+                  setter.call(receiver, value);
                   return LuaValue.NONE;
                }
             }
             if (instanceNewIndexFallback.istable()) {
                instanceNewIndexFallback.set(key, value);
             } else if (instanceNewIndexFallback.isfunction()) {
-               instanceNewIndexFallback.invoke(LuaValue.varargsOf(new LuaValue[]{receiver, key, value}));
+               instanceNewIndexFallback.invoke(receiver, key, value, LuaValue.NONE);
             } else if (receiver.istable()) {
                receiver.checktable().rawset(key, value);
             }

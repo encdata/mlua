@@ -60,7 +60,7 @@ final class MLuaTween {
         List<Track> current = new ArrayList<>(properties.size());
         runBounded(() -> {
             for (Property property : properties) {
-                LuaValue value = property.getter().invoke(LuaValue.varargsOf(new LuaValue[]{target})).arg1();
+                LuaValue value = property.getter().call(target);
                 if (!compatible(value, property.goal())) {
                     throw new LuaError("[MLua] Tween target property '" + property.name()
                         + "' changed to an unsupported value type.");
@@ -179,7 +179,7 @@ final class MLuaTween {
                 Track track = starts.get(index);
                 Property property = track.property();
                 LuaValue value = interpolate(track.start(), property.goal(), alpha, track.lerp());
-                property.setter().invoke(LuaValue.varargsOf(new LuaValue[]{target, value}));
+                property.setter().call(target, value);
             }
             return null;
         });

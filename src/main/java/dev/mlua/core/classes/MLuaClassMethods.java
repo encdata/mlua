@@ -120,7 +120,7 @@ public final class MLuaClassMethods {
                throw new LuaError("[MLua] " + className + "." + propertyName
                   + " requires the live " + getterMethod + " method.");
             }
-            return implementation.invoke(LuaValue.varargsOf(new LuaValue[]{receiver})).arg1();
+            return implementation.call(receiver);
          }
       };
       LuaValue setter = LuaValue.NIL;
@@ -134,7 +134,7 @@ public final class MLuaClassMethods {
                   throw new LuaError("[MLua] " + className + "." + propertyName
                      + " cannot be changed because the live " + setterMethod + " method is unavailable.");
                }
-               return implementation.invoke(LuaValue.varargsOf(new LuaValue[]{receiver, args.arg(2)}));
+               return implementation.invoke(receiver, args.arg(2), LuaValue.NONE);
             }
          };
       }
