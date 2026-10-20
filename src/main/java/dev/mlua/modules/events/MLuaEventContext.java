@@ -79,7 +79,16 @@ final class MLuaEventContext {
     }
 
     static void fire(MLuaSignal signal, Level level, Side side, LuaTable context) {
-        signal.fireOnSession(MLuaRuntime.sessionForLevel(level), side, context);
+        var session = MLuaRuntime.sessionForLevel(level);
+        LuaValue canCancel = context.get("CanCancel");
+        if (canCancel.isfunction() && canCancel.call().toboolean()) {
+            // These events return their cancellation result to Minecraft immediately.
+            // Running a coroutine here makes the owner thread wait while Lua calls back
+            // into the same world, so dispatch them on the thread that owns that world.
+            signal.fireInlineOnSession(session, side, context);
+            return;
+        }
+        signal.fireOnSession(session, side, context);
     }
 
     static void addDamageSource(LuaTable context, Level level, DamageSource source) {
