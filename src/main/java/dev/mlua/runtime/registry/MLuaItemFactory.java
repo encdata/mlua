@@ -185,4 +185,26 @@ public final class MLuaItemFactory {
       MLuaItemBehaviorDispatcher.onCrafted(behaviorKey, stack, level, player);
    }
 
+   /**
+    * Java extension point for addon-defined item implementations. The definition is
+    * immutable and validated before either factory method is called. The overloads
+    * accepting {@link Item.Properties} are preferred; the two-argument methods stay
+    * available for existing providers.
+    */
+   public interface TypeProvider {
+      default void validateDefinition(Map<String, Object> definition) { }
+
+      Item createNamed(Map<String, Object> definition, String registryName);
+
+      Item createScripted(Map<String, Object> definition, String behaviorKey);
+
+      default Item createNamed(Map<String, Object> definition, Item.Properties properties, String registryName) {
+         return createNamed(definition, registryName);
+      }
+
+      default Item createScripted(Map<String, Object> definition, Item.Properties properties, String behaviorKey) {
+         return createScripted(definition, behaviorKey);
+      }
+   }
+
 }
