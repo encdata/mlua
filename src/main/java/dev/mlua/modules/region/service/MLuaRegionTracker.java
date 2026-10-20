@@ -48,18 +48,18 @@ final class MLuaRegionTracker {
 
     private static void tickStates(Side side, List<Level> levels) {
         if (levels.isEmpty()) return;
-        for (MLuaRegionService.RegionState state : MLuaRegionService.statesSnapshot()) {
+        for (MLuaRegionStateRegistry.RegionState state : MLuaRegionStateRegistry.statesSnapshot()) {
             tickState(state, side, levels);
         }
     }
 
-    private static void tickState(MLuaRegionService.RegionState state, Side side, List<Level> levels) {
+    private static void tickState(MLuaRegionStateRegistry.RegionState state, Side side, List<Level> levels) {
         if (state.regions.isEmpty()) return;
         for (var entry : state.regions.entrySet()) {
-            MLuaRegionService.RegionKey key = entry.getKey();
+            MLuaRegionStateRegistry.RegionKey key = entry.getKey();
             if (key.side() != side) continue;
 
-            MLuaRegionService.RegionDef definition = entry.getValue();
+            MLuaRegionStateRegistry.RegionDef definition = entry.getValue();
             Set<MLuaEntityScope> current = new HashSet<>();
             for (Level level : levels) {
                 for (Entity entity : candidates(level, definition)) {
@@ -96,7 +96,7 @@ final class MLuaRegionTracker {
         }
     }
 
-    private static Iterable<Entity> candidates(Level level, MLuaRegionService.RegionDef definition) {
+    private static Iterable<Entity> candidates(Level level, MLuaRegionStateRegistry.RegionDef definition) {
         // Keep small regions on Minecraft's indexed AABB query. Broad regions use loaded entities
         // directly so a large but valid region cannot make the section index scan empty space.
         if (definition.bounds.getXsize() <= MAX_INDEXED_REGION_EXTENT

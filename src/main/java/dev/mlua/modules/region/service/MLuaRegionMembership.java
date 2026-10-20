@@ -2,12 +2,16 @@ package dev.mlua.modules.region.service;
 
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /** Computes region membership transitions using stable entity identity. */
 final class MLuaRegionMembership {
+    private static final Comparator<MLuaEntityScope> ENTITY_ORDER =
+            Comparator.comparing(MLuaEntityScope::uuid);
+
     private MLuaRegionMembership() {
     }
 
@@ -37,7 +41,7 @@ final class MLuaRegionMembership {
     }
 
     private static void sort(List<MLuaEntityScope> scopes) {
-        scopes.sort(java.util.Comparator.comparing(scope -> scope.uuid().toString()));
+        scopes.sort(ENTITY_ORDER);
     }
 
     record Delta(Set<MLuaEntityScope> entered, Set<MLuaEntityScope> exited, Set<MLuaEntityScope> within) {

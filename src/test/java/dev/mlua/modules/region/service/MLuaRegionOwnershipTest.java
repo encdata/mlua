@@ -17,10 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 final class MLuaRegionOwnershipTest {
     @Test
     void regionKeysSeparateOwnersAndSides() {
-        MLuaRegionService.RegionKey serverRegion = new MLuaRegionService.RegionKey("alpha", Side.SERVER, "spawn");
-        MLuaRegionService.RegionKey sameRegion = new MLuaRegionService.RegionKey("alpha", Side.SERVER, "spawn");
-        MLuaRegionService.RegionKey otherOwner = new MLuaRegionService.RegionKey("beta", Side.SERVER, "spawn");
-        MLuaRegionService.RegionKey clientRegion = new MLuaRegionService.RegionKey("alpha", Side.CLIENT, "spawn");
+        MLuaRegionStateRegistry.RegionKey serverRegion = new MLuaRegionStateRegistry.RegionKey("alpha", Side.SERVER, "spawn");
+        MLuaRegionStateRegistry.RegionKey sameRegion = new MLuaRegionStateRegistry.RegionKey("alpha", Side.SERVER, "spawn");
+        MLuaRegionStateRegistry.RegionKey otherOwner = new MLuaRegionStateRegistry.RegionKey("beta", Side.SERVER, "spawn");
+        MLuaRegionStateRegistry.RegionKey clientRegion = new MLuaRegionStateRegistry.RegionKey("alpha", Side.CLIENT, "spawn");
 
         assertEquals(serverRegion, sameRegion);
         assertNotEquals(serverRegion, otherOwner);
@@ -30,10 +30,10 @@ final class MLuaRegionOwnershipTest {
     @Test
     void ownerCleanupRemovesOnlyThatOwnersRegionsOnTheRequestedSide() {
         MLuaTaskScheduler scheduler = new MLuaTaskScheduler();
-        MLuaRegionService.RegionState state = MLuaRegionService.stateForTests(scheduler);
-        MLuaRegionService.RegionKey ownerServer = new MLuaRegionService.RegionKey("alpha", Side.SERVER, "spawn");
-        MLuaRegionService.RegionKey otherServer = new MLuaRegionService.RegionKey("beta", Side.SERVER, "spawn");
-        MLuaRegionService.RegionKey ownerClient = new MLuaRegionService.RegionKey("alpha", Side.CLIENT, "spawn");
+        MLuaRegionStateRegistry.RegionState state = MLuaRegionStateRegistry.stateFor(scheduler);
+        MLuaRegionStateRegistry.RegionKey ownerServer = new MLuaRegionStateRegistry.RegionKey("alpha", Side.SERVER, "spawn");
+        MLuaRegionStateRegistry.RegionKey otherServer = new MLuaRegionStateRegistry.RegionKey("beta", Side.SERVER, "spawn");
+        MLuaRegionStateRegistry.RegionKey ownerClient = new MLuaRegionStateRegistry.RegionKey("alpha", Side.CLIENT, "spawn");
         MLuaSignal ownerServerSignal = new MLuaSignal();
         MLuaSignal otherServerSignal = new MLuaSignal();
         MLuaSignal ownerClientSignal = new MLuaSignal();
@@ -50,14 +50,14 @@ final class MLuaRegionOwnershipTest {
             state.onEnter.put(ownerClient, ownerClientSignal);
             assertFalse(ownerServerSignal.isEmpty());
 
-            MLuaRegionService.destroyOwned(scheduler, Side.SERVER, "alpha");
+            MLuaRegionStateRegistry.destroyOwned(scheduler, Side.SERVER, "alpha");
 
             assertFalse(state.onEnter.containsKey(ownerServer));
             assertSame(otherServerSignal, state.onEnter.get(otherServer));
             assertSame(ownerClientSignal, state.onEnter.get(ownerClient));
             assertTrue(ownerServerSignal.isEmpty());
         } finally {
-            MLuaRegionService.clearForScheduler(scheduler, Side.BOTH);
+            MLuaRegionStateRegistry.clearForScheduler(scheduler, Side.BOTH);
         }
     }
 
@@ -65,11 +65,11 @@ final class MLuaRegionOwnershipTest {
     void identicalRegionKeysUseSeparateStateForEachRuntimeScheduler() {
         MLuaTaskScheduler firstScheduler = new MLuaTaskScheduler();
         MLuaTaskScheduler secondScheduler = new MLuaTaskScheduler();
-        MLuaRegionService.RegionState first = MLuaRegionService.stateForTests(firstScheduler);
-        MLuaRegionService.RegionState second = MLuaRegionService.stateForTests(secondScheduler);
-        MLuaRegionService.RegionKey sameKey = new MLuaRegionService.RegionKey("alpha", Side.SERVER, "spawn");
-        MLuaRegionService.RegionDef firstDefinition = new MLuaRegionService.RegionDef(sameKey, 1, 2, 3, 4);
-        MLuaRegionService.RegionDef secondDefinition = new MLuaRegionService.RegionDef(sameKey, 7, 8, 9, 2);
+        MLuaRegionStateRegistry.RegionState first = MLuaRegionStateRegistry.stateFor(firstScheduler);
+        MLuaRegionStateRegistry.RegionState second = MLuaRegionStateRegistry.stateFor(secondScheduler);
+        MLuaRegionStateRegistry.RegionKey sameKey = new MLuaRegionStateRegistry.RegionKey("alpha", Side.SERVER, "spawn");
+        MLuaRegionStateRegistry.RegionDef firstDefinition = new MLuaRegionStateRegistry.RegionDef(sameKey, 1, 2, 3, 4);
+        MLuaRegionStateRegistry.RegionDef secondDefinition = new MLuaRegionStateRegistry.RegionDef(sameKey, 7, 8, 9, 2);
         MLuaSignal firstSignal = new MLuaSignal();
         MLuaSignal secondSignal = new MLuaSignal();
         firstSignal.connect(noopListener());
@@ -86,7 +86,7 @@ final class MLuaRegionOwnershipTest {
             assertSame(firstDefinition, first.regions.get(sameKey));
             assertSame(secondDefinition, second.regions.get(sameKey));
 
-            MLuaRegionService.clearForScheduler(firstScheduler, Side.SERVER);
+            MLuaRegionStateRegistry.clearForScheduler(firstScheduler, Side.SERVER);
 
             assertFalse(first.onEnter.containsKey(sameKey));
             assertFalse(first.regions.containsKey(sameKey));
@@ -94,8 +94,8 @@ final class MLuaRegionOwnershipTest {
             assertTrue(firstSignal.isEmpty());
             assertFalse(secondSignal.isEmpty());
         } finally {
-            MLuaRegionService.clearForScheduler(firstScheduler, Side.BOTH);
-            MLuaRegionService.clearForScheduler(secondScheduler, Side.BOTH);
+            MLuaRegionStateRegistry.clearForScheduler(firstScheduler, Side.BOTH);
+            MLuaRegionStateRegistry.clearForScheduler(secondScheduler, Side.BOTH);
         }
     }
 

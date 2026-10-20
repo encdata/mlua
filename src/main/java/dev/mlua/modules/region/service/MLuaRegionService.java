@@ -16,15 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -34,7 +29,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 @dev.mlua.api.MLuaDescription("Spatial trigger system for defining regions and detecting entity enter/exit/within events.")
 public final class MLuaRegionService extends MLuaReflectiveService {
-   private record RegionHandle(MLuaRegionService service, RegionKey key) { }
+   private record RegionHandle(MLuaRegionService service, MLuaRegionStateRegistry.RegionKey key) { }
+
+   private final MLuaRegionStateRegistry.RegionState state;
 
    public static void registerRegionClass(MLuaRegistration registration) {
       registration.registerClass("Region", registration.requireInstanceBaseClassName(),
@@ -48,15 +45,15 @@ public final class MLuaRegionService extends MLuaReflectiveService {
          return LuaValue.valueOf(entities == null ? 0 : entities.size());
       }), "Returns the number of entities currently inside this region.");
       registration.registerClassFunction("Region", "GetCenter", regionProperty(handle -> {
-         RegionDef def = handle.service().state.regions.get(handle.key());
+         MLuaRegionStateRegistry.RegionDef def = handle.service().state.regions.get(handle.key());
          return def == null || !def.spherical ? LuaValue.NIL : MLuaPlayerWrapper.positionTable(def.centerX, def.centerY, def.centerZ);
       }), "Returns the center of a spherical region, or nil for a box region.");
       registration.registerClassFunction("Region", "GetRadius", regionProperty(handle -> {
-         RegionDef def = handle.service().state.regions.get(handle.key());
+         MLuaRegionStateRegistry.RegionDef def = handle.service().state.regions.get(handle.key());
          return def == null || !def.spherical ? LuaValue.NIL : LuaValue.valueOf(def.radius);
       }), "Returns the radius of a spherical region, or nil for a box region.");
       registration.registerClassFunction("Region", "GetBounds", regionProperty(handle -> {
-         RegionDef def = handle.service().state.regions.get(handle.key());
+         MLuaRegionStateRegistry.RegionDef def = handle.service().state.regions.get(handle.key());
          if (def == null || def.spherical) return LuaValue.NIL;
          LuaTable bounds = new LuaTable();
          bounds.set("Min", MLuaPlayerWrapper.positionTable(def.minX, def.minY, def.minZ));
@@ -115,152 +112,34 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       };
    }
 
-   static record RegionKey(String ownerModId, Side side, String name) {
-   }
-
-   static final class RegionDef {
-      final RegionKey key;
-      final boolean spherical;
-      final double centerX, centerY, centerZ;
-      final double radius;
-      final double minX, minY, minZ, maxX, maxY, maxZ;
-      final AABB bounds;
-
-      RegionDef(RegionKey key, double centerX, double centerY, double centerZ, double radius) {
-         this.key = key;
-         this.spherical = true;
-         this.centerX = centerX; this.centerY = centerY; this.centerZ = centerZ;
-         this.radius = radius;
-         this.minX = this.minY = this.minZ = this.maxX = this.maxY = this.maxZ = 0;
-         this.bounds = new AABB(centerX - radius, centerY - radius, centerZ - radius,
-                                centerX + radius, centerY + radius, centerZ + radius);
-      }
-
-      RegionDef(RegionKey key, double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-         this.key = key;
-         this.spherical = false;
-         this.centerX = this.centerY = this.centerZ = this.radius = 0;
-         this.minX = minX; this.minY = minY; this.minZ = minZ;
-         this.maxX = maxX; this.maxY = maxY; this.maxZ = maxZ;
-         this.bounds = new AABB(minX, minY, minZ, maxX, maxY, maxZ);
-      }
-
-      boolean contains(Vec3 pos) {
-         if (spherical) {
-            double dx = pos.x - centerX;
-            double dy = pos.y - centerY;
-            double dz = pos.z - centerZ;
-            double distanceSquared = dx * dx + dy * dy + dz * dz;
-            double radiusSquared = radius * radius;
-            if (Double.isFinite(distanceSquared) && Double.isFinite(radiusSquared)
-                  && !(radius > 0 && radiusSquared == 0)
-                  && !(distanceSquared == 0 && (dx != 0 || dy != 0 || dz != 0))) {
-               return distanceSquared <= radiusSquared;
-            }
-            // Squared distances overflow for otherwise valid, extremely large regions.
-            return Math.hypot(Math.hypot(dx, dy), dz) <= radius;
-         }
-         return pos.x >= minX && pos.x <= maxX &&
-                pos.y >= minY && pos.y <= maxY &&
-                pos.z >= minZ && pos.z <= maxZ;
-      }
-   }
-
-   static final class RegionState {
-      final Map<RegionKey, RegionDef> regions = new ConcurrentHashMap<>();
-      final Map<RegionKey, MLuaRegistration> registrations = new ConcurrentHashMap<>();
-      final Map<RegionKey, Set<MLuaEntityScope>> entities = new ConcurrentHashMap<>();
-      final Map<RegionKey, MLuaSignal> onEnter = new ConcurrentHashMap<>();
-      final Map<RegionKey, MLuaSignal> onExit = new ConcurrentHashMap<>();
-      final Map<RegionKey, MLuaSignal> onWithin = new ConcurrentHashMap<>();
-
-      void clear() {
-         for (RegionKey key : List.copyOf(this.regions.keySet())) MLuaRegionService.removeRegion(this, key);
-         MLuaRegionService.destroySignals(this, key -> true);
-      }
-
-      void clearSide(Side side) {
-         for (RegionKey key : List.copyOf(this.regions.keySet())) {
-            if (key.side() == side) MLuaRegionService.removeRegion(this, key);
-         }
-         MLuaRegionService.destroySignals(this, key -> key.side() == side);
-      }
-
-      void clearOwned(Side side, String ownerModId) {
-         for (RegionKey key : List.copyOf(this.regions.keySet())) {
-            if (ownerModId.equals(key.ownerModId()) && (side == Side.BOTH || key.side() == side)) {
-               MLuaRegionService.removeRegion(this, key);
-            }
-         }
-         MLuaRegionService.destroySignals(this, key -> ownerModId.equals(key.ownerModId())
-               && (side == Side.BOTH || key.side() == side));
-      }
-
-   }
-
-   private static final Map<MLuaTaskSchedulerView, RegionState> STATES = new WeakHashMap<>();
-
    public static void DestroyAll() {
-      synchronized (STATES) {
-         STATES.values().forEach(RegionState::clear);
-      }
+      MLuaRegionStateRegistry.destroyAll();
    }
 
    public static void DestroySide(Side side) {
-      if (side == null || side == Side.BOTH) return;
-      synchronized (STATES) { STATES.values().forEach(state -> state.clearSide(side)); }
+      MLuaRegionStateRegistry.destroySide(side);
    }
 
    public static void DestroyOwned(Side side, String ownerModId) {
-      if (side == null || ownerModId == null) return;
-      synchronized (STATES) { STATES.values().forEach(state -> state.clearOwned(side, ownerModId)); }
+      MLuaRegionStateRegistry.destroyOwned(side, ownerModId);
    }
 
    public static void clearForScheduler(MLuaTaskSchedulerView scheduler, Side side) {
-      if (scheduler == null) return;
-      synchronized (STATES) {
-         RegionState state = STATES.get(scheduler);
-         if (state == null) return;
-         if (side == null || side == Side.BOTH) {
-            state.clear();
-         } else {
-            state.clearSide(side);
-         }
-      }
+      MLuaRegionStateRegistry.clearForScheduler(scheduler, side);
    }
 
    public static void destroyOwned(MLuaTaskSchedulerView scheduler, Side side, String ownerModId) {
-      if (scheduler == null || side == null || ownerModId == null) return;
-      synchronized (STATES) {
-         RegionState state = STATES.get(scheduler);
-         if (state == null) return;
-         state.clearOwned(side, ownerModId);
-      }
+      MLuaRegionStateRegistry.destroyOwned(scheduler, side, ownerModId);
    }
-
-   private static void destroySignals(RegionState state, Predicate<RegionKey> shouldDestroy) {
-      for (Map<RegionKey, MLuaSignal> signals : List.of(state.onEnter, state.onExit, state.onWithin)) {
-         for (Map.Entry<RegionKey, MLuaSignal> entry : List.copyOf(signals.entrySet())) {
-            if (shouldDestroy.test(entry.getKey()) && signals.remove(entry.getKey(), entry.getValue())) entry.getValue().Destroy();
-         }
-      }
-   }
-
-   private static RegionState stateFor(MLuaTaskSchedulerView scheduler) {
-      synchronized (STATES) { return STATES.computeIfAbsent(scheduler, ignored -> new RegionState()); }
-   }
-
-   static RegionState stateForTests(MLuaTaskSchedulerView scheduler) { return stateFor(scheduler); }
-   private final RegionState state;
 
    public MLuaRegionService(MLuaService.Context context) {
       super(context);
 
-      this.state = stateFor(context.mlua().scheduler());
+      this.state = MLuaRegionStateRegistry.stateFor(context.mlua().scheduler());
    }
 
-   private RegionKey key(String name) {
-      return new RegionKey(this.context.mlua().ownerModId(), this.context.mlua().side(), name);
+   private MLuaRegionStateRegistry.RegionKey key(String name) {
+      return new MLuaRegionStateRegistry.RegionKey(this.context.mlua().ownerModId(), this.context.mlua().side(), name);
    }
 
    @Override
@@ -274,10 +153,6 @@ public final class MLuaRegionService extends MLuaReflectiveService {
 
    public static void tickClient() {
       MLuaRegionTracker.tickClient();
-   }
-
-   static List<RegionState> statesSnapshot() {
-      synchronized (STATES) { return List.copyOf(STATES.values()); }
    }
 
    public LuaTable toLua() {
@@ -319,7 +194,7 @@ public final class MLuaRegionService extends MLuaReflectiveService {
 
    @dev.mlua.api.MLuaDescription("Returns a region by identifier, or nil when missing.")
    public LuaValue GetRegion(String name) {
-      RegionKey key = this.key(name);
+      MLuaRegionStateRegistry.RegionKey key = this.key(name);
       return this.state.regions.containsKey(key) ? this.regionHandle(key) : LuaValue.NIL;
    }
 
@@ -330,7 +205,7 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       Side side = this.context.mlua().side();
       List<String> names = this.state.regions.keySet().stream()
          .filter(key -> key.ownerModId().equals(ownerModId) && key.side() == side)
-         .map(RegionKey::name)
+         .map(MLuaRegionStateRegistry.RegionKey::name)
          .sorted()
          .toList();
       for (int index = 0; index < names.size(); index++) {
@@ -368,8 +243,8 @@ public final class MLuaRegionService extends MLuaReflectiveService {
             || !Double.isFinite(centerY + radius) || !Double.isFinite(centerZ + radius)) {
          throw new LuaError("[MLua] Region bounds must remain finite.");
       }
-      RegionKey key = this.key(name);
-      this.state.regions.put(key, new RegionDef(key, centerX, centerY, centerZ, radius));
+      MLuaRegionStateRegistry.RegionKey key = this.key(name);
+      this.state.regions.put(key, new MLuaRegionStateRegistry.RegionDef(key, centerX, centerY, centerZ, radius));
       this.recordRegistration(key);
       this.state.entities.remove(key);
       return this.regionHandle(key);
@@ -381,8 +256,8 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       if (minX > maxX || minY > maxY || minZ > maxZ) {
          throw new LuaError("[MLua] Box region minimum coordinates must not exceed maximum coordinates.");
       }
-      RegionKey key = this.key(name);
-      this.state.regions.put(key, new RegionDef(key, minX, minY, minZ, maxX, maxY, maxZ));
+      MLuaRegionStateRegistry.RegionKey key = this.key(name);
+      this.state.regions.put(key, new MLuaRegionStateRegistry.RegionDef(key, minX, minY, minZ, maxX, maxY, maxZ));
       this.recordRegistration(key);
       this.state.entities.remove(key);
       return this.regionHandle(key);
@@ -398,11 +273,11 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       }
    }
 
-   private static MLuaSignal signal(Map<RegionKey, MLuaSignal> map, RegionKey key) {
+   private static MLuaSignal signal(Map<MLuaRegionStateRegistry.RegionKey, MLuaSignal> map, MLuaRegionStateRegistry.RegionKey key) {
       return map.computeIfAbsent(key, ignored -> new MLuaSignal());
    }
 
-   private LuaValue entitiesInRegion(RegionKey key) {
+   private LuaValue entitiesInRegion(MLuaRegionStateRegistry.RegionKey key) {
       LuaTable result = new LuaTable();
       Set<MLuaEntityScope> scopes = this.state.entities.get(key);
       if (scopes == null || scopes.isEmpty()) return result;
@@ -421,8 +296,8 @@ public final class MLuaRegionService extends MLuaReflectiveService {
       return result;
    }
 
-   private LuaValue signalInstance(RegionKey key, String signalName) {
-      Map<RegionKey, MLuaSignal> signals = switch (signalName) {
+   private LuaValue signalInstance(MLuaRegionStateRegistry.RegionKey key, String signalName) {
+      Map<MLuaRegionStateRegistry.RegionKey, MLuaSignal> signals = switch (signalName) {
          case "onEnter" -> this.state.onEnter;
          case "onExit" -> this.state.onExit;
          default -> this.state.onWithin;
@@ -431,32 +306,21 @@ public final class MLuaRegionService extends MLuaReflectiveService {
          this.context.mlua().scheduler(), this.context.mlua().ownerModId(), this.context.mlua().side());
    }
 
-   private LuaTable regionHandle(RegionKey key) {
+   private LuaTable regionHandle(MLuaRegionStateRegistry.RegionKey key) {
       LuaTable handle = new LuaTable();
       handle.rawset("__region_handle", LuaValue.userdataOf(new RegionHandle(this, key)));
       return this.context.mlua().registration().attachClassInstance(handle, "Region", null);
    }
 
-   private void removeRegion(RegionKey key) {
-      removeRegion(this.state, key);
+   private void removeRegion(MLuaRegionStateRegistry.RegionKey key) {
+      MLuaRegionStateRegistry.removeRegion(this.state, key);
    }
 
-   private void recordRegistration(RegionKey key) {
+   private void recordRegistration(MLuaRegionStateRegistry.RegionKey key) {
       MLuaRegistration registration = this.context.mlua().registration();
       if (registration == null) this.state.registrations.remove(key);
       else this.state.registrations.put(key, registration);
    }
 
-   private static void removeRegion(RegionState state, RegionKey key) {
-      state.regions.remove(key);
-      state.registrations.remove(key);
-      state.entities.remove(key);
-      MLuaSignal s = state.onEnter.remove(key);
-      if (s != null) s.Destroy();
-      s = state.onExit.remove(key);
-      if (s != null) s.Destroy();
-      s = state.onWithin.remove(key);
-      if (s != null) s.Destroy();
-   }
 
 }
