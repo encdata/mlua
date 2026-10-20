@@ -15,10 +15,8 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import java.util.ArrayList;
-import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -95,28 +93,6 @@ public final class MLuaModelAdapterRegistry {
         Collections.synchronizedMap(new WeakHashMap<>());
     private static final MLuaWeakIdentityMap<Object, Map<String, String>> RESOLVED_INSTANCE_MAPPINGS =
         new MLuaWeakIdentityMap<>();
-    private static final ThreadLocal<Deque<EntityModelRender>> ENTITY_RENDER_STACK = new ThreadLocal<>();
-
-    private static final class EntityModelRender {
-        private final Entity entity;
-        private final Object model;
-        private final MLuaEntityScope scope;
-        private final Map<String, MLuaCFrame> animationPose;
-        private final IdentityHashMap<ModelPart, String> bones;
-        private final IdentityHashMap<ModelPart, Integer> activePartDepth = new IdentityHashMap<>();
-        private final Set<ModelPart> changedParts = Collections.newSetFromMap(new IdentityHashMap<>());
-
-        private EntityModelRender(Entity entity, Object model, MLuaEntityScope scope,
-                                  Map<String, MLuaCFrame> animationPose,
-                                  IdentityHashMap<ModelPart, String> bones) {
-            this.entity = entity;
-            this.model = model;
-            this.scope = scope;
-            this.animationPose = animationPose;
-            this.bones = bones;
-        }
-    }
-
     private record AppliedModel(Class<?> modelClass, Map<String, String> mappings,
                                 java.util.Set<String> resolvedBones, java.util.Set<String> customBones) { }
 
@@ -176,11 +152,7 @@ public final class MLuaModelAdapterRegistry {
         if (entity instanceof LivingEntity) {
             // ModelPart render hooks use the top frame. A living entity nested inside a
             // non-living renderer must mask that outer adapter while its own model draws.
-            Deque<EntityModelRender> activeStack = ENTITY_RENDER_STACK.get();
-            if (activeStack != null && !activeStack.isEmpty()) {
-                activeStack.push(new EntityModelRender(entity, null, MLuaEntityScope.of(entity), Map.of(),
-                    new IdentityHashMap<>()));
-            }
+            if (MLuaEntityModelRenderState.hasActiveFrame()) MLuaEntityModelRenderState.pushMask(entity);
             return;
         }
         if (!MLuaClientRenderThread.require("non-living model adapter")) return;
@@ -217,52 +189,23 @@ public final class MLuaModelAdapterRegistry {
             model = null;
             bones.clear();
         }
-        Deque<EntityModelRender> stack = ENTITY_RENDER_STACK.get();
         if (model != null) {
-            if (stack == null) {
-                stack = new ArrayDeque<>();
-                ENTITY_RENDER_STACK.set(stack);
-            }
-            stack.push(new EntityModelRender(entity, model, scope,
-                MLuaBonePose.getRenderPose(scope), bones));
-        } else if (stack != null && !stack.isEmpty()) {
+            MLuaEntityModelRenderState.push(entity, model, scope, MLuaBonePose.getRenderPose(scope), bones);
+        } else if (MLuaEntityModelRenderState.hasActiveFrame()) {
             // Preserve nesting even when the inner renderer has no adapter; otherwise its RETURN hook
             // would pop and restore the adapted outer entity's model scope.
-            stack.push(new EntityModelRender(entity, null, scope, Map.of(), new IdentityHashMap<>()));
+            MLuaEntityModelRenderState.pushMask(entity);
         }
     }
 
     /** Closes the matching entity model scope and restores any interrupted part transforms. */
     public static void endEntityRender(Entity entity) {
-        if (entity == null) return;
-        Deque<EntityModelRender> stack = ENTITY_RENDER_STACK.get();
-        if (stack == null || stack.isEmpty()) return;
-        EntityModelRender frame = stack.pop();
-        if (frame.entity != entity) {
-            MLuaLogger.LOGGER.warn("[MLua] Discarded an unbalanced custom entity model render scope");
-            restoreEntityRender(frame);
-            while (!stack.isEmpty()) restoreEntityRender(stack.pop());
-            ENTITY_RENDER_STACK.remove();
-            return;
-        }
-        restoreEntityRender(frame);
-        if (stack.isEmpty()) ENTITY_RENDER_STACK.remove();
+        MLuaEntityModelRenderState.endEntityRender(entity);
     }
 
     /** Closes only the matching top scope when a native renderer exits exceptionally. */
     public static void abortEntityRender(Entity entity) {
-        if (entity == null) return;
-        Deque<EntityModelRender> stack = ENTITY_RENDER_STACK.get();
-        if (stack == null) return;
-        EntityModelRender frame = stack.peek();
-        if (frame == null) {
-            ENTITY_RENDER_STACK.remove();
-            return;
-        }
-        if (frame.entity != entity) return;
-        stack.pop();
-        restoreEntityRender(frame);
-        if (stack.isEmpty()) ENTITY_RENDER_STACK.remove();
+        MLuaEntityModelRenderState.abortEntityRender(entity);
     }
 
     /** Restores Lua model overrides when a native renderer exits exceptionally. */
@@ -277,54 +220,14 @@ public final class MLuaModelAdapterRegistry {
         abortEntityRender(entity);
     }
 
-    private static void restoreEntityRender(EntityModelRender frame) {
-        if (frame.model != null) {
-            for (ModelPart part : List.copyOf(frame.changedParts)) {
-                MLuaClientModelManager.restoreOverridePose(frame.model, part);
-            }
-        }
-        frame.activePartDepth.clear();
-        frame.changedParts.clear();
-    }
-
     /** Applies an entity's registered bone pose immediately before Minecraft submits that model part. */
     public static void beginModelPartRender(ModelPart part) {
-        if (part == null) return;
-        Deque<EntityModelRender> stack = ENTITY_RENDER_STACK.get();
-        if (stack == null) return;
-        EntityModelRender frame = stack.peek();
-        if (frame == null || frame.model == null) return;
-        int depth = frame.activePartDepth.getOrDefault(part, 0);
-        frame.activePartDepth.put(part, depth + 1);
-        if (depth > 0) return;
-        String bone = frame.bones.get(part);
-        if (bone == null) return;
-        MLuaCFrame pose = frame.animationPose.get(bone);
-        MLuaClientModelManager.PartState state = MLuaClientModelManager.getPartState(frame.scope, bone);
-        if (pose == null && state == null) return;
-        MLuaClientModelManager.rememberOverridePose(frame.model, part);
-        if (pose != null) applyPose(part, pose);
-        MLuaClientModelManager.applyState(frame.model, part, state);
-        frame.changedParts.add(part);
+        MLuaEntityModelRenderState.beginModelPartRender(part);
     }
 
     /** Restores the model part after its native draw, keeping per-frame state out of the shared model instance. */
     public static void endModelPartRender(ModelPart part) {
-        if (part == null) return;
-        Deque<EntityModelRender> stack = ENTITY_RENDER_STACK.get();
-        if (stack == null) return;
-        EntityModelRender frame = stack.peek();
-        if (frame == null) return;
-        Integer depth = frame.activePartDepth.get(part);
-        if (depth == null) return;
-        if (depth > 1) {
-            frame.activePartDepth.put(part, depth - 1);
-            return;
-        }
-        frame.activePartDepth.remove(part);
-        if (frame.changedParts.remove(part)) {
-            MLuaClientModelManager.restoreOverridePose(frame.model, part);
-        }
+        MLuaEntityModelRenderState.endModelPartRender(part);
     }
 
     /** Adds or updates one mapping for an addon while preserving its other registered bones. */
@@ -1035,11 +938,7 @@ public final class MLuaModelAdapterRegistry {
     }
 
     private static Map<String, MLuaCFrame> renderPose(MLuaEntityScope scope) {
-        Deque<EntityModelRender> stack = ENTITY_RENDER_STACK.get();
-        EntityModelRender frame = stack == null ? null : stack.peek();
-        if (frame != null && frame.scope.equals(scope)) return frame.animationPose;
-        if (stack != null && stack.isEmpty()) ENTITY_RENDER_STACK.remove();
-        return MLuaBonePose.getRenderPose(scope);
+        return MLuaEntityModelRenderState.renderPose(scope);
     }
 
     private static Entity entityForScope(MLuaEntityScope scope) {
@@ -1488,7 +1387,7 @@ public final class MLuaModelAdapterRegistry {
         return MLuaModelPartResolver.resolvedParts(model, mappings, MAPPING_GENERATION);
     }
 
-    private static void applyPose(ModelPart part, MLuaCFrame cframe) {
+    static void applyPose(ModelPart part, MLuaCFrame cframe) {
         MLuaClientModelManager.applyCFrameDelta(part, cframe);
     }
 
