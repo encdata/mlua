@@ -7,6 +7,7 @@ import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.common.enums.Side;
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Collections;
@@ -194,6 +195,26 @@ public final class MLuaClientModelManager {
         }
         return out.empty() ? null : out;
     }
+
+    /** Merges only the requested parts, avoiding one temporary state allocation per render bone. */
+    static Map<String, PartState> getMergedPartStates(MLuaEntityScope scope, Iterable<String> partNames) {
+        if (scope == null || partNames == null) return Collections.emptyMap();
+        Set<String> requested = new HashSet<>();
+        for (String partName : partNames) requested.add(normalizePartName(partName));
+        if (requested.isEmpty()) return Collections.emptyMap();
+        LinkedHashMap<String, PartState> merged = new LinkedHashMap<>();
+        for (var ownerState : STATES.values()) {
+            var parts = ownerState.get(scope);
+            if (parts == null) continue;
+            for (Map.Entry<String, PartState> entry : parts.entrySet()) {
+                if (requested.contains(entry.getKey())) {
+                    merge(merged.computeIfAbsent(entry.getKey(), ignored -> new PartState()), entry.getValue());
+                }
+            }
+        }
+        return merged.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(merged);
+    }
+
     public static PartState getPartState(MLuaEntityScope scope, String part, Owner owner) { var entities = STATES.get(owner == null ? LEGACY_OWNER : owner); var parts = entities == null ? null : entities.get(scope); return parts == null ? null : parts.get(normalizePartName(part)); }
 
     public static Map<String, PartState> getState(int entityId) {

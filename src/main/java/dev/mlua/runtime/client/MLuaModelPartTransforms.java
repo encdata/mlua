@@ -22,6 +22,8 @@ final class MLuaModelPartTransforms {
         IdentityHashMap<ModelPart, String> boneByPart = new IdentityHashMap<>();
         Map<String, MLuaCFrame> animationPose = scope == null ? Map.of()
             : MLuaEntityModelRenderState.renderPose(scope);
+        Map<String, MLuaClientModelManager.PartState> partStates = scope == null ? Map.of()
+            : MLuaClientModelManager.getMergedPartStates(scope, mapping.keySet());
         if (scope != null) {
             MLuaModelAdapterRegistry.resolvedParts(model, mapping)
                 .forEach((bone, part) -> boneByPart.put(part, bone));
@@ -48,7 +50,7 @@ final class MLuaModelPartTransforms {
             String mappedBone = scope == null ? null : boneByPart.get(part);
             if (mappedBone == null) {
                 part.translateAndRotate(poseStack);
-            } else if (!applyBone(model, part, mappedBone, scope, animationPose, poseStack)) {
+            } else if (!applyBone(model, part, mappedBone, animationPose, partStates, poseStack)) {
                 return false;
             }
         }
@@ -84,10 +86,12 @@ final class MLuaModelPartTransforms {
     }
 
     private static boolean applyBone(Object model, ModelPart part, String bone,
-                                     MLuaEntityScope scope, Map<String, MLuaCFrame> animationPose,
+                                     Map<String, MLuaCFrame> animationPose,
+                                     Map<String, MLuaClientModelManager.PartState> partStates,
                                      PoseStack poseStack) {
         MLuaCFrame pose = animationPose.get(bone);
-        MLuaClientModelManager.PartState state = MLuaClientModelManager.getPartState(scope, bone);
+        MLuaClientModelManager.PartState state =
+            partStates.get(MLuaClientModelManager.normalizePartName(bone));
         if (state != null && Boolean.FALSE.equals(state.visible())) return false;
         if (pose == null && state == null) {
             part.translateAndRotate(poseStack);

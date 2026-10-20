@@ -923,11 +923,14 @@ public final class MLuaModelAdapterRegistry {
     private static LuaTable customBoneStates(MLuaEntityScope scope, List<String> bones) {
         LuaTable result = new LuaTable();
         Map<String, MLuaCFrame> animationPoses = renderPose(scope);
+        Map<String, MLuaClientModelManager.PartState> partStates =
+            MLuaClientModelManager.getMergedPartStates(scope, bones);
         for (String bone : bones) {
             LuaTable state = new LuaTable();
             MLuaCFrame animation = animationPoses.get(bone);
             if (animation != null) state.set("Animation", animation.toLua());
-            MLuaClientModelManager.PartState override = MLuaClientModelManager.getMergedPartState(scope, bone);
+            MLuaClientModelManager.PartState override =
+                partStates.get(MLuaClientModelManager.normalizePartName(bone));
             if (override != null) {
                 if (override.cframe() != null) state.set("CFrame", override.cframe().toLua());
                 if (override.offset() != null) state.set("Offset", override.offset());
@@ -1044,6 +1047,8 @@ public final class MLuaModelAdapterRegistry {
         Map<String, MLuaCFrame> animation = MLuaBonePose.getRenderPose(scope);
         java.util.LinkedHashSet<String> applied = new java.util.LinkedHashSet<>();
         Map<String, ModelPart> resolvedParts = resolvedParts(model, mapping);
+        Map<String, MLuaClientModelManager.PartState> partStates =
+            MLuaClientModelManager.getMergedPartStates(scope, mapping.keySet());
         for (Map.Entry<String, String> entry : mapping.entrySet()) {
             ModelPart part = resolvedParts.get(entry.getKey());
             if (part == null) {
@@ -1056,7 +1061,8 @@ public final class MLuaModelAdapterRegistry {
                 MLuaClientModelManager.rememberOverridePose(model, part);
                 applyPose(part, pose);
             }
-            MLuaClientModelManager.applyState(model, part, MLuaClientModelManager.getPartState(scope, entry.getKey()));
+            MLuaClientModelManager.applyState(model, part,
+                partStates.get(MLuaClientModelManager.normalizePartName(entry.getKey())));
         }
         java.util.LinkedHashSet<String> customBones = new java.util.LinkedHashSet<>();
         customAdapters.forEach((adapter, bones) -> {
