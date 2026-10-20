@@ -553,6 +553,11 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    @Override
+   public boolean isSubclassOf(String className, String parentName) {
+      return this.classes.isSubclassOf(className, parentName);
+   }
+
+   @Override
    public boolean isInstanceOf(LuaValue instance, String className) {
       return this.classes.isA(instance, className);
    }

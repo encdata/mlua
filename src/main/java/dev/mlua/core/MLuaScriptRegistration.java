@@ -151,6 +151,7 @@ final class MLuaScriptRegistration implements MLuaRegistration {
       return removed;
    }
    @Override public boolean isInstanceOf(LuaValue instance, String name) { return delegate.isInstanceOf(instance, name); }
+   @Override public boolean isSubclassOf(String name, String parentName) { return delegate.isSubclassOf(name, parentName); }
    @Override public String classNameOf(LuaValue instance) { return delegate.classNameOf(instance); }
    @Override public LuaTable attachClassInstance(LuaTable instance, String name, String parent) {
       return delegate.attachClassInstance(instance, name, parent);

@@ -63,6 +63,11 @@ final class MLuaClassRegistryTest {
         assertTrue(registry.isA(instance, "Middle"));
         assertTrue(registry.isA(instance, "Root"));
         assertFalse(registry.isA(instance, "Unrelated"));
+        assertTrue(registry.isSubclassOf("Leaf", "Leaf"));
+        assertTrue(registry.isSubclassOf("Unregistered", "Unregistered"));
+        assertTrue(registry.isSubclassOf("Leaf", "Root"));
+        assertFalse(registry.isSubclassOf("Root", "Leaf"));
+        assertFalse(registry.isSubclassOf("Leaf", "Unrelated"));
     }
 
     @Test
