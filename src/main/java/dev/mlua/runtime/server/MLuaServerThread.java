@@ -7,7 +7,14 @@ import net.minecraft.server.MinecraftServer;
 
 /** Runs synchronous Minecraft server work on its owner thread. */
 public final class MLuaServerThread {
+    private static final ThreadLocal<MinecraftServer> MARSHALLED_CALL_SERVER = new ThreadLocal<>();
+
     private MLuaServerThread() { }
+
+    /** True while the owner thread is servicing a blocking call made by a Lua coroutine. */
+    public static boolean isExecutingMarshalledCall(MinecraftServer server) {
+        return server != null && MARSHALLED_CALL_SERVER.get() == server;
+    }
 
     public static <T> T call(MinecraftServer server, Supplier<T> action) {
         try {
@@ -26,10 +33,15 @@ public final class MLuaServerThread {
 
         CompletableFuture<T> result = new CompletableFuture<>();
         server.execute(() -> {
+            MinecraftServer previousServer = MARSHALLED_CALL_SERVER.get();
+            MARSHALLED_CALL_SERVER.set(server);
             try {
                 result.complete(action.get());
             } catch (Throwable failure) {
                 result.completeExceptionally(failure);
+            } finally {
+                if (previousServer == null) MARSHALLED_CALL_SERVER.remove();
+                else MARSHALLED_CALL_SERVER.set(previousServer);
             }
         });
         try {

@@ -2,6 +2,7 @@ package dev.mlua.runtime.registry;
 
 import dev.mlua.api.registry.MLuaRegistry;
 import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import java.util.HashMap;
 import java.util.List;
@@ -93,7 +94,7 @@ public final class MLuaDynamicRegistryCatalog {
             current = this.categories.get(key);
             if (current != expected) return false;
         }
-        synchronized (current.context().executionLock()) {
+        return MLuaLuaBindings.withExecutionLock(current.context(), () -> {
             synchronized (this) {
                 if (this.categories.get(key) != expected
                     || !this.categories.remove(expected.owner(), key, expected)) return false;
@@ -101,7 +102,7 @@ public final class MLuaDynamicRegistryCatalog {
                 if (removed != null) this.removeCategoryState(removed);
                 return true;
             }
-        }
+        });
     }
 
     /** Reserves an id until the callback either stores a definition or fails. */
@@ -259,14 +260,15 @@ public final class MLuaDynamicRegistryCatalog {
                     return;
                 }
             }
-            synchronized (current.context().executionLock()) {
+            boolean retry = MLuaLuaBindings.withExecutionLock(current.context(), () -> {
                 synchronized (this) {
-                    if (this.categoryStates.get(key) == null) return;
-                    if (this.categories.get(key) != current) continue;
+                    if (this.categoryStates.get(key) == null) return false;
+                    if (this.categories.get(key) != current) return true;
                     this.removeDefinition(key, id, expected);
-                    return;
+                    return false;
                 }
-            }
+            });
+            if (!retry) return;
         }
     }
 
@@ -298,14 +300,15 @@ public final class MLuaDynamicRegistryCatalog {
                     return;
                 }
             }
-            synchronized (current.context().executionLock()) {
+            boolean retry = MLuaLuaBindings.withExecutionLock(current.context(), () -> {
                 synchronized (this) {
-                    if (this.categoryStates.get(key) == null) return;
-                    if (this.categories.get(key) != current) continue;
+                    if (this.categoryStates.get(key) == null) return false;
+                    if (this.categories.get(key) != current) return true;
                     this.unregisterOwnerLocked(key, ownerModId);
-                    return;
+                    return false;
                 }
-            }
+            });
+            if (!retry) return;
         }
     }
 

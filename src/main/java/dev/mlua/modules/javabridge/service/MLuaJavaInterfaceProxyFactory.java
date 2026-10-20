@@ -183,12 +183,13 @@ final class MLuaJavaInterfaceProxyFactory {
         public void close() {
             MLuaContext context = this.ownerContext;
             if (context == null) return;
-            synchronized (context.executionLock()) {
-                if (this.ownerContext != context) return;
+            MLuaLuaBindings.withExecutionLock(context, () -> {
+                if (this.ownerContext != context) return null;
                 this.ownerContext = null;
                 this.implementation = null;
                 this.service = null;
-            }
+                return null;
+            });
         }
     }
 

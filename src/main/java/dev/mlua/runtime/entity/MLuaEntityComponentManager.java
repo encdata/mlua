@@ -613,9 +613,8 @@ public final class MLuaEntityComponentManager {
 
         private void replaceCallbacks(LuaTable replacement, MLuaContext replacementContext) {
             MLuaContext currentContext = context;
-            Object lock = currentContext != null ? currentContext.executionLock()
-                : replacementContext != null ? replacementContext.executionLock() : this;
-            synchronized (lock) {
+            MLuaContext lockContext = currentContext != null ? currentContext : replacementContext;
+            Runnable update = () -> {
                 if (removed) return;
                 callbacks = replacement;
                 if (replacementContext != null) context = replacementContext;
@@ -623,6 +622,16 @@ public final class MLuaEntityComponentManager {
                     failed = false;
                     errorMessage = null;
                     enabled = true;
+                }
+            };
+            if (lockContext != null) {
+                MLuaLuaBindings.withExecutionLock(lockContext, () -> {
+                    update.run();
+                    return null;
+                });
+            } else {
+                synchronized (this) {
+                    update.run();
                 }
             }
         }

@@ -13,6 +13,7 @@ import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.core.signal.MLuaConnection;
 import dev.mlua.core.signal.MLuaSignal;
 import dev.mlua.loaderapi.LoaderApi;
+import dev.mlua.runtime.server.MLuaServerThread;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModuleLoader;
@@ -842,32 +843,39 @@ public final class MLuaLuaBindings {
       java.util.Objects.requireNonNull(callback, "callback");
       if (context == null) return callback.get();
       Globals globals = context.globals();
-      LuaThread running = globals == null ? null : globals.running;
-      if (running != null && running.isRunningOnCurrentThread()) {
-         // LuaJ resumes coroutines on a child thread while the resuming thread
-         // waits with the execution monitor held. Rebinding context on that same
-         // coroutine is safe, but reacquiring the monitor would deadlock.
-         MLuaContext previousBound = boundContext(globals);
+      return withExecutionLock(context, () -> {
          MLuaContext previous = currentContext();
+         MLuaContext previousBound = boundContext(globals);
          MLuaContext restore = previous != null && previous.globals() == globals ? previous : previousBound;
+         // A marshalled server call may fire a nested Lua event while its
+         // requesting coroutine is suspended with the execution lock held.
          configureContextGlobals(globals, context);
          try {
             return callback.get();
          } finally {
             configureContextGlobals(globals, restore);
          }
-      }
-      MLuaContext previous = currentContext();
-      MLuaContext previousBound = boundContext(globals);
-      MLuaContext restore = previous != null && previous.globals() == globals ? previous : previousBound;
+      });
+   }
+
+   /** Runs a Java callback under the Lua environment's execution lock when that lock is required. */
+   public static <T> T withExecutionLock(MLuaContext context, java.util.function.Supplier<T> callback) {
+      java.util.Objects.requireNonNull(callback, "callback");
+      if (context == null) return callback.get();
+      Globals globals = context.globals();
+      LuaThread running = globals == null ? null : globals.running;
+      if (canBypassExecutionLock(context, running)) return callback.get();
       synchronized (context.executionLock()) {
-         configureContextGlobals(globals, context);
-         try {
-            return callback.get();
-         } finally {
-            configureContextGlobals(globals, restore);
-         }
+         return callback.get();
       }
+   }
+
+   private static boolean canBypassExecutionLock(MLuaContext context, LuaThread running) {
+      if (running == null) return false;
+      if (running.isRunningOnCurrentThread()) return true;
+      return context.server() != null
+         && context.server().isSameThread()
+         && MLuaServerThread.isExecutingMarshalledCall(context.server());
    }
 
    /** Returns the Lua context active on this thread for a Java-backed callback. */
