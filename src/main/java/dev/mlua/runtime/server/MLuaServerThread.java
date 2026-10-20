@@ -7,13 +7,30 @@ import net.minecraft.server.MinecraftServer;
 
 /** Runs synchronous Minecraft server work on its owner thread. */
 public final class MLuaServerThread {
-    private static final ThreadLocal<MinecraftServer> MARSHALLED_CALL_SERVER = new ThreadLocal<>();
+    private static final ThreadLocal<MinecraftServer> LUA_OWNER_WORK_SERVER = new ThreadLocal<>();
 
     private MLuaServerThread() { }
 
-    /** True while the owner thread is servicing a blocking call made by a Lua coroutine. */
-    public static boolean isExecutingMarshalledCall(MinecraftServer server) {
-        return server != null && MARSHALLED_CALL_SERVER.get() == server;
+    /** True while the server owner thread is resuming or servicing a suspended Lua callback. */
+    public static boolean isExecutingLuaOwnerWork(MinecraftServer server) {
+        return server != null && LUA_OWNER_WORK_SERVER.get() == server;
+    }
+
+    /** Marks callbacks pumped by Minecraft while its server thread waits for a Lua coroutine. */
+    public static <T> T runOwnerThreadLuaWait(MinecraftServer server, Supplier<T> callback) {
+        if (server == null) throw new IllegalStateException("Minecraft server is not available");
+        return withLuaOwnerWork(server, callback);
+    }
+
+    private static <T> T withLuaOwnerWork(MinecraftServer server, Supplier<T> callback) {
+        MinecraftServer previousServer = LUA_OWNER_WORK_SERVER.get();
+        LUA_OWNER_WORK_SERVER.set(server);
+        try {
+            return callback.get();
+        } finally {
+            if (previousServer == null) LUA_OWNER_WORK_SERVER.remove();
+            else LUA_OWNER_WORK_SERVER.set(previousServer);
+        }
     }
 
     public static <T> T call(MinecraftServer server, Supplier<T> action) {
@@ -33,15 +50,10 @@ public final class MLuaServerThread {
 
         CompletableFuture<T> result = new CompletableFuture<>();
         server.execute(() -> {
-            MinecraftServer previousServer = MARSHALLED_CALL_SERVER.get();
-            MARSHALLED_CALL_SERVER.set(server);
             try {
-                result.complete(action.get());
+                result.complete(withLuaOwnerWork(server, action::get));
             } catch (Throwable failure) {
                 result.completeExceptionally(failure);
-            } finally {
-                if (previousServer == null) MARSHALLED_CALL_SERVER.remove();
-                else MARSHALLED_CALL_SERVER.set(previousServer);
             }
         });
         try {

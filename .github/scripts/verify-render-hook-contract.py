@@ -323,6 +323,13 @@ for operation in ("optional(Object target, String... names)", "cameraLook(Object
     if operation not in context_access:
         fail(f"render-context access owner is missing {operation}")
 render_manager = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
+render_object = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderObject.java").read_text(encoding="utf-8")
+if "public static final class RenderObject extends MLuaRenderObject" not in render_manager:
+    fail("render manager must keep its public RenderObject compatibility type")
+for contract in ("final class MLuaRenderObject", "executionLock()", "setFollowEntityScope(",
+                 "setFollowOffsetCallback(", "copy()"):
+    if contract not in render_object:
+        fail(f"dedicated render object state owner is missing {contract}")
 if "MLuaRenderContextAccess.cameraLook(camera)" not in render_manager:
     fail("render manager must preserve its camera look call while delegating accessor resolution")
 if "MLuaRenderContextAccess.cameraPosition(rawCamera)" not in render_manager:
@@ -350,14 +357,16 @@ for operation in ("ConcurrentMap<HeldItemKey, OrderedObjects> orderedHeldItems",
                   "void invalidateOrder()"):
     if operation not in target_index:
         fail(f"render target index is missing ordered snapshot caching: {operation}")
-if "RENDER_TARGET_INDEX.invalidateOrder();" not in render_manager:
-    fail("render object z-order changes must invalidate cached target ordering")
+if "RENDER_TARGET_INDEX.invalidateOrder();" not in render_manager or "MLuaClientRenderManager.invalidateRenderTargetOrder();" not in render_object:
+    fail("render object z-order changes must invalidate cached target ordering through the manager")
 for operation in ("RENDER_TARGET_INDEX.orderedEntityModels(scope)",
                   "RENDER_TARGET_INDEX.orderedHeldItemModels(target, itemId)",
                   "RENDER_TARGET_INDEX.removeObject(id)",
-                  "RENDER_TARGET_INDEX.registerEntityModel(followEntityScope, this.id)"):
+                  "RENDER_TARGET_INDEX.registerEntityModel(scope, id)"):
     if operation not in render_manager:
         fail(f"render manager does not delegate target indexing: {operation}")
+if "MLuaClientRenderManager.registerEntityModel(followEntityScope, this.id);" not in render_object:
+    fail("render object attachment changes must update the manager-owned target index")
 if "ENTITY_MODELS" in render_manager or "HELD_ITEM_MODELS" in render_manager:
     fail("render manager must not own target index storage")
 

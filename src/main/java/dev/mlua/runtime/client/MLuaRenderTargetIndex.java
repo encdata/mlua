@@ -23,7 +23,7 @@ final class MLuaRenderTargetIndex {
 
     private record OrderedObjects(long version, List<MLuaClientRenderManager.RenderObject> objects) { }
 
-    void updateHeldItem(MLuaClientRenderManager.RenderObject object) {
+    void updateHeldItem(MLuaRenderObject object) {
         int id = object.id();
         HeldItemKey previous = heldItemsByObject.get(id);
 

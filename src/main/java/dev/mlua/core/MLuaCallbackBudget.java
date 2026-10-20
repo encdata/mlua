@@ -1,5 +1,6 @@
 package dev.mlua.core;
 
+import dev.mlua.runtime.server.MLuaServerThread;
 import java.util.Objects;
 import java.util.function.Supplier;
 import org.luaj.vm2.Globals;
@@ -63,6 +64,9 @@ public final class MLuaCallbackBudget {
             return callback.get();
         }
         var server = context.server();
-        return LuaThread.withResumeWaitHook(server::managedBlock, callback);
+        return LuaThread.withResumeWaitHook(completed -> MLuaServerThread.runOwnerThreadLuaWait(server, () -> {
+            server.managedBlock(completed::getAsBoolean);
+            return null;
+        }), callback);
     }
 }

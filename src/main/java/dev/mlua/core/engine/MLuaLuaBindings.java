@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.WeakHashMap;
+import net.minecraft.server.MinecraftServer;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -847,8 +848,8 @@ public final class MLuaLuaBindings {
          MLuaContext previous = currentContext();
          MLuaContext previousBound = boundContext(globals);
          MLuaContext restore = previous != null && previous.globals() == globals ? previous : previousBound;
-         // A marshalled server call may fire a nested Lua event while its
-         // requesting coroutine is suspended with the execution lock held.
+         // The server owner thread may pump a nested Lua event while a coroutine
+         // is suspended with the execution lock held.
          configureContextGlobals(globals, context);
          try {
             return callback.get();
@@ -873,9 +874,9 @@ public final class MLuaLuaBindings {
    private static boolean canBypassExecutionLock(MLuaContext context, LuaThread running) {
       if (running == null) return false;
       if (running.isRunningOnCurrentThread()) return true;
-      return context.server() != null
-         && context.server().isSameThread()
-         && MLuaServerThread.isExecutingMarshalledCall(context.server());
+      MinecraftServer server = context.server();
+      return server != null && server.isSameThread()
+         && MLuaServerThread.isExecutingLuaOwnerWork(server);
    }
 
    /** Returns the Lua context active on this thread for a Java-backed callback. */
