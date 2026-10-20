@@ -106,10 +106,7 @@ public abstract class MLuaServiceBase implements MLuaService {
                   if (serviceArgumentIndex(args, receiverTable, serviceName, 1) == 2) {
                      return implementation.invoke(args);
                   }
-                  LuaValue[] shifted = new LuaValue[args.narg() + 1];
-                  shifted[0] = receiverTable;
-                  for (int index = 1; index < shifted.length; index++) shifted[index] = args.arg(index);
-                  return implementation.invoke(LuaValue.varargsOf(shifted));
+                  return implementation.invoke(LuaValue.varargsOf(receiverTable, args));
                }
             });
          }
