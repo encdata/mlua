@@ -32,8 +32,14 @@ public final class MLuaEntitySpawner {
         ResourceLocation location = MLuaResourceLocations.tryParseOrNull(id);
         if (location == null) return null;
         if (level != null) {
+            //--version 26.1
+            EntityType<?> worldType = level.registryAccess()
+                .lookupOrThrow(Registries.ENTITY_TYPE).getOptional(location).orElse(null);
+            //--endversion
+            //--version 1.20.1,1.21.1
             EntityType<?> worldType = level.registryAccess()
                 .registryOrThrow(Registries.ENTITY_TYPE).getOptional(location).orElse(null);
+            //--endversion
             if (worldType != null) return worldType;
         }
         EntityType<?> builtIn = BuiltInRegistries.ENTITY_TYPE.getOptional(location).orElse(null);

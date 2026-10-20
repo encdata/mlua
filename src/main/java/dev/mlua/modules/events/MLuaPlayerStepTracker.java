@@ -37,16 +37,30 @@ final class MLuaPlayerStepTracker {
         if (runtime != null) runtime.levels.remove(dimension);
     }
 
+    static Long recordPosition(Object runtimeOwner, ResourceLocation dimension, UUID playerId, long position) {
+        if (dimension == null || playerId == null) return null;
+        RuntimePositions runtime = RUNTIMES.computeIfAbsent(new OwnerKey(runtimeOwner), ignored -> new RuntimePositions());
+        ConcurrentMap<UUID, Long> positions = runtime.levels.computeIfAbsent(dimension,
+            ignored -> new ConcurrentHashMap<>());
+        return positions.put(playerId, position);
+    }
+
+    static Long positionOf(Object runtimeOwner, ResourceLocation dimension, UUID playerId) {
+        if (dimension == null || playerId == null) return null;
+        RuntimePositions runtime = RUNTIMES.get(new OwnerKey(runtimeOwner));
+        if (runtime == null) return null;
+        ConcurrentMap<UUID, Long> positions = runtime.levels.get(dimension);
+        return positions == null ? null : positions.get(playerId);
+    }
+
     static void track(Object levelObject) {
         if (!(levelObject instanceof ServerLevel level)) return;
         Object runtimeOwner = MLuaRuntime.sessionForLevel(level);
-        RuntimePositions runtime = RUNTIMES.computeIfAbsent(new OwnerKey(runtimeOwner), ignored -> new RuntimePositions());
         ResourceLocation dimension = level.dimension().location();
-        ConcurrentMap<UUID, Long> positions = runtime.levels.computeIfAbsent(dimension, ignored -> new ConcurrentHashMap<>());
         for (ServerPlayer player : level.players()) {
             BlockPos position = player.blockPosition().below();
             long currentPosition = position.asLong();
-            Long previousPosition = positions.put(player.getUUID(), currentPosition);
+            Long previousPosition = recordPosition(runtimeOwner, dimension, player.getUUID(), currentPosition);
             if (previousPosition == null || previousPosition.longValue() != currentPosition) {
                 MLuaBlockCallbackDispatcher.fireOnStepOn(level, position, player);
             }

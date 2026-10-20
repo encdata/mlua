@@ -88,7 +88,12 @@ final class MLuaEventContext {
         } else if (source.getEntity() instanceof LivingEntity attacker) {
             context.set("Attacker", entity(attacker));
         }
+        //--version 26.1
+        var sourceKey = level.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getKey(source.type());
+        //--endversion
+        //--version 1.20.1,1.21.1
         var sourceKey = level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getKey(source.type());
+        //--endversion
         context.set("Source", LuaValue.valueOf(sourceKey != null ? sourceKey.toString() : "generic"));
     }
 }
