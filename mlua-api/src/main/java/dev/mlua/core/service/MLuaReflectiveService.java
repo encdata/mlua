@@ -5,21 +5,14 @@ import dev.mlua.api.MLuaLuaCoercions;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.module.MLuaRegistration;
 import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Array;
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -29,58 +22,6 @@ import org.luaj.vm2.lib.VarArgFunction;
 public abstract class MLuaReflectiveService extends MLuaServiceBase {
    private static final ThreadLocal<MLuaServiceArgumentBuffers> ARGUMENT_BUFFERS =
       ThreadLocal.withInitial(MLuaServiceArgumentBuffers::new);
-
-   private record DescribedMethod(Method method, MethodHandle invoker, String description, Type[] genericParameterTypes,
-                                  Class<?>[] parameterTypes, boolean varArgs, int minimumArgumentCount,
-                                  Type varArgComponentType) {
-      private static DescribedMethod create(Method method, String description) {
-         Type[] genericTypes = method.getGenericParameterTypes();
-         Class<?>[] parameterTypes = method.getParameterTypes();
-         boolean varArgs = method.isVarArgs();
-         int minimumArgumentCount = parameterTypes.length;
-         if (varArgs) {
-            minimumArgumentCount--;
-         } else {
-            while (minimumArgumentCount > 0 && isOptional(genericTypes[minimumArgumentCount - 1])) {
-               minimumArgumentCount--;
-            }
-         }
-         Type varArgComponentType = null;
-         if (varArgs) {
-            Type arrayType = genericTypes[minimumArgumentCount];
-            varArgComponentType = arrayType instanceof GenericArrayType genericArray
-               ? genericArray.getGenericComponentType()
-               : parameterTypes[minimumArgumentCount].getComponentType();
-         }
-         return new DescribedMethod(method, createInvoker(method), description, genericTypes, parameterTypes, varArgs,
-            minimumArgumentCount, varArgComponentType);
-      }
-
-      private static MethodHandle createInvoker(Method method) {
-         try {
-            if (!method.trySetAccessible()) return null;
-            MethodHandle handle = MethodHandles.lookup().unreflect(method);
-            if (handle.type().returnType() == void.class) {
-               handle = MethodHandles.filterReturnValue(handle, MethodHandles.constant(Object.class, null));
-            } else {
-               handle = handle.asType(handle.type().changeReturnType(Object.class));
-            }
-            if (method.getParameterCount() == 0) {
-               return MethodHandles.dropArguments(handle, handle.type().parameterCount(), Object[].class);
-            }
-            return handle.asSpreader(Object[].class, method.getParameterCount());
-         } catch (IllegalAccessException | RuntimeException unavailable) {
-            return null;
-         }
-      }
-   }
-
-   private static final ClassValue<List<DescribedMethod>> DESCRIBED_METHODS = new ClassValue<>() {
-      @Override
-      protected List<DescribedMethod> computeValue(Class<?> serviceType) {
-         return scanDescribedMethods(serviceType);
-      }
-   };
 
    public record ApiMetadata(String description, Map<String, String> functionDescriptions) {
       public ApiMetadata {
@@ -116,52 +57,13 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
             + "' requires a non-empty @MLuaDescription");
       }
       Map<String, String> functions = new LinkedHashMap<>();
-      for (DescribedMethod method : describedMethods(serviceType))
+      for (MLuaReflectiveServiceCatalog.DescribedMethod method : MLuaReflectiveServiceCatalog.methods(serviceType))
          functions.put(method.method().getName(), method.description());
       if (functions.isEmpty()) {
          throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
             + "' has no described Lua methods");
       }
       return new ApiMetadata(serviceDescription.value(), functions);
-   }
-
-   private static List<DescribedMethod> describedMethods(Class<?> serviceType) {
-      return DESCRIBED_METHODS.get(serviceType);
-   }
-
-   private static List<DescribedMethod> scanDescribedMethods(Class<?> serviceType) {
-      Method[] methods = serviceType.getMethods();
-      Arrays.sort(methods, java.util.Comparator.comparing(Method::getName)
-         .thenComparing(method -> Arrays.toString(method.getParameterTypes())));
-      List<DescribedMethod> described = new java.util.ArrayList<>();
-      Set<String> exportedNames = new HashSet<>();
-      for (Method method : methods) {
-         int modifiers = method.getModifiers();
-         Class<?> declaring = method.getDeclaringClass();
-         if (!Modifier.isPublic(modifiers) || Modifier.isStatic(modifiers)
-            || method.isBridge() || method.isSynthetic() || method.isAnnotationPresent(MLuaServiceIgnore.class)
-            || declaring == Object.class || declaring == MLuaReflectiveService.class
-            || declaring == LuaBackedService.class || declaring == MLuaService.class
-            || (method.getParameterCount() == 0 && (method.getName().equals("name") || method.getName().equals("toLua")))) {
-            continue;
-         }
-         MLuaDescription description = findMethodDescription(method);
-         if (description == null) continue;
-         if (description.value().isBlank()) {
-            throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
-               + "' method '" + method.getName() + "' has an empty description");
-         }
-         if (MLuaRegistration.isReservedFunctionName(method.getName())) {
-            throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
-               + "' uses reserved function name '" + method.getName() + "'");
-         }
-         if (!exportedNames.add(method.getName())) {
-            throw new IllegalArgumentException("Reflective service '" + serviceType.getName()
-               + "' overloads Lua method '" + method.getName() + "'");
-         }
-         described.add(DescribedMethod.create(method, description.value()));
-      }
-      return List.copyOf(described);
    }
 
    @Override
@@ -177,7 +79,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       Map<String, String> methodDescriptions = new LinkedHashMap<>();
       LuaTable accessorParameterCounts = new LuaTable();
 
-      for (DescribedMethod describedMethod : describedMethods(this.getClass())) {
+      for (MLuaReflectiveServiceCatalog.DescribedMethod describedMethod : MLuaReflectiveServiceCatalog.methods(this.getClass())) {
          Method method = describedMethod.method();
          String name = method.getName();
          MethodHandle invoker = bindInvoker(describedMethod, this);
@@ -235,7 +137,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       return table;
    }
 
-   private static MethodHandle bindInvoker(DescribedMethod describedMethod, MLuaReflectiveService service) {
+   private static MethodHandle bindInvoker(MLuaReflectiveServiceCatalog.DescribedMethod describedMethod, MLuaReflectiveService service) {
       MethodHandle invoker = describedMethod.invoker();
       if (invoker == null) return null;
       try {
@@ -245,7 +147,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       }
    }
 
-   private Object invoke(DescribedMethod describedMethod, MethodHandle invoker, Object[] arguments)
+   private Object invoke(MLuaReflectiveServiceCatalog.DescribedMethod describedMethod, MethodHandle invoker, Object[] arguments)
       throws InvocationTargetException, IllegalAccessException {
       if (invoker == null) return describedMethod.method().invoke(this, arguments);
       try {
@@ -284,7 +186,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
       return MLuaLuaCoercions.toLuaValue(value);
    }
 
-   private void convertArguments(DescribedMethod plan, Varargs args, int offset, Object[] converted) {
+   private void convertArguments(MLuaReflectiveServiceCatalog.DescribedMethod plan, Varargs args, int offset, Object[] converted) {
       Method method = plan.method();
       int parameterCount = plan.parameterTypes().length;
       int suppliedCount = Math.max(0, args.narg() - offset);
@@ -365,44 +267,5 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
          + requirement + " argument(s), got " + supplied);
    }
 
-   private static boolean isOptional(Type type) {
-      if (type instanceof Class<?> typeClass) return java.util.Optional.class.isAssignableFrom(typeClass);
-      return type instanceof java.lang.reflect.ParameterizedType parameterized
-         && parameterized.getRawType() instanceof Class<?> rawType
-         && java.util.Optional.class.isAssignableFrom(rawType);
-   }
 
-   private static MLuaDescription findMethodDescription(Method method) {
-      MLuaDescription description = method.getAnnotation(MLuaDescription.class);
-      if (description != null) return description;
-      List<Class<?>[]> parameterSignatures = new java.util.ArrayList<>();
-      parameterSignatures.add(method.getParameterTypes());
-      for (Method bridge : method.getDeclaringClass().getDeclaredMethods()) {
-         if (bridge.isBridge() && bridge.getName().equals(method.getName())
-            && bridge.getParameterCount() == method.getParameterCount()) {
-            parameterSignatures.add(bridge.getParameterTypes());
-         }
-      }
-      return findMethodDescription(method.getDeclaringClass(), method.getName(), parameterSignatures,
-         new HashSet<>());
-   }
-
-   private static MLuaDescription findMethodDescription(Class<?> type, String methodName,
-                                                         List<Class<?>[]> parameterSignatures,
-                                                         Set<Class<?>> visited) {
-      if (type == null || !visited.add(type)) return null;
-      for (Class<?>[] signature : parameterSignatures) {
-         try {
-            MLuaDescription description = type.getDeclaredMethod(methodName, signature)
-               .getAnnotation(MLuaDescription.class);
-            if (description != null) return description;
-         } catch (NoSuchMethodException ignored) {
-         }
-      }
-      for (Class<?> parentInterface : type.getInterfaces()) {
-         MLuaDescription description = findMethodDescription(parentInterface, methodName, parameterSignatures, visited);
-         if (description != null) return description;
-      }
-      return findMethodDescription(type.getSuperclass(), methodName, parameterSignatures, visited);
-   }
 }
