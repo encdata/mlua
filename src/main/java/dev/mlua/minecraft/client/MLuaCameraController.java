@@ -16,9 +16,11 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 import org.luaj.vm2.LuaValue;
 import dev.mlua.runtime.client.MLuaHandPoseRegistry;
+import dev.mlua.runtime.client.MLuaRenderCallbacks;
 
 public final class MLuaCameraController {
    private static MLuaCFrame scriptableCFrame;
+   private static MLuaCFrame previousScriptableCFrame;
    private static Double fovOverride;
    private static double fovMultiplier = 1.0;
    private static String mode = "Custom";
@@ -120,7 +122,24 @@ public final class MLuaCameraController {
       return MLuaCFrame.fromEntity(pos.x, pos.y, pos.z, (double)look.x(), (double)look.y(), (double)look.z());
    }
 
+   /** Returns the camera pose blended between script updates for this rendered frame. */
+   public static MLuaCFrame getScriptableCFrame(float partialTick) {
+      if (scriptableCFrame == null || !"Scriptable".equals(mode)) return null;
+      MLuaCFrame previous = previousScriptableCFrame;
+      if (previous == null) return scriptableCFrame;
+      double alpha = Float.isFinite(partialTick) ? Math.max(0.0D, Math.min(1.0D, partialTick)) : 1.0D;
+      return previous.lerp(scriptableCFrame, alpha);
+   }
+
+   /** Uses the current Minecraft frame fraction when a loader hook has no direct DeltaTracker parameter. */
+   public static float currentRenderPartialTick() {
+      Float partialTick = MLuaRenderCallbacks.currentClientPartialTick();
+      return partialTick == null ? 1.0F : partialTick;
+   }
+
    public static void setCFrame(MLuaCFrame cframe) {
+      if (cframe == null) throw new IllegalArgumentException("Camera CFrame cannot be null");
+      previousScriptableCFrame = scriptableCFrame == null ? cframe : scriptableCFrame;
       scriptableCFrame = cframe;
    }
 
@@ -237,6 +256,7 @@ public final class MLuaCameraController {
    public static void reset(MLuaHandPoseRegistry.Owner owner) {
       Minecraft mc = MLuaMinecraftClient.instance();
       scriptableCFrame = null;
+      previousScriptableCFrame = null;
       fovOverride = null;
       fovMultiplier = 1.0;
       if (owner == null) clearHandOffsets();
@@ -252,12 +272,27 @@ public final class MLuaCameraController {
       return scriptableCFrame != null && "Scriptable".equals(mode) ? new Vec3(scriptableCFrame.x(), scriptableCFrame.y(), scriptableCFrame.z()) : null;
    }
 
+   public static Vec3 getScriptablePosition(float partialTick) {
+      MLuaCFrame frame = getScriptableCFrame(partialTick);
+      return frame == null ? null : new Vec3(frame.x(), frame.y(), frame.z());
+   }
+
    public static float getScriptableYaw(float currentYaw) {
       return scriptableCFrame != null && "Scriptable".equals(mode) ? scriptableCFrame.minecraftYaw() : currentYaw;
    }
 
+   public static float getScriptableYaw(float currentYaw, float partialTick) {
+      MLuaCFrame frame = getScriptableCFrame(partialTick);
+      return frame == null ? currentYaw : frame.minecraftYaw();
+   }
+
    public static float getScriptablePitch(float currentPitch) {
       return scriptableCFrame != null && "Scriptable".equals(mode) ? scriptableCFrame.minecraftPitch() : currentPitch;
+   }
+
+   public static float getScriptablePitch(float currentPitch, float partialTick) {
+      MLuaCFrame frame = getScriptableCFrame(partialTick);
+      return frame == null ? currentPitch : frame.minecraftPitch();
    }
 
    public static double applyFovOverride(double currentFov) {

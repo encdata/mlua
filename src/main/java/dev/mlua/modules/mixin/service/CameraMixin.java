@@ -17,7 +17,8 @@ public abstract class CameraMixin {
       )
    )
    private void modifyPositionSetting(Camera instance, double x, double y, double z) {
-      Vec3 overridePos = MLuaCameraController.getScriptablePosition();
+      float partialTick = MLuaCameraController.currentRenderPartialTick();
+      Vec3 overridePos = MLuaCameraController.getScriptablePosition(partialTick);
       if (overridePos != null) {
          ((CameraInvoker)instance).mlua$invokeSetPosition(overridePos.x, overridePos.y, overridePos.z);
       } else {
@@ -34,7 +35,7 @@ public abstract class CameraMixin {
    )
    private void modifyRotationSetting(Camera instance, float yRot, float xRot) {
       ((CameraInvoker)instance).mlua$invokeSetRotation(
-         MLuaCameraController.getScriptableYaw(yRot),
-         MLuaCameraController.getScriptablePitch(xRot));
+         MLuaCameraController.getScriptableYaw(yRot, partialTick),
+         MLuaCameraController.getScriptablePitch(xRot, partialTick));
    }
 }
