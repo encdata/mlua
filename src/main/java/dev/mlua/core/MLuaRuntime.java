@@ -7,7 +7,6 @@ import dev.mlua.core.engine.MLuaEngine;
 import dev.mlua.core.require.MLuaModuleCache;
 import dev.mlua.core.scheduler.MLuaTaskScheduler;
 import dev.mlua.core.script.MLuaScript;
-import dev.mlua.core.script.MLuaScriptLoader;
 import dev.mlua.core.script.MLuaScriptRoot;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
@@ -30,7 +29,6 @@ import dev.mlua.module.MLuaRegistration;
 import com.mojang.brigadier.CommandDispatcher;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,10 +70,8 @@ public final class MLuaRuntime implements MLuaRegistration {
          .toList();
    }
    private static final MLuaRuntime INSTANCE = new MLuaRuntime();
-   private final List<MLuaScriptRoot> roots = new ArrayList<>();
+   private final MLuaRuntimeScriptCatalog scriptCatalog = new MLuaRuntimeScriptCatalog();
    private final MLuaRuntimeDiagnostics diagnostics = new MLuaRuntimeDiagnostics();
-   private final MLuaScriptLoader loader = new MLuaScriptLoader();
-   private final List<MLuaScript> resourceScripts = new ArrayList<>();
    private final MLuaRuntimeSession session;
    private final MLuaServiceRegistry services = new MLuaServiceRegistry();
    private final MLuaClassRegistry classes = new MLuaClassRegistry();
@@ -85,9 +81,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private final Set<Level> entrypointWorlds = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
    private final ConcurrentLinkedQueue<ClientWorldLifecycleTransition> pendingClientWorldTransitions =
       new ConcurrentLinkedQueue<>();
-   private List<MLuaScript> scripts = List.of();
    private MLuaEngine engine;
-   private boolean scriptsDirty = true;
    private boolean bootstrapped;
    private boolean registryScriptsRan;
    private boolean serverRan;
@@ -163,9 +157,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public void registerScriptRoot(String modId, Path path) {
       MLuaScriptRoot root = new MLuaScriptRoot(modId, path);
-      if (this.roots.contains(root)) return;
-      this.roots.add(root);
-      this.scriptsDirty = true;
+      if (!this.scriptCatalog.registerRoot(root)) return;
       if (this.registryScriptsRan) {
          MLuaLogger.LOGGER.info("Registered runtime script root for '{}': {}. Registry scripts in this root will not run this load cycle.", root.modId(), root.path());
       }
@@ -173,15 +165,9 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    public synchronized void replaceResourceScripts(List<MLuaScript> scripts) {
-      List<MLuaScript> previousResourceScripts = List.copyOf(this.resourceScripts);
-      Set<Path> replacedScriptPaths = new HashSet<>();
-      for (MLuaScript script : this.resourceScripts) replacedScriptPaths.add(script.path());
-      this.resourceScripts.clear();
-      this.resourceScripts.addAll(scripts);
-      this.scriptsDirty = true;
+      MLuaRuntimeScriptCatalog.ResourceReload reload = this.scriptCatalog.replaceResourceScripts(scripts);
       MLuaLogger.LOGGER.info("Loaded {} resource-pack MLua scripts", scripts.size());
-      this.onResourceScriptsReload(replacedScriptPaths,
-         nativeRegistryScriptsChanged(previousResourceScripts, this.resourceScripts));
+      this.onResourceScriptsReload(reload.replacedPaths(), reload.nativeRegistryScriptsChanged());
    }
 
    private void onResourceScriptsReload(Set<Path> replacedScriptPaths, boolean nativeRegistryScriptsChanged) {
@@ -199,8 +185,8 @@ public final class MLuaRuntime implements MLuaRegistration {
       if (nativeRegistriesFrozen && nativeRegistryScriptsChanged) {
          MLuaLogger.LOGGER.warn("[MLua] Registry-phase scripts changed during resource reload, but Minecraft registries are frozen. Existing registrations remain active; restart the game to apply the new script definitions.");
       }
-      for (MLuaScript script : this.resourceScripts) {
-         if (!isRegistryPhaseScript(script)) continue;
+      for (MLuaScript script : this.scriptCatalog.resourceScripts()) {
+         if (!MLuaRuntimeScriptCatalog.isRegistryPhaseScript(script)) continue;
          if (nativeRegistriesFrozen) continue;
          try {
             this.executeRegistryScript(script, script.type() != ScriptType.REGISTRY);
@@ -208,7 +194,7 @@ public final class MLuaRuntime implements MLuaRegistration {
             this.reportRuntimeFailure("Registry script '" + script.displayName() + "' failed during reload", throwable);
          }
       }
-      for (MLuaScript script : this.resourceScripts) {
+      for (MLuaScript script : this.scriptCatalog.resourceScripts()) {
          try {
             if (script.type() == ScriptType.REGISTRY) {
                continue;
@@ -229,12 +215,12 @@ public final class MLuaRuntime implements MLuaRegistration {
       MinecraftServer activeServer = this.session.server();
       if (activeServer != null) {
          this.runCommandScripts(activeServer.getCommands().getDispatcher());
-         this.runEntrypointScripts(this.resourceScripts, "run_server", Side.SERVER, activeServer);
+         this.runEntrypointScripts(this.scriptCatalog.resourceScripts(), "run_server", Side.SERVER, activeServer);
          this.reloadWorldLoadEntrypoints(activeServer);
       }
       if (LoaderApi.platform().isClient()) {
          this.runClientCommandScripts();
-         this.runEntrypointScripts(this.resourceScripts, "run_client", Side.CLIENT, activeServer);
+         this.runEntrypointScripts(this.scriptCatalog.resourceScripts(), "run_client", Side.CLIENT, activeServer);
          this.reloadClientWorldLoadEntrypoints(true);
       }
       MixinRuleEngine.triggerRetransform();
@@ -257,27 +243,6 @@ public final class MLuaRuntime implements MLuaRegistration {
                + script.displayName(), failure);
          }
       }
-   }
-
-   private static boolean nativeRegistryScriptsChanged(List<MLuaScript> previous, List<MLuaScript> current) {
-      Map<Path, String> previousSources = registryScriptSources(previous);
-      Map<Path, String> currentSources = registryScriptSources(current);
-      return !previousSources.equals(currentSources);
-   }
-
-   private static Map<Path, String> registryScriptSources(List<MLuaScript> scripts) {
-      Map<Path, String> sources = new HashMap<>();
-      for (MLuaScript script : scripts) {
-         if (!isRegistryPhaseScript(script)) continue;
-         sources.put(script.path().toAbsolutePath().normalize(), script.source());
-      }
-      return sources;
-   }
-
-   private static boolean isRegistryPhaseScript(MLuaScript script) {
-      return script.type() == ScriptType.REGISTRY
-         || script.type().supportsEntrypoint("run_registry", Side.SERVER)
-            && ScriptType.declaresEntrypoint(script.source(), "run_registry");
    }
 
    private void registerBundledModScriptRoots() {
@@ -605,9 +570,7 @@ public final class MLuaRuntime implements MLuaRegistration {
       // even when a later script or generated-resource step fails.
       this.registryScriptsRan = true;
       this.clearRegistryScriptRegistrations();
-      this.scripts.stream().filter((script) -> {
-         return script.type() == ScriptType.REGISTRY;
-      }).forEach((script) -> {
+      this.scriptCatalog.ofType(ScriptType.REGISTRY).forEach((script) -> {
          try {
             this.executeRegistryScript(script, false);
          } catch (RuntimeException | Error failure) {
@@ -616,10 +579,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          }
 
       });
-      this.scripts.stream().filter((script) -> {
-         return script.type().supportsEntrypoint("run_registry", Side.SERVER)
-            && ScriptType.declaresEntrypoint(script.source(), "run_registry");
-      }).forEach((script) -> {
+      this.scriptCatalog.withEntrypoint("run_registry", Side.SERVER).forEach((script) -> {
          try {
             this.executeRegistryScript(script, true);
          } catch (RuntimeException | Error failure) {
@@ -693,7 +653,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public void runMixinScripts() {
       this.ensureScriptsCurrent();
-      this.scripts.stream().filter(script -> script.type().isMixin()).forEach(script -> {
+      this.scriptCatalog.mixinScripts().forEach(script -> {
          Side mixinSide = script.type().mixinSide();
          if (mixinSide == Side.CLIENT && !LoaderApi.platform().isClient()) return;
          this.unregisterMixinScope(script.path());
@@ -709,10 +669,7 @@ public final class MLuaRuntime implements MLuaRegistration {
             throw failure;
          }
       });
-      this.scripts.stream().filter((script) -> {
-         return script.type().supportsEntrypoint("run_mixin", Side.SERVER)
-            && ScriptType.declaresEntrypoint(script.source(), "run_mixin");
-      }).forEach((script) -> {
+      this.scriptCatalog.withEntrypoint("run_mixin", Side.SERVER).forEach((script) -> {
          try {
             this.executeEntrypoint(script, Side.SERVER, RegistrationPhase.MIXIN, (MinecraftServer)null);
          } catch (LuaError var3) {
@@ -732,9 +689,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          this.session.attachServer(server);
          this.serverRan = true;
          this.ensureScriptsCurrent();
-         this.scripts.stream().filter((script) -> {
-            return script.type() == ScriptType.SERVER;
-         }).forEach((script) -> {
+         this.scriptCatalog.ofType(ScriptType.SERVER).forEach((script) -> {
             try {
                this.execute(script, Side.SERVER, RegistrationPhase.RUNTIME, server);
             } catch (RuntimeException var3) {
@@ -743,10 +698,7 @@ public final class MLuaRuntime implements MLuaRegistration {
             }
 
          });
-         this.scripts.stream().filter((script) -> {
-            return script.type().supportsEntrypoint("run_server", Side.SERVER)
-               && ScriptType.declaresEntrypoint(script.source(), "run_server");
-         }).forEach((script) -> {
+         this.scriptCatalog.withEntrypoint("run_server", Side.SERVER).forEach((script) -> {
             try {
                this.executeEntrypoint(script, Side.SERVER, RegistrationPhase.RUNTIME, server);
             } catch (RuntimeException var3) {
@@ -774,9 +726,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          }
       }
       MinecraftServer server = side == Side.SERVER ? level.getServer() : this.session.server();
-      for (MLuaScript script : this.scripts) {
-         if (!script.type().supportsEntrypoint(name, side)
-               || !ScriptType.declaresEntrypoint(script.source(), name)) continue;
+      for (MLuaScript script : this.scriptCatalog.withEntrypoint(name, side)) {
          try {
             MLuaContext context = this.contextFor(script, side, RegistrationPhase.RUNTIME, server);
             LuaTable event = new LuaTable();
@@ -812,9 +762,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    /** Runs script shutdown hooks after dimension unload hooks and before server runtime teardown. */
    private void runServerStoppingEntrypoints(MinecraftServer server) {
       this.ensureScriptsCurrent();
-      for (MLuaScript script : this.scripts) {
-         if (!script.type().supportsEntrypoint("run_server_stopping", Side.SERVER)
-               || !ScriptType.declaresEntrypoint(script.source(), "run_server_stopping")) continue;
+      for (MLuaScript script : this.scriptCatalog.withEntrypoint("run_server_stopping", Side.SERVER)) {
          try {
             MLuaContext context = this.contextFor(script, Side.SERVER, RegistrationPhase.RUNTIME, server);
             this.engine.executeEntrypoint(script, context, "run_server_stopping");
@@ -829,9 +777,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    public void runCommandScripts(CommandDispatcher<CommandSourceStack> dispatcher) {
       this.ensureScriptsCurrent();
       MLuaModuleLoader.get().beforeScriptPhase(this, this.session, Side.SERVER, RegistrationPhase.COMMANDS, dispatcher);
-      this.scripts.stream().filter((script) -> {
-         return script.type() == ScriptType.COMMANDS;
-      }).forEach((script) -> {
+      this.scriptCatalog.ofType(ScriptType.COMMANDS).forEach((script) -> {
          try {
             this.execute(script, Side.SERVER, RegistrationPhase.COMMANDS, this.session.server());
          } catch (RuntimeException var3) {
@@ -840,10 +786,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          }
 
       });
-      this.scripts.stream().filter((script) -> {
-         return script.type().supportsEntrypoint("run_commands", Side.SERVER)
-            && ScriptType.declaresEntrypoint(script.source(), "run_commands");
-      }).forEach((script) -> {
+      this.scriptCatalog.withEntrypoint("run_commands", Side.SERVER).forEach((script) -> {
          try {
             this.executeEntrypoint(script, Side.SERVER, RegistrationPhase.COMMANDS, this.session.server());
          } catch (RuntimeException var3) {
@@ -859,9 +802,7 @@ public final class MLuaRuntime implements MLuaRegistration {
       if (!this.clientRan) {
          this.clientRan = true;
          this.runClientCommandScripts();
-         this.scripts.stream().filter((script) -> {
-            return script.type() == ScriptType.CLIENT;
-         }).forEach((script) -> {
+         this.scriptCatalog.ofType(ScriptType.CLIENT).forEach((script) -> {
             try {
             this.execute(script, Side.CLIENT, RegistrationPhase.RUNTIME, this.session.server());
             } catch (RuntimeException var3) {
@@ -870,10 +811,7 @@ public final class MLuaRuntime implements MLuaRegistration {
             }
 
          });
-      this.scripts.stream().filter((script) -> {
-         return script.type().supportsEntrypoint("run_client", Side.CLIENT)
-            && ScriptType.declaresEntrypoint(script.source(), "run_client");
-         }).forEach((script) -> {
+      this.scriptCatalog.withEntrypoint("run_client", Side.CLIENT).forEach((script) -> {
             try {
             this.executeEntrypoint(script, Side.CLIENT, RegistrationPhase.RUNTIME, this.session.server());
             } catch (RuntimeException var3) {
@@ -951,19 +889,12 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    private void refreshScripts(boolean force) {
-      if (!force && !this.scriptsDirty && this.engine != null) {
-         return;
-      }
-
-      List<MLuaScript> discovered = new ArrayList<>(this.loader.discover(this.roots));
-      discovered.addAll(this.resourceScripts);
-      this.scripts = discovered;
+      List<MLuaScript> discovered = this.scriptCatalog.refresh(force || this.engine == null);
       if (this.engine == null) {
-         this.engine = new LuaJEngineBackend(this.scripts);
+         this.engine = new LuaJEngineBackend(discovered);
       } else {
-         this.engine.replaceScripts(this.scripts);
+         this.engine.replaceScripts(discovered);
       }
-      this.scriptsDirty = false;
    }
 
    public void deliverPendingServerDiagnostics(ServerPlayer player) {
@@ -998,7 +929,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public void pollClientHotReload() {
       long now = System.currentTimeMillis();
-      if (this.clientScriptWatcher.poll(this.roots, now, this::isClientWindowActive)) {
+      if (this.clientScriptWatcher.poll(this.scriptCatalog.roots(), now, this::isClientWindowActive)) {
          MLuaLogger.LOGGER.info("[MLua] Script changes detected. Reloading client scripts.");
          this.reloadClientOnly();
          this.diagnostics.recordClientMessage("[MLua] Script changes detected. Client scripts reloaded.");
@@ -1049,7 +980,7 @@ public final class MLuaRuntime implements MLuaRegistration {
             this.engine.resetSide(Side.SERVER);
            MLuaModuleLoader.get().onReload(Side.SERVER);
 
-          this.scripts.stream().filter(script -> script.type() == ScriptType.SERVER).forEach(script -> {
+          this.scriptCatalog.ofType(ScriptType.SERVER).forEach(script -> {
              try {
              this.execute(script, Side.SERVER, RegistrationPhase.RUNTIME, this.session.server());
              } catch (RuntimeException e) {
@@ -1058,8 +989,7 @@ public final class MLuaRuntime implements MLuaRegistration {
              }
           });
 
-          this.scripts.stream().filter(script -> script.type().supportsEntrypoint("run_server", Side.SERVER)
-             && ScriptType.declaresEntrypoint(script.source(), "run_server")).forEach(script -> {
+          this.scriptCatalog.withEntrypoint("run_server", Side.SERVER).forEach(script -> {
              try {
                 this.executeEntrypoint(script, Side.SERVER, RegistrationPhase.RUNTIME, this.session.server());
              } catch (RuntimeException e) {
@@ -1116,7 +1046,7 @@ public final class MLuaRuntime implements MLuaRegistration {
        MLuaModuleLoader.get().onReload(Side.CLIENT);
        this.runClientCommandScripts();
 
-       this.scripts.stream().filter(script -> script.type() == ScriptType.CLIENT).forEach(script -> {
+       this.scriptCatalog.ofType(ScriptType.CLIENT).forEach(script -> {
           try {
              this.execute(script, Side.CLIENT, RegistrationPhase.RUNTIME, this.session.server());
           } catch (RuntimeException e) {
@@ -1125,8 +1055,7 @@ public final class MLuaRuntime implements MLuaRegistration {
           }
        });
 
-       this.scripts.stream().filter(script -> script.type().supportsEntrypoint("run_client", Side.CLIENT)
-          && ScriptType.declaresEntrypoint(script.source(), "run_client")).forEach(script -> {
+       this.scriptCatalog.withEntrypoint("run_client", Side.CLIENT).forEach(script -> {
           try {
              this.executeEntrypoint(script, Side.CLIENT, RegistrationPhase.RUNTIME, this.session.server());
           } catch (RuntimeException e) {
@@ -1139,9 +1068,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    private void runClientCommandScripts() {
       MLuaModuleLoader.get().beforeScriptPhase(this, this.session, Side.CLIENT, RegistrationPhase.COMMANDS, null);
-      this.scripts.stream().filter((script) -> {
-         return script.type() == ScriptType.COMMANDS;
-      }).forEach((script) -> {
+      this.scriptCatalog.ofType(ScriptType.COMMANDS).forEach((script) -> {
          try {
             this.execute(script, Side.CLIENT, RegistrationPhase.COMMANDS, this.session.server());
          } catch (RuntimeException var3) {
@@ -1149,9 +1076,7 @@ public final class MLuaRuntime implements MLuaRegistration {
             this.reportRuntimeFailure("Client command script '" + script.displayName() + "' failed", var3);
          }
       });
-      this.scripts.stream().filter(script -> script.type().supportsEntrypoint("run_commands", Side.CLIENT)
-            && ScriptType.declaresEntrypoint(script.source(), "run_commands"))
-         .forEach(script -> {
+      this.scriptCatalog.withEntrypoint("run_commands", Side.CLIENT).forEach(script -> {
             try {
                this.executeEntrypoint(script, Side.CLIENT, RegistrationPhase.COMMANDS, this.session.server());
             } catch (RuntimeException failure) {
