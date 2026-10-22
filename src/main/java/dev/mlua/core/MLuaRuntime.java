@@ -14,7 +14,7 @@ import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.mixin.MixinRuleEngine;
 import dev.mlua.common.mixin.MLuaMixinCallbackRegistry;
 import dev.mlua.loaderapi.LoaderApi;
-import dev.mlua.runtime.client.MLuaGeneratedAssetPack;
+import dev.mlua.runtime.assets.MLuaGeneratedAssetPack;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;

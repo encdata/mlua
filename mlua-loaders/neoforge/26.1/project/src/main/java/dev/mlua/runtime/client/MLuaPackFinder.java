@@ -1,5 +1,6 @@
 package dev.mlua.runtime.client;
 
+import dev.mlua.runtime.assets.MLuaGeneratedAssetPack;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.network.chat.Component;

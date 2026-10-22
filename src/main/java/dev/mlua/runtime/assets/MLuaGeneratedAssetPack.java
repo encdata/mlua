@@ -1,4 +1,4 @@
-package dev.mlua.runtime.client;
+package dev.mlua.runtime.assets;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -28,14 +28,35 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.metadata.MetadataSectionSerializer;
 import net.minecraft.server.packs.metadata.pack.PackMetadataSection;
 import net.minecraft.server.packs.resources.IoSupplier;
+//--version 26.1
 import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.repository.PackSource;
 import java.util.Optional;
+//--endversion
+//--version 1.21.1
+import net.minecraft.server.packs.PackLocationInfo;
+import net.minecraft.server.packs.repository.PackSource;
+import java.util.Optional;
+//--endversion
 
+/** Builds generated client assets and server data resources without linking client-only classes. */
 public final class MLuaGeneratedAssetPack {
    private static final String PACK_ID = "mlua_generated_assets";
+   //--version 1.20.1
+   private static final boolean LEGACY_DATA_DIRECTORIES = true;
+   //--endversion
+   //--version 1.21.1
    private static final boolean LEGACY_DATA_DIRECTORIES = false;
+   //--endversion
+   //--version 26.1
+   private static final boolean LEGACY_DATA_DIRECTORIES = false;
+   //--endversion
+   //--version 1.21.1
    private static final PackLocationInfo PACK_INFO = new PackLocationInfo(PACK_ID, Component.literal("MLua Generated Assets"), PackSource.BUILT_IN, Optional.empty());
+   //--endversion
+   //--version 26.1
+   private static final PackLocationInfo PACK_INFO = new PackLocationInfo(PACK_ID, Component.literal("MLua Generated Assets"), PackSource.BUILT_IN, Optional.empty());
+   //--endversion
    private static volatile Map<String, byte[]> DATA = Map.of();
 
    private MLuaGeneratedAssetPack() {
@@ -109,8 +130,20 @@ public final class MLuaGeneratedAssetPack {
    private static String packMeta() {
       JsonObject meta = new JsonObject();
       JsonObject pack = new JsonObject();
+      //--version 1.20.1
+      pack.addProperty("pack_format", 15);
+      //--endversion
+      //--version 1.21.1
+      pack.addProperty("pack_format", 34);
+      JsonArray supportedFormats = new JsonArray();
+      supportedFormats.add(34);
+      supportedFormats.add(48);
+      pack.add("supported_formats", supportedFormats);
+      //--endversion
+      //--version 26.1
       pack.addProperty("min_format", 84);
       pack.addProperty("max_format", 101);
+      //--endversion
       pack.addProperty("description", "MLua generated assets");
       meta.add("pack", pack);
       return meta.toString();
@@ -136,6 +169,9 @@ public final class MLuaGeneratedAssetPack {
             writeItemTexture(json, texture);
          } else if (copyModel && copy != null && !copy.isBlank()) {
             json.addProperty("parent", MLuaAssetResolver.resolveModelString(namespace, copy, "item"));
+            if ("minecraft:bow".equalsIgnoreCase(copy.trim())) {
+               addBowPullOverrides(json);
+            }
          } else {
             json.addProperty("parent", "minecraft:item/generated");
             writePlaceholderItemTexture(json);
@@ -143,6 +179,31 @@ public final class MLuaGeneratedAssetPack {
          put(resources, "assets/" + namespace + "/models/item/" + path + ".json", json.toString());
       }
 
+   }
+
+   private static void addBowPullOverrides(JsonObject model) {
+      JsonArray overrides = new JsonArray();
+      JsonObject pulling = new JsonObject();
+      pulling.addProperty("pulling", 1.0F);
+      addBowOverride(overrides, pulling, "minecraft:item/bow_pulling_0");
+
+      JsonObject firstStage = new JsonObject();
+      firstStage.addProperty("pulling", 1.0F);
+      firstStage.addProperty("pull", 0.65F);
+      addBowOverride(overrides, firstStage, "minecraft:item/bow_pulling_1");
+
+      JsonObject finalStage = new JsonObject();
+      finalStage.addProperty("pulling", 1.0F);
+      finalStage.addProperty("pull", 0.9F);
+      addBowOverride(overrides, finalStage, "minecraft:item/bow_pulling_2");
+      model.add("overrides", overrides);
+   }
+
+   private static void addBowOverride(JsonArray overrides, JsonObject predicates, String modelName) {
+      JsonObject override = new JsonObject();
+      override.add("predicate", predicates);
+      override.addProperty("model", modelName);
+      overrides.add(override);
    }
 
    private static void writeBlocks(Map<String, byte[]> resources) {
@@ -299,7 +360,15 @@ public final class MLuaGeneratedAssetPack {
       private final Map<String, byte[]> resources;
 
       public PackResourcesImpl(Map<String, byte[]> resources) {
+         //--version 1.21.1
          super(PACK_INFO);
+         //--endversion
+         //--version 26.1
+         super(PACK_INFO);
+         //--endversion
+         //--version 1.20.1
+         super("mlua_generated_assets", true);
+         //--endversion
          this.resources = resources;
       }
 
@@ -368,11 +437,26 @@ public final class MLuaGeneratedAssetPack {
       }
 
       public <T> T getMetadataSection(MetadataSectionSerializer<T> serializer) throws IOException {
+         //--version 26.1
          byte[] metadata = resources.get("pack.mcmeta");
          if (metadata == null) return null;
          JsonObject root = JsonParser.parseString(new String(metadata, StandardCharsets.UTF_8)).getAsJsonObject();
          var section = root.get(serializer.name());
          return section == null ? null : serializer.codec().parse(com.mojang.serialization.JsonOps.INSTANCE, section).result().orElse(null);
+         //--endversion
+         //--version 1.20.1,1.21.1
+         if (serializer == PackMetadataSection.TYPE) {
+            byte[] meta = resources.get("pack.mcmeta");
+            if (meta == null) {
+               return null;
+            } else {
+               JsonObject root = JsonParser.parseString(new String(meta, StandardCharsets.UTF_8)).getAsJsonObject();
+               return serializer.fromJson(root.getAsJsonObject("pack"));
+            }
+         } else {
+            return null;
+         }
+         //--endversion
       }
 
       public String packId() {

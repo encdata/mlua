@@ -1,5 +1,6 @@
 package dev.mlua.runtime.client;
 
+import dev.mlua.runtime.assets.MLuaGeneratedAssetPack;
 import dev.mlua.core.MLuaLogger;
 import java.util.Arrays;
 import net.minecraft.network.chat.Component;

@@ -1,5 +1,6 @@
 package dev.mlua.runtime.client;
 
+import dev.mlua.runtime.assets.MLuaGeneratedAssetPack;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;

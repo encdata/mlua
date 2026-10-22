@@ -1,5 +1,6 @@
 package dev.mlua.runtime.client;
 
+import dev.mlua.runtime.assets.MLuaGeneratedAssetPack;
 import dev.mlua.loaderapi.LoaderApi.LoaderProvider;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.MLuaRuntime;
