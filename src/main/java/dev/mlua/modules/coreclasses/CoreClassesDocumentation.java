@@ -349,14 +349,4 @@ final class CoreClassesDocumentation {
             "local Players = Minecraft:GetService(\"Players\")\nprint(Players:GetPlayers())"));
     }
 
-    @Override
-    public void contributeGlobals(Globals globals, MLuaContextView context) {
-        MLuaRegistration registration = context.registration();
-        globals.set("Object", registration.classTable("Object"));
-        globals.set("Instance", registration.classTable("Instance"));
-        globals.set("Service", registration.classTable("Service"));
-    }
-
-    @Override
-    public List<String> dependencies() { return List.of(); }
 }
