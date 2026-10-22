@@ -9,6 +9,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import dev.mlua.loaderapi.GeneratedAssetKind;
+import dev.mlua.runtime.registry.MLuaDynamicRegistryCatalog;
 
 /** Assembles Registry's Lua service and typed category tables. Registration behavior stays in MLuaRegistryService. */
 final class MLuaRegistryApi {
