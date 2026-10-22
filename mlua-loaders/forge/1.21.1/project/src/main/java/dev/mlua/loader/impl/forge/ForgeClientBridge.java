@@ -165,7 +165,8 @@ public class ForgeClientBridge implements ClientBridge {
     private boolean tryRegisterOverlayListener(IEventBus modBus, String eventClassName, Consumer<Object> listener) {
         try {
             Class<?> eventClass = Class.forName(eventClassName, false, modBus.getClass().getClassLoader());
-            modBus.addListener(EventPriority.NORMAL, false, (Class) eventClass, (Consumer) listener);
+            IEventBus eventBus = isModBusEvent(eventClass) ? modBus : MinecraftForge.EVENT_BUS;
+            eventBus.addListener(EventPriority.NORMAL, false, (Class) eventClass, (Consumer) listener);
             return true;
         } catch (ClassNotFoundException ignored) {
             return false;
@@ -173,6 +174,17 @@ public class ForgeClientBridge implements ClientBridge {
             MLuaLogger.LOGGER.warn("[MLua] Failed to register Forge overlay listener for {}", eventClassName, throwable);
             return false;
         }
+    }
+
+    private static boolean isModBusEvent(Class<?> eventClass) {
+        for (Class<?> contract : eventClass.getInterfaces()) {
+            if (contract.getName().equals("net.minecraftforge.fml.event.IModBusEvent")
+                    || isModBusEvent(contract)) {
+                return true;
+            }
+        }
+        Class<?> parent = eventClass.getSuperclass();
+        return parent != null && parent != Object.class && isModBusEvent(parent);
     }
 
     private void handleAddGuiOverlayLayers(Object event) {

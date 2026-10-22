@@ -1158,6 +1158,8 @@ local containerUseWaitTicks = 0
 local clientContainerOpened = false
 local testSheepUuid
 local attackSubmitted = false
+local nearbyQueryDiagnosticLogged = false
+local nearbyQueryResultLogged = false
 local attackConfirmed = false
 local connection
 local chatLineHookObserved = false
@@ -1300,7 +1302,10 @@ Gui.ChatLineAdding:Connect(function(line)
         containerTarget = Vector3.new(tonumber(containerX), tonumber(containerY), tonumber(containerZ))
     end
     local sheepUuid = line.OriginalText:match("MLUA_CI_PLAYER_TEST_SHEEP:([%x%-]+)")
-    if sheepUuid then testSheepUuid = sheepUuid end
+    if sheepUuid then
+        testSheepUuid = sheepUuid
+        print("MLUA_CI_PLAYER_SHEEP_UUID_RECEIVED")
+    end
     if line.OriginalText:find("MLUA_CI_PLAYER_ATTACK_CONFIRMED", 1, true) then
         attackConfirmed = true
         print("MLUA_CI_PLAYER_ATTACK_CONFIRMED")
@@ -1359,16 +1364,28 @@ connection = RunService.Heartbeat:Connect(function()
         end
     end
     if testSheepUuid and not attackSubmitted then
+        if not nearbyQueryDiagnosticLogged then
+            nearbyQueryDiagnosticLogged = true
+            print("MLUA_CI_PLAYER_NEARBY_QUERY_BEGIN")
+        end
+        local nearbyEntityCount = 0
         for _, entity in ipairs(player:GetNearbyEntities(8)) do
+            nearbyEntityCount = nearbyEntityCount + 1
             if entity.UUID == testSheepUuid then
+                print("MLUA_CI_PLAYER_ATTACK_CALL_BEGIN")
                 assert(entity:Attack(), "Entity:Attack did not submit the local-player attack")
                 attackSubmitted = true
                 print("MLUA_CI_PLAYER_ATTACK_SUBMITTED")
                 break
             end
         end
+        if not nearbyQueryResultLogged then
+            nearbyQueryResultLogged = true
+            print("MLUA_CI_PLAYER_NEARBY_QUERY_DONE:" .. nearbyEntityCount)
+        end
     end
     if playerPickupReceived and inputPressState == 0 then
+        print("MLUA_CI_PLAYER_INPUT_PRESS_BEGIN")
         inputStartX = player:GetPositionX()
         inputStartZ = player:GetPositionZ()
         Input:SetKeyDown("key.forward", true)
