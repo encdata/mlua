@@ -1,6 +1,5 @@
 package dev.mlua.modules.render.service;
 
-import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.minecraft.animation.MLuaAnimationOptions;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
@@ -102,16 +101,6 @@ final class MLuaRenderAnimationBinding {
     }
 
     private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError failure) {
-                    throw failure;
-                } catch (Exception failure) {
-                    throw MLuaLuaErrors.javaFailure("Render animation operation", failure);
-                }
-            }
-        };
+        return MLuaRenderLuaSupport.operation("Render animation operation", body);
     }
 }

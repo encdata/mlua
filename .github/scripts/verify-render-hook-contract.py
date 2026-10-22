@@ -25,6 +25,9 @@ NEOFORGE_RUNTIME_TARGET = ROOT / "gradle/mlua-runtime-neoforge-target.gradle"
 TARGETS = ROOT / "gradle/mlua-targets.json"
 CALLBACKS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderCallbacks.java"
 RENDER_SERVICE = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java"
+RENDER_OBJECT_API = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectApi.java"
+RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java"
+RENDER_LUA_SUPPORT = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderLuaSupport.java"
 OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectCreation.java"
 
 
@@ -237,6 +240,19 @@ if len(failure_cache) != 2 or "MAX_RENDERER_WARNING_KEYS" not in failure_cache[1
     fail("model adapter failure deduplication does not honor the bounded warning-key limit")
 
 render_service = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java").read_text(encoding="utf-8")
+render_object_api = RENDER_OBJECT_API.read_text(encoding="utf-8")
+render_object_operations = RENDER_OBJECT_OPERATIONS.read_text(encoding="utf-8")
+render_api = render_service + "\n" + render_object_api + "\n" + render_object_operations
+render_lua_support = RENDER_LUA_SUPPORT.read_text(encoding="utf-8")
+if "extends MLuaRenderObjectApi" not in render_service or "class MLuaRenderObjectApi extends MLuaReflectiveService" not in render_object_api:
+    fail("RenderService must keep its documented object API in the dedicated reflective object owner")
+if "static VarArgFunction operation(String operationName" not in render_lua_support:
+    fail("render-object Lua callbacks must share one operation error boundary")
+if "MLuaRenderLuaSupport.operation(\"Render service call\"" not in render_object_operations or "MLuaRenderService.fn(" in render_api:
+    fail("render object bindings must use the shared Lua callback support owner")
+animation_binding = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderAnimationBinding.java").read_text(encoding="utf-8")
+if "MLuaRenderLuaSupport.operation(\"Render animation operation\", body)" not in animation_binding:
+    fail("render animation operations must use the shared Lua callback error boundary")
 render_docs = (ROOT / "src/main/java/dev/mlua/modules/render/RenderModule.java").read_text(encoding="utf-8")
 connection_methods = (
     "RegisterEntityRenderer", "RegisterEntityRenderPass", "RegisterEntityDrawPass",
@@ -247,13 +263,13 @@ connection_methods = (
     "RegisterHudRenderer", "RegisterHudRenderPass",
 )
 for name in connection_methods:
-    if f"public LuaTable {name}(" not in render_service:
+    if f"public LuaTable {name}(" not in render_api:
         fail(f"RenderService:{name} must return a Lua Connection instance")
     if f'"RenderService:{name}(' not in render_docs or '"Connection"));' not in render_docs.split(
         f'"RenderService:{name}(', 1
     )[1].split("\n", 1)[0]:
         fail(f"RenderService:{name} documentation must declare its Connection return value")
-if "MLuaLuaBindings.connection(connection, this.context.registration())" not in render_service:
+if "MLuaLuaBindings.connection(connection, this.context.registration())" not in render_api:
     fail("render registration handles are not wrapped as registered Lua Connection instances")
 
 model_service = (ROOT / "src/main/java/dev/mlua/modules/model/service/MLuaModelService.java").read_text(encoding="utf-8")
@@ -305,13 +321,13 @@ for contract in ("ReferenceQueue<LuaTable>", "WeakReference<LuaTable>",
                  "void remove(int id)", "void clear()"):
     if contract not in handle_cache:
         fail(f"render object handle cache is missing {contract}")
-if "new MLuaRenderObjectHandleCache()" not in render_service:
+if "new MLuaRenderObjectHandleCache()" not in render_api:
     fail("RenderService must delegate weak handle ownership to the cache")
-if "ReferenceQueue<" in render_service or "WeakReference<" in render_service:
+if "ReferenceQueue<" in render_api or "WeakReference<" in render_api:
     fail("RenderService still owns weak handle-cache implementation details")
 for operation in ("objectHandleCache.get(id)", "objectHandleCache.put(id, handle)",
                   "objectHandleCache.remove(id)", "objectHandleCache.clear()"):
-    if operation not in render_service:
+    if operation not in render_api:
         fail(f"RenderService does not route handle lifecycle through its cache: {operation}")
 
 context_access_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderContextAccess.java"
@@ -419,7 +435,7 @@ for operation in ("MLuaMeshLuaParser.parse(definition)", "MLuaBBModelLoader.load
 for operation in ("this.objectCreation.create(type, resource, props)",
                   "this.objectCreation.createMesh(definition, props)",
                   "this.objectCreation.loadBBModel(path, props)"):
-    if operation not in render_service:
+    if operation not in render_api:
         fail(f"RenderService does not delegate object creation: {operation}")
 
 print(f"Render hook contract passed for {len(supported)} supported loader/version targets.")

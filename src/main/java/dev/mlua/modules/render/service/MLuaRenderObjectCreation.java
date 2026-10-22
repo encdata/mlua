@@ -11,9 +11,9 @@ import org.luaj.vm2.LuaValue;
 
 /** Owns render-object creation for primitives, meshes, models, and world-space objects. */
 final class MLuaRenderObjectCreation {
-   private final MLuaRenderService service;
+   private final MLuaRenderObjectApi service;
 
-   MLuaRenderObjectCreation(MLuaRenderService service) {
+   MLuaRenderObjectCreation(MLuaRenderObjectApi service) {
       this.service = service;
    }
 
