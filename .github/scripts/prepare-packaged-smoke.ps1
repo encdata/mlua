@@ -1141,6 +1141,7 @@ local testSheepUuid
 local attackSubmitted = false
 local attackConfirmed = false
 local connection
+local chatLineHookObserved = false
 local worldTransformMesh = Render:CreateMesh({
     Vertices = {
         { Position = Vector3.new(0, 0, 0) },
@@ -1263,6 +1264,10 @@ Render:RegisterEntityRenderPass("minecraft:sheep", "mlua:ci-sheep-model", functi
     end
 end)
 Gui.ChatLineAdding:Connect(function(line)
+    if not chatLineHookObserved then
+        chatLineHookObserved = true
+        print("MLUA_CI_PLAYER_CHAT_LINE_HOOK_FIRED")
+    end
     if line.OriginalText:find("MLUA_CI_PLAYER_SERVER_GREETING", 1, true) then
         print("MLUA_CI_PLAYER_GREETING_RECEIVED")
     end
