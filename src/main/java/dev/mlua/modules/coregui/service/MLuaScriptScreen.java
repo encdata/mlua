@@ -24,9 +24,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 //--version 26.1
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 //--endversion
 //--version 1.20.1,1.21.1
 import net.minecraft.client.gui.GuiGraphics;
@@ -47,6 +44,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
     private final List<ScreenCallback> controlCallbacks = new CopyOnWriteArrayList<>();
     private final MLuaScriptScreenCallbacks classCallbacks = new MLuaScriptScreenCallbacks(this);
+    private final MLuaScriptScreenInput input = new MLuaScriptScreenInput(this.classCallbacks);
     private LuaValue closed = LuaValue.NIL;
     private LuaValue tickCallback = LuaValue.NIL;
     private LuaValue renderCallback = LuaValue.NIL;
@@ -347,109 +345,89 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
 
     @Override public void onFilesDrop(List<Path> paths) {
-        if (this.luaInstance != null && paths != null) {
-            LuaTable droppedPaths = new LuaTable();
-            for (int index = 0; index < paths.size(); index++) {
-                droppedPaths.set(index + 1, LuaValue.valueOf(paths.get(index).toString()));
-            }
-            this.classCallbacks.invokeInputMethod("OnFilesDrop", droppedPaths);
-        }
+        this.input.filesDrop(this.luaInstance, paths);
         super.onFilesDrop(paths);
     }
 
     //--version 1.20.1,1.21.1
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (this.classCallbacks.invokeInputMethod("KeyPressed", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
-            LuaValue.valueOf(modifiers))) return true;
+        if (this.input.keyPressed(keyCode, scanCode, modifiers)) return true;
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
-        if (this.classCallbacks.invokeInputMethod("KeyReleased", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
-            LuaValue.valueOf(modifiers))) return true;
+        if (this.input.keyReleased(keyCode, scanCode, modifiers)) return true;
         return super.keyReleased(keyCode, scanCode, modifiers);
     }
 
     @Override public boolean charTyped(char character, int modifiers) {
-        if (this.classCallbacks.invokeInputMethod("CharTyped", LuaValue.valueOf(String.valueOf(character)),
-            LuaValue.valueOf(modifiers))) return true;
+        if (this.input.charTyped(character, modifiers)) return true;
         return super.charTyped(character, modifiers);
     }
 
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (this.classCallbacks.invokeInputMethod("MouseClicked", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
-            LuaValue.valueOf(button), LuaValue.FALSE)) return true;
+        if (this.input.mouseClicked(mouseX, mouseY, button)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (this.classCallbacks.invokeInputMethod("MouseReleased", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
-            LuaValue.valueOf(button))) return true;
+        if (this.input.mouseReleased(mouseX, mouseY, button)) return true;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (this.classCallbacks.invokeInputMethod("MouseDragged", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
-            LuaValue.valueOf(button), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
+        if (this.input.mouseDragged(mouseX, mouseY, button, dragX, dragY)) return true;
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
     //--endversion
 
     //--version 26.1
     @Override public boolean keyPressed(KeyEvent event) {
-        if (this.classCallbacks.invokeInputMethod("KeyPressed", LuaValue.valueOf(event.key()),
-            LuaValue.valueOf(event.scancode()), LuaValue.valueOf(event.modifiers()))) return true;
+        if (this.input.keyPressed(event)) return true;
         return super.keyPressed(event);
     }
 
     @Override public boolean keyReleased(KeyEvent event) {
-        if (this.classCallbacks.invokeInputMethod("KeyReleased", LuaValue.valueOf(event.key()),
-            LuaValue.valueOf(event.scancode()), LuaValue.valueOf(event.modifiers()))) return true;
+        if (this.input.keyReleased(event)) return true;
         return super.keyReleased(event);
     }
 
     @Override public boolean charTyped(CharacterEvent event) {
-        if (this.classCallbacks.invokeInputMethod("CharTyped", LuaValue.valueOf(event.codepointAsString()),
-            LuaValue.ZERO)) return true;
+        if (this.input.charTyped(event)) return true;
         return super.charTyped(event);
     }
 
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (this.classCallbacks.invokeInputMethod("MouseClicked", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
-            LuaValue.valueOf(event.button()), LuaValue.valueOf(doubleClick))) return true;
+        if (this.input.mouseClicked(event, doubleClick)) return true;
         return super.mouseClicked(event, doubleClick);
     }
 
     @Override public boolean mouseReleased(MouseButtonEvent event) {
-        if (this.classCallbacks.invokeInputMethod("MouseReleased", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
-            LuaValue.valueOf(event.button()))) return true;
+        if (this.input.mouseReleased(event)) return true;
         return super.mouseReleased(event);
     }
 
     @Override public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
-        if (this.classCallbacks.invokeInputMethod("MouseDragged", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
-            LuaValue.valueOf(event.button()), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
+        if (this.input.mouseDragged(event, dragX, dragY)) return true;
         return super.mouseDragged(event, dragX, dragY);
     }
     //--endversion
 
     @Override public void mouseMoved(double mouseX, double mouseY) {
-        this.classCallbacks.invokeInputMethod("MouseMoved", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY));
+        this.input.mouseMoved(mouseX, mouseY);
         super.mouseMoved(mouseX, mouseY);
     }
 
     //--version 1.20.1
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (this.classCallbacks.invokeInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
-            LuaValue.ZERO, LuaValue.valueOf(delta))) return true;
+        if (this.input.mouseScrolled(mouseX, mouseY, delta)) return true;
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
     //--endversion
 
     //--version 1.21.1,26.1
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (this.classCallbacks.invokeInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
-            LuaValue.valueOf(scrollX), LuaValue.valueOf(scrollY))) return true;
+        if (this.input.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
     //--endversion
