@@ -141,7 +141,7 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
 
     private static boolean matchesAny(String owner, BiomeSelectionContext context) {
         ArrayList<FeatureRegistration> selected = null;
-        for (FeatureRegistration registration : OWNER_REGISTRATION_SNAPSHOTS.getOrDefault(owner, List.of())) {
+        for (FeatureRegistration registration : registrationsSnapshot(owner)) {
             if (!registration.matches(context)) continue;
             if (selected == null) selected = new ArrayList<>();
             selected.add(registration);
@@ -153,6 +153,10 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
         }
         selections.put(owner, List.copyOf(selected));
         return true;
+    }
+
+    private static List<FeatureRegistration> registrationsSnapshot(String owner) {
+        return OWNER_REGISTRATION_SNAPSHOTS.getOrDefault(owner, List.of());
     }
 
     private static void applyFeatures(String owner, BiomeModificationContext context) {
