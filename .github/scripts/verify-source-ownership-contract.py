@@ -39,6 +39,12 @@ if "MLuaBehaviorRegistry" in modern_item or "MLuaBehaviorCallbackFailureTracker"
 for field in ("ItemStack", "Entity", "EquipmentSlot"):
     if f'context.set("{field}"' not in modern_item_dispatcher:
         raise SystemExit(f"26.1 item callback contexts are missing {field}")
+registered_bow = (ROOT / "src/main/java/dev/mlua/runtime/registry/MLuaRegisteredBow.java").read_text(encoding="utf-8")
+if "MLuaItemFactory.invokeOn" in registered_bow:
+    raise SystemExit("registered bows must use the shared item behavior dispatcher")
+for method in ("onUse", "onUseOnBlock", "onAttackEntity", "onInventoryTick", "onCrafted"):
+    if f"MLuaItemBehaviorDispatcher.{method}(" not in registered_bow:
+        raise SystemExit(f"registered bows must delegate {method} behavior to the item dispatcher")
 
 root_compilers = (
     "gradle/mlua-fabric-project.gradle",
