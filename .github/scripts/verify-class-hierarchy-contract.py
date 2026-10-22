@@ -29,6 +29,10 @@ if "instancesOfOrDescendants(className)" not in registry:
     fail("class field validation and metadata refresh must query only instances of the affected class subtree")
 if "for (Map.Entry<LuaTable, LuaTable> entry : this.instanceClasses.entrySet())" in registry:
     fail("class-scoped instance refreshes must not rescan every live instance")
+dependents = registry.split("private boolean hasClassDependents(String name)", 1)[1].split(
+    "private void removePendingClassIfUnused", 1)[0]
+if "this.instancesByClass.get(name)" not in dependents or "this.instanceClasses.values()" in dependents:
+    fail("class removal checks must inspect only instances indexed to the candidate class")
 if "this.refreshInheritedMethodDescriptions(descendant);" not in registry \
         or "this.hierarchy.descendantsOf(changedClass)" not in registry:
     fail("class metadata refresh must traverse only the changed class and indexed descendants")

@@ -105,6 +105,15 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
+    void classCannotBeRemovedWhileAnInstanceUsesIt() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        registry.register("Widget", (String) null);
+        registry.attachInstance(new LuaTable(), "Widget", null);
+
+        assertFalse(registry.unregister("Widget"));
+    }
+
+    @Test
     void attachingClassPreservesExistingInstanceIndexFallback() {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         LuaTable classTable = registry.register("Widget", (String) null);

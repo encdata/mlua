@@ -398,11 +398,8 @@ public final class MLuaClassRegistry {
    }
 
    private boolean hasClassDependents(String name) {
-      LuaTable classTable = this.classes.get(name);
-      if (classTable == null) return false;
-      for (LuaTable instanceClass : this.instanceClasses.values()) {
-         if (instanceClass == classTable) return true;
-      }
+      Set<LuaTable> instances = this.instancesByClass.get(name);
+      if (instances != null && !instances.isEmpty()) return true;
       if (this.hierarchy.hasChildren(name)) return true;
       return false;
    }
