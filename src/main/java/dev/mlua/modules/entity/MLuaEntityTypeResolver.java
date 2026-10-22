@@ -19,7 +19,7 @@ import net.minecraft.world.entity.EntityType;
 /** Resolves entity identifiers through the active world, vanilla, and loader-owned registries. */
 final class MLuaEntityTypeResolver {
     // Entity-type registries are frozen before runtime lookups; weak keys avoid retaining reloadable registries.
-    private static final Map<Registry<EntityType<?>>, Map<ResourceLocation, EntityType<?>>> FALLBACK_INDEXES =
+    private static final Map<Registry<EntityType<?>>, Map<String, EntityType<?>>> FALLBACK_INDEXES =
         new WeakHashMap<>();
 
     private MLuaEntityTypeResolver() { }
@@ -53,15 +53,25 @@ final class MLuaEntityTypeResolver {
     private static EntityType<?> findType(Registry<EntityType<?>> registry, ResourceLocation location) {
         EntityType<?> direct = registry.getOptional(location).orElse(null);
         if (direct != null) return direct;
-        return fallbackIndex(registry).get(location);
+        // Some loader registry wrappers expose an empty Optional from getOptional even when
+        // their ordinary Registry#get path can resolve the key. Keep both lookup paths before
+        // paying for the iteration fallback; this is also how the other runtime registry APIs
+        // resolve vanilla entries on those loaders.
+        direct = registry.get(location);
+        if (direct != null) return direct;
+        return fallbackIndex(registry).get(location.toString());
     }
 
-    private static Map<ResourceLocation, EntityType<?>> fallbackIndex(Registry<EntityType<?>> registry) {
+    private static Map<String, EntityType<?>> fallbackIndex(Registry<EntityType<?>> registry) {
         synchronized (FALLBACK_INDEXES) {
-            Map<ResourceLocation, EntityType<?>> cached = FALLBACK_INDEXES.get(registry);
+            Map<String, EntityType<?>> cached = FALLBACK_INDEXES.get(registry);
             if (cached != null) return cached;
         }
-        Map<ResourceLocation, EntityType<?>> immutable = indexByKey(registry, registry::getKey);
+        Map<String, EntityType<?>> immutable = indexByKey(registry,
+            entityType -> {
+                ResourceLocation key = registry.getKey(entityType);
+                return key == null ? null : key.toString();
+            });
         synchronized (FALLBACK_INDEXES) {
             return FALLBACK_INDEXES.computeIfAbsent(registry, ignored -> immutable);
         }

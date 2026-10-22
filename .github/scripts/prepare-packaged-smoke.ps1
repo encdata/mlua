@@ -1309,10 +1309,10 @@ connection = RunService.Heartbeat:Connect(function()
             "client could not select the server-equipped render-test item")
         Camera:SetViewMode("first_person")
     end
-    local renderSimulationReady = worldGeometryContextPassed and firstPersonRendered
-        and thirdPersonRendered and playerModelRendered and playerAdapterApplied
-        and playerAnimationPoseReady and mobModelRendered and mobAdapterApplied and mobAnimationPoseReady
-    if containerTarget and not clientContainerOpened and inputPressState >= 5 and renderSimulationReady then
+    -- Keep the native container interaction independent from render adapters and
+    -- the later keyboard/mouse assertions. Those are separate client capabilities;
+    -- a slow render pass must not prevent us from exercising block interaction.
+    if containerTarget and not clientContainerOpened then
         if containerUseState == 0 and containerUseAttempts < 3 then
             local dx = containerTarget.X + 0.5 - player:GetPositionX()
             local dy = containerTarget.Y + 0.5 - (player:GetPositionY() + 1.62)
