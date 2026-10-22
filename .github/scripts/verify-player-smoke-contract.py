@@ -248,7 +248,7 @@ for operation in (
     "Render:CreateMesh({",
     "context:DrawObject(worldTransformMesh, CFrame.new(0, 1, 0))",
     "player:GetOpenContainerSize() > 46",
-    "inputPressState >= 5 and renderSimulationReady",
+    "if containerTarget and not clientContainerOpened then",
     "Events.EntityHurt:Connect",
     "Events.ItemPickup:Connect",
     "Events.ContainerOpen:Connect",
@@ -256,6 +256,8 @@ for operation in (
 ):
     if operation not in prepare_text:
         fail(f"player simulation is missing real gameplay operation {operation}")
+if "inputPressState >= 5 and renderSimulationReady" in prepare_text:
+    fail("native container interaction must not wait for unrelated input or render callbacks")
 for loader, project in loader_projects.items():
     project_text = project.read_text(encoding="utf-8")
     client_source = {
