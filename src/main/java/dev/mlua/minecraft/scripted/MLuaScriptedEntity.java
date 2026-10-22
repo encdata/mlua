@@ -71,7 +71,6 @@ public class MLuaScriptedEntity extends PathfinderMob {
    private boolean notifyingTargetChange;
    private final MLuaScriptedEntityAI scriptedAI = new MLuaScriptedEntityAI();
    private final MLuaScriptCallbackState callbackState = new MLuaScriptCallbackState();
-   private Object activeBehaviorIdentity;
    private LuaValue activeOnTick = LuaValue.NIL;
    private boolean onTickDisabled;
    private LuaValue activeAI = LuaValue.NIL;
@@ -305,7 +304,6 @@ public class MLuaScriptedEntity extends PathfinderMob {
          // callback references here too so removed entities cannot retain Lua
          // closures through their failure-isolation cache.
          this.callbackState.clear();
-         this.activeBehaviorIdentity = null;
          this.activeOnTick = LuaValue.NIL;
          this.activeAI = LuaValue.NIL;
          MLuaEntityWrapper.removeFromCache(this);
@@ -1038,10 +1036,8 @@ public class MLuaScriptedEntity extends PathfinderMob {
    }
 
    private void refreshBehaviorDefinition(MLuaBehaviorRegistry.Snapshot behaviors) {
-      Object identity = behaviors.identity();
-      if (identity == this.activeBehaviorIdentity) return;
-      this.activeBehaviorIdentity = identity;
-      this.callbackState.clear();
+      if (!this.callbackState.refreshDefinition(behaviors.identity())) return;
+      this.scriptedAI.clearState();
       this.activeOnTick = LuaValue.NIL;
       this.onTickDisabled = false;
       this.activeAI = LuaValue.NIL;

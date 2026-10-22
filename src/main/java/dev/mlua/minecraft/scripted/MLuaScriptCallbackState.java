@@ -10,6 +10,17 @@ import org.luaj.vm2.LuaValue;
 final class MLuaScriptCallbackState {
     private final Map<String, LuaValue> activeCallbacks = new HashMap<>();
     private final Set<String> disabledCallbacks = new HashSet<>();
+    private Object definitionIdentity;
+
+    /** Resets callback failures when the owning immutable behavior definition is replaced. */
+    boolean refreshDefinition(Object identity) {
+        if (this.definitionIdentity == identity) return false;
+        boolean replaced = this.definitionIdentity != null;
+        this.definitionIdentity = identity;
+        this.activeCallbacks.clear();
+        this.disabledCallbacks.clear();
+        return replaced;
+    }
 
     boolean shouldInvoke(String event, LuaValue callback) {
         LuaValue previous = this.activeCallbacks.put(event, callback);
@@ -24,6 +35,7 @@ final class MLuaScriptCallbackState {
     void clear() {
         this.activeCallbacks.clear();
         this.disabledCallbacks.clear();
+        this.definitionIdentity = null;
     }
 
     void clearState(String state) {

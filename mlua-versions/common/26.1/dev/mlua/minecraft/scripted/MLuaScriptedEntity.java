@@ -92,7 +92,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    public void aiStep() {
       if (!this.level().isClientSide && this.behaviorKey != null && !this.spawnCallbackFired) {
-         this.ensureSpawnCallback(MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onSpawn"));
+         this.ensureSpawnCallback(MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey));
       }
       super.aiStep();
       if (!this.level().isClientSide) {
@@ -102,24 +102,27 @@ public class MLuaScriptedEntity extends PathfinderMob {
          }
       }
       if (!this.level().isClientSide && this.behaviorKey != null) {
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         this.refreshBehaviorDefinition(behaviors);
          this.scriptedAI.tickState();
          if (this.meleeCooldown > 0) this.meleeCooldown--;
-         LuaValue onTick = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onTick");
+         LuaValue onTick = behaviors.callbacks().getOrDefault("onTick", LuaValue.NIL);
          if (onTick != this.activeOnTick) {
             this.activeOnTick = onTick;
             this.onTickDisabled = false;
          }
          if (!onTick.isnil() && !this.onTickDisabled) {
             try {
-               this.invokeBehavior("onTick", onTick, this.entityTable());
+               this.invokeBehavior(behaviors, onTick, this.entityTable());
             } catch (Exception var3) {
                this.onTickDisabled = true;
                MLuaLogger.LOGGER.error("MLua entity onTick callback failed for '{}'; disabled for this entity until the callback is replaced: {}",
                   this.behaviorKey, var3.getMessage());
             }
          }
-         LuaValue onAI = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "AI");
+         LuaValue onAI = behaviors.callbacks().getOrDefault("AI", LuaValue.NIL);
          if (onAI != this.activeAI) {
+            if (!this.activeAI.isnil()) this.scriptedAI.clearState();
             this.activeAI = onAI;
             this.aiDisabled = false;
             this.scriptedAI.resetTransitionLimit();
@@ -128,7 +131,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          int aiInterval = MLuaBehaviorRegistry.getEntityAIInterval(this.behaviorKey);
          if (!onAI.isnil() && !this.aiDisabled && this.tickCount % aiInterval == 0) {
             try {
-               this.tickScriptedAI(onAI);
+               this.tickScriptedAI(behaviors, onAI);
             } catch (Exception var4) {
                this.aiDisabled = true;
                MLuaLogger.LOGGER.error("MLua entity AI callback failed for '{}'; disabled for this entity until the AI definition changes or SetAIState is called: {}",
@@ -141,10 +144,11 @@ public class MLuaScriptedEntity extends PathfinderMob {
    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
       boolean result = super.hurtServer(level, source, amount);
       if (result && this.behaviorKey != null) {
-         LuaValue onHurt = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onHurt");
-         if (this.shouldInvokeEventCallback("onHurt", onHurt)) {
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         LuaValue onHurt = behaviors.callbacks().getOrDefault("onHurt", LuaValue.NIL);
+         if (this.shouldInvokeEventCallback(behaviors, "onHurt", onHurt)) {
             try {
-               this.invokeBehavior("onHurt", onHurt, this.entityTable(),
+               this.invokeBehavior(behaviors, onHurt, this.entityTable(),
                   LuaValue.valueOf((double)amount), LuaValue.valueOf(source.getMsgId()));
             } catch (Exception var6) {
                this.disableEventCallback("onHurt", var6);
@@ -156,10 +160,11 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    public void die(DamageSource source) {
       if (!this.level().isClientSide && this.behaviorKey != null) {
-         LuaValue onDeath = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onDeath");
-         if (this.shouldInvokeEventCallback("onDeath", onDeath)) {
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         LuaValue onDeath = behaviors.callbacks().getOrDefault("onDeath", LuaValue.NIL);
+         if (this.shouldInvokeEventCallback(behaviors, "onDeath", onDeath)) {
             try {
-               this.invokeBehavior("onDeath", onDeath, this.entityTable(), LuaValue.valueOf(source.getMsgId()));
+               this.invokeBehavior(behaviors, onDeath, this.entityTable(), LuaValue.valueOf(source.getMsgId()));
             } catch (Exception var4) {
                this.disableEventCallback("onDeath", var4);
             }
@@ -171,17 +176,17 @@ public class MLuaScriptedEntity extends PathfinderMob {
    public void onAddedToWorld() {
       this.invokeLifecycleSuper("onAddedToWorld");
       if (!this.level().isClientSide && this.behaviorKey != null) {
-         LuaValue onSpawn = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onSpawn");
-         this.ensureSpawnCallback(onSpawn);
+         this.ensureSpawnCallback(MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey));
       }
    }
 
-   private void ensureSpawnCallback(LuaValue onSpawn) {
+   private void ensureSpawnCallback(MLuaBehaviorRegistry.Snapshot behaviors) {
       if (this.spawnCallbackFired) return;
       this.spawnCallbackFired = true;
-      if (!this.shouldInvokeEventCallback("onSpawn", onSpawn)) return;
+      LuaValue onSpawn = behaviors.callbacks().getOrDefault("onSpawn", LuaValue.NIL);
+      if (!this.shouldInvokeEventCallback(behaviors, "onSpawn", onSpawn)) return;
       try {
-         this.invokeBehavior("onSpawn", onSpawn, this.entityTable());
+         this.invokeBehavior(behaviors, onSpawn, this.entityTable());
       } catch (Exception failure) {
          this.disableEventCallback("onSpawn", failure);
       }
@@ -189,12 +194,13 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
       if (!this.level().isClientSide && this.behaviorKey != null) {
-         LuaValue onInteract = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onInteract");
-         if (this.shouldInvokeEventCallback("onInteract", onInteract)) {
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         LuaValue onInteract = behaviors.callbacks().getOrDefault("onInteract", LuaValue.NIL);
+         if (this.shouldInvokeEventCallback(behaviors, "onInteract", onInteract)) {
             try {
                LuaValue playerTable = MLuaEntityWrapper.entityTable(
                   player, MLuaRuntime.registrationForLevel(this.level()));
-               LuaValue handled = this.invokeBehavior("onInteract", onInteract,
+               LuaValue handled = this.invokeBehavior(behaviors, onInteract,
                   this.entityTable(), playerTable, LuaValue.valueOf(hand.name())).arg1();
                if (!handled.isboolean() || handled.toboolean()) return InteractionResult.CONSUME;
             } catch (Exception var4) {
@@ -211,11 +217,12 @@ public class MLuaScriptedEntity extends PathfinderMob {
       super.setTarget(target);
       if (previousTarget == target || this.notifyingTargetChange || this.level().isClientSide
             || this.behaviorKey == null) return;
-      LuaValue onTargetChanged = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onTargetChanged");
-      if (!this.shouldInvokeEventCallback("onTargetChanged", onTargetChanged)) return;
+      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+      LuaValue onTargetChanged = behaviors.callbacks().getOrDefault("onTargetChanged", LuaValue.NIL);
+      if (!this.shouldInvokeEventCallback(behaviors, "onTargetChanged", onTargetChanged)) return;
       this.notifyingTargetChange = true;
       try {
-         this.invokeBehavior("onTargetChanged", onTargetChanged, this.entityTable(),
+         this.invokeBehavior(behaviors, onTargetChanged, this.entityTable(),
             target == null ? LuaValue.NIL : this.entityToLua(target),
             previousTarget == null ? LuaValue.NIL : this.entityToLua(previousTarget));
       } catch (Exception failure) {
@@ -267,11 +274,12 @@ public class MLuaScriptedEntity extends PathfinderMob {
       try {
          this.invokeLifecycleSuper("onRemovedFromWorld");
          if (!this.level().isClientSide && this.behaviorKey != null) {
-            LuaValue onRemove = MLuaBehaviorRegistry.getBehavior("entity", this.behaviorKey, "onRemove");
-            if (this.shouldInvokeEventCallback("onRemove", onRemove)) {
+            MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+            LuaValue onRemove = behaviors.callbacks().getOrDefault("onRemove", LuaValue.NIL);
+            if (this.shouldInvokeEventCallback(behaviors, "onRemove", onRemove)) {
                try {
                   net.minecraft.world.entity.Entity.RemovalReason reason = this.getRemovalReason();
-                  this.invokeBehavior("onRemove", onRemove, this.entityTable(),
+                  this.invokeBehavior(behaviors, onRemove, this.entityTable(),
                      LuaValue.valueOf(reason == null ? "UNKNOWN" : reason.name()));
                } catch (Exception var3) {
                   this.disableEventCallback("onRemove", var3);
@@ -393,15 +401,20 @@ public class MLuaScriptedEntity extends PathfinderMob {
       methods.set("SetAIState", new VarArgFunction() {
          public Varargs invoke(Varargs args) {
             MLuaScriptedEntity.this.requireServerSide("SetAIState");
-            LuaValue ai = MLuaScriptedEntity.this.behaviorKey == null ? LuaValue.NIL
-               : MLuaBehaviorRegistry.getBehavior("entity", MLuaScriptedEntity.this.behaviorKey, "AI");
+            if (MLuaScriptedEntity.this.behaviorKey == null) {
+               throw new LuaError("[MLua] SetAIState requires AI to be a state table.");
+            }
+            MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors(
+               "entity", MLuaScriptedEntity.this.behaviorKey);
+            MLuaScriptedEntity.this.refreshBehaviorDefinition(behaviors);
+            LuaValue ai = behaviors.callbacks().getOrDefault("AI", LuaValue.NIL);
             if (!ai.istable()) throw new org.luaj.vm2.LuaError("[MLua] SetAIState requires AI to be a state table.");
             LuaValue state = args.arg(2);
             if (!state.isstring() || state.tojstring().isBlank()) {
                throw new org.luaj.vm2.LuaError("[MLua] ScriptedEntity:SetAIState expects a non-empty state name string.");
             }
             MLuaScriptedEntity.this.scriptedAI.setState(ai.checktable(), state.tojstring(), ai,
-               MLuaScriptedEntity.this.aiCallbacks());
+               MLuaScriptedEntity.this.aiCallbacks(behaviors));
             MLuaScriptedEntity.this.aiDisabled = false;
             return LuaValue.valueOf(true);
          }
@@ -722,15 +735,15 @@ public class MLuaScriptedEntity extends PathfinderMob {
       this.scriptedAI.restore(input.getString("MLuaAIState").orElse(null), input.getIntOr("MLuaAIStateTicks", 0));
    }
 
-   private void tickScriptedAI(LuaValue definition) {
-      this.scriptedAI.tick(definition, this.aiCallbacks());
+   private void tickScriptedAI(MLuaBehaviorRegistry.Snapshot behaviors, LuaValue definition) {
+      this.scriptedAI.tick(definition, this.aiCallbacks(behaviors));
    }
 
    private void clearAIEventFailures(String state) {
       this.callbackState.clearState(state);
    }
 
-   private MLuaScriptedEntityAI.CallbackHost aiCallbacks() {
+   private MLuaScriptedEntityAI.CallbackHost aiCallbacks(MLuaBehaviorRegistry.Snapshot behaviors) {
       return new MLuaScriptedEntityAI.CallbackHost() {
          @Override public LuaValue entity() { return MLuaScriptedEntity.this.entityTable(); }
          @Override public LuaValue target() {
@@ -739,12 +752,10 @@ public class MLuaScriptedEntity extends PathfinderMob {
          }
          @Override public String behaviorKey() { return MLuaScriptedEntity.this.behaviorKey; }
          @Override public Varargs invokeDefinition(LuaValue callback, LuaValue... args) {
-            return MLuaScriptedEntity.this.invokeBehavior("AI", callback, args);
+            return MLuaScriptedEntity.this.invokeBehavior(behaviors, callback, args);
          }
          @Override public Varargs invokeState(LuaValue definition, LuaValue callback, LuaValue... args) {
-            if (MLuaScriptedEntity.this.behaviorKey == null) return LuaValue.NONE;
-            return MLuaBehaviorRegistry.invokeNestedCallback("entity", MLuaScriptedEntity.this.behaviorKey,
-               "AI", definition, callback, LuaValue.varargsOf(args));
+            return MLuaScriptedEntity.this.invokeBehavior(behaviors, callback, args);
          }
          @Override public boolean shouldInvoke(String event, LuaValue callback) {
             return MLuaScriptedEntity.this.callbackState.shouldInvoke(event, callback);
@@ -758,14 +769,24 @@ public class MLuaScriptedEntity extends PathfinderMob {
       };
    }
 
-   private Varargs invokeBehavior(String event, LuaValue callback, LuaValue... args) {
-      if (this.behaviorKey == null) return LuaValue.NONE;
-      return MLuaBehaviorRegistry.invokeCallback("entity", this.behaviorKey, event, callback,
-         LuaValue.varargsOf(args));
+   private Varargs invokeBehavior(MLuaBehaviorRegistry.Snapshot behaviors, LuaValue callback, LuaValue... args) {
+      return MLuaBehaviorRegistry.invokeCallback(behaviors, callback, LuaValue.varargsOf(args));
    }
 
-   private boolean shouldInvokeEventCallback(String event, LuaValue callback) {
+   private boolean shouldInvokeEventCallback(MLuaBehaviorRegistry.Snapshot behaviors,
+         String event, LuaValue callback) {
+      this.refreshBehaviorDefinition(behaviors);
       return this.callbackState.shouldInvoke(event, callback);
+   }
+
+   private void refreshBehaviorDefinition(MLuaBehaviorRegistry.Snapshot behaviors) {
+      if (!this.callbackState.refreshDefinition(behaviors.identity())) return;
+      this.scriptedAI.clearState();
+      this.activeOnTick = LuaValue.NIL;
+      this.onTickDisabled = false;
+      this.activeAI = LuaValue.NIL;
+      this.aiDisabled = false;
+      this.scriptedAI.resetTransitionLimit();
    }
 
    private void disableEventCallback(String event, Exception failure) {

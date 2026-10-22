@@ -20,6 +20,7 @@ require(SHARED_AI.is_file(), "Scripted entity AI state machine must have one sha
 shared = SHARED_STATE.read_text(encoding="utf-8")
 for contract in (
     "boolean shouldInvoke(String event, LuaValue callback)",
+    "boolean refreshDefinition(Object identity)",
     "void disable(String event)",
     "void clear()",
     "void clearState(String state)",
@@ -64,7 +65,18 @@ base = ENTITY_SOURCES[0].read_text(encoding="utf-8")
 versioned = ENTITY_SOURCES[1].read_text(encoding="utf-8")
 require("invokeBehavior(behaviors, callback, args)" in base,
         "Base entity AI adapter must invoke against its captured behavior snapshot")
-require("invokeNestedCallback(\"entity\", MLuaScriptedEntity.this.behaviorKey" in versioned,
-        "26.1 entity AI adapter must preserve nested callback registry invocation")
+require("invokeBehavior(behaviors, callback, args)" in versioned,
+        "26.1 entity AI adapter must invoke against its captured behavior snapshot")
+for source, text in ((ENTITY_SOURCES[0], base), (ENTITY_SOURCES[1], versioned)):
+    require("snapshotBehaviors(\"entity" in text,
+            f"{source.relative_to(ROOT)} must take one immutable behavior snapshot for each entity tick")
+    require("private void refreshBehaviorDefinition(MLuaBehaviorRegistry.Snapshot behaviors)" in text,
+            f"{source.relative_to(ROOT)} must reset per-entity callback state when a definition is replaced")
+    require("callbackState.refreshDefinition(behaviors.identity())" in text,
+            f"{source.relative_to(ROOT)} must delegate definition identity tracking to shared callback state")
+    require("this.scriptedAI.clearState();" in text,
+            f"{source.relative_to(ROOT)} must restart AI state when a live behavior definition is replaced")
+require("MLuaBehaviorRegistry.getBehavior(\"entity\", this.behaviorKey" not in versioned,
+        "26.1 scripted entity must not perform repeated per-callback registry lookups")
 
-print("Scripted entity callback state and AI state machine have shared owners across base and 26.1 implementations.")
+print("Scripted entity callback state, AI snapshots, and replacement lifecycle match across base and 26.1 implementations.")
