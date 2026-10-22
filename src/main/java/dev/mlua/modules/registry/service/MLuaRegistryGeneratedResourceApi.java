@@ -112,6 +112,7 @@ final class MLuaRegistryGeneratedResourceApi {
          }
       });
       worldGeneration.set("AddFeature", worldGeneration.get("addFeature"));
+      MLuaRegistryOreVeinApi.install(service, worldGeneration);
       assets.set("Register", assets.get("register"));
    }
 }

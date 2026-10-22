@@ -82,6 +82,8 @@ final class MLuaRegistryMetadata {
       worldGenerationDescriptions.put("AddFeature", "Adds a placed feature to matching biomes at the selected generation step. Contributions are owned by the registry script, removed on rollback, and limited to "
          + dev.mlua.loaderapi.WorldGenerationBridge.MAX_PLACED_FEATURES_PER_ADDON + " per addon and "
          + dev.mlua.loaderapi.WorldGenerationBridge.MAX_PLACED_FEATURES_TOTAL + " total.");
+      worldGenerationDescriptions.put("RegisterOreVein", "Registers a configured ore feature, its count and height placement, and its biome generation step. Supply Minecraft ore targets, biomes, and a decoration step; size, count, and Y bounds have practical defaults.");
+      worldGenerationDescriptions.put("registerOreVein", worldGenerationDescriptions.get("RegisterOreVein"));
       worldGenerationDescriptions.put("register", "Writes a biome, dimension, dimension type, or worldgen JSON resource to the generated data pack.");
       worldGenerationDescriptions.put("addFeature", "Adds a placed feature to matching biomes at the selected generation step. Contributions are owned by the registry script, removed on rollback, and limited to "
          + dev.mlua.loaderapi.WorldGenerationBridge.MAX_PLACED_FEATURES_PER_ADDON + " per addon and "

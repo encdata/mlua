@@ -144,6 +144,15 @@ final class RegistryDefinitionDocumentation {
         schema(docs, "WorldGenerationFeatureDefinition", "Adds one registered placed feature to selected biomes.",
             "feature", "string", "Placed feature identifier.", "biomes", "string|string[]", "Biome identifiers or #tag selectors.",
             "step", "Enum.GenerationStep.Decoration|string", "Native Minecraft decoration step enum or its name as a string.");
+        schema(docs, "OreVeinDefinition", "Defines an addon ore feature, placement frequency, height range, and biome targets.",
+            "targets", "table[]", "Required vanilla ore target entries with target predicate and output state fields, as used by minecraft:ore configurations.",
+            "biomes", "string|string[]", "Required biome identifiers or #tag selectors.",
+            "step", "Enum.GenerationStep.Decoration|string", "Required Minecraft decoration step, usually underground ores.",
+            "size?", "whole number (1–64)", "Blocks attempted per vein; defaults to 9.",
+            "count?", "whole number (1–256)", "Vein placement attempts per chunk; defaults to 12.",
+            "minY?", "whole number", "Inclusive lower Y bound; defaults to -48.",
+            "maxY?", "whole number", "Inclusive upper Y bound; defaults to 48.",
+            "discardChanceOnAirExposure?", "number (0–1)", "Chance to discard exposed ore; defaults to 0.");
         schema(docs, "ContainerDefinition", "Reusable inventory layout and optional item restrictions for a scripted block container.",
             "rows?", "whole number (1–6)", "Number of nine-slot rows in the container; defaults to 3. Rows is an accepted alias.",
             "title?", "string", "Title shown when a player opens the container; defaults to a display name based on its id. Title is an accepted alias.",

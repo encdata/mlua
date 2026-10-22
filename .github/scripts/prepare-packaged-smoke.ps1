@@ -205,6 +205,25 @@ assert(Registry:GetIds("worldgen", "worldgen/mlua_test", "mlua")[1] == "mlua:ent
 assert(Registry:GetAll("worldgen", "worldgen/mlua_test", "mlua")["mlua:entry"]:Equals(worldgenEntry)
     and Registry:GetEntries("worldgen", "worldgen/mlua_test", "mlua")[1]:Equals(worldgenEntry),
     "root Registry collection methods did not return world-generation resource handles")
+Registry.WorldGeneration:RegisterOreVein("ci_ore_vein", {
+    targets = {
+        {
+            target = { predicate_type = "minecraft:tag_match", tag = "minecraft:stone_ore_replaceables" },
+            state = { Name = "minecraft:iron_ore" },
+        },
+    },
+    biomes = { "#minecraft:is_overworld" },
+    step = "underground_ores",
+    size = 1,
+    count = 1,
+    minY = 0,
+    maxY = 4,
+})
+assert(Registry.WorldGeneration:Get("worldgen/configured_feature", "ci_ore_vein").Definition.type == "minecraft:ore",
+    "RegisterOreVein did not write a configured ore feature")
+assert(Registry.WorldGeneration:Get("worldgen/placed_feature", "ci_ore_vein_placed").Definition.feature == "mlua:ci_ore_vein",
+    "RegisterOreVein did not write a placed feature")
+print("MLUA_CI_ORE_VEIN_REGISTRATION_OK")
 local dataIds = Registry.DataPack:GetIds("mlua_test/records", "mlua")
 assert(#dataIds == 1 and dataIds[1] == "mlua:entry",
     "Registry.DataPack:GetIds did not filter the resource type and namespace")

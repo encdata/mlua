@@ -145,6 +145,9 @@ if 'colonLimits.Maximum == dotLimits.Maximum' not in prepare_text \
     fail("client service parity marker is not gated on matching colon/dot service results")
 if 'MLUA_CI_COOKING_RESULT_COUNT_OK' not in workflow_text:
     fail("dedicated-server smoke does not require the cooking recipe result-count check")
+if 'MLUA_CI_ORE_VEIN_REGISTRATION_OK' not in prepare_text \
+        or workflow_text.count('MLUA_CI_ORE_VEIN_REGISTRATION_OK') != 2:
+    fail("packaged smoke does not require ore-vein registration on both client and server targets")
 if '__MLUA_TARGET__' not in prepare_text or '$env:MLUA_TARGET' not in prepare_text:
     fail("cooking recipe smoke does not select the format expected by the target version")
 if 'print("MLUA_CI_MODEL_TRANSFORM_OK")' not in prepare_text or 'MLUA_CI_MODEL_TRANSFORM_OK' not in workflow_text:
