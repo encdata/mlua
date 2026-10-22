@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
 /** Cached reflective access to model and renderer fields used by addon adapters. */
 final class MLuaModelFieldAccess {
@@ -36,11 +37,33 @@ final class MLuaModelFieldAccess {
             return fields.toArray(Field[]::new);
         }
     };
+    private static final ClassValue<RendererModelPathCache> RENDERER_MODEL_PATHS = new ClassValue<>() {
+        @Override protected RendererModelPathCache computeValue(Class<?> rendererClass) {
+            return new RendererModelPathCache();
+        }
+    };
+
+    private static final class RendererModelPathCache {
+        private long generation = Long.MIN_VALUE;
+        private String path;
+
+        synchronized String resolve(long currentGeneration, Supplier<String> resolver) {
+            if (this.generation != currentGeneration) {
+                this.path = resolver.get();
+                this.generation = currentGeneration;
+            }
+            return this.path;
+        }
+    }
 
     private MLuaModelFieldAccess() { }
 
     static Field[] rendererFields(Class<?> rendererClass) {
         return RENDERER_FIELDS.get(rendererClass);
+    }
+
+    static String rendererModelFieldPath(Class<?> rendererClass, long generation, Supplier<String> resolver) {
+        return RENDERER_MODEL_PATHS.get(rendererClass).resolve(generation, resolver);
     }
 
     static Object resolveFieldPath(Object root, String path) {

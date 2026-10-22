@@ -1254,6 +1254,11 @@ public final class MLuaModelAdapterRegistry {
     }
 
     private static String findRendererModelField(Class<?> rendererClass) {
+        return MLuaModelFieldAccess.rendererModelFieldPath(rendererClass, MAPPING_GENERATION.get(),
+            () -> findRendererModelFieldUncached(rendererClass));
+    }
+
+    private static String findRendererModelFieldUncached(Class<?> rendererClass) {
         for (Class<?> type = rendererClass; type != null; type = type.getSuperclass()) {
             Map<Owner, String> owners = RENDERER_ADAPTERS.get(type.getName());
             if (owners != null && !owners.isEmpty()) return owners.values().iterator().next();

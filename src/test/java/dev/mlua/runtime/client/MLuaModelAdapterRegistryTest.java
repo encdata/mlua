@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -131,6 +132,32 @@ final class MLuaModelAdapterRegistryTest {
         } finally {
             MLuaModelAdapterRegistry.clearRuntime(runtime);
         }
+    }
+
+    @Test
+    void rendererModelFieldCacheTracksAdapterReplacement() {
+        Object runtime = new Object();
+        var owner = new MLuaModelAdapterRegistry.Owner(runtime, "renderer_path_addon");
+        RendererFixture renderer = new RendererFixture();
+        String modelClass = AdapterModelFixture.class.getName();
+        try {
+            MLuaModelAdapterRegistry.register(modelClass, Map.of("root", "root"), owner);
+            MLuaModelAdapterRegistry.registerRendererAdapter(RendererFixture.class.getName(), "model", owner);
+            assertSame(renderer.model, MLuaModelAdapterRegistry.findAdaptedModel(renderer));
+
+            MLuaModelAdapterRegistry.registerRendererAdapter(RendererFixture.class.getName(), "alternate", owner);
+            assertSame(renderer.alternate, MLuaModelAdapterRegistry.findAdaptedModel(renderer),
+                "replacing a renderer field path must invalidate the cached lookup");
+        } finally {
+            MLuaModelAdapterRegistry.clearRuntime(runtime);
+        }
+    }
+
+    public static final class AdapterModelFixture { }
+
+    public static final class RendererFixture {
+        public final AdapterModelFixture model = new AdapterModelFixture();
+        public final AdapterModelFixture alternate = new AdapterModelFixture();
     }
 
     private static LuaValue callback() {
