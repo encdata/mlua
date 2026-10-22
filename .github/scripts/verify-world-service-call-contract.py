@@ -75,6 +75,9 @@ for path, covered_targets in implementations.items():
     if not re.search(r'table\.set\("Get"\s*,', body):
         labels = ", ".join(f"{loader} {version}" for version, loader in covered_targets)
         fail(f"{labels} World service no longer exposes Get")
+    if "MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods())" not in body:
+        labels = ", ".join(f"{loader} {version}" for version, loader in covered_targets)
+        fail(f"{labels} World service methods are missing their registered descriptions")
 
 bounds_helper = ROOT / "src/main/java/dev/mlua/modules/entity/MLuaEntityBounds.java"
 if not bounds_helper.is_file():

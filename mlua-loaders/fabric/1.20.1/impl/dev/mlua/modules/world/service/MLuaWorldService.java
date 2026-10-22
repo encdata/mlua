@@ -9,6 +9,7 @@ import dev.mlua.runtime.server.MLuaServerThread;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
 import dev.mlua.modules.world.MLuaWorldChunkApi;
@@ -92,6 +93,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       table.set("GetWeather", this.currentWorldMethod("GetWeather"));
       table.set("SetWeather", this.currentWorldMethod("SetWeather"));
       WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
+      MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods());
       return supportColonAndDotCalls(table);
    }
 

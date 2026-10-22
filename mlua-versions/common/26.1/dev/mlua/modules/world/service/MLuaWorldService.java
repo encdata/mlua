@@ -1,6 +1,7 @@
 package dev.mlua.modules.world.service;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
@@ -47,6 +48,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
         table.set("GetWeather", currentWorldMethod("GetWeather"));
         table.set("SetWeather", currentWorldMethod("SetWeather"));
         WorldModule.bindWorldServiceMethods(table, this::currentWorldMethod);
+        MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods());
         return supportColonAndDotCalls(table);
     }
 
