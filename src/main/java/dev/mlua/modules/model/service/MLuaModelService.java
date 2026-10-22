@@ -5,8 +5,6 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
-import dev.mlua.math.MLuaCFrame;
-import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.modules.entity.MLuaEntityScopeResolver;
 import dev.mlua.runtime.client.MLuaClientModelManager;
@@ -22,10 +20,11 @@ import org.luaj.vm2.Varargs;
 
 @MLuaDescription("Client-side model part overrides for living entities and Lua-registered bone adapters used by entity attachments. Adapter paths can target living models or models held by non-living entity renderers, including models resolved through an explicit field path; registrations have bounded class, bone, and path counts.")
 public final class MLuaModelService extends MLuaReflectiveService {
-    private static final java.util.Set<String> PART_PROPERTIES = java.util.Set.of("CFrame", "Offset", "Scale", "Visible");
+    private final MLuaModelPartOverrides partOverrides;
 
     public MLuaModelService(MLuaService.Context context) {
         super(context);
+        this.partOverrides = new MLuaModelPartOverrides(this);
     }
 
     @Override
@@ -309,87 +308,47 @@ public final class MLuaModelService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns active model override usage and the global, per-addon, and per-entity limits.")
     public LuaTable GetOverrideLimits() {
-        this.requireClientSide(this.name());
-        LuaTable limits = new LuaTable();
-        limits.set("ActiveOverrides", MLuaClientModelManager.overrideCount());
-        limits.set("AddonOverrides", MLuaClientModelManager.overrideCount(owner()));
-        limits.set("MaxOverrides", MLuaClientModelManager.MAX_OVERRIDES);
-        limits.set("MaxOverridesPerAddon", MLuaClientModelManager.MAX_OVERRIDES_PER_OWNER);
-        limits.set("MaxOverridesPerAddonPerEntity", MLuaClientModelManager.MAX_OVERRIDES_PER_ENTITY);
-        limits.set("MaxPartNameLength", MLuaClientModelManager.MAX_PART_NAME_LENGTH);
-        return limits;
+        return this.partOverrides.getLimits();
     }
 
     @MLuaDescription("Offsets a model part from Minecraft's prepared pose using a CFrame translation and rotation.")
     public void SetPartCFrame(LuaValue entity, String part, LuaValue cframe) {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.setCFrame(resolveEntityScope(entity), part, MLuaCFrame.fromLua(cframe), owner());
+        this.partOverrides.setCFrame(entity, part, cframe);
     }
 
     @MLuaDescription("Sets a model part translation offset from a native Vector3 value.")
     public void SetPartOffset(LuaValue entity, String part, LuaValue offset) {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.setOffset(resolveEntityScope(entity), part, offset, owner());
+        this.partOverrides.setOffset(entity, part, offset);
     }
 
     @MLuaDescription("Sets a model part scale override.")
     public void SetPartScale(LuaValue entity, String part, LuaValue scale) {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.setScale(resolveEntityScope(entity), part, scale, owner());
+        this.partOverrides.setScale(entity, part, scale);
     }
 
     @MLuaDescription("Sets whether a model part is rendered.")
     public void SetPartVisible(LuaValue entity, String part, boolean visible) {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.setVisible(resolveEntityScope(entity), part, visible, owner());
+        this.partOverrides.setVisible(entity, part, visible);
     }
 
     @MLuaDescription("Sets CFrame, Offset, Scale, and Visible model part overrides from a definition table. All supplied properties are validated before any override is changed; unknown properties and non-finite transforms are rejected.")
     public void SetPart(LuaValue entity, String part, LuaTable properties) {
-        this.requireClientSide(this.name());
-        MLuaEntityScope scope = resolveEntityScope(entity);
-        LuaValue key = LuaValue.NIL;
-        while (true) {
-            var entry = properties.next(key);
-            key = entry.arg1();
-            if (key.isnil()) break;
-            if (!key.isstring() || !PART_PROPERTIES.contains(key.tojstring())) {
-                throw new LuaError("[MLua] ModelService:SetPart accepts only CFrame, Offset, Scale, and Visible properties.");
-            }
-        }
-
-        LuaValue cframeValue = properties.get("CFrame");
-        MLuaCFrame cframe = cframeValue.isnil() ? null : MLuaCFrame.fromLua(cframeValue);
-        if (cframe != null) validateFinite(cframe);
-        LuaValue offset = validatedVector(properties.get("Offset"), "Offset");
-        LuaValue scale = validatedVector(properties.get("Scale"), "Scale");
-        LuaValue visibleValue = properties.get("Visible");
-        Boolean visible = null;
-        if (!visibleValue.isnil()) {
-            if (!visibleValue.isboolean()) throw new LuaError("[MLua] ModelService:SetPart Visible must be a boolean.");
-            visible = visibleValue.toboolean();
-        }
-
-        // The manager validates capacity and applies all supplied properties as one update.
-        MLuaClientModelManager.setPartProperties(scope, part, cframe, offset, scale, visible, owner());
+        this.partOverrides.setPart(entity, part, properties);
     }
 
     @MLuaDescription("Clears overrides for one model part.")
     public void ClearPart(LuaValue entity, String part) {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.clearPart(resolveEntityScope(entity), part, owner());
+        this.partOverrides.clearPart(entity, part);
     }
 
     @MLuaDescription("Clears overrides for one entity model.")
     public void ClearModel(LuaValue entity) {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.clearEntity(resolveEntityScope(entity), owner());
+        this.partOverrides.clearModel(entity);
     }
 
     @MLuaDescription("Clears model overrides owned by the calling script.")
     public void ClearAll() {
-        this.requireClientSide(this.name());
-        MLuaClientModelManager.clearOwned(owner());
+        this.partOverrides.clearAll();
     }
 
     @MLuaDescription("Clears model overrides owned by the calling script.")
@@ -399,55 +358,15 @@ public final class MLuaModelService extends MLuaReflectiveService {
 
     @MLuaDescription("Returns current override state for an entity model.")
     public LuaTable GetModelState(LuaValue entity) {
-        this.requireClientSide(this.name());
-        LuaTable result = new LuaTable();
-        MLuaEntityScope scope = resolveEntityScope(entity);
-        for (Map.Entry<String, MLuaClientModelManager.PartState> entry : MLuaClientModelManager.getState(scope, owner()).entrySet()) {
-            LuaTable part = new LuaTable();
-            if (entry.getValue().cframe() != null) part.set("CFrame", entry.getValue().cframe().toLua());
-            if (entry.getValue().offset() != null) part.set("Offset", copyVector3(entry.getValue().offset()));
-            if (entry.getValue().scale() != null) part.set("Scale", copyVector3(entry.getValue().scale()));
-            if (entry.getValue().visible() != null) part.set("Visible", LuaValue.valueOf(entry.getValue().visible()));
-            result.set(entry.getKey(), part);
-        }
-        return result;
-    }
-
-    private static LuaTable copyVector3(LuaValue value) {
-        double[] components = MLuaVector.components3(value);
-        return MLuaVector.vector3(components[0], components[1], components[2]);
-    }
-
-    private static LuaValue validatedVector(LuaValue value, String property) {
-        if (value.isnil()) return null;
-        if (!MLuaVector.isVector3(value)) {
-            throw new LuaError("[MLua] ModelService:SetPart " + property + " must be a native Vector3.");
-        }
-        for (double component : MLuaVector.components3(value)) {
-            if (!Double.isFinite(component)) {
-                throw new LuaError("[MLua] ModelService:SetPart " + property + " components must be finite.");
-            }
-        }
-        return value;
-    }
-
-    private static void validateFinite(MLuaCFrame cframe) {
-        double[] components = {cframe.x(), cframe.y(), cframe.z(), cframe.r00(), cframe.r01(), cframe.r02(),
-            cframe.r10(), cframe.r11(), cframe.r12(), cframe.r20(), cframe.r21(), cframe.r22()};
-        for (double component : components) {
-            if (!Double.isFinite(component)) {
-                throw new LuaError("[MLua] ModelService:SetPart CFrame components must be finite.");
-            }
-        }
+        return this.partOverrides.getModelState(entity);
     }
 
     @MLuaDescription("Returns standard part names, names with state on this entity, and adapter bones that resolved on the entity's most recently rendered model.")
     public Iterable<String> GetPartNames(LuaValue entity) {
-        this.requireClientSide(this.name());
-        return MLuaClientModelManager.getPartNames(resolveEntityScope(entity), owner());
+        return this.partOverrides.getPartNames(entity);
     }
 
-    private MLuaClientModelManager.Owner owner() {
+    MLuaClientModelManager.Owner owner() {
         dev.mlua.core.MLuaContext active = MLuaLuaBindings.boundContext(context.mlua().globals());
         if (active != null) {
             return new MLuaClientModelManager.Owner(active.session(), active.ownerModId());
@@ -465,9 +384,13 @@ public final class MLuaModelService extends MLuaReflectiveService {
         return new MLuaModelAdapterRegistry.Owner(runtimeOwner, context.mlua().ownerModId());
     }
 
-    private MLuaEntityScope resolveEntityScope(LuaValue value) {
+    MLuaEntityScope resolveEntityScope(LuaValue value) {
         return MLuaEntityScopeResolver.resolveClientTarget(value,
             this.context.mlua().registration(), "Model target must exist in the current client world");
+    }
+
+    void requireModelClient() {
+        this.requireClientSide(this.name());
     }
 
 }

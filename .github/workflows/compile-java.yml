@@ -91,6 +91,9 @@ jobs:
       - name: Validate scoreboard team ownership
         run: python .github/scripts/verify-scoreboard-service-contract.py
 
+      - name: Validate model override ownership
+        run: python .github/scripts/verify-model-service-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
