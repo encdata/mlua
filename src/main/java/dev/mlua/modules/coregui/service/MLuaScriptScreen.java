@@ -23,6 +23,9 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 //--version 26.1
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 //--endversion
 //--version 1.20.1,1.21.1
 import net.minecraft.client.gui.GuiGraphics;

@@ -53,12 +53,13 @@ final class MLuaEntityTypeResolver {
     private static EntityType<?> findType(Registry<EntityType<?>> registry, ResourceLocation location) {
         EntityType<?> direct = registry.getOptional(location).orElse(null);
         if (direct != null) return direct;
-        // Some loader registry wrappers expose an empty Optional from getOptional even when
-        // their ordinary Registry#get path can resolve the key. Keep both lookup paths before
-        // paying for the iteration fallback; this is also how the other runtime registry APIs
-        // resolve vanilla entries on those loaders.
+        // Some 1.20/1.21 loader registry wrappers expose an empty Optional from getOptional even
+        // when Registry#get can resolve the key. Newer registries return holders from get(), so
+        // retain that lookup only where the registry still maps ids directly to entity types.
+        //--version 1.20.1,1.21.1
         direct = registry.get(location);
         if (direct != null) return direct;
+        //--endversion
         return fallbackIndex(registry).get(location.toString());
     }
 

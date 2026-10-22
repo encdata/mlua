@@ -76,13 +76,13 @@ final class MLuaRegistryOreVeinApi {
                 placement.set(4, biome);
                 placed.set("placement", placement);
 
-                call(worldGeneration, "RegisterConfiguredFeature", configuredId, configured);
-                call(worldGeneration, "RegisterPlacedFeature", placedId, placed);
+                invokeRegistration(worldGeneration, "RegisterConfiguredFeature", configuredId, configured);
+                invokeRegistration(worldGeneration, "RegisterPlacedFeature", placedId, placed);
                 LuaTable biomeDefinition = new LuaTable();
                 biomeDefinition.set("feature", LuaValue.valueOf(qualifiedId(service, placedId)));
                 biomeDefinition.set("biomes", biomes);
                 biomeDefinition.set("step", step);
-                call(worldGeneration, "AddFeature", name, biomeDefinition);
+                invokeRegistration(worldGeneration, "AddFeature", name, biomeDefinition);
                 return LuaValue.valueOf(MLuaRegistryService.generatedAssetId(
                     service.apiContext().mlua().ownerModId(), name));
             }
@@ -149,7 +149,7 @@ final class MLuaRegistryOreVeinApi {
         return id.indexOf(':') >= 0 ? id : service.apiContext().mlua().ownerModId() + ":" + id;
     }
 
-    private static void call(LuaTable target, String method, String id, LuaTable definition) {
+    private static void invokeRegistration(LuaTable target, String method, String id, LuaTable definition) {
         LuaValue function = target.get(method);
         if (!function.isfunction()) throw new IllegalStateException("Missing world-generation method " + method);
         function.invoke(LuaValue.varargsOf(new LuaValue[]{target, LuaValue.valueOf(id), definition}));
