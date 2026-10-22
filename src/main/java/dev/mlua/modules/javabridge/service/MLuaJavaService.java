@@ -27,6 +27,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     static final LuaValue JAVA_NULL = MLuaLuaCoercions.javaNullValue();
     static final MLuaJavaProxyRegistry LUA_PROXY_REGISTRY = new MLuaJavaProxyRegistry();
     private final MLuaJavaClassResolver classResolver;
+    private final MLuaJavaPackageProxyFactory packageProxies;
     final MLuaJavaReflectionCatalog reflection = new MLuaJavaReflectionCatalog();
     final MLuaJavaMemberResolver members = new MLuaJavaMemberResolver(reflection);
     private final MLuaJavaOverloadResolver overloads = new MLuaJavaOverloadResolver(this);
@@ -45,6 +46,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
             this.getClass().getClassLoader(),
             ClassLoader.getSystemClassLoader()
         });
+        this.packageProxies = new MLuaJavaPackageProxyFactory(this);
     }
 
     public static Map<String, String> serviceMethodDescriptions() {
@@ -62,35 +64,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     LuaValue packageProxy(String path) {
-        LuaTable proxy = new LuaTable();
-        LuaTable meta = new LuaTable();
-        meta.set("__index", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                LuaValue key = args.arg(2);
-                if (key.type() != LuaValue.TSTRING) {
-                    return LuaValue.NIL;
-                }
-
-                String nextPath = path + "." + key.tojstring();
-                Class<?> resolved = tryResolveClass(nextPath);
-                return resolved != null ? wrapJavaValue(resolved) : packageProxy(nextPath);
-            }
-        });
-        meta.set("__call", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                throw new LuaError("[MLua] Unresolved Java package path '" + path + "' cannot be called. Resolve a class first.");
-            }
-        });
-        meta.set("__tostring", new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                return LuaValue.valueOf("JavaPackage(" + path + ")");
-            }
-        });
-        proxy.setmetatable(meta);
-        return proxy;
+        return this.packageProxies.create(path);
     }
 
     Class<?> resolveClassArg(LuaValue value) {

@@ -112,6 +112,9 @@ jobs:
       - name: Validate Java reflection support ownership
         run: python .github/scripts/verify-java-reflection-support-contract.py
 
+      - name: Validate Java package proxy ownership
+        run: python .github/scripts/verify-java-package-proxy-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
