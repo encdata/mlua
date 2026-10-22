@@ -3,6 +3,7 @@ package dev.mlua.modules.particles.service;
 import static dev.mlua.modules.particles.service.MLuaParticleArguments.*;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaReflectiveService;
@@ -330,20 +331,11 @@ public final class MLuaParticleService extends MLuaReflectiveService {
     }
 
     private static VarArgFunction fn(String operation, Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    MLuaLogger.LOGGER.error("ParticleEmitter:{} failed", operation, e);
-                    throw new LuaError("[MLua] ParticleEmitter:" + operation + " failed: "
-                        + e.getClass().getSimpleName() + ": "
-                        + (e.getMessage() == null ? "no details" : e.getMessage()));
-                }
-            }
-        };
+        return MLuaLuaErrors.operation("ParticleEmitter:" + operation, body, failure -> {
+            MLuaLogger.LOGGER.error("ParticleEmitter:{} failed", operation, failure);
+            return new LuaError("[MLua] ParticleEmitter:" + operation + " failed: "
+                + failure.getClass().getSimpleName() + ": "
+                + (failure.getMessage() == null ? "no details" : failure.getMessage()));
+        });
     }
 }

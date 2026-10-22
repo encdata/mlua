@@ -67,21 +67,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
     }
 
     private VarArgFunction serviceFunction(Function<Varargs, Varargs> action) {
-        return new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                try {
-                    MinecraftServer server = context.mlua().server();
-                    if (context.mlua().side() == Side.SERVER && server != null && !server.isSameThread()) {
-                        return MLuaServerThread.call(server, () -> action.apply(args));
-                    }
-                    return action.apply(args);
-                } catch (LuaError error) {
-                    throw error;
-                } catch (Exception error) {
-                    throw MLuaLuaErrors.javaFailure("World service call", error);
-                }
+        return MLuaLuaErrors.varargsOperation("World service call", args -> {
+            MinecraftServer server = context.mlua().server();
+            if (context.mlua().side() == Side.SERVER && server != null && !server.isSameThread()) {
+                return MLuaServerThread.call(server, () -> action.apply(args));
             }
-        };
+            return action.apply(args);
+        });
     }
 
     private Level currentLevel() {
@@ -205,18 +197,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
     }
 
     private static VarArgFunction function(Function<Varargs, LuaValue> action) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return action.apply(args);
-                } catch (LuaError error) {
-                    throw error;
-                } catch (Exception error) {
-                    throw MLuaLuaErrors.javaFailure("World service call", error);
-                }
-            }
-        };
+        return MLuaLuaErrors.operation("World service call", action);
     }
 
 }

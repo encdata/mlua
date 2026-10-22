@@ -23,7 +23,6 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
 
 public final class MLuaWorldService extends MLuaServiceBase {
    private final MLuaWorldInstanceCache worldInstances = new MLuaWorldInstanceCache();
@@ -162,21 +161,13 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private LuaValue varArg(Function<Varargs, Varargs> fn) {
-      return new VarArgFunction() {
-         public Varargs invoke(Varargs args) {
-            try {
-               MinecraftServer server = context.mlua().server();
-               if (context.mlua().side() == Side.SERVER && server != null && !server.isSameThread()) {
-                  return MLuaServerThread.call(server, () -> fn.apply(args));
-               }
-               return fn.apply(args);
-            } catch (LuaError e) {
-               throw e;
-            } catch (Exception e) {
-               throw MLuaLuaErrors.javaFailure("World service call", e);
-            }
+      return MLuaLuaErrors.varargsOperation("World service call", args -> {
+         MinecraftServer server = context.mlua().server();
+         if (context.mlua().side() == Side.SERVER && server != null && !server.isSameThread()) {
+            return MLuaServerThread.call(server, () -> fn.apply(args));
          }
-      };
+         return fn.apply(args);
+      });
    }
 
 }

@@ -27,7 +27,6 @@ CALLBACKS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderCallbacks.ja
 RENDER_SERVICE = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java"
 RENDER_OBJECT_API = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectApi.java"
 RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java"
-RENDER_LUA_SUPPORT = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderLuaSupport.java"
 OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectCreation.java"
 
 
@@ -243,16 +242,16 @@ render_service = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRend
 render_object_api = RENDER_OBJECT_API.read_text(encoding="utf-8")
 render_object_operations = RENDER_OBJECT_OPERATIONS.read_text(encoding="utf-8")
 render_api = render_service + "\n" + render_object_api + "\n" + render_object_operations
-render_lua_support = RENDER_LUA_SUPPORT.read_text(encoding="utf-8")
+lua_errors = (ROOT / "mlua-api/src/main/java/dev/mlua/api/MLuaLuaErrors.java").read_text(encoding="utf-8")
 if "extends MLuaRenderObjectApi" not in render_service or "class MLuaRenderObjectApi extends MLuaReflectiveService" not in render_object_api:
     fail("RenderService must keep its documented object API in the dedicated reflective object owner")
-if "static VarArgFunction operation(String operationName" not in render_lua_support:
-    fail("render-object Lua callbacks must share one operation error boundary")
-if "MLuaRenderLuaSupport.operation(\"Render service call\"" not in render_object_operations or "MLuaRenderService.fn(" in render_api:
-    fail("render object bindings must use the shared Lua callback support owner")
+if "public static VarArgFunction operation(String operation" not in lua_errors:
+    fail("Java-backed Lua callbacks must use the common Lua exception boundary")
+if "MLuaLuaErrors.operation(\"Render service call\"" not in render_object_operations or "MLuaRenderService.fn(" in render_api:
+    fail("render object bindings must use the common Lua callback error owner")
 animation_binding = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderAnimationBinding.java").read_text(encoding="utf-8")
-if "MLuaRenderLuaSupport.operation(\"Render animation operation\", body)" not in animation_binding:
-    fail("render animation operations must use the shared Lua callback error boundary")
+if "MLuaLuaErrors.operation(\"Render animation operation\", body)" not in animation_binding:
+    fail("render animation operations must use the common Lua callback error boundary")
 render_docs = (ROOT / "src/main/java/dev/mlua/modules/render/RenderModule.java").read_text(encoding="utf-8")
 connection_methods = (
     "RegisterEntityRenderer", "RegisterEntityRenderPass", "RegisterEntityDrawPass",

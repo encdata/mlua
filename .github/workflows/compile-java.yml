@@ -82,6 +82,9 @@ jobs:
       - name: Validate Java input conversion ownership
         run: python .github/scripts/verify-java-conversion-ownership-contract.py
 
+      - name: Validate shared Lua callback error handling
+        run: python .github/scripts/verify-lua-error-boundary-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -1,5 +1,6 @@
 package dev.mlua.modules.render.service;
 
+import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
@@ -58,9 +59,9 @@ final class MLuaRenderObjectOperations {
     }
 
     private void registerIdentityOperations() {
-        operations.set("GetId", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(id)));
+        operations.set("GetId", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(id)));
         // The render primitive is immutable, so keep it readable on a destroyed handle.
-        operations.set("GetRenderType", MLuaRenderLuaSupport.operation("Render service call", args -> renderTypeValue));
+        operations.set("GetRenderType", MLuaLuaErrors.operation("Render service call", args -> renderTypeValue));
         operations.set("Equals", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 LuaValue other = args.arg(2);
@@ -74,7 +75,7 @@ final class MLuaRenderObjectOperations {
                     && renderOwner.equals(ownerValue.touserdata(MLuaRenderOwnershipRegistry.Owner.class)));
             }
         });
-        operations.set("GetHashCode", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(
+        operations.set("GetHashCode", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(
             Objects.hash(renderOwner, id))));
         operations.set("ToString", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -82,116 +83,116 @@ final class MLuaRenderObjectOperations {
                     + primitive.name().toLowerCase(Locale.ROOT) + ", " + renderOwner.ownerModId() + ":" + id + "]");
             }
         });
-        operations.set("GetIsDestroyed", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, renderOwner) == null)));
+        operations.set("GetIsDestroyed", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(MLuaClientRenderManager.get(id, renderOwner) == null)));
     }
 
     private void registerPositionOperations() {
-        operations.set("GetPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             return MLuaVector.vector2(object.x(), object.y());
         }));
-        operations.set("SetPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             double[] value = MLuaRenderValues.screenVector(args.arg(2));
             object.setPosition(value[0], value[1]);
             return LuaValue.NONE;
         }));
-        operations.set("GetEndPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetEndPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             return MLuaVector.vector2(object.endX(), object.endY());
         }));
-        operations.set("SetEndPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetEndPosition", MLuaLuaErrors.operation("Render service call", args -> {
             double[] value = MLuaRenderValues.screenVector(args.arg(2));
             access.requireObject(id).setEndPosition(value[0], value[1]);
             return LuaValue.NONE;
         }));
-        operations.set("GetWorldPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetWorldPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             return MLuaVector.vector3(object.worldX(), object.worldY(), object.worldZ());
         }));
-        operations.set("SetWorldPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetWorldPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             double[] value = MLuaRenderValues.worldVector(args.arg(2));
             object.setWorldPosition(value[0], value[1], value[2]);
             object.setWorldSpace(true);
             return LuaValue.NONE;
         }));
-        operations.set("GetEndWorldPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetEndWorldPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             return MLuaVector.vector3(object.endWorldX(), object.endWorldY(), object.endWorldZ());
         }));
-        operations.set("SetEndWorldPosition", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetEndWorldPosition", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             double[] value = MLuaRenderValues.worldVector(args.arg(2));
             object.setEndWorldPosition(value[0], value[1], value[2]);
             return LuaValue.NONE;
         }));
-        operations.set("GetDepth", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).depth())));
-        operations.set("SetDepth", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetDepth", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).depth())));
+        operations.set("SetDepth", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setDepth(MLuaRenderValues.nonNegative(args.arg(2), "Depth"));
             return LuaValue.NONE;
         }));
-        operations.set("GetSize", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetSize", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             return MLuaVector.vector2(object.width(), object.height());
         }));
-        operations.set("SetSize", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetSize", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             double[] value = MLuaRenderValues.screenSize(args.arg(2));
             object.setSize(value[0], value[1]);
             return LuaValue.NONE;
         }));
-        operations.set("GetRotation", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).rotation())));
-        operations.set("SetRotation", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetRotation", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).rotation())));
+        operations.set("SetRotation", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setRotation(MLuaRenderValues.finiteNumber(args.arg(2), "Rotation"));
             return LuaValue.NONE;
         }));
     }
 
     private void registerAppearanceOperations() {
-        operations.set("GetVisible", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).visible())));
-        operations.set("SetVisible", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetVisible", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).visible())));
+        operations.set("SetVisible", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setVisible(args.checkboolean(2));
             return LuaValue.NONE;
         }));
-        operations.set("GetTransparency", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).transparency())));
-        operations.set("SetTransparency", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetTransparency", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).transparency())));
+        operations.set("SetTransparency", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setTransparency(MLuaRenderValues.opacity(args.arg(2), "Transparency"));
             return LuaValue.NONE;
         }));
-        operations.set("GetAlpha", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(1.0 - access.requireObject(id).transparency())));
-        operations.set("SetAlpha", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetAlpha", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(1.0 - access.requireObject(id).transparency())));
+        operations.set("SetAlpha", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setTransparency(1.0 - MLuaRenderValues.opacity(args.arg(2), "Alpha"));
             return LuaValue.NONE;
         }));
-        operations.set("GetColor", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).color())));
-        operations.set("SetColor", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetColor", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).color())));
+        operations.set("SetColor", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setColor(MLuaRenderValues.packedColor(args.arg(2)));
             return LuaValue.NONE;
         }));
-        operations.set("GetThickness", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).thickness())));
-        operations.set("SetThickness", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetThickness", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).thickness())));
+        operations.set("SetThickness", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setThickness(MLuaRenderValues.atLeast(args.arg(2), "Thickness", 1.0));
             return LuaValue.NONE;
         }));
-        operations.set("GetZIndex", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).zIndex())));
-        operations.set("SetZIndex", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetZIndex", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).zIndex())));
+        operations.set("SetZIndex", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setZIndex(MLuaRenderValues.wholeInt(args.arg(2), "ZIndex"));
             return LuaValue.NONE;
         }));
     }
 
     private void registerWorldSpaceOperations() {
-        operations.set("GetWorldSpace", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).worldSpace())));
-        operations.set("SetWorldSpace", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetWorldSpace", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).worldSpace())));
+        operations.set("SetWorldSpace", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setWorldSpace(args.checkboolean(2));
             return LuaValue.NONE;
         }));
     }
 
     private void registerTargetOperations() {
-        operations.set("GetTarget", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(MLuaRenderValues.renderTargetName(access.requireObject(id).target()))));
-        operations.set("SetTarget", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetTarget", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(MLuaRenderValues.renderTargetName(access.requireObject(id).target()))));
+        operations.set("SetTarget", MLuaLuaErrors.operation("Render service call", args -> {
             String name = args.checkjstring(2).trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
             try {
                 access.requireObject(id).setTarget(MLuaClientRenderManager.RenderTarget.valueOf(name));
@@ -200,11 +201,11 @@ final class MLuaRenderObjectOperations {
             }
             return LuaValue.NONE;
         }));
-        operations.set("GetItemId", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetItemId", MLuaLuaErrors.operation("Render service call", args -> {
             String itemId = access.requireObject(id).heldItemId();
             return itemId == null ? LuaValue.NIL : LuaValue.valueOf(itemId);
         }));
-        operations.set("SetItemId", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetItemId", MLuaLuaErrors.operation("Render service call", args -> {
             try {
                 access.requireObject(id).setHeldItemId(args.arg(2).isnil() ? null : args.checkjstring(2));
             } catch (IllegalArgumentException invalid) {
@@ -212,8 +213,8 @@ final class MLuaRenderObjectOperations {
             }
             return LuaValue.NONE;
         }));
-        operations.set("GetRenderStage", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).renderStage())));
-        operations.set("SetRenderStage", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetRenderStage", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).renderStage())));
+        operations.set("SetRenderStage", MLuaLuaErrors.operation("Render service call", args -> {
             try {
                 access.requireObject(id).setRenderStage(args.checkjstring(2));
             } catch (IllegalArgumentException invalid) {
@@ -221,8 +222,8 @@ final class MLuaRenderObjectOperations {
             }
             return LuaValue.NONE;
         }));
-        operations.set("GetRenderDistance", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).worldRenderDistance())));
-        operations.set("SetRenderDistance", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetRenderDistance", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).worldRenderDistance())));
+        operations.set("SetRenderDistance", MLuaLuaErrors.operation("Render service call", args -> {
             double distance = MLuaRenderValues.finiteNumber(args.arg(2), "RenderDistance");
             if (distance < 1.0D || distance > MLuaClientRenderManager.MAX_WORLD_RENDER_DISTANCE) {
                 throw new LuaError("[MLua] RenderObject RenderDistance must be between 1 and "
@@ -231,21 +232,21 @@ final class MLuaRenderObjectOperations {
             access.requireObject(id).setWorldRenderDistance(distance);
             return LuaValue.NONE;
         }));
-        operations.set("GetScaleWithDistance", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).scaleWithDistance())));
-        operations.set("SetScaleWithDistance", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetScaleWithDistance", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).scaleWithDistance())));
+        operations.set("SetScaleWithDistance", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setScaleWithDistance(args.checkboolean(2));
             return LuaValue.NONE;
         }));
     }
 
     private void registerModelOperations() {
-        operations.set("GetModelScale", MLuaRenderLuaSupport.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).modelScale())));
-        operations.set("SetModelScale", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetModelScale", MLuaLuaErrors.operation("Render service call", args -> LuaValue.valueOf(access.requireObject(id).modelScale())));
+        operations.set("SetModelScale", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setModelScale(MLuaRenderValues.modelScale(args.arg(2)));
             return LuaValue.NONE;
         }));
-        operations.set("GetModelTransform", MLuaRenderLuaSupport.operation("Render service call", args -> access.requireMeshObject(id).modelTransform().toLua()));
-        operations.set("SetModelTransform", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetModelTransform", MLuaLuaErrors.operation("Render service call", args -> access.requireMeshObject(id).modelTransform().toLua()));
+        operations.set("SetModelTransform", MLuaLuaErrors.operation("Render service call", args -> {
             if (!MLuaCFrame.isCFrame(args.arg(2))) {
                 throw new LuaError("[MLua] RenderObject ModelTransform must be a CFrame.");
             }
@@ -256,23 +257,23 @@ final class MLuaRenderObjectOperations {
             }
             return LuaValue.NONE;
         }));
-        operations.set("GetFollowEntity", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetFollowEntity", MLuaLuaErrors.operation("Render service call", args -> {
             MLuaEntityScope scope = access.requireObject(id).followEntityScope();
             return scope != null ? LuaValue.valueOf(scope.entityId()) : LuaValue.NIL;
         }));
-        operations.set("SetFollowEntity", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetFollowEntity", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setFollowEntityScope(access.resolveOptionalEntityScope(args.arg(2)));
             return LuaValue.NONE;
         }));
-        operations.set("ClearFollowEntity", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("ClearFollowEntity", MLuaLuaErrors.operation("Render service call", args -> {
             access.requireObject(id).setFollowEntityScope(null);
             return LuaValue.NONE;
         }));
-        operations.set("GetFollowBone", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetFollowBone", MLuaLuaErrors.operation("Render service call", args -> {
             String bone = access.requireObject(id).followBoneName();
             return bone == null ? LuaValue.NIL : LuaValue.valueOf(bone);
         }));
-        operations.set("SetFollowBone", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetFollowBone", MLuaLuaErrors.operation("Render service call", args -> {
             LuaValue value = args.arg(2);
             try {
                 access.requireObject(id).setFollowBoneName(value.isnil() ? null : value.checkjstring());
@@ -281,8 +282,8 @@ final class MLuaRenderObjectOperations {
             }
             return LuaValue.NONE;
         }));
-        operations.set("GetFollowOffset", MLuaRenderLuaSupport.operation("Render service call", args -> access.requireObject(id).followOffsetValue()));
-        operations.set("SetFollowOffset", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetFollowOffset", MLuaLuaErrors.operation("Render service call", args -> access.requireObject(id).followOffsetValue()));
+        operations.set("SetFollowOffset", MLuaLuaErrors.operation("Render service call", args -> {
             LuaValue value = args.arg(2);
             try {
                 if (value.isfunction()) access.requireObject(id).setFollowOffsetCallback(value, access.renderOwnerContext());
@@ -292,7 +293,7 @@ final class MLuaRenderObjectOperations {
             }
             return LuaValue.NONE;
         }));
-        operations.set("GetModelParts", MLuaRenderLuaSupport.operation("Render service call", args -> MLuaRenderPartBinding.all(
+        operations.set("GetModelParts", MLuaLuaErrors.operation("Render service call", args -> MLuaRenderPartBinding.all(
             access.registration(), id, renderOwner, access.requireModelObject(id).bbmodel())));
         operations.set("GetModelPart", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -309,25 +310,25 @@ final class MLuaRenderObjectOperations {
     }
 
     private void registerContentOperations() {
-        operations.set("GetResource", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetResource", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             if (!MLuaRenderValues.supportsResource(object.type())) return LuaValue.NIL;
             String resource = object.resource();
             return resource != null ? LuaValue.valueOf(resource) : LuaValue.NIL;
         }));
-        operations.set("SetResource", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetResource", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             MLuaRenderValues.requireResourceType(object.type(), "SetResource");
             object.setResource(args.arg(2).isnil() ? null : args.checkjstring(2));
             return LuaValue.NONE;
         }));
-        operations.set("GetText", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("GetText", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             if (object.type() != MLuaClientRenderManager.RenderType.TEXT) return LuaValue.NIL;
             String resource = object.resource();
             return resource != null ? LuaValue.valueOf(resource) : LuaValue.NIL;
         }));
-        operations.set("SetText", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("SetText", MLuaLuaErrors.operation("Render service call", args -> {
             var object = access.requireObject(id);
             if (object.type() != MLuaClientRenderManager.RenderType.TEXT) {
                 throw new LuaError("[MLua] RenderObject:SetText is only available on text render objects.");
@@ -338,7 +339,7 @@ final class MLuaRenderObjectOperations {
     }
 
     private void registerLifecycleOperations() {
-        operations.set("Destroy", MLuaRenderLuaSupport.operation("Render service call", args -> {
+        operations.set("Destroy", MLuaLuaErrors.operation("Render service call", args -> {
             MLuaClientRenderManager.remove(id, renderOwner);
             access.forgetHandle(id);
             return LuaValue.NONE;

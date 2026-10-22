@@ -219,18 +219,7 @@ public final class MLuaBossBarService extends MLuaServerThreadReflectiveService 
     }
 
     private static VarArgFunction fn(final Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError failure) {
-                    throw failure;
-                } catch (Exception failure) {
-                    throw MLuaLuaErrors.javaFailure("BossBar service call", failure);
-                }
-            }
-        };
+        return MLuaLuaErrors.operation("BossBar service call", body);
     }
 
 }

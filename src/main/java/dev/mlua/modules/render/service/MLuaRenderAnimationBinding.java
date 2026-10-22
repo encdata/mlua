@@ -1,5 +1,6 @@
 package dev.mlua.modules.render.service;
 
+import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.minecraft.animation.MLuaAnimationOptions;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.runtime.client.MLuaClientRenderManager;
@@ -101,6 +102,6 @@ final class MLuaRenderAnimationBinding {
     }
 
     private static VarArgFunction fn(Function<Varargs, LuaValue> body) {
-        return MLuaRenderLuaSupport.operation("Render animation operation", body);
+        return MLuaLuaErrors.operation("Render animation operation", body);
     }
 }

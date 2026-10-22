@@ -1,5 +1,6 @@
 package dev.mlua.modules.sound.service;
 
+import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
@@ -322,20 +323,11 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     }
 
     private static VarArgFunction fn(String operation, Function<Varargs, LuaValue> body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError e) {
-                    throw e;
-                } catch (Exception e) {
-                    MLuaLogger.LOGGER.error("SoundHandle:{} failed", operation, e);
-                    throw new LuaError("[MLua] SoundHandle:" + operation + " failed: "
-                        + e.getClass().getSimpleName() + ": "
-                        + (e.getMessage() == null ? "no details" : e.getMessage()));
-                }
-            }
-        };
+        return MLuaLuaErrors.operation("SoundHandle:" + operation, body, failure -> {
+            MLuaLogger.LOGGER.error("SoundHandle:{} failed", operation, failure);
+            return new LuaError("[MLua] SoundHandle:" + operation + " failed: "
+                + failure.getClass().getSimpleName() + ": "
+                + (failure.getMessage() == null ? "no details" : failure.getMessage()));
+        });
     }
 }
