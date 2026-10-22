@@ -28,8 +28,8 @@ final class MLuaRuntimeScriptCatalogTest {
         Path serverPath = root.resolve("main.server.lua");
         Path clientPath = root.resolve("main.client.lua");
         Path entrypointPath = root.resolve("hooks.lua");
-        Files.writeString(serverPath, "print('server')");
-        Files.writeString(clientPath, "print('client')");
+        Files.writeString(serverPath, "function run_server() end\nprint('server')");
+        Files.writeString(clientPath, "function run_client() end\nprint('client')");
         Files.writeString(entrypointPath, "function run_server() end\nfunction run_client() end\n");
 
         MLuaRuntimeScriptCatalog catalog = new MLuaRuntimeScriptCatalog();
