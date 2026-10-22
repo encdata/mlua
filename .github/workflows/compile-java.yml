@@ -86,7 +86,7 @@ jobs:
         run: python .github/scripts/verify-lua-error-boundary-contract.py
 
       - name: Validate indexed class hierarchy ownership
-        run: python .github/scripts/verify-class-hierarchy-contract.py
+        run: python .github/scripts/verify-class-registry-contract.py
 
       - uses: actions/setup-java@v4
         with:
