@@ -1,6 +1,7 @@
 package dev.mlua.modules.render.service;
 
 import dev.mlua.core.service.MLuaReflectiveService;
+import java.lang.reflect.Modifier;
 import java.util.HashSet;
 import java.util.Arrays;
 import java.util.Set;
@@ -21,6 +22,8 @@ final class MLuaRenderServiceApiShapeTest {
         Set<String> expectedObjectMethods = Set.of(
             "CreateRect", "CreateMesh", "LoadBBModel", "CreateWorldLine", "CreateWorldBox",
             "Clear", "GetAll");
+        assertTrue(Modifier.isPublic(MLuaRenderObjectApi.class.getModifiers()),
+            "The inherited render API base must remain visible to reflective service discovery");
         Set<String> declaredObjectMethods = new HashSet<>();
         Arrays.stream(MLuaRenderObjectApi.class.getDeclaredMethods())
             .filter(method -> java.lang.reflect.Modifier.isPublic(method.getModifiers()))

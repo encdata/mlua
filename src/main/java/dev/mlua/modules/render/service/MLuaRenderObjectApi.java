@@ -26,8 +26,8 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 
-/** Owns render-object construction, instance handles, and object lifecycle operations. */
-abstract class MLuaRenderObjectApi extends MLuaReflectiveService {
+/** Shared public Lua-facing base for MLua render-object services. */
+public abstract class MLuaRenderObjectApi extends MLuaReflectiveService {
     static final String OBJECT_OPERATIONS = "__mlua_render_object_operations";
     public static final String OBJECT_ID = "__mlua_render_object_id";
     private final MLuaRenderObjectHandleCache objectHandleCache = new MLuaRenderObjectHandleCache();

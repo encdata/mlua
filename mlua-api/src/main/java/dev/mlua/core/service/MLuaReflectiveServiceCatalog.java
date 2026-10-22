@@ -114,6 +114,12 @@ final class MLuaReflectiveServiceCatalog {
    /** Collects public methods from service implementation bases and interfaces. */
    private static Method[] publicServiceMethods(Class<?> serviceType) {
       Map<String, Method> methods = new LinkedHashMap<>();
+      // Keep the JVM's normal inherited-public-method view as the primary source.
+      // The explicit declaration walk below fills the gap for shared service
+      // bases that are package-private or inherit annotated interface methods.
+      for (Method method : serviceType.getMethods()) {
+         if (Modifier.isPublic(method.getModifiers())) methods.putIfAbsent(methodSignature(method), method);
+      }
       for (Class<?> current = serviceType; current != null && current != Object.class;
             current = current.getSuperclass()) {
          for (Method method : current.getDeclaredMethods()) {
