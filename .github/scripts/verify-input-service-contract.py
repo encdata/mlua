@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Keep addon keybind definition parsing separate from input state and Lua endpoints."""
 from pathlib import Path
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputService.java"
 DEFINITIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaKeybindDefinitions.java"
+ACTIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputActions.java"
 service = SERVICE.read_text(encoding="utf-8")
 definitions = DEFINITIONS.read_text(encoding="utf-8")
+actions = ACTIONS.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -30,5 +33,21 @@ for token in ("aliasedValue(", "optionalString(", "validateKey(", "defaultKey", 
         fail(f"keybind definition parser is missing {token}")
 if "KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);" not in service:
     fail("Minecraft keybind lookup must share the controller resolver")
+if "private final MLuaInputActions actions" not in service:
+    fail("input service does not own its client key action component")
+for method, delegate in (
+    ("SetKeyDown", "setKeyDown"), ("SetKeyStates", "setKeyStates"),
+    ("ReleasePressedKeys", "releasePressedKeys"), ("ClickKey", "clickKey"),
+    ("SetMinecraftKeyDown", "setMinecraftKeyDown"), ("ClickMinecraftKey", "clickMinecraftKey"),
+    ("SetMouseButtonDown", "setMouseButtonDown"), ("ClickMouseButton", "clickMouseButton"),
+):
+    match = re.search(rf"@MLuaDescription\([^\n]*\)\s+public\s+[^{{]+\b{method}\s*\([^{{]*\)\s*\{{([^{{}}]*)\}}", service, re.DOTALL)
+    if match is None or "requireClientSide(this.name())" not in match.group(1):
+        fail(f"{method} lost its compatibility endpoint or client-side guard")
+    if f"this.actions.{delegate}(" not in match.group(1):
+        fail(f"{method} no longer delegates to its action component")
+for method in ("setKeyStates(", "setKeyDown(", "releasePressedKeys(", "clickMinecraftKey("):
+    if method not in actions:
+        fail(f"input action component is missing {method}")
 
 print("Input service contract passed (keybind definitions have a dedicated parser).")

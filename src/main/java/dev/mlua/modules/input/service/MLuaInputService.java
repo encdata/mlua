@@ -21,8 +21,10 @@ import org.luaj.vm2.Varargs;
 
 @MLuaDescription("Provides client input state and input change events.")
 public final class MLuaInputService extends MLuaReflectiveService {
+   private final MLuaInputActions actions;
    public MLuaInputService(MLuaService.Context context) {
       super(context);
+      this.actions = new MLuaInputActions(context);
    }
 
    @Override
@@ -112,93 +114,49 @@ public final class MLuaInputService extends MLuaReflectiveService {
    @MLuaDescription("Sets a Minecraft or addon key mapping's logical pressed state for this addon on the client thread. Other addons can hold the same mapping independently; the press is released when this addon runtime unloads.")
    public void SetKeyDown(String name, boolean pressed) {
       this.requireClientSide(this.name());
-      requireClientThread("SetKeyDown");
-      KeyMapping mapping = resolveMapping(this.context.mlua().ownerModId(), name);
-      if (mapping == null) throw new LuaError("[MLua] InputService:SetKeyDown could not find key mapping '" + name + "'.");
-      MLuaKeybindController.setDown(mapping, pressed,
-         (dev.mlua.core.MLuaRuntimeSession) this.context.mlua().session(), this.context.mlua().ownerModId());
+      this.actions.setKeyDown(name, pressed);
    }
 
    @MLuaDescription("Validates a table of mapping names and pressed states before applying them as one owner-scoped batch. If applying a state fails, prior states are restored where possible.")
    public void SetKeyStates(LuaTable states) {
       this.requireClientSide(this.name());
-      requireClientThread("SetKeyStates");
-      String owner = this.context.mlua().ownerModId();
-      Map<String, Boolean> requested = new TreeMap<>();
-      LuaValue key = LuaValue.NIL;
-      while (true) {
-         Varargs entry = states.next(key);
-         key = entry.arg1();
-         if (key.isnil()) break;
-         LuaValue value = entry.arg(2);
-         if (!key.isstring()) {
-            throw new LuaError("[MLua] InputService:SetKeyStates requires mapping names as string keys.");
-         }
-         String name = MLuaKeybindDefinitions.requireName(key.checkjstring(), "SetKeyStates");
-         if (!value.isboolean()) {
-            throw new LuaError("[MLua] InputService:SetKeyStates value for '" + name + "' must be true or false.");
-         }
-         requested.put(name, value.toboolean());
-      }
-
-      List<MLuaKeybindController.KeyState> batch = new ArrayList<>(requested.size());
-      for (Map.Entry<String, Boolean> state : requested.entrySet()) {
-         KeyMapping mapping = resolveMapping(owner, state.getKey());
-         if (mapping == null) {
-            throw new LuaError("[MLua] InputService:SetKeyStates could not find key mapping '"
-               + state.getKey() + "'. No key states were changed.");
-         }
-         batch.add(new MLuaKeybindController.KeyState(mapping, state.getValue()));
-      }
-      try {
-         MLuaKeybindController.setDownBatch(batch,
-            (dev.mlua.core.MLuaRuntimeSession) this.context.mlua().session(), owner);
-      } catch (IllegalArgumentException | IllegalStateException failure) {
-         throw MLuaLuaErrors.javaFailure("InputService:SetKeyStates", failure);
-      }
+      this.actions.setKeyStates(states);
    }
 
    @MLuaDescription("Releases every simulated key and mouse mapping held by the calling addon runtime.")
    public void ReleasePressedKeys() {
       this.requireClientSide(this.name());
-      requireClientThread("ReleasePressedKeys");
-      MLuaKeybindController.releaseOwnerPressedMappings(
-         (dev.mlua.core.MLuaRuntimeSession) this.context.mlua().session(), this.context.mlua().ownerModId());
+      this.actions.releasePressedKeys();
    }
 
    @MLuaDescription("Queues one Minecraft key mapping click, consumed by the normal game input loop.")
    public void ClickKey(String name) {
       this.requireClientSide(this.name());
-      requireClientThread("ClickKey");
-      KeyMapping mapping = resolveMapping(this.context.mlua().ownerModId(), name);
-      if (mapping == null) throw new LuaError("[MLua] InputService:ClickKey could not find key mapping '" + name + "'.");
-      MLuaKeybindController.click(mapping);
+      this.actions.clickKey(name);
    }
 
    @MLuaDescription("Sets the pressed state of a Minecraft or other mod's key mapping by its registered identifier, bypassing this addon's keybind names.")
    public void SetMinecraftKeyDown(String name, boolean pressed) {
       this.requireClientSide(this.name());
-      requireClientThread("SetMinecraftKeyDown");
-      KeyMapping mapping = requireMinecraftKeyMapping(name, "SetMinecraftKeyDown");
-      MLuaKeybindController.setDown(mapping, pressed,
-         (dev.mlua.core.MLuaRuntimeSession) this.context.mlua().session(), this.context.mlua().ownerModId());
+      this.actions.setMinecraftKeyDown(name, pressed);
    }
 
    @MLuaDescription("Queues one click for a Minecraft or other mod's key mapping by its registered identifier, bypassing this addon's keybind names.")
    public void ClickMinecraftKey(String name) {
       this.requireClientSide(this.name());
-      requireClientThread("ClickMinecraftKey");
-      MLuaKeybindController.click(requireMinecraftKeyMapping(name, "ClickMinecraftKey"));
+      this.actions.clickMinecraftKey(name);
    }
 
    @MLuaDescription("Sets a standard Minecraft mouse action binding: 0 left attack, 1 right use, or 2 middle pick block.")
    public void SetMouseButtonDown(int button, boolean pressed) {
-      this.SetMinecraftKeyDown(mouseBinding(button), pressed);
+      this.requireClientSide(this.name());
+      this.actions.setMouseButtonDown(button, pressed);
    }
 
    @MLuaDescription("Queues one standard Minecraft mouse action: 0 left attack, 1 right use, or 2 middle pick block.")
    public void ClickMouseButton(int button) {
-      this.ClickMinecraftKey(mouseBinding(button));
+      this.requireClientSide(this.name());
+      this.actions.clickMouseButton(button);
    }
 
    @MLuaDescription("Changes the key assigned to a registered keybind.")
@@ -278,36 +236,5 @@ public final class MLuaInputService extends MLuaReflectiveService {
       return this.context.mlua().registration().attachClassInstance(table, "MinecraftKeybind", null);
    }
 
-   private static KeyMapping resolveMapping(String ownerModId, String name) {
-      if (name == null || name.isBlank()) throw new LuaError("[MLua] InputService requires a non-empty key mapping name.");
-      return MLuaKeybindController.resolve(ownerModId, name);
-   }
-
-   private static String mouseBinding(int button) {
-      return switch (button) {
-         case 0 -> "key.attack";
-         case 1 -> "key.use";
-         case 2 -> "key.pickItem";
-         default -> throw new LuaError("[MLua] Mouse button must be 0 (left), 1 (right), or 2 (middle).");
-      };
-   }
-
-   private static KeyMapping requireMinecraftKeyMapping(String name, String operation) {
-      if (name == null || name.isBlank()) {
-         throw new LuaError("[MLua] InputService:" + operation + " requires a non-empty mapping identifier.");
-      }
-      KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);
-      if (mapping == null) {
-         throw new LuaError("[MLua] InputService:" + operation
-            + " could not find Minecraft or another mod's key mapping '" + name + "'.");
-      }
-      return mapping;
-   }
-
-   private static void requireClientThread(String operation) {
-      if (!dev.mlua.runtime.client.MLuaClientThread.isClientExecutionContext()) {
-         throw new LuaError("[MLua] InputService:" + operation + " must run on Minecraft's client thread.");
-      }
-   }
 
 }
