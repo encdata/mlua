@@ -25,6 +25,9 @@ import org.luaj.vm2.Varargs;
 
 /** Builds item callback contexts and applies the shared scripted item interaction rules. */
 final class MLuaItemBehaviorDispatcher {
+    private static final net.minecraft.world.entity.EquipmentSlot[] EQUIPMENT_SLOTS =
+        net.minecraft.world.entity.EquipmentSlot.values();
+
     private MLuaItemBehaviorDispatcher() { }
 
     static LuaValue onAttackEntityCallback(String behaviorKey, ItemStack stack,
@@ -205,7 +208,7 @@ final class MLuaItemBehaviorDispatcher {
     private static String equipmentSlot(Entity entity, ItemStack stack, boolean selected) {
         if (selected) return net.minecraft.world.entity.EquipmentSlot.MAINHAND.name();
         if (!(entity instanceof LivingEntity living)) return null;
-        for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
+        for (net.minecraft.world.entity.EquipmentSlot slot : EQUIPMENT_SLOTS) {
             if (living.getItemBySlot(slot) == stack) return slot.name();
         }
         return null;
