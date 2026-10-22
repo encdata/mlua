@@ -13,6 +13,7 @@ GROUPS = {
     "MLuaJavaReflectionApi.java": ("GetMethods", "Invoke", "GetField", "SetField"),
     "MLuaJavaConversionApi.java": ("ToTable", "FromTable"),
 }
+REFLECTION_CATALOG = SERVICE_DIR / "MLuaJavaReflectionCatalog.java"
 
 
 def require(condition: bool, message: str) -> None:
@@ -38,5 +39,13 @@ require("MLuaServiceBase.normalizeServiceCalls(table, service.name())" in facade
         "Java API facade must preserve shared colon/dot service call normalization")
 require("MLuaServiceMetadata.attachMethodDescriptions" in facade,
         "Java API facade must preserve shared method documentation metadata")
+catalog = REFLECTION_CATALOG.read_text(encoding="utf-8")
+reflection_api = (SERVICE_DIR / "MLuaJavaReflectionApi.java").read_text(encoding="utf-8")
+require("exactMethodLookups" in catalog and "Method exactMethod(" in catalog,
+        "Java exact reflection calls must use the bounded member lookup cache")
+require("service.reflection.exactMethod(clazz, methodName, descriptor, staticCall)" in reflection_api,
+        "Java:Invoke must delegate exact method lookup to the cached reflection catalog")
+require("service.reflection.methods(clazz).stream()" not in reflection_api,
+        "Java:Invoke must not rebuild candidate streams on every reflective call")
 
 print("Java service API is assembled from stable, cohesive API groups.")

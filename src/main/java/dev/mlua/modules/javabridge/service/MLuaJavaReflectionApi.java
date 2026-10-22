@@ -11,7 +11,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
-import java.util.List;
 
 /** Installs Java type inspection, exact invocation, and field access. */
 final class MLuaJavaReflectionApi {
@@ -130,16 +129,11 @@ final class MLuaJavaReflectionApi {
                     staticCall = false;
                 }
                 Class<?> clazz = target instanceof Class<?> javaClass ? javaClass : target.getClass();
-                List<Method> candidates = service.reflection.methods(clazz).stream()
-                    .filter(method -> method.getName().equals(methodName))
-                    .filter(method -> Modifier.isStatic(method.getModifiers()) == staticCall)
-                    .filter(method -> MLuaClassViewer.descriptor(method).equals(descriptor))
-                    .toList();
-                if (candidates.isEmpty()) {
+                Method method = service.reflection.exactMethod(clazz, methodName, descriptor, staticCall);
+                if (method == null) {
                     throw new LuaError("[MLua] No exact " + (staticCall ? "static " : "instance ") + "method "
                         + clazz.getName() + "." + methodName + descriptor);
                 }
-                Method method = candidates.get(0);
                 Object[] rawArgs = service.extractInvocationArgs(args, targetIndex + 3);
                 service.requireExactCallArgumentCount("Invoke", clazz.getName() + "." + methodName + descriptor,
                     method, rawArgs.length);

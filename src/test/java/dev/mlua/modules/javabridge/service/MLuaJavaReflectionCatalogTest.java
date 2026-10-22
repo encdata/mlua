@@ -1,10 +1,13 @@
 package dev.mlua.modules.javabridge.service;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import dev.mlua.common.mixin.MLuaClassViewer;
 import org.junit.jupiter.api.Test;
 import org.luaj.vm2.LuaError;
 
@@ -49,6 +52,20 @@ final class MLuaJavaReflectionCatalogTest {
         assertTrue(error.getMessage().contains("interface field 'TOKEN' is ambiguous"));
     }
 
+    @Test
+    void resolvesExactOverloadByCachedDescriptor() throws Exception {
+        MLuaJavaReflectionCatalog catalog = new MLuaJavaReflectionCatalog();
+        Method expected = Overloads.class.getDeclaredMethod("send", String.class);
+        String descriptor = MLuaClassViewer.descriptor(expected);
+
+        Method first = catalog.exactMethod(Overloads.class, "send", descriptor, false);
+        Method second = catalog.exactMethod(Overloads.class, "send", descriptor, false);
+
+        assertSame(expected, first);
+        assertSame(first, second);
+        assertNull(catalog.exactMethod(Overloads.class, "send", descriptor, true));
+    }
+
     private static class Base {
         private int count;
     }
@@ -70,5 +87,10 @@ final class MLuaJavaReflectionCatalogTest {
     private static final class AmbiguousFields {
         private int foo_bar;
         private int foobar;
+    }
+
+    private static final class Overloads {
+        public void send(String value) { }
+        public void send(int value) { }
     }
 }

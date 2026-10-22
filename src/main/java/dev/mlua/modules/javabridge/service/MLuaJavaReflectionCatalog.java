@@ -1,5 +1,6 @@
 package dev.mlua.modules.javabridge.service;
 
+import dev.mlua.common.mixin.MLuaClassViewer;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
@@ -24,6 +25,7 @@ final class MLuaJavaReflectionCatalog {
     private final BoundedCache<Class<?>, List<Field>> fields = new BoundedCache<>(MAX_ENTRIES);
     private final BoundedCache<Class<?>, List<Constructor<?>>> constructors = new BoundedCache<>(MAX_ENTRIES);
     private final BoundedCache<MethodLookup, List<Method>> lookups = new BoundedCache<>(MAX_ENTRIES);
+    private final BoundedCache<ExactMethodLookup, Optional<Method>> exactMethodLookups = new BoundedCache<>(MAX_ENTRIES);
     private final BoundedCache<FieldLookup, Optional<Field>> fieldLookups = new BoundedCache<>(MAX_ENTRIES);
 
     List<Method> methods(Class<?> type) {
@@ -51,6 +53,19 @@ final class MLuaJavaReflectionCatalog {
             if (!exact.isEmpty()) return List.copyOf(exact);
             return hasSingleName(fallback) ? List.copyOf(fallback) : List.of();
         });
+    }
+
+    Method exactMethod(Class<?> type, String name, String descriptor, boolean requireStatic) {
+        return exactMethodLookups.computeIfAbsent(new ExactMethodLookup(type, name, descriptor, requireStatic), lookup -> {
+            for (Method method : methods(lookup.type)) {
+                if (method.getName().equals(lookup.name)
+                    && Modifier.isStatic(method.getModifiers()) == lookup.requireStatic
+                    && MLuaClassViewer.descriptor(method).equals(lookup.descriptor)) {
+                    return Optional.of(method);
+                }
+            }
+            return Optional.empty();
+        }).orElse(null);
     }
 
     Field field(Class<?> type, String name, boolean requireStatic) {
@@ -221,6 +236,7 @@ final class MLuaJavaReflectionCatalog {
     }
 
     private record MethodLookup(Class<?> type, String name, boolean requireStatic) { }
+    private record ExactMethodLookup(Class<?> type, String name, String descriptor, boolean requireStatic) { }
     private record FieldLookup(Class<?> type, String name, boolean requireStatic) { }
 
     /** Access-ordered cache; arbitrary reflected classes cannot grow memory without bound. */
