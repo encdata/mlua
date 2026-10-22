@@ -75,7 +75,7 @@ final class MLuaReflectiveServiceCatalog {
    }
 
    private static List<DescribedMethod> scanDescribedMethods(Class<?> serviceType) {
-      Method[] methods = serviceType.getMethods();
+      Method[] methods = publicServiceMethods(serviceType);
       Arrays.sort(methods, java.util.Comparator.comparing(Method::getName)
          .thenComparing(method -> Arrays.toString(method.getParameterTypes())));
       List<DescribedMethod> described = new java.util.ArrayList<>();
@@ -107,6 +107,30 @@ final class MLuaReflectiveServiceCatalog {
          described.add(DescribedMethod.create(method, description.value()));
       }
       return List.copyOf(described);
+   }
+
+   /**
+    * Class.getMethods() omits some public members inherited from non-public service
+    * implementation bases. Include those declarations explicitly so internal base
+    * classes can share reflective Lua APIs without becoming public Java API types.
+    */
+   private static Method[] publicServiceMethods(Class<?> serviceType) {
+      List<Method> methods = new java.util.ArrayList<>(Arrays.asList(serviceType.getMethods()));
+      Set<String> signatures = new HashSet<>();
+      for (Method method : methods) signatures.add(methodSignature(method));
+      for (Class<?> current = serviceType.getSuperclass(); current != null && current != Object.class;
+            current = current.getSuperclass()) {
+         for (Method method : current.getDeclaredMethods()) {
+            if (Modifier.isPublic(method.getModifiers()) && signatures.add(methodSignature(method))) {
+               methods.add(method);
+            }
+         }
+      }
+      return methods.toArray(Method[]::new);
+   }
+
+   private static String methodSignature(Method method) {
+      return method.getName() + Arrays.toString(method.getParameterTypes());
    }
 
    private static boolean isOptional(Type type) {
