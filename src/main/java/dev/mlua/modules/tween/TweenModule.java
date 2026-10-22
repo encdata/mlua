@@ -1,6 +1,7 @@
 package dev.mlua.modules.tween;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.MLuaContextView;
 import dev.mlua.modules.tween.service.MLuaTweenService;
 import dev.mlua.modules.tween.service.MLuaTweenInfo;
@@ -24,6 +25,21 @@ public final class TweenModule implements MLuaModule {
     @Override public void registerClasses(MLuaRegistration registration) {
         registration.registerClass("Tween", registration.requireInstanceBaseClassName(),
             "A client-side property tween controlled through TweenService.");
+        String[][] methods = {
+            {"Play", "Starts this tween from the target's current property values."},
+            {"Pause", "Pauses playback while preserving elapsed time."},
+            {"Resume", "Resumes a paused tween."},
+            {"Cancel", "Stops playback and keeps the current property values."},
+            {"GetPlaybackState", "Returns Created, Playing, Paused, Completed, or Cancelled."},
+            {"GetError", "Returns the latest playback error, or nil when there is none."},
+            {"GetCompleted", "Returns the signal fired when playback completes or is cancelled."},
+            {"Destroy", "Releases this tween and permanently disconnects its completion signal."}
+        };
+        for (String[] method : methods) {
+            MLuaClassMethods.registerInstanceMethod(registration, "Tween", method[0], method[1]);
+        }
+        MLuaClassMethods.registerInstanceProperty(registration, "Tween", "Completed", "GetCompleted", null,
+            "Signal", "client:Client", "Fires with the final playback state when the tween completes or is cancelled.");
     }
 
     @Override public void contributeGlobals(Globals globals, MLuaContextView context) {
@@ -74,6 +90,8 @@ public final class TweenModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.signature("Tween", "Tween:Cancel()", "void"));
         docs.register(MLuaDocBuilder.Registration.signature("Tween", "Tween:GetPlaybackState()", "string"));
         docs.register(MLuaDocBuilder.Registration.signature("Tween", "Tween:GetError()", "string|nil"));
+        docs.register(MLuaDocBuilder.Registration.signature("Tween", "Tween:GetCompleted()", "Signal"));
+        docs.register(MLuaDocBuilder.Registration.signature("Tween", "Tween:Destroy()", "void"));
         docs.register(MLuaDocBuilder.Registration.property("Tween", "Tween.Completed", "Signal", "Fires with the final playback state when the tween completes or is cancelled.", "read:Read"));
         docs.register(MLuaDocBuilder.Registration.signature("TweenInfo", "TweenInfo.new(duration: number, easingStyle?: EasingStyle|string, easingDirection?: EasingDirection|string)", "TweenInfo"));
         docs.register(MLuaDocBuilder.Registration.signature("TweenService", "TweenService:GetActiveCount()", "number"));

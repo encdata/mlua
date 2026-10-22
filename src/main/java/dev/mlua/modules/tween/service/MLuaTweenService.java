@@ -75,7 +75,9 @@ public final class MLuaTweenService extends MLuaReflectiveService {
         handle.set("Cancel", method(handle, ignored -> { tween.cancel(); return LuaValue.NIL; }));
         handle.set("GetPlaybackState", method(handle, ignored -> LuaValue.valueOf(tween.playbackState())));
         handle.set("GetError", method(handle, ignored -> tween.error() == null ? LuaValue.NIL : LuaValue.valueOf(tween.error())));
-        handle.set("Completed", tween.completedSignal());
+        handle.set("GetCompleted", method(handle, ignored -> handle.rawget("__tween_completed")));
+        handle.set("Destroy", method(handle, ignored -> { tween.dispose(); return LuaValue.NIL; }));
+        handle.rawset("__tween_completed", tween.completedSignal());
         return registration.attachClassInstance(handle, "Tween", null);
     }
 

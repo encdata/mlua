@@ -7,8 +7,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "src/main/java/dev/mlua/modules/tween/service/MLuaTweenService.java"
 PROPERTIES = ROOT / "src/main/java/dev/mlua/modules/tween/service/MLuaTweenProperties.java"
+MODULE = ROOT / "src/main/java/dev/mlua/modules/tween/TweenModule.java"
 service = SERVICE.read_text(encoding="utf-8")
 properties = PROPERTIES.read_text(encoding="utf-8")
+module = MODULE.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -31,5 +33,14 @@ for token in ("classNameOf(targetValue)", "__mlua_service_name", "goals.next(key
         fail(f"property resolver is missing {token}")
 if "return List.copyOf(properties)" in properties:
     fail("property resolver adds a redundant list copy before MLuaTween takes its immutable snapshot")
+for method in ("Play", "Pause", "Resume", "Cancel", "GetPlaybackState", "GetError", "GetCompleted", "Destroy"):
+    if f'{{"{method}",' not in module or 'registerInstanceMethod(registration, "Tween", method[0], method[1])' not in module:
+        fail(f"Tween.{method} is missing from the registered class API")
+if 'registerInstanceProperty(registration, "Tween", "Completed", "GetCompleted"' not in module:
+    fail("Tween.Completed is missing from the registered read-only property API")
+if 'handle.set("GetCompleted"' not in service or 'handle.rawset("__tween_completed"' not in service:
+    fail("Tween instances do not expose their registered Completed property getter")
+if 'tween.dispose(); return LuaValue.NIL;' not in service:
+    fail("Tween:Destroy does not release its runtime state")
 
 print("Tween service contract passed (target and goal validation have a dedicated owner).")
