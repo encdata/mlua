@@ -182,7 +182,7 @@ abstract class MLuaRenderObjectApi extends MLuaReflectiveService {
         return value.orElse(LuaValue.NIL).opttable(new LuaTable());
     }
 
-    private LuaTable connection(MLuaConnection connection) {
+    protected final LuaTable connection(MLuaConnection connection) {
         return MLuaLuaBindings.connection(connection, this.context.registration());
     }
 
