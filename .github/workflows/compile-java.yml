@@ -85,6 +85,9 @@ jobs:
       - name: Validate shared Lua callback error handling
         run: python .github/scripts/verify-lua-error-boundary-contract.py
 
+      - name: Validate indexed class hierarchy ownership
+        run: python .github/scripts/verify-class-hierarchy-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

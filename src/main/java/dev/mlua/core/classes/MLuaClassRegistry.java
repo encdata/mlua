@@ -56,7 +56,7 @@ public final class MLuaClassRegistry {
          this.pendingClassRemovals.remove(name);
          this.requireStableParent(name, parentName);
          this.refreshParentLookup(existing, name);
-         this.refreshInheritedMethodDescriptions();
+         this.refreshInheritedMethodDescriptionsFrom(name);
          return existing;
       }
 
@@ -69,7 +69,7 @@ public final class MLuaClassRegistry {
       this.registeredClassTables.add(classTable);
       if (parentName != null) this.recordParent(name, parentName);
       this.refreshParentLookup(classTable, name);
-      this.refreshInheritedMethodDescriptions();
+      this.refreshInheritedMethodDescriptionsFrom(name);
       return classTable;
    }
 
@@ -129,7 +129,7 @@ public final class MLuaClassRegistry {
       this.registeredClassTables.add(classTable);
       if (parentName != null) this.recordParent(name, parentName);
       this.refreshParentLookup(classTable, name);
-      this.refreshInheritedMethodDescriptions();
+      this.refreshInheritedMethodDescriptionsFrom(name);
       return classTable;
    }
 
@@ -218,15 +218,14 @@ public final class MLuaClassRegistry {
    }
 
    private void refreshClassesUsingMixin(String mixinName) {
+      Set<String> affectedClasses = new HashSet<>();
       for (Map.Entry<String, List<String>> entry : this.appliedMixins.entrySet()) {
          if (!entry.getValue().contains(mixinName)) continue;
          String mixinOwner = entry.getKey();
-         for (String candidate : this.classes.keySet()) {
-            if (candidate.equals(mixinOwner) || this.inheritsFrom(candidate, mixinOwner)) {
-               this.refreshInheritedMethodDescriptions(candidate);
-            }
-         }
+         affectedClasses.add(mixinOwner);
+         affectedClasses.addAll(this.hierarchy.descendantsOf(mixinOwner));
       }
+      affectedClasses.forEach(this::refreshInheritedMethodDescriptions);
    }
 
    public synchronized void applyMixin(String className, String mixinName) {
@@ -423,7 +422,6 @@ public final class MLuaClassRegistry {
       String affectedParent = this.hierarchy.removeClass(name);
       List<String> removedMixins = List.copyOf(this.appliedMixins.getOrDefault(name, List.of()));
       this.appliedMixins.remove(name);
-      this.refreshInheritedMethodDescriptions();
       if (affectedParent != null) this.removePendingClassIfUnused(affectedParent);
       for (String mixinName : removedMixins) this.removePendingMixinIfUnused(mixinName);
       return true;
@@ -858,10 +856,9 @@ public final class MLuaClassRegistry {
    }
 
    private void refreshInheritedMethodDescriptionsFrom(String changedClass) {
-      for (String candidate : this.classes.keySet()) {
-         if (candidate.equals(changedClass) || this.inheritsFrom(candidate, changedClass)) {
-            this.refreshInheritedMethodDescriptions(candidate);
-         }
+      this.refreshInheritedMethodDescriptions(changedClass);
+      for (String descendant : this.hierarchy.descendantsOf(changedClass)) {
+         this.refreshInheritedMethodDescriptions(descendant);
       }
    }
 
