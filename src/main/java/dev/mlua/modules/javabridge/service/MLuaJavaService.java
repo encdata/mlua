@@ -6,12 +6,9 @@ import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.common.enums.Side;
-import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -181,12 +178,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     Class<?> rawClass(Type type) {
-        if (type instanceof Class<?> clazz) return clazz;
-        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> clazz) return clazz;
-        if (type instanceof java.lang.reflect.GenericArrayType genericArray) {
-            return Array.newInstance(rawClass(genericArray.getGenericComponentType()), 0).getClass();
-        }
-        return Object.class;
+        return MLuaJavaReflectionSupport.rawClass(type);
     }
 
     Type typeArgument(Type type, int index) {
@@ -351,92 +343,27 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     String describeArgs(Object[] rawArgs) {
-        List<String> parts = new ArrayList<>(rawArgs.length);
-        for (Object rawArg : rawArgs) {
-            if (rawArg instanceof MLuaJavaTableArgument) {
-                parts.add("LuaTable");
-            } else {
-                parts.add(rawArg == null ? "nil" : rawArg.getClass().getName());
-            }
-        }
-        return parts.toString();
+        return MLuaJavaReflectionSupport.describeArgs(rawArgs);
     }
 
     String describeMethods(List<Method> methods) {
-        List<String> parts = new ArrayList<>(methods.size());
-        for (Method method : methods) {
-            parts.add(methodSignature(method));
-        }
-        return parts.toString();
+        return MLuaJavaReflectionSupport.describeMethods(methods);
     }
 
     String describeConstructors(Class<?> clazz) {
-        List<String> parts = new ArrayList<>();
-        for (Constructor<?> constructor : clazz.getConstructors()) {
-            StringBuilder builder = new StringBuilder(clazz.getName()).append("(");
-            Class<?>[] parameterTypes = constructor.getParameterTypes();
-            for (int i = 0; i < parameterTypes.length; i++) {
-                if (i > 0) {
-                    builder.append(", ");
-                }
-                builder.append(parameterTypes[i].getName());
-            }
-            builder.append(")");
-            parts.add(builder.toString());
-        }
-        return parts.toString();
+        return MLuaJavaReflectionSupport.describeConstructors(clazz);
     }
 
     String rootMessage(Exception exception) {
-        Throwable cause = exception instanceof InvocationTargetException ite && ite.getCause() != null
-            ? ite.getCause()
-            : exception;
-        return cause.getClass().getName() + ": " + cause.getMessage();
+        return MLuaJavaReflectionSupport.rootMessage(exception);
     }
 
     String methodSignature(Method method) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(method.getName()).append("(");
-        Class<?>[] parameterTypes = method.getParameterTypes();
-        for (int i = 0; i < parameterTypes.length; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            builder.append(parameterTypes[i].getName());
-        }
-        builder.append(") -> ").append(method.getReturnType().getName());
-        return builder.toString();
+        return MLuaJavaReflectionSupport.methodSignature(method);
     }
 
     Class<?> boxType(Class<?> type) {
-        if (!type.isPrimitive()) {
-            return type;
-        }
-        if (type == boolean.class) {
-            return Boolean.class;
-        }
-        if (type == byte.class) {
-            return Byte.class;
-        }
-        if (type == short.class) {
-            return Short.class;
-        }
-        if (type == int.class) {
-            return Integer.class;
-        }
-        if (type == long.class) {
-            return Long.class;
-        }
-        if (type == float.class) {
-            return Float.class;
-        }
-        if (type == double.class) {
-            return Double.class;
-        }
-        if (type == char.class) {
-            return Character.class;
-        }
-        return type;
+        return MLuaJavaReflectionSupport.boxType(type);
     }
 
     Class<?> tryResolveClass(String name) {

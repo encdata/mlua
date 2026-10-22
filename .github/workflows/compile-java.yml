@@ -109,6 +109,9 @@ jobs:
       - name: Validate sound handle ownership
         run: python .github/scripts/verify-sound-service-contract.py
 
+      - name: Validate Java reflection support ownership
+        run: python .github/scripts/verify-java-reflection-support-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
