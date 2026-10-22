@@ -70,6 +70,17 @@ if "bridge.featureCounts(owner).forAddon()" not in test:
     fail("the world generation bridge regression test does not verify addon-owned usage counts")
 
 registry_api = (API_ROOT / "MLuaRegistryApi.java").read_text(encoding="utf-8")
+limits_api_path = API_ROOT / "MLuaRegistryLimitsApi.java"
+if not limits_api_path.is_file():
+    fail("Registry script limit snapshots must have a dedicated API owner")
+limits_api = limits_api_path.read_text(encoding="utf-8")
+if "MLuaRegistryLimitsApi.install(service, table)" not in registry_api:
+    fail("Registry API assembly does not delegate script limits to their owner")
+if 'registry.set("GetScriptLimits"' not in limits_api or 'table.set("GetScriptLimits"' in registry_api:
+    fail("GetScriptLimits registration remains mixed into the registry API assembler")
+for field in ("ActiveBehaviors", "ActiveRegistryDefinitions", "ActivePlacedFeatures", "MaxPlacedFeatures"):
+    if f'limits.set("{field}"' not in limits_api:
+        fail(f"Registry script limit snapshot is missing {field}")
 root_queries = (API_ROOT / "MLuaRegistryRootQueries.java").read_text(encoding="utf-8")
 if "MLuaRegistryRootQueries.install(service, table)" not in registry_api:
     fail("Registry root lookup methods are not installed through their query owner")
