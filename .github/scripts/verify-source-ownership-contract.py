@@ -27,6 +27,11 @@ for token in ("ResourceLocation", "Identifier", "readResourceLocation()", "readI
     if token not in packet:
         raise SystemExit(f"Animation sync packet is missing version-scoped codec support for {token}")
 
+generated_asset_pack = ROOT / "src/main/java/dev/mlua/runtime/assets/MLuaGeneratedAssetPack.java"
+generated_asset_pack_overlay = ROOT / "mlua-loaders/common/26.1/project/src/main/java/dev/mlua/runtime/assets/MLuaGeneratedAssetPack.java"
+if not generated_asset_pack.is_file() or generated_asset_pack_overlay.exists():
+    raise SystemExit("Generated asset pack must have one shared owner with version-specific code in that source")
+
 modern_item = (ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/scripted/MLuaScriptedItem.java").read_text(encoding="utf-8")
 modern_item_dispatcher = (ROOT / "mlua-versions/common/26.1/dev/mlua/runtime/registry/MLuaItemBehaviorDispatcher.java").read_text(encoding="utf-8")
 for method in ("onUse", "onUseOnBlock", "onConsume", "onInventoryTick", "onAttackEntity", "onCrafted"):
