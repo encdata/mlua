@@ -11,7 +11,9 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** Caches validated reflective API plans once per service class. */
@@ -109,24 +111,32 @@ final class MLuaReflectiveServiceCatalog {
       return List.copyOf(described);
    }
 
-   /**
-    * Class.getMethods() omits some public members inherited from non-public service
-    * implementation bases. Include those declarations explicitly so internal base
-    * classes can share reflective Lua APIs without becoming public Java API types.
-    */
+   /** Collects public methods from service implementation bases and interfaces. */
    private static Method[] publicServiceMethods(Class<?> serviceType) {
-      List<Method> methods = new java.util.ArrayList<>(Arrays.asList(serviceType.getMethods()));
-      Set<String> signatures = new HashSet<>();
-      for (Method method : methods) signatures.add(methodSignature(method));
-      for (Class<?> current = serviceType.getSuperclass(); current != null && current != Object.class;
+      Map<String, Method> methods = new LinkedHashMap<>();
+      for (Class<?> current = serviceType; current != null && current != Object.class;
             current = current.getSuperclass()) {
          for (Method method : current.getDeclaredMethods()) {
-            if (Modifier.isPublic(method.getModifiers()) && signatures.add(methodSignature(method))) {
-               methods.add(method);
+            if (Modifier.isPublic(method.getModifiers())) {
+               methods.putIfAbsent(methodSignature(method), method);
             }
          }
+         for (Class<?> parentInterface : current.getInterfaces()) {
+            collectPublicInterfaceMethods(parentInterface, methods, new HashSet<>());
+         }
       }
-      return methods.toArray(Method[]::new);
+      return methods.values().toArray(Method[]::new);
+   }
+
+   private static void collectPublicInterfaceMethods(Class<?> type, Map<String, Method> methods,
+                                                      Set<Class<?>> visited) {
+      if (!visited.add(type)) return;
+      for (Method method : type.getDeclaredMethods()) {
+         if (Modifier.isPublic(method.getModifiers())) methods.putIfAbsent(methodSignature(method), method);
+      }
+      for (Class<?> parent : type.getInterfaces()) {
+         collectPublicInterfaceMethods(parent, methods, visited);
+      }
    }
 
    private static String methodSignature(Method method) {

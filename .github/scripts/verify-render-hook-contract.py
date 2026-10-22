@@ -246,8 +246,10 @@ lua_errors = (ROOT / "mlua-api/src/main/java/dev/mlua/api/MLuaLuaErrors.java").r
 if "extends MLuaRenderObjectApi" not in render_service or "class MLuaRenderObjectApi extends MLuaReflectiveService" not in render_object_api:
     fail("RenderService must keep its documented object API in the dedicated reflective object owner")
 reflective_catalog = (ROOT / "mlua-api/src/main/java/dev/mlua/core/service/MLuaReflectiveServiceCatalog.java").read_text(encoding="utf-8")
-if "publicServiceMethods(serviceType)" not in reflective_catalog or "current.getDeclaredMethods()" not in reflective_catalog:
-    fail("reflective services must expose documented methods inherited from internal implementation bases")
+if ("publicServiceMethods(serviceType)" not in reflective_catalog
+        or "current.getDeclaredMethods()" not in reflective_catalog
+        or "collectPublicInterfaceMethods(parentInterface, methods" not in reflective_catalog):
+    fail("reflective services must scan public methods across their class and interface hierarchy")
 if "public static VarArgFunction operation(String operation" not in lua_errors:
     fail("Java-backed Lua callbacks must use the common Lua exception boundary")
 if "MLuaLuaErrors.operation(\"Render service call\"" not in render_object_operations or "MLuaRenderService.fn(" in render_api:
