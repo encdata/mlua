@@ -13,9 +13,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.binding.MLuaNativeControl;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ConcurrentHashMap;
 import java.lang.ref.WeakReference;
 import java.nio.file.Path;
 import net.minecraft.network.chat.Component;
@@ -48,8 +46,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     private MLuaContext context;
     private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
     private final List<ScreenCallback> controlCallbacks = new CopyOnWriteArrayList<>();
-    private final Set<String> failedInputMethods = ConcurrentHashMap.newKeySet();
-    private final Set<String> failedLifecycleMethods = ConcurrentHashMap.newKeySet();
+    private final MLuaScriptScreenCallbacks classCallbacks = new MLuaScriptScreenCallbacks(this);
     private LuaValue closed = LuaValue.NIL;
     private LuaValue tickCallback = LuaValue.NIL;
     private LuaValue renderCallback = LuaValue.NIL;
@@ -108,6 +105,8 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     boolean isPendingOpen() { return this.pendingOpen; }
 
     boolean isDisposed() { return this.disposed; }
+
+    LuaTable luaInstance() { return this.luaInstance; }
 
     @Override protected void init() {
         super.init();
@@ -258,7 +257,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
                 MLuaLogger.LOGGER.error("Lua native screen close callback failed; callback released", failure);
             }
         }
-        this.invokeClassMethod("OnClose");
+        this.classCallbacks.invokeLifecycle("OnClose");
     }
 
     private void releaseAfterRemoval(boolean notify) {
@@ -309,7 +308,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         this.activated = true;
         this.pendingOpen = false;
         if (this.luaInstance != null) {
-            this.invokeClassMethod("Tick");
+            this.classCallbacks.invokeLifecycle("Tick");
         } else if (!this.tickFailed && this.tickCallback.isfunction()) {
             try { this.invokeLua(this.tickCallback, LuaValue.NONE); }
             catch (RuntimeException failure) {
@@ -324,7 +323,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     @Override public void resize(Minecraft minecraft, int width, int height) {
         super.resize(minecraft, width, height);
         if (!this.disposed) {
-            this.invokeClassMethod("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
+            this.classCallbacks.invokeLifecycle("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
         }
     }
     //--endversion
@@ -333,32 +332,17 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     @Override public void resize(int width, int height) {
         super.resize(width, height);
         if (!this.disposed) {
-            this.invokeClassMethod("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
+            this.classCallbacks.invokeLifecycle("OnResize", LuaValue.valueOf(width), LuaValue.valueOf(height));
         }
     }
     //--endversion
 
     @Override public boolean isPauseScreen() {
-        if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains("IsPauseScreen")) return true;
-        LuaValue method = this.luaInstance.get("IsPauseScreen");
-        if (!method.isfunction()) return true;
-        try {
-            LuaValue result = this.invokeLua(method, LuaValue.varargsOf(new LuaValue[]{this.luaInstance})).arg1();
-            return optionalBooleanResult(result, "IsPauseScreen", true);
-        } catch (RuntimeException failure) {
-            this.failedInputMethods.add("IsPauseScreen");
-            MLuaLogger.LOGGER.error("Lua screen method 'IsPauseScreen' failed; using Minecraft's pause-screen default", failure);
-            return true;
-        }
+        return this.classCallbacks.isPauseScreen();
     }
 
     @Override public boolean shouldCloseOnEsc() {
-        if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains("ShouldCloseOnEsc")) {
-            return super.shouldCloseOnEsc();
-        }
-        LuaValue method = this.luaInstance.get("ShouldCloseOnEsc");
-        if (!method.isfunction()) return super.shouldCloseOnEsc();
-        Boolean shouldClose = this.invokeClassInputMethodResult("ShouldCloseOnEsc");
+        Boolean shouldClose = this.classCallbacks.invokeInputResult("ShouldCloseOnEsc");
         return shouldClose == null ? super.shouldCloseOnEsc() : shouldClose;
     }
 
@@ -368,97 +352,44 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
             for (int index = 0; index < paths.size(); index++) {
                 droppedPaths.set(index + 1, LuaValue.valueOf(paths.get(index).toString()));
             }
-            this.invokeClassInputMethod("OnFilesDrop", droppedPaths);
+            this.classCallbacks.invokeInputMethod("OnFilesDrop", droppedPaths);
         }
         super.onFilesDrop(paths);
     }
 
-    private void invokeClassMethod(String methodName, LuaValue... parameters) {
-        if (this.luaInstance == null || this.failedLifecycleMethods.contains(methodName)) return;
-        LuaValue method = this.luaInstance.get(methodName);
-        if (!method.isfunction()) return;
-        if (parameters.length == 0) {
-            try { this.invokeLua(method, LuaValue.varargsOf(new LuaValue[]{this.luaInstance})); }
-            catch (RuntimeException failure) {
-                this.failedLifecycleMethods.add(methodName);
-                MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
-            }
-            return;
-        }
-        LuaValue[] arguments = new LuaValue[parameters.length + 1];
-        arguments[0] = this.luaInstance;
-        System.arraycopy(parameters, 0, arguments, 1, parameters.length);
-        try { this.invokeLua(method, LuaValue.varargsOf(arguments)); }
-        catch (RuntimeException failure) {
-            this.failedLifecycleMethods.add(methodName);
-            MLuaLogger.LOGGER.error("Lua screen lifecycle method '{}' failed", methodName, failure);
-        }
-    }
-
-    private boolean invokeClassInputMethod(String methodName, LuaValue... parameters) {
-        return Boolean.TRUE.equals(this.invokeClassInputMethodResult(methodName, parameters));
-    }
-
-    /** Returns null when Minecraft should handle the input normally. */
-    private Boolean invokeClassInputMethodResult(String methodName, LuaValue... parameters) {
-        if (this.disposed || this.luaInstance == null || this.failedInputMethods.contains(methodName)) return null;
-        LuaValue method = this.luaInstance.get(methodName);
-        if (!method.isfunction()) return null;
-        LuaValue[] arguments = new LuaValue[parameters.length + 1];
-        arguments[0] = this.luaInstance;
-        System.arraycopy(parameters, 0, arguments, 1, parameters.length);
-        try {
-            LuaValue result = this.invokeLua(method, LuaValue.varargsOf(arguments)).arg1();
-            return result.isnil() ? null : optionalBooleanResult(result, methodName, false);
-        }
-        catch (RuntimeException failure) {
-            this.failedInputMethods.add(methodName);
-            MLuaLogger.LOGGER.error("Lua screen input method '{}' failed", methodName, failure);
-            return null;
-        }
-    }
-
-    private static boolean optionalBooleanResult(LuaValue result, String methodName, boolean nilValue) {
-        if (result.isnil()) return nilValue;
-        if (!result.isboolean()) {
-            throw new LuaError("[MLua] Screen:" + methodName + " must return true, false, or nil.");
-        }
-        return result.toboolean();
-    }
-
     //--version 1.20.1,1.21.1
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (this.invokeClassInputMethod("KeyPressed", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
+        if (this.classCallbacks.invokeInputMethod("KeyPressed", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
             LuaValue.valueOf(modifiers))) return true;
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
-        if (this.invokeClassInputMethod("KeyReleased", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
+        if (this.classCallbacks.invokeInputMethod("KeyReleased", LuaValue.valueOf(keyCode), LuaValue.valueOf(scanCode),
             LuaValue.valueOf(modifiers))) return true;
         return super.keyReleased(keyCode, scanCode, modifiers);
     }
 
     @Override public boolean charTyped(char character, int modifiers) {
-        if (this.invokeClassInputMethod("CharTyped", LuaValue.valueOf(String.valueOf(character)),
+        if (this.classCallbacks.invokeInputMethod("CharTyped", LuaValue.valueOf(String.valueOf(character)),
             LuaValue.valueOf(modifiers))) return true;
         return super.charTyped(character, modifiers);
     }
 
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (this.invokeClassInputMethod("MouseClicked", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+        if (this.classCallbacks.invokeInputMethod("MouseClicked", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
             LuaValue.valueOf(button), LuaValue.FALSE)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (this.invokeClassInputMethod("MouseReleased", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+        if (this.classCallbacks.invokeInputMethod("MouseReleased", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
             LuaValue.valueOf(button))) return true;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (this.invokeClassInputMethod("MouseDragged", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+        if (this.classCallbacks.invokeInputMethod("MouseDragged", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
             LuaValue.valueOf(button), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
@@ -466,50 +397,50 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
 
     //--version 26.1
     @Override public boolean keyPressed(KeyEvent event) {
-        if (this.invokeClassInputMethod("KeyPressed", LuaValue.valueOf(event.key()),
+        if (this.classCallbacks.invokeInputMethod("KeyPressed", LuaValue.valueOf(event.key()),
             LuaValue.valueOf(event.scancode()), LuaValue.valueOf(event.modifiers()))) return true;
         return super.keyPressed(event);
     }
 
     @Override public boolean keyReleased(KeyEvent event) {
-        if (this.invokeClassInputMethod("KeyReleased", LuaValue.valueOf(event.key()),
+        if (this.classCallbacks.invokeInputMethod("KeyReleased", LuaValue.valueOf(event.key()),
             LuaValue.valueOf(event.scancode()), LuaValue.valueOf(event.modifiers()))) return true;
         return super.keyReleased(event);
     }
 
     @Override public boolean charTyped(CharacterEvent event) {
-        if (this.invokeClassInputMethod("CharTyped", LuaValue.valueOf(event.codepointAsString()),
+        if (this.classCallbacks.invokeInputMethod("CharTyped", LuaValue.valueOf(event.codepointAsString()),
             LuaValue.ZERO)) return true;
         return super.charTyped(event);
     }
 
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (this.invokeClassInputMethod("MouseClicked", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
+        if (this.classCallbacks.invokeInputMethod("MouseClicked", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
             LuaValue.valueOf(event.button()), LuaValue.valueOf(doubleClick))) return true;
         return super.mouseClicked(event, doubleClick);
     }
 
     @Override public boolean mouseReleased(MouseButtonEvent event) {
-        if (this.invokeClassInputMethod("MouseReleased", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
+        if (this.classCallbacks.invokeInputMethod("MouseReleased", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
             LuaValue.valueOf(event.button()))) return true;
         return super.mouseReleased(event);
     }
 
     @Override public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
-        if (this.invokeClassInputMethod("MouseDragged", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
+        if (this.classCallbacks.invokeInputMethod("MouseDragged", LuaValue.valueOf(event.x()), LuaValue.valueOf(event.y()),
             LuaValue.valueOf(event.button()), LuaValue.valueOf(dragX), LuaValue.valueOf(dragY))) return true;
         return super.mouseDragged(event, dragX, dragY);
     }
     //--endversion
 
     @Override public void mouseMoved(double mouseX, double mouseY) {
-        this.invokeClassInputMethod("MouseMoved", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY));
+        this.classCallbacks.invokeInputMethod("MouseMoved", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY));
         super.mouseMoved(mouseX, mouseY);
     }
 
     //--version 1.20.1
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (this.invokeClassInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+        if (this.classCallbacks.invokeInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
             LuaValue.ZERO, LuaValue.valueOf(delta))) return true;
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
@@ -517,7 +448,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
 
     //--version 1.21.1,26.1
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (this.invokeClassInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
+        if (this.classCallbacks.invokeInputMethod("MouseScrolled", LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY),
             LuaValue.valueOf(scrollX), LuaValue.valueOf(scrollY))) return true;
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
@@ -601,7 +532,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         this.className = null;
         this.fields = null;
         this.context = null;
-        this.failedInputMethods.clear();
+        this.classCallbacks.clear();
         MLuaNativeControl.invalidateScreen(this);
     }
 
@@ -616,7 +547,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         this.controlCallbacks.clear();
     }
 
-    private Varargs invokeLua(LuaValue function, Varargs arguments) {
+    Varargs invokeLua(LuaValue function, Varargs arguments) {
         MLuaContext activeContext = this.context;
         if (activeContext == null || function == null || !function.isfunction()) return LuaValue.NONE;
         return MLuaLuaBindings.withContext(activeContext,

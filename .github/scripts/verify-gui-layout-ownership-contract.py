@@ -14,6 +14,7 @@ screens_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiScr
 controls_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiNativeControlRegistry.java"
 screen_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreen.java"
 builder_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenBuilder.java"
+callbacks_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenCallbacks.java"
 service = service_path.read_text(encoding="utf-8")
 controller = controller_path.read_text(encoding="utf-8")
 targets = targets_path.read_text(encoding="utf-8")
@@ -21,6 +22,7 @@ screens = screens_path.read_text(encoding="utf-8")
 controls = controls_path.read_text(encoding="utf-8")
 screen = screen_path.read_text(encoding="utf-8")
 builder = builder_path.read_text(encoding="utf-8")
+callbacks = callbacks_path.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -96,6 +98,12 @@ if re.search(r"(?m)^\s*private static void applyLayoutToWidgets\s*\(", service):
 
 if "MLuaScriptScreenBuilder.create(this)" not in screen:
     fail("script screen must delegate its Lua initialization builder to MLuaScriptScreenBuilder")
+if "classCallbacks.invokeLifecycle(" not in screen or "classCallbacks.invokeInputMethod(" not in screen \
+        or "classCallbacks.clear()" not in screen:
+    fail("script screen must delegate Lua lifecycle and input callback state to its callback dispatcher")
+for operation in ("failedInputMethods", "failedLifecycleMethods", "invokeLifecycle", "invokeInputResult", "isPauseScreen"):
+    if operation not in callbacks:
+        fail(f"script screen callback dispatcher is missing {operation}")
 for method in ("SetOnClose", "SetOnTick", "SetOnRender", "AddText", "AddButton", "AddEditBox", "AddRenderableWidget"):
     if f'builder.set("{method}"' not in builder:
         fail(f"script screen builder is missing {method}")
