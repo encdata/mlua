@@ -6,8 +6,8 @@ import dev.mlua.module.MLuaModuleLoader;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.runtime.server.MLuaServerThread;
 import java.lang.ref.WeakReference;
-import java.util.LinkedHashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -132,9 +132,9 @@ final class MLuaContextBindings {
       if (context == null) return callback.get();
       Globals globals = context.globals();
       LuaThread running = globals == null ? null : globals.running;
-      if (canBypassExecutionLock(context, running)) return callback.get();
-      Object lock = context.executionLock();
       MinecraftServer server = context.server();
+      if (canBypassExecutionLock(server, running)) return callback.get();
+      Object lock = context.executionLock();
       if (server != null && server.isSameThread()
             && !MLuaServerThread.isExecutingLuaOwnerWork(server)
             && !Thread.holdsLock(lock) && isExecutionLockActive(lock)) {
@@ -147,11 +147,11 @@ final class MLuaContextBindings {
          });
       }
       synchronized (lock) {
-         markExecutionLockActive(lock, 1);
+         if (server != null) markExecutionLockActive(lock, 1);
          try {
             return callback.get();
          } finally {
-            markExecutionLockActive(lock, -1);
+            if (server != null) markExecutionLockActive(lock, -1);
          }
       }
    }
@@ -170,9 +170,8 @@ final class MLuaContextBindings {
       }
    }
 
-   private static boolean canBypassExecutionLock(MLuaContext context, LuaThread running) {
+   private static boolean canBypassExecutionLock(MinecraftServer server, LuaThread running) {
       if (running != null && running.isRunningOnCurrentThread()) return true;
-      MinecraftServer server = context.server();
       return server != null && server.isSameThread()
          && MLuaServerThread.isExecutingLuaOwnerWork(server);
    }
