@@ -44,15 +44,18 @@ final class MLuaModelFieldAccess {
     };
 
     private static final class RendererModelPathCache {
-        private long generation = Long.MIN_VALUE;
-        private String path;
+        private volatile long generation = Long.MIN_VALUE;
+        private volatile String path;
 
-        synchronized String resolve(long currentGeneration, Supplier<String> resolver) {
-            if (this.generation != currentGeneration) {
-                this.path = resolver.get();
-                this.generation = currentGeneration;
+        String resolve(long currentGeneration, Supplier<String> resolver) {
+            if (this.generation == currentGeneration) return this.path;
+            synchronized (this) {
+                if (this.generation != currentGeneration) {
+                    this.path = resolver.get();
+                    this.generation = currentGeneration;
+                }
+                return this.path;
             }
-            return this.path;
         }
     }
 

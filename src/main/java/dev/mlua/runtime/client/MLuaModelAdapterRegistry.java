@@ -77,8 +77,8 @@ public final class MLuaModelAdapterRegistry {
 
     private static final Owner LEGACY_OWNER = new Owner(null, "");
     private static final ConcurrentHashMap<String, Map<Owner, Map<String, String>>> ADAPTERS = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, Map<Owner, String>> RENDERER_ADAPTERS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Map<Owner, AdapterResolver>> ADAPTER_RESOLVERS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, OrderedResolvers> ORDERED_RESOLVERS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Map<Owner, CustomAdapter>> CUSTOM_ADAPTERS = new ConcurrentHashMap<>();
     private static int registeredPartCount;
     private static int registeredCustomPartCount;
@@ -95,6 +95,7 @@ public final class MLuaModelAdapterRegistry {
         new MLuaWeakIdentityMap<>();
     private record AppliedModel(Class<?> modelClass, Map<String, String> mappings,
                                 java.util.Set<String> resolvedBones, java.util.Set<String> customBones) { }
+    private record OrderedResolvers(long generation, List<AdapterResolver> values) { }
     private record CustomAdapterResolution(Map<CustomAdapter, List<String>> adapters,
                                            Map<String, CustomAdapter> byBone) {
         private static final CustomAdapterResolution EMPTY = new CustomAdapterResolution(Map.of(), Map.of());
@@ -373,56 +374,14 @@ public final class MLuaModelAdapterRegistry {
 
     /** Registers the field path that resolves a renderer instance to its adapted model. */
     public static synchronized void registerRendererAdapter(String rendererClass, String modelFieldPath, Owner owner) {
-        String className = normalizeClassName(rendererClass);
-        String path = normalizeFieldPath(modelFieldPath);
-        Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
-        Map<Owner, String> existing = RENDERER_ADAPTERS.get(className);
-        if (existing == null || !existing.containsKey(resolvedOwner)) {
-            long totalAdapters = RENDERER_ADAPTERS.values().stream().mapToLong(Map::size).sum();
-            if (totalAdapters >= MAX_RENDERER_ADAPTERS) {
-                throw new IllegalStateException("MLua already has the maximum of " + MAX_RENDERER_ADAPTERS
-                    + " renderer model adapters registered across all addons");
-            }
-            long ownedAdapters = RENDERER_ADAPTERS.values().stream()
-                .filter(adapters -> adapters.containsKey(resolvedOwner)).count();
-            if (ownedAdapters >= MAX_RENDERER_ADAPTERS_PER_OWNER) {
-                throw new IllegalStateException("Addon '" + resolvedOwner.modId() + "' already has the maximum of "
-                    + MAX_RENDERER_ADAPTERS_PER_OWNER + " renderer model adapters");
-            }
-        }
-        RENDERER_ADAPTERS.compute(className, (ignored, current) -> {
-            if (current == null && RENDERER_ADAPTERS.size() >= MAX_RENDERER_CLASSES) {
-                throw new IllegalStateException("MLua already has the maximum of " + MAX_RENDERER_CLASSES
-                    + " renderer adapter classes registered");
-            }
-            LinkedHashMap<Owner, String> owners = current == null
-                ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
-            for (Map.Entry<Owner, String> entry : owners.entrySet()) {
-                if (!entry.getKey().equals(resolvedOwner) && !entry.getValue().equals(path)) {
-                    String addon = entry.getKey().modId().isBlank() ? "another owner" : "addon '" + entry.getKey().modId() + "'";
-                    throw new IllegalStateException("Renderer model field for " + className
-                        + " is already registered differently by " + addon);
-                }
-            }
-            owners.put(resolvedOwner, path);
-            return Map.copyOf(owners);
-        });
+        MLuaRendererAdapterRegistry.register(rendererClass, modelFieldPath, owner);
         clearMappingCaches();
     }
 
     public static synchronized boolean unregisterRendererAdapter(String rendererClass, Owner owner) {
-        String className = normalizeClassName(rendererClass);
-        Owner resolvedOwner = owner == null ? LEGACY_OWNER : owner;
-        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
-        RENDERER_ADAPTERS.computeIfPresent(className, (ignored, current) -> {
-            if (!current.containsKey(resolvedOwner)) return current;
-            LinkedHashMap<Owner, String> owners = new LinkedHashMap<>(current);
-            owners.remove(resolvedOwner);
-            removed.set(true);
-            return owners.isEmpty() ? null : Map.copyOf(owners);
-        });
-        if (removed.get()) clearMappingCaches();
-        return removed.get();
+        boolean removed = MLuaRendererAdapterRegistry.unregister(rendererClass, owner);
+        if (removed) clearMappingCaches();
+        return removed;
     }
 
     /** Registers a Lua function that resolves bone names to native model-part paths for a model instance. */
@@ -647,19 +606,15 @@ public final class MLuaModelAdapterRegistry {
     }
 
     public static String registeredRendererModelField(String rendererClass) {
-        String className = normalizeClassName(rendererClass);
-        Map<Owner, String> owners = RENDERER_ADAPTERS.get(className);
-        return owners == null || owners.isEmpty() ? null : owners.values().iterator().next();
+        return MLuaRendererAdapterRegistry.registeredField(rendererClass);
     }
 
-    public static synchronized int registeredRendererClassCount() { return RENDERER_ADAPTERS.size(); }
+    public static synchronized int registeredRendererClassCount() { return MLuaRendererAdapterRegistry.classCount(); }
     public static synchronized int registeredRendererAdapterCount() {
-        return RENDERER_ADAPTERS.values().stream().mapToInt(Map::size).sum();
+        return MLuaRendererAdapterRegistry.adapterCount();
     }
     public static synchronized int registeredRendererAdapterCount(Owner owner) {
-        if (owner == null) return 0;
-        return (int) RENDERER_ADAPTERS.values().stream()
-            .filter(adapters -> adapters.containsKey(owner)).count();
+        return MLuaRendererAdapterRegistry.adapterCount(owner);
     }
     public static synchronized int registeredResolverClassCount() { return ADAPTER_RESOLVERS.size(); }
     public static synchronized int registeredCustomAdapterClassCount() { return CUSTOM_ADAPTERS.size(); }
@@ -709,14 +664,7 @@ public final class MLuaModelAdapterRegistry {
             });
         }
         registeredPartCount -= removedParts[0];
-        for (String rendererClass : RENDERER_ADAPTERS.keySet()) {
-            RENDERER_ADAPTERS.computeIfPresent(rendererClass, (ignored, current) -> {
-                LinkedHashMap<Owner, String> owners = new LinkedHashMap<>(current);
-                if (!owners.keySet().removeIf(predicate)) return current;
-                removed.set(true);
-                return owners.isEmpty() ? null : Map.copyOf(owners);
-            });
-        }
+        removed.set(MLuaRendererAdapterRegistry.removeOwned(predicate) || removed.get());
         for (String modelClass : ADAPTER_RESOLVERS.keySet()) {
             ADAPTER_RESOLVERS.computeIfPresent(modelClass, (ignored, current) -> {
                 LinkedHashMap<Owner, AdapterResolver> owners = new LinkedHashMap<>(current);
@@ -856,6 +804,7 @@ public final class MLuaModelAdapterRegistry {
         RESOLVED_MAPPINGS.clear();
         RESOLVED_CUSTOM_ADAPTERS.clear();
         RESOLVED_INSTANCE_MAPPINGS.clear();
+        ORDERED_RESOLVERS.clear();
         APPLIED_MODELS.clear();
         MLuaModelFieldAccess.clearPathSegments();
         MLuaModelPartResolver.clear();
@@ -1124,8 +1073,7 @@ public final class MLuaModelAdapterRegistry {
             }
             Map<Owner, AdapterResolver> resolvers = ADAPTER_RESOLVERS.get(type.getName());
             if (resolvers != null && !resolvers.isEmpty()) {
-                List<AdapterResolver> ordered = resolvers.values().stream()
-                    .sorted(Comparator.comparingLong(AdapterResolver::registrationOrder)).toList();
+                List<AdapterResolver> ordered = orderedResolvers(type.getName(), resolvers);
                 for (AdapterResolver resolver : ordered) {
                     Map<String, String> resolved = invokeResolver(model, resolver);
                     if (resolved == null || resolved.isEmpty()) continue;
@@ -1155,6 +1103,19 @@ public final class MLuaModelAdapterRegistry {
         }
         if (!stable) return retryAfterInvalidation(model, invalidationRetries);
         return result.isEmpty() ? null : result;
+    }
+
+    private static List<AdapterResolver> orderedResolvers(String modelClass,
+                                                           Map<Owner, AdapterResolver> resolvers) {
+        long generation = MAPPING_GENERATION.get();
+        OrderedResolvers cached = ORDERED_RESOLVERS.get(modelClass);
+        if (cached != null && cached.generation() == generation) return cached.values();
+        List<AdapterResolver> ordered = resolvers.values().stream()
+            .sorted(Comparator.comparingLong(AdapterResolver::registrationOrder)).toList();
+        if (generation == MAPPING_GENERATION.get()) {
+            ORDERED_RESOLVERS.put(modelClass, new OrderedResolvers(generation, ordered));
+        }
+        return ordered;
     }
 
     private static Map<String, String> retryAfterInvalidation(Object model, int invalidationRetries) {
@@ -1254,16 +1215,16 @@ public final class MLuaModelAdapterRegistry {
     }
 
     private static String findRendererModelField(Class<?> rendererClass) {
-        return MLuaModelFieldAccess.rendererModelFieldPath(rendererClass, MAPPING_GENERATION.get(),
-            () -> findRendererModelFieldUncached(rendererClass));
+        while (true) {
+            long generation = MAPPING_GENERATION.get();
+            String path = MLuaModelFieldAccess.rendererModelFieldPath(rendererClass, generation,
+                () -> findRendererModelFieldUncached(rendererClass));
+            if (generation == MAPPING_GENERATION.get()) return path;
+        }
     }
 
     private static String findRendererModelFieldUncached(Class<?> rendererClass) {
-        for (Class<?> type = rendererClass; type != null; type = type.getSuperclass()) {
-            Map<Owner, String> owners = RENDERER_ADAPTERS.get(type.getName());
-            if (owners != null && !owners.isEmpty()) return owners.values().iterator().next();
-        }
-        return null;
+        return MLuaRendererAdapterRegistry.modelFieldFor(rendererClass);
     }
 
     /** Applies the registered model-part hierarchy to a pose stack for attachments. */
@@ -1318,7 +1279,7 @@ public final class MLuaModelAdapterRegistry {
         MLuaClientModelManager.applyCFrameDelta(part, cframe);
     }
 
-    private static String normalizeClassName(String value) {
+    static String normalizeClassName(String value) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException("Model class name cannot be empty");
         String className = value.trim();
         if (className.length() > MAX_CLASS_NAME_LENGTH) {
@@ -1342,10 +1303,6 @@ public final class MLuaModelAdapterRegistry {
 
     private static <K, V> Map<K, V> orderedMap(Map<K, V> values) {
         return Collections.unmodifiableMap(new LinkedHashMap<>(values));
-    }
-
-    private static String normalizeFieldPath(String path) {
-        return MLuaModelPartResolver.normalizeRendererFieldPath(path);
     }
 
     private static void validatePartPath(String boneName, String path) {

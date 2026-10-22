@@ -28,6 +28,9 @@ RENDER_SERVICE = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRende
 RENDER_OBJECT_API = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectApi.java"
 RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java"
 OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectCreation.java"
+MODEL_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterRegistry.java"
+RENDERER_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRendererAdapterRegistry.java"
+MODEL_FIELD_ACCESS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelFieldAccess.java"
 
 
 def fail(message: str) -> None:
@@ -231,9 +234,21 @@ if callback_source.count("invokeSafely(hook,") != 8:
     fail("a render target is missing from the protected callback dispatch path")
 if "disableHook(hook, failure);" not in safe_boundary or "VirtualMachineError | ThreadDeath" not in safe_boundary:
     fail("render setup failures must disable only the failing hook and rethrow fatal JVM errors")
-adapter_source = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterRegistry.java").read_text(encoding="utf-8")
+adapter_source = MODEL_ADAPTERS.read_text(encoding="utf-8")
+renderer_adapter_source = RENDERER_ADAPTERS.read_text(encoding="utf-8")
+model_field_access = MODEL_FIELD_ACCESS.read_text(encoding="utf-8")
 if "recordRenderFailureOnce(key)" not in adapter_source:
     fail("model adapter preparation failures are not deduplicated through the bounded warning cache")
+if "RENDERER_ADAPTERS = new ConcurrentHashMap" in adapter_source \
+        or "MLuaRendererAdapterRegistry.register(rendererClass, modelFieldPath, owner)" not in adapter_source \
+        or "Map<String, Map<Owner, String>> ADAPTERS" not in renderer_adapter_source:
+    fail("renderer field-path registrations must have a dedicated registry owner")
+if "rendererModelFieldPath(Class<?> rendererClass, long generation" not in model_field_access \
+        or "ClassValue<RendererModelPathCache> RENDERER_MODEL_PATHS" not in model_field_access:
+    fail("renderer model-field lookups must be cached by the field-access owner and invalidated by registry generation")
+if "orderedResolvers(type.getName(), resolvers)" not in adapter_source \
+        or "ORDERED_RESOLVERS.clear();" not in adapter_source:
+    fail("model resolver registration order must be cached between adapter changes")
 failure_cache = adapter_source.split("private static boolean recordRenderFailureOnce", 1)
 if len(failure_cache) != 2 or "MAX_RENDERER_WARNING_KEYS" not in failure_cache[1].split("\n    }", 1)[0]:
     fail("model adapter failure deduplication does not honor the bounded warning-key limit")
