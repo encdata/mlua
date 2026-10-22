@@ -10,8 +10,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import net.fabricmc.fabric.api.biome.v1.BiomeModification;
+import net.fabricmc.fabric.api.biome.v1.BiomeModificationContext;
 import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectionContext;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
@@ -31,6 +33,7 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
     private static final Object LOCK = new Object();
     private static final Map<String, FeatureRegistration> REGISTRATIONS = new LinkedHashMap<>();
     private static final Map<String, Integer> REGISTRATIONS_BY_OWNER = new HashMap<>();
+    private static final Map<String, List<FeatureRegistration>> OWNER_REGISTRATION_SNAPSHOTS = new ConcurrentHashMap<>();
     private static final Set<String> INSTALLED_MODIFIERS = new LinkedHashSet<>();
     private static final ThreadLocal<Map<String, List<FeatureRegistration>>> SELECTED_FEATURES =
         ThreadLocal.withInitial(HashMap::new);
@@ -54,6 +57,11 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
             }
             REGISTRATIONS.put(registration.id(), registration);
             REGISTRATIONS_BY_OWNER.put(owner, ownerCount + 1);
+            List<FeatureRegistration> ownerRegistrations = new ArrayList<>(
+                OWNER_REGISTRATION_SNAPSHOTS.getOrDefault(owner, List.of()));
+            ownerRegistrations.add(registration);
+            ownerRegistrations.sort(java.util.Comparator.comparing(FeatureRegistration::id));
+            OWNER_REGISTRATION_SNAPSHOTS.put(owner, List.copyOf(ownerRegistrations));
         }
     }
 
@@ -67,6 +75,12 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
             int ownerCount = REGISTRATIONS_BY_OWNER.getOrDefault(owner, 1) - 1;
             if (ownerCount <= 0) REGISTRATIONS_BY_OWNER.remove(owner);
             else REGISTRATIONS_BY_OWNER.put(owner, ownerCount);
+            List<FeatureRegistration> remaining = REGISTRATIONS_BY_OWNER.getOrDefault(owner, 0) == 0
+                ? List.of()
+                : OWNER_REGISTRATION_SNAPSHOTS.getOrDefault(owner, List.of()).stream()
+                    .filter(registration -> !registration.id().equals(expected.id())).toList();
+            if (remaining.isEmpty()) OWNER_REGISTRATION_SNAPSHOTS.remove(owner);
+            else OWNER_REGISTRATION_SNAPSHOTS.put(owner, remaining);
             return true;
         }
     }
@@ -126,32 +140,31 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
     }
 
     private static boolean matchesAny(String owner, BiomeSelectionContext context) {
-        List<FeatureRegistration> selected = registrationsSnapshot(owner).stream()
-            .filter(registration -> registration.matches(context)).toList();
-        SELECTED_FEATURES.get().put(owner, selected);
-        return !selected.isEmpty();
+        ArrayList<FeatureRegistration> selected = null;
+        for (FeatureRegistration registration : OWNER_REGISTRATION_SNAPSHOTS.getOrDefault(owner, List.of())) {
+            if (!registration.matches(context)) continue;
+            if (selected == null) selected = new ArrayList<>();
+            selected.add(registration);
+        }
+        Map<String, List<FeatureRegistration>> selections = SELECTED_FEATURES.get();
+        if (selected == null) {
+            selections.remove(owner);
+            return false;
+        }
+        selections.put(owner, List.copyOf(selected));
+        return true;
     }
 
-    private static void applyFeatures(String owner, Object context) {
+    private static void applyFeatures(String owner, BiomeModificationContext context) {
         List<FeatureRegistration> selected = SELECTED_FEATURES.get().remove(owner);
         if (selected == null) return;
+        BiomeModificationContext.GenerationSettingsContext settings = context.getGenerationSettings();
         for (FeatureRegistration registration : selected) {
             try {
-                Object settings = context.getClass().getMethod("getGenerationSettings").invoke(context);
-                settings.getClass().getMethod("addFeature", GenerationStep.Decoration.class, ResourceKey.class)
-                    .invoke(settings, registration.generationStep(), registration.featureKey());
-            } catch (ReflectiveOperationException failure) {
+                settings.addFeature(registration.generationStep(), registration.featureKey());
+            } catch (RuntimeException failure) {
                 throw new IllegalStateException("Fabric could not apply placed feature " + registration.id(), failure);
             }
-        }
-    }
-
-    private static List<FeatureRegistration> registrationsSnapshot(String owner) {
-        synchronized (LOCK) {
-            return REGISTRATIONS.values().stream()
-                .filter(registration -> registration.owner().equals(owner))
-                .sorted(java.util.Comparator.comparing(FeatureRegistration::id))
-                .toList();
         }
     }
 
@@ -162,7 +175,10 @@ public final class FabricWorldGenerationBridge implements WorldGenerationBridge 
         private String id() { return owner + ":" + name; }
 
         private boolean matches(BiomeSelectionContext context) {
-            return predicates.stream().anyMatch(selector -> selector.test(context));
+            for (Predicate<BiomeSelectionContext> selector : predicates) {
+                if (selector.test(context)) return true;
+            }
+            return false;
         }
 
         private boolean sameDefinition(FeatureRegistration other) {

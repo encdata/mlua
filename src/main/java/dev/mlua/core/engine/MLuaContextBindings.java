@@ -7,6 +7,7 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.runtime.server.MLuaServerThread;
 import java.lang.ref.WeakReference;
 import java.util.LinkedHashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -21,6 +22,8 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 final class MLuaContextBindings {
     private static final ThreadLocal<WeakReference<MLuaContext>> ACTIVE_CONTEXT = new ThreadLocal<>();
     private static final Map<Globals, Set<String>> CONTEXT_GLOBAL_NAMES = new WeakHashMap<>();
+    private static final Map<Object, Integer> ACTIVE_EXECUTION_LOCKS = new IdentityHashMap<>();
+    private static final Object EXECUTION_LOCK_TRACKER = new Object();
     private static final LuaValue CONTEXT_KEY = LuaValue.valueOf("__mlua_context");
 
     private MLuaContextBindings() { }
@@ -130,14 +133,45 @@ final class MLuaContextBindings {
       Globals globals = context.globals();
       LuaThread running = globals == null ? null : globals.running;
       if (canBypassExecutionLock(context, running)) return callback.get();
-      synchronized (context.executionLock()) {
-         return callback.get();
+      Object lock = context.executionLock();
+      MinecraftServer server = context.server();
+      if (server != null && server.isSameThread()
+            && !MLuaServerThread.isExecutingLuaOwnerWork(server)
+            && !Thread.holdsLock(lock) && isExecutionLockActive(lock)) {
+         // A Lua coroutine can hold this lock while waiting for a server-thread
+         // operation. Let the server process that queued operation before waiting
+         // for the coroutine to release the lock, or the watchdog sees a deadlock.
+         MLuaServerThread.runOwnerThreadLuaWait(server, () -> {
+            server.managedBlock(() -> !isExecutionLockActive(lock));
+            return null;
+         });
+      }
+      synchronized (lock) {
+         markExecutionLockActive(lock, 1);
+         try {
+            return callback.get();
+         } finally {
+            markExecutionLockActive(lock, -1);
+         }
+      }
+   }
+
+   private static boolean isExecutionLockActive(Object lock) {
+      synchronized (EXECUTION_LOCK_TRACKER) {
+         return ACTIVE_EXECUTION_LOCKS.containsKey(lock);
+      }
+   }
+
+   private static void markExecutionLockActive(Object lock, int adjustment) {
+      synchronized (EXECUTION_LOCK_TRACKER) {
+         int count = ACTIVE_EXECUTION_LOCKS.getOrDefault(lock, 0) + adjustment;
+         if (count <= 0) ACTIVE_EXECUTION_LOCKS.remove(lock);
+         else ACTIVE_EXECUTION_LOCKS.put(lock, count);
       }
    }
 
    private static boolean canBypassExecutionLock(MLuaContext context, LuaThread running) {
-      if (running == null) return false;
-      if (running.isRunningOnCurrentThread()) return true;
+      if (running != null && running.isRunningOnCurrentThread()) return true;
       MinecraftServer server = context.server();
       return server != null && server.isSameThread()
          && MLuaServerThread.isExecutingLuaOwnerWork(server);

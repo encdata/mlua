@@ -38,6 +38,7 @@ final class MLuaTween {
     private long pausedElapsedNanos;
     private volatile String error;
     private boolean completionPending;
+    private String pendingCompletionState;
     private boolean disposed;
 
     MLuaTween(LuaTable target, List<Property> properties, MLuaContext context,
@@ -80,7 +81,7 @@ final class MLuaTween {
         if (duration == 0.0) {
             apply(1.0);
             playbackState = PlaybackState.Completed;
-            fireCompleted();
+            fireCompleted(playbackState.name());
         } else {
             MLuaTweenService.activate(this);
             playbackState = PlaybackState.Playing;
@@ -103,7 +104,7 @@ final class MLuaTween {
         if (wasPlaying) MLuaTweenService.deactivate(this);
         starts = List.of();
         pausedElapsedNanos = 0L;
-        if (wasActive) fireCompleted();
+        if (wasActive) fireCompleted(playbackState.name());
     }
 
     synchronized void dispose() {
@@ -113,6 +114,7 @@ final class MLuaTween {
         playbackState = PlaybackState.Cancelled;
         starts = List.of();
         completionPending = false;
+        pendingCompletionState = null;
         completed.destroyPermanently();
         target = null;
         properties = List.of();
@@ -129,13 +131,18 @@ final class MLuaTween {
     LuaTable completedSignal() {
         return MLuaLuaBindings.signalInstance(completed, globals, context.scheduler(), ownerModId, Side.CLIENT);
     }
-    void fireCompleted() { completed.fireOnSide(Side.CLIENT, LuaValue.valueOf(playbackState.name())); }
+    private void fireCompleted(String state) {
+        completed.fireOnSide(Side.CLIENT, LuaValue.valueOf(state));
+    }
     void firePendingCompletion() {
+        String state;
         synchronized (this) {
             if (!completionPending) return;
             completionPending = false;
+            state = pendingCompletionState;
+            pendingCompletionState = null;
         }
-        fireCompleted();
+        if (state != null) fireCompleted(state);
     }
 
     synchronized boolean sample(long nowNanos) {
@@ -147,15 +154,20 @@ final class MLuaTween {
         } catch (RuntimeException | Error failure) {
             error = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
             playbackState = PlaybackState.Cancelled;
-            completionPending = true;
+            setPendingCompletion();
             return false;
         }
         if (alpha >= 1.0) {
             playbackState = PlaybackState.Completed;
-            completionPending = true;
+            setPendingCompletion();
             return false;
         }
         return true;
+    }
+
+    private void setPendingCompletion() {
+        pendingCompletionState = playbackState.name();
+        completionPending = true;
     }
 
     synchronized void resume() {
