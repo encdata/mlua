@@ -4,9 +4,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.network.FriendlyByteBuf;
+//--version 1.20.1,1.21.1
 import net.minecraft.resources.ResourceLocation;
+//--endversion
+//--version 26.1,26.1.1,26.1.2
+import net.minecraft.resources.Identifier;
+//--endversion
 
-public record MLuaAnimationSyncPacket(int entityId, UUID entityUuid, ResourceLocation dimension, List<BonePoseEntry> poses) {
+public record MLuaAnimationSyncPacket(int entityId, UUID entityUuid,
+//--version 1.20.1,1.21.1
+                                     ResourceLocation
+//--endversion
+//--version 26.1,26.1.1,26.1.2
+                                     Identifier
+//--endversion
+                                     dimension, List<BonePoseEntry> poses) {
     public static final int MAX_BONES = dev.mlua.minecraft.animation.MLuaAnimation.MAX_BONES_PER_KEYFRAME;
     public static final int MAX_BONE_NAME_LENGTH = 128;
 
@@ -18,13 +30,23 @@ public record MLuaAnimationSyncPacket(int entityId, UUID entityUuid, ResourceLoc
     }
 
     public MLuaAnimationSyncPacket(FriendlyByteBuf buf) {
+//--version 1.20.1,1.21.1
         this(buf.readVarInt(), buf.readUUID(), buf.readResourceLocation(), readPoses(buf));
+//--endversion
+//--version 26.1,26.1.1,26.1.2
+        this(buf.readVarInt(), buf.readUUID(), buf.readIdentifier(), readPoses(buf));
+//--endversion
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeVarInt(entityId);
         buf.writeUUID(entityUuid);
+//--version 1.20.1,1.21.1
         buf.writeResourceLocation(dimension);
+//--endversion
+//--version 26.1,26.1.1,26.1.2
+        buf.writeIdentifier(dimension);
+//--endversion
         buf.writeVarInt(poses.size());
         for (BonePoseEntry entry : poses) {
             entry.encode(buf);

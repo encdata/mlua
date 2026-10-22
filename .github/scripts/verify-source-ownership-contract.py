@@ -19,6 +19,14 @@ if "targetPathChain('mlua-versions/common/%s', minecraftVersion)" not in helper:
 if "new File(sourceRoot, relative).isFile()" not in helper:
     raise SystemExit("Common source exclusions must be derived from actual root/overlay path collisions")
 
+packet = (ROOT / "src/main/java/dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java").read_text(encoding="utf-8")
+packet_overlay = ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java"
+if packet_overlay.exists():
+    raise SystemExit("Animation sync packet must have one root owner with version-scoped Minecraft identifier codecs")
+for token in ("ResourceLocation", "Identifier", "readResourceLocation()", "readIdentifier()", "writeResourceLocation(dimension)", "writeIdentifier(dimension)"):
+    if token not in packet:
+        raise SystemExit(f"Animation sync packet is missing version-scoped codec support for {token}")
+
 root_compilers = (
     "gradle/mlua-fabric-project.gradle",
     "gradle/mlua-neoforge-project.gradle",
