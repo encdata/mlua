@@ -103,6 +103,9 @@ jobs:
       - name: Validate tween property ownership
         run: python .github/scripts/verify-tween-service-contract.py
 
+      - name: Validate input service ownership
+        run: python .github/scripts/verify-input-service-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
