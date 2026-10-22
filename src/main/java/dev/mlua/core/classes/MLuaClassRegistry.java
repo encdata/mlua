@@ -25,8 +25,7 @@ public final class MLuaClassRegistry {
    private final MLuaClassMixinRegistry mixinRegistry;
    private final Map<String, List<String>> appliedMixins = new HashMap<>();
    private final Set<String> pendingClassRemovals = new HashSet<>();
-   private final Map<LuaTable, LuaTable> instanceClasses = new WeakHashMap<>();
-   private final Map<String, Set<LuaTable>> instancesByClass = new HashMap<>();
+   private final MLuaClassLiveInstances liveInstances = new MLuaClassLiveInstances();
    private final Map<LuaTable, InstanceDescription> instanceDescriptions = new WeakHashMap<>();
 
    public MLuaClassRegistry() {
@@ -93,7 +92,7 @@ public final class MLuaClassRegistry {
       if (this.mixinRegistry.contains(name)) throw new IllegalStateException("Lua mixin already uses class name: " + name);
       Objects.requireNonNull(classTable, "classTable");
       this.validateDeclaredClassMethods(name, classTable);
-      if (this.instanceClasses.containsKey(classTable)) {
+      if (this.liveInstances.contains(classTable)) {
          throw new IllegalArgumentException("A live Lua instance cannot be registered as a class table");
       }
       for (Map.Entry<String, LuaTable> entry : this.classes.entrySet()) {
@@ -398,8 +397,7 @@ public final class MLuaClassRegistry {
    }
 
    private boolean hasClassDependents(String name) {
-      Set<LuaTable> instances = this.instancesByClass.get(name);
-      if (instances != null && !instances.isEmpty()) return true;
+      if (this.liveInstances.hasInstances(name)) return true;
       if (this.hierarchy.hasChildren(name)) return true;
       return false;
    }
@@ -417,6 +415,7 @@ public final class MLuaClassRegistry {
       if (removedClass == null) return false;
       this.pendingClassRemovals.remove(name);
       this.registeredClassTables.remove(removedClass);
+      this.liveInstances.removeClass(name);
       String affectedParent = this.hierarchy.removeClass(name);
       List<String> removedMixins = List.copyOf(this.appliedMixins.getOrDefault(name, List.of()));
       this.appliedMixins.remove(name);
@@ -572,7 +571,8 @@ public final class MLuaClassRegistry {
    }
 
    private void ensureNoExistingInstanceField(String className, String propertyName) {
-      for (LuaTable instance : this.instancesOfOrDescendants(className)) {
+      for (LuaTable instance : this.liveInstances.ofClassAndDescendants(
+            className, this.hierarchy.descendantsOf(className))) {
          String instanceClassName = instance.rawget("__type").optjstring("");
          if (!instance.rawget(propertyName).isnil()) {
             throw new IllegalStateException("Cannot register class property '" + propertyName
@@ -582,7 +582,8 @@ public final class MLuaClassRegistry {
    }
 
    private void ensureNoExistingInstanceFieldShadowingMethod(String className, String methodName) {
-      for (LuaTable instance : this.instancesOfOrDescendants(className)) {
+      for (LuaTable instance : this.liveInstances.ofClassAndDescendants(
+            className, this.hierarchy.descendantsOf(className))) {
          String instanceClassName = instance.rawget("__type").optjstring("");
          if (!instance.rawget(methodName).isnil() && !instance.rawget(methodName).isfunction()) {
             throw new IllegalStateException("Cannot register class method '" + methodName
@@ -592,23 +593,13 @@ public final class MLuaClassRegistry {
    }
 
    private void refreshAttachedPropertyDescriptionsFrom(String changedClass) {
-      for (LuaTable instance : this.instancesOfOrDescendants(changedClass)) {
+      for (LuaTable instance : this.liveInstances.ofClassAndDescendants(
+            changedClass, this.hierarchy.descendantsOf(changedClass))) {
          String instanceClassName = instance.rawget("__type").optjstring("");
          LuaTable descriptions = new LuaTable();
          this.collectPropertyDescriptions(instanceClassName, descriptions, new HashSet<>());
          instance.rawset("__mlua_doc_properties", descriptions);
       }
-   }
-
-   private List<LuaTable> instancesOfOrDescendants(String className) {
-      List<LuaTable> instances = new ArrayList<>();
-      Set<String> affectedClasses = new HashSet<>(this.hierarchy.descendantsOf(className));
-      affectedClasses.add(className);
-      for (String affectedClass : affectedClasses) {
-         Set<LuaTable> indexed = this.instancesByClass.get(affectedClass);
-         if (indexed != null) instances.addAll(indexed);
-      }
-      return instances;
    }
 
    private synchronized LuaTable findPropertyDescriptor(String className, String propertyName, Set<String> visited) {
@@ -670,7 +661,7 @@ public final class MLuaClassRegistry {
       if (instance.rawget("__class").toboolean()) {
          throw new IllegalArgumentException("A Lua class descriptor cannot be attached as a live instance");
       }
-      LuaTable currentClass = this.instanceClasses.get(instance);
+      LuaTable currentClass = this.liveInstances.classOf(instance);
       if (currentClass != null && currentClass != classTable) {
          String currentName = currentClass.rawget("__type").optjstring("");
          if (!this.inheritsFrom(className, currentName)) {
@@ -736,20 +727,8 @@ public final class MLuaClassRegistry {
       LuaTable meta = existingMetaValue != null && existingMetaValue.istable() ? existingMetaValue.checktable() : new LuaTable();
       this.composeInstanceLookup(meta, classTable);
       instance.setmetatable(meta);
-      this.indexInstanceClass(instance, classTable);
+      this.liveInstances.attach(instance, classTable);
       return instance;
-   }
-
-   private void indexInstanceClass(LuaTable instance, LuaTable classTable) {
-      LuaTable previousClass = this.instanceClasses.put(instance, classTable);
-      if (previousClass != null && previousClass != classTable) {
-         String previousName = previousClass.rawget("__type").optjstring("");
-         Set<LuaTable> previousInstances = this.instancesByClass.get(previousName);
-         if (previousInstances != null) previousInstances.remove(instance);
-      }
-      String className = classTable.rawget("__type").optjstring("");
-      this.instancesByClass.computeIfAbsent(className,
-         ignored -> Collections.newSetFromMap(new WeakHashMap<>())).add(instance);
    }
 
    private void requireStableParent(String name, String declaredParent) {
@@ -929,9 +908,7 @@ public final class MLuaClassRegistry {
    private void refreshAttachedInstanceDescriptions(String className) {
       LuaTable registeredClass = this.classes.get(className);
       if (registeredClass == null) return;
-      Set<LuaTable> indexedInstances = this.instancesByClass.get(className);
-      if (indexedInstances == null || indexedInstances.isEmpty()) return;
-      for (LuaTable instance : indexedInstances.toArray(LuaTable[]::new)) {
+      for (LuaTable instance : this.liveInstances.ofClass(className)) {
          // Luau-style freeze is an explicit promise that this instance will not change.
          // Keep it tracked for class identity checks, but do not let a later class or
          // mixin registration make an unrelated runtime operation fail on rawset.
@@ -1333,7 +1310,7 @@ public final class MLuaClassRegistry {
       if (value == null || !value.istable()) return null;
       LuaTable table = value.checktable();
       if (this.registeredClassTables.contains(table)) return null;
-      LuaTable registered = this.instanceClasses.get(table);
+      LuaTable registered = this.liveInstances.classOf(table);
       if (registered != null) {
          String registeredName = registered.rawget("__type").optjstring("");
          return this.classes.get(registeredName) == registered ? registeredName : null;

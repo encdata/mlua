@@ -6,6 +6,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 HIERARCHY = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassHierarchy.java"
+INSTANCES = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassLiveInstances.java"
 REGISTRY = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassRegistry.java"
 
 
@@ -14,6 +15,7 @@ def fail(message: str) -> None:
 
 
 hierarchy = HIERARCHY.read_text(encoding="utf-8")
+instances = INSTANCES.read_text(encoding="utf-8")
 registry = REGISTRY.read_text(encoding="utf-8")
 for owner_field in ("Map<String, String> parents", "Map<String, Set<String>> children"):
     if owner_field not in hierarchy:
@@ -21,17 +23,18 @@ for owner_field in ("Map<String, String> parents", "Map<String, Set<String>> chi
 for method in ("boolean hasChildren(String className)", "List<String> descendantsOf(String className)"):
     if method not in hierarchy:
         fail(f"MLuaClassHierarchy is missing {method}")
-if "Map<String, Set<LuaTable>> instancesByClass" not in registry:
-    fail("live instances must be indexed by class without replacing the weak instance ownership map")
-if "Collections.newSetFromMap(new WeakHashMap<>())" not in registry:
+if "Map<LuaTable, LuaTable> classesByInstance" not in instances \
+        or "Map<String, Set<LuaTable>> instancesByClass" not in instances:
+    fail("MLuaClassLiveInstances must own weak instance identity and its per-class index")
+if "Collections.newSetFromMap(new WeakHashMap<>())" not in instances:
     fail("the per-class instance index must not retain unattached Lua instances")
-if "instancesOfOrDescendants(className)" not in registry:
+if "this.liveInstances.ofClassAndDescendants(" not in registry:
     fail("class field validation and metadata refresh must query only instances of the affected class subtree")
-if "for (Map.Entry<LuaTable, LuaTable> entry : this.instanceClasses.entrySet())" in registry:
+if "instanceClasses.entrySet()" in registry:
     fail("class-scoped instance refreshes must not rescan every live instance")
 dependents = registry.split("private boolean hasClassDependents(String name)", 1)[1].split(
     "private void removePendingClassIfUnused", 1)[0]
-if "this.instancesByClass.get(name)" not in dependents or "this.instanceClasses.values()" in dependents:
+if "this.liveInstances.hasInstances(name)" not in dependents or "instanceClasses.values()" in dependents:
     fail("class removal checks must inspect only instances indexed to the candidate class")
 if "this.refreshInheritedMethodDescriptions(descendant);" not in registry \
         or "this.hierarchy.descendantsOf(changedClass)" not in registry:
