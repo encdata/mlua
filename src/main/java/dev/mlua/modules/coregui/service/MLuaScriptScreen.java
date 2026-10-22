@@ -11,7 +11,6 @@ import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.binding.MLuaNativeControl;
-import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.lang.ref.WeakReference;
@@ -41,7 +40,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     final String ownerModId;
     private final WeakReference<Object> runtimeOwner;
     private MLuaContext context;
-    private final List<ScreenText> textLines = new CopyOnWriteArrayList<>();
+    private final MLuaScriptScreenRenderer renderer = new MLuaScriptScreenRenderer();
     private final List<ScreenCallback> controlCallbacks = new CopyOnWriteArrayList<>();
     private final MLuaScriptScreenCallbacks classCallbacks = new MLuaScriptScreenCallbacks(this);
     private final MLuaScriptScreenInput input = new MLuaScriptScreenInput(this.classCallbacks);
@@ -112,7 +111,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         MLuaNativeScreenManager.forget(this);
         if (this.disposed || this.initializationFailed) return;
         this.clearControlCallbacks();
-        this.textLines.clear();
+        this.renderer.clear();
         this.tickFailed = false;
         this.renderFailed = false;
         this.nextNativeControlIndex = 1;
@@ -141,7 +140,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
             }
         } catch (RuntimeException failure) {
             this.initializationFailed = true;
-            this.textLines.clear();
+            this.renderer.clear();
             this.clearWidgets();
             MLuaLogger.LOGGER.error("Lua native screen initialization failed", failure);
         }
@@ -164,9 +163,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     @Override public void setOnRender(LuaValue callback) { this.renderCallback = callback; }
 
     @Override public void addText(Object text, LuaTable position, int color) {
-        this.textLines.add(new ScreenText(text,
-            MLuaGuiService.screenCoordinate(position, "X", this.width),
-            MLuaGuiService.screenCoordinate(position, "Y", this.height), color));
+        this.renderer.addText(text, position, color, this.width, this.height);
     }
 
     @Override public LuaTable addButton(Object label, LuaTable position, LuaTable size, LuaValue callback) {
@@ -269,7 +266,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         synchronized (this.state.executionLock) {
             this.releaseLuaReferences();
         }
-        this.textLines.clear();
+        this.renderer.clear();
         this.clearWidgets();
     }
 
@@ -296,7 +293,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         synchronized (this.state.executionLock) {
             this.releaseLuaReferences();
         }
-        this.textLines.clear();
+        this.renderer.clear();
         this.clearWidgets();
     }
 
@@ -432,35 +429,13 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
     //--endversion
 
-    private void renderLua(ScreenDrawing drawing, int mouseX, int mouseY, float delta) {
+    private void renderLua(MLuaScriptScreenRenderer.Drawing drawing, int mouseX, int mouseY, float delta) {
         if (this.disposed || this.renderFailed) return;
         LuaValue classRender = this.luaInstance == null ? LuaValue.NIL : this.luaInstance.get("Render");
         boolean classLifecycle = classRender.isfunction();
         LuaValue callback = classLifecycle ? classRender : this.renderCallback;
         if (!callback.isfunction()) return;
-        LuaTable canvas = new LuaTable();
-        canvas.set("Width", LuaValue.valueOf(this.width));
-        canvas.set("Height", LuaValue.valueOf(this.height));
-        canvas.set("Fill", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                drawing.fill(MLuaLuaArguments.wholeInt(args, 2, "ScreenCanvas:Fill", "left"),
-                    MLuaLuaArguments.wholeInt(args, 3, "ScreenCanvas:Fill", "top"),
-                    MLuaLuaArguments.wholeInt(args, 4, "ScreenCanvas:Fill", "right"),
-                    MLuaLuaArguments.wholeInt(args, 5, "ScreenCanvas:Fill", "bottom"),
-                    MLuaGuiService.readColor(args.arg(6), "ScreenCanvas:Fill", "color"));
-                return LuaValue.NONE;
-            }
-        });
-        canvas.set("DrawText", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-                drawing.text(MLuaGuiService.nativeText(args.arg(2)),
-                    MLuaLuaArguments.wholeInt(args, 3, "ScreenCanvas:DrawText", "x"),
-                    MLuaLuaArguments.wholeInt(args, 4, "ScreenCanvas:DrawText", "y"),
-                    MLuaGuiService.optionalColor(args.arg(5), 0xFFFFFF, "ScreenCanvas:DrawText", "color"),
-                    args.arg(6).optboolean(true));
-                return LuaValue.NONE;
-            }
-        });
+        LuaTable canvas = this.renderer.createCanvas(drawing, this.width, this.height);
         LuaValue[] arguments = !classLifecycle
             ? new LuaValue[]{canvas, LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY), LuaValue.valueOf(delta)}
             : new LuaValue[]{this.luaInstance, canvas, LuaValue.valueOf(mouseX), LuaValue.valueOf(mouseY), LuaValue.valueOf(delta)};
@@ -479,7 +454,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
             this.pendingOpen = false;
         }
         MLuaNativeScreenManager.forget(this);
-        this.textLines.clear();
+        this.renderer.clear();
         this.state.scriptScreens.remove(this);
         synchronized (this.state.executionLock) {
             this.releaseLuaReferences();
@@ -536,11 +511,12 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     //--version 26.1
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-        for (ScreenText line : this.textLines) MLuaHudRenderer.drawText(graphics, line.text(), line.x(), line.y(), line.color(), true);
-        this.renderLua(new ScreenDrawing() {
+        MLuaScriptScreenRenderer.Drawing drawing = new MLuaScriptScreenRenderer.Drawing() {
             @Override public void fill(int left, int top, int right, int bottom, int color) { graphics.fill(left, top, right, bottom, color); }
             @Override public void text(Object text, int x, int y, int color, boolean shadow) { MLuaHudRenderer.drawText(graphics, text, x, y, color, shadow); }
-        }, mouseX, mouseY, delta);
+        };
+        this.renderer.drawText(drawing);
+        this.renderLua(drawing, mouseX, mouseY, delta);
     }
     //--endversion
 
@@ -548,11 +524,12 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
         this.renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, delta);
-        for (ScreenText line : this.textLines) MLuaHudRenderer.drawText(graphics, line.text(), line.x(), line.y(), line.color(), true);
-        this.renderLua(new ScreenDrawing() {
+        MLuaScriptScreenRenderer.Drawing drawing = new MLuaScriptScreenRenderer.Drawing() {
             @Override public void fill(int left, int top, int right, int bottom, int color) { graphics.fill(left, top, right, bottom, color); }
             @Override public void text(Object text, int x, int y, int color, boolean shadow) { MLuaHudRenderer.drawText(graphics, text, x, y, color, shadow); }
-        }, mouseX, mouseY, delta);
+        };
+        this.renderer.drawText(drawing);
+        this.renderLua(drawing, mouseX, mouseY, delta);
     }
     //--endversion
 
@@ -560,20 +537,14 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
         this.renderBackground(graphics, mouseX, mouseY, delta);
         super.render(graphics, mouseX, mouseY, delta);
-        for (ScreenText line : this.textLines) MLuaHudRenderer.drawText(graphics, line.text(), line.x(), line.y(), line.color(), true);
-        this.renderLua(new ScreenDrawing() {
+        MLuaScriptScreenRenderer.Drawing drawing = new MLuaScriptScreenRenderer.Drawing() {
             @Override public void fill(int left, int top, int right, int bottom, int color) { graphics.fill(left, top, right, bottom, color); }
             @Override public void text(Object text, int x, int y, int color, boolean shadow) { MLuaHudRenderer.drawText(graphics, text, x, y, color, shadow); }
-        }, mouseX, mouseY, delta);
+        };
+        this.renderer.drawText(drawing);
+        this.renderLua(drawing, mouseX, mouseY, delta);
     }
     //--endversion
-
-    private interface ScreenDrawing {
-        void fill(int left, int top, int right, int bottom, int color);
-        void text(Object text, int x, int y, int color, boolean shadow);
-    }
-
-    private record ScreenText(Object text, int x, int y, int color) { }
 
     /** Mutable indirection lets native widgets outlive a screen without retaining Lua closures. */
     private static final class ScreenCallback {

@@ -16,6 +16,7 @@ screen_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptS
 builder_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenBuilder.java"
 callbacks_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenCallbacks.java"
 input_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenInput.java"
+renderer_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenRenderer.java"
 service = service_path.read_text(encoding="utf-8")
 controller = controller_path.read_text(encoding="utf-8")
 targets = targets_path.read_text(encoding="utf-8")
@@ -25,6 +26,7 @@ screen = screen_path.read_text(encoding="utf-8")
 builder = builder_path.read_text(encoding="utf-8")
 callbacks = callbacks_path.read_text(encoding="utf-8")
 screen_input = input_path.read_text(encoding="utf-8")
+renderer = renderer_path.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -104,6 +106,13 @@ if "classCallbacks.invokeLifecycle(" not in screen or "classCallbacks.clear()" n
     fail("script screen must delegate Lua lifecycle callback state to its callback dispatcher")
 if "MLuaScriptScreenInput input" not in screen or "this.input." not in screen:
     fail("script screen must delegate Minecraft input conversion to MLuaScriptScreenInput")
+if "MLuaScriptScreenRenderer renderer" not in screen or "this.renderer.createCanvas(" not in screen:
+    fail("script screen must delegate canvas creation and rendering to MLuaScriptScreenRenderer")
+if "textLines" in screen or "private record ScreenText" in screen:
+    fail("script text placement remains implemented in the Screen subclass")
+for operation in ("createCanvas(", "drawText(", "screenCoordinate(", "ScreenCanvas:Fill", "ScreenCanvas:DrawText"):
+    if operation not in renderer:
+        fail(f"script screen renderer is missing {operation}")
 for versioned in ("KeyEvent", "CharacterEvent", "MouseButtonEvent", "mouseScrolled(", "filesDrop("):
     if versioned not in screen_input:
         fail(f"script screen input adapter is missing {versioned}")
