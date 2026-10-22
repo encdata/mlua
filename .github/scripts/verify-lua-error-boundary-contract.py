@@ -28,7 +28,7 @@ for relative, expected in delegates.items():
 
 for relative, owner in (
     ("src/main/java/dev/mlua/modules/particles/service/MLuaParticleService.java", "ParticleEmitter:"),
-    ("src/main/java/dev/mlua/modules/sound/service/MLuaSoundService.java", "SoundHandle:"),
+    ("src/main/java/dev/mlua/modules/sound/service/MLuaSoundHandleFactory.java", "SoundHandle:"),
 ):
     source = read(relative)
     if f'MLuaLuaErrors.operation("{owner}" + operation, body,' not in source:

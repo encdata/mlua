@@ -106,6 +106,9 @@ jobs:
       - name: Validate input service ownership
         run: python .github/scripts/verify-input-service-contract.py
 
+      - name: Validate sound handle ownership
+        run: python .github/scripts/verify-sound-service-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
