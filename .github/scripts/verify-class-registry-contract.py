@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HIERARCHY = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassHierarchy.java"
 INSTANCES = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassLiveInstances.java"
 METADATA = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassMetadata.java"
+MIXINS = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassMixinApplications.java"
 REGISTRY = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassRegistry.java"
 
 
@@ -18,6 +19,7 @@ def fail(message: str) -> None:
 hierarchy = HIERARCHY.read_text(encoding="utf-8")
 instances = INSTANCES.read_text(encoding="utf-8")
 metadata = METADATA.read_text(encoding="utf-8")
+mixins = MIXINS.read_text(encoding="utf-8")
 registry = REGISTRY.read_text(encoding="utf-8")
 for owner_field in ("Map<String, String> parents", "Map<String, Set<String>> children"):
     if owner_field not in hierarchy:
@@ -36,6 +38,14 @@ if "private final MLuaClassMetadata metadata" not in registry \
 if "private final Map<LuaTable, InstanceDescription> instanceDescriptions" not in metadata \
         or "void attachInstanceDocumentation(" not in metadata:
     fail("MLuaClassMetadata must own weak instance description state and attachment documentation")
+if "private final Map<String, List<String>> appliedMixins" not in mixins \
+        or "private final Map<String, List<String>> effectiveMixins" not in mixins \
+        or "this.mixinApplications.directlyApplied(className)" not in metadata \
+        or "this.invalidateEffectiveMixins(className)" not in mixins \
+        or "this.hierarchy.descendantsOf(className)" not in mixins:
+    fail("mixin application and resolved inheritance state must have a dedicated owner")
+if "appliedMixins" in registry or "appliedMixins" in metadata:
+    fail("class registry and metadata must query applied mixins through their dedicated owner")
 if "private final Object registryLock" not in metadata \
         or "new MLuaClassMetadata(this, this.classes" not in registry:
     fail("metadata lookups must share the registry lock used for class and property mutations")
@@ -55,13 +65,12 @@ if "this.liveInstances.hasInstances(name)" not in dependents or "instanceClasses
 if "this.refreshInheritedMethodDescriptions(descendant);" not in metadata \
         or "this.hierarchy.descendantsOf(changedClass)" not in metadata:
     fail("class metadata refresh must traverse only the changed class and indexed descendants")
-if "affectedClasses.addAll(this.hierarchy.descendantsOf(mixinOwner))" not in registry:
+if "affectedClasses.addAll(this.hierarchy.descendantsOf(mixinOwner))" not in mixins \
+        or "this.mixinApplications.refreshClassesUsingMixin(mixinName)" not in registry:
     fail("mixin changes must refresh only affected classes and their descendants")
 
-full_refresh_calls = re.findall(r"this\.metadata\.refreshInheritedMethodDescriptions\(\);", registry)
-if len(full_refresh_calls) != 1:
-    fail("full metadata refresh should remain only for global mixin removal")
-if "this.metadata.refreshInheritedMethodDescriptions();" not in registry.split("private void removeMixinEntry", 1)[1]:
+if "this.host.refreshAllInheritedMethodDescriptions();" not in mixins.split(
+        "private void removeDefinition", 1)[1].split("private void validateApplication", 1)[0]:
     fail("global mixin removal must refresh all affected class metadata")
 
 print("Class registry contract passed (indexed hierarchy, live instances, and scoped metadata refresh).")

@@ -242,6 +242,7 @@ final class MLuaClassRegistryTest {
         LuaTable parent = registry.register("Parent", (String) null);
         registry.register("Child", "Parent");
         LuaTable mixin = registry.registerMixin("Interactable", "Adds a shared interaction action.");
+        assertFalse(registry.hasMixin("Child", "Interactable"));
         VarArgFunction interact = new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf("interacted:" + args.arg1().get("name").tojstring());
@@ -260,6 +261,8 @@ final class MLuaClassRegistryTest {
         assertEquals("interacted:door", first.get("Interact").call(first).tojstring());
         assertEquals("Runs the interaction action.",
             parent.rawget("__mlua_doc_inherited_methods").get("Interact").tojstring());
+        assertTrue(registry.removeMixin("Parent", "Interactable"));
+        assertFalse(registry.hasMixin("Child", "Interactable"));
     }
 
     @Test

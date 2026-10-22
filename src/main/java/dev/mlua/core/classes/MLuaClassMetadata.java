@@ -17,18 +17,18 @@ final class MLuaClassMetadata {
     private final Map<String, LuaTable> classes;
     private final MLuaClassHierarchy hierarchy;
     private final MLuaClassMixinRegistry mixinRegistry;
-    private final Map<String, List<String>> appliedMixins;
+    private final MLuaClassMixinApplications mixinApplications;
     private final MLuaClassLiveInstances liveInstances;
     private final Map<LuaTable, InstanceDescription> instanceDescriptions = new WeakHashMap<>();
 
     MLuaClassMetadata(Object registryLock, Map<String, LuaTable> classes, MLuaClassHierarchy hierarchy,
-                      MLuaClassMixinRegistry mixinRegistry, Map<String, List<String>> appliedMixins,
+                      MLuaClassMixinRegistry mixinRegistry, MLuaClassMixinApplications mixinApplications,
                       MLuaClassLiveInstances liveInstances) {
         this.registryLock = registryLock;
         this.classes = classes;
         this.hierarchy = hierarchy;
         this.mixinRegistry = mixinRegistry;
-        this.appliedMixins = appliedMixins;
+        this.mixinApplications = mixinApplications;
         this.liveInstances = liveInstances;
     }
 
@@ -130,7 +130,7 @@ final class MLuaClassMetadata {
             }
          }
       }
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
+      for (String mixinName : this.mixinApplications.directlyApplied(className)) {
          LuaTable mixin = this.mixinRegistry.get(mixinName);
          if (mixin == null) continue;
          LuaValue descriptions = mixin.rawget("__mlua_doc_methods");
@@ -174,7 +174,7 @@ final class MLuaClassMetadata {
             output.rawset(key, isDispatcher.toboolean() ? LuaValue.TRUE : LuaValue.FALSE);
          }
       }
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
+      for (String mixinName : this.mixinApplications.directlyApplied(className)) {
          LuaTable mixin = this.mixinRegistry.get(mixinName);
          if (mixin == null) continue;
          LuaTable methods = MLuaClassMixinRegistry.methods(mixin);
@@ -219,7 +219,7 @@ final class MLuaClassMetadata {
       LuaTable inherited = new LuaTable();
       Set<String> ancestry = new HashSet<>();
       ancestry.add(className);
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
+      for (String mixinName : this.mixinApplications.directlyApplied(className)) {
          LuaTable mixin = this.mixinRegistry.get(mixinName);
          if (mixin == null) continue;
          LuaValue descriptions = mixin.rawget("__mlua_doc_methods");
@@ -249,7 +249,7 @@ final class MLuaClassMetadata {
       classTable.rawset("__mlua_doc_inherited_methods", inherited);
       LuaTable documentedMixins = new LuaTable();
       int mixinIndex = 1;
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
+      for (String mixinName : this.mixinApplications.directlyApplied(className)) {
          documentedMixins.rawset(mixinIndex++, LuaValue.valueOf(mixinName));
       }
       classTable.rawset("__mlua_doc_mixins", documentedMixins);
