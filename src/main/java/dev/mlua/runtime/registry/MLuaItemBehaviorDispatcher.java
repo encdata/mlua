@@ -8,6 +8,7 @@ import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import dev.mlua.modules.players.classes.MLuaPlayerWrapper;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -78,8 +79,7 @@ final class MLuaItemBehaviorDispatcher {
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             context.set("ItemStack", behaviorKey);
             context.set("Entity", MLuaEntityWrapper.entityTable(livingEntity, registration));
-            MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
-                LuaValue.varargsOf(new LuaValue[]{context}));
+            invoke(level, null, behaviorKey, "onConsume", behaviors, callback, context);
         } catch (Exception failure) {
             MLuaLogger.LOGGER.error("MLua item onConsume callback failed for '{}': {}",
                 behaviorKey, failure.getMessage());
@@ -104,8 +104,7 @@ final class MLuaItemBehaviorDispatcher {
             context.set("Hand", hand.name().toLowerCase());
             context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), registration));
             context.set("ItemStack", behaviorKey);
-            Varargs result = MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
-                LuaValue.varargsOf(new LuaValue[]{context}));
+            Varargs result = invoke(level, null, behaviorKey, "onUse", behaviors, callback, context);
             if (result.arg1().isboolean() && result.arg1().toboolean()) {
                 return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
             }
@@ -138,8 +137,7 @@ final class MLuaItemBehaviorDispatcher {
             luaContext.set("Hand", context.getHand().name().toLowerCase());
             luaContext.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), registration));
             luaContext.set("ItemStack", behaviorKey);
-            Varargs result = MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
-                LuaValue.varargsOf(new LuaValue[]{luaContext}));
+            Varargs result = invoke(level, position, behaviorKey, "onUseOnBlock", behaviors, callback, luaContext);
             if (result.arg1().isboolean() && result.arg1().toboolean()) {
                 return InteractionResult.sidedSuccess(level.isClientSide);
             }
@@ -172,8 +170,7 @@ final class MLuaItemBehaviorDispatcher {
             context.set("Selected", LuaValue.valueOf(selected));
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             context.set("ItemStack", behaviorKey);
-            MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
-                LuaValue.varargsOf(new LuaValue[]{context}));
+            invoke(level, null, behaviorKey, "onInventoryTick", behaviors, callback, context);
         } catch (Exception failure) {
             MLuaLogger.LOGGER.error("MLua item onInventoryTick callback failed for '{}': {}",
                 behaviorKey, failure.getMessage());
@@ -198,8 +195,7 @@ final class MLuaItemBehaviorDispatcher {
                 : player.getUsedItemHand().name().toLowerCase());
             context.set("ItemStack", behaviorKey);
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-            MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
-                LuaValue.varargsOf(new LuaValue[]{context}));
+            invoke(level, null, behaviorKey, "onCrafted", behaviors, callback, context);
         } catch (Exception failure) {
             MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}",
                 behaviorKey, failure.getMessage());
@@ -213,5 +209,12 @@ final class MLuaItemBehaviorDispatcher {
             if (living.getItemBySlot(slot) == stack) return slot.name();
         }
         return null;
+    }
+
+    private static Varargs invoke(Level level, BlockPos position, String behaviorKey, String event,
+                                  MLuaBehaviorRegistry.Snapshot behaviors, LuaValue callback,
+                                  LuaTable context) {
+        return MLuaBehaviorRegistry.invokeGameplayCallback(level, position, "item", behaviorKey, event,
+            behaviors, callback, LuaValue.varargsOf(new LuaValue[]{context}));
     }
 }
