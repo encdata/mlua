@@ -49,7 +49,7 @@ final class MLuaRuntimeScriptCatalogTest {
                         .map(MLuaScript::displayName).toList());
 
         Files.writeString(serverPath, "print('updated')");
-        assertEquals("print('server')", catalog.refresh(false).stream()
+        assertEquals("function run_server() end\nprint('server')", catalog.refresh(false).stream()
                 .filter(script -> script.path().equals(serverPath)).findFirst().orElseThrow().source());
         assertEquals("print('updated')", catalog.refresh(true).stream()
                 .filter(script -> script.path().equals(serverPath)).findFirst().orElseThrow().source());

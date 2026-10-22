@@ -16,7 +16,6 @@ import dev.mlua.modules.players.MLuaClientPlayerAccess;
 import dev.mlua.math.MLuaCFrame;
 import java.util.UUID;
 import java.util.Optional;
-import java.util.function.Consumer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -28,8 +27,10 @@ import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Query, spawn, move, damage, and remove Minecraft entities from Lua.")
 public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
+    private final MLuaEntityQueryOperations queryOperations;
     public MLuaEntityService(MLuaService.Context context) {
         super(context);
+        this.queryOperations = new MLuaEntityQueryOperations(context, this);
     }
 
     @Override
@@ -46,107 +47,57 @@ public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
 
     @MLuaDescription("Returns a live entity instance by runtime ID, or nil when absent.")
     public LuaValue GetById(int id) {
-        return wrap(resolveEntity(id));
+        return this.queryOperations.getById(id);
     }
 
     @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
     public LuaValue FindByUUID(String uuid) {
-        return wrap(resolveEntity(MLuaLuaArguments.uuid(uuid, "EntityService:FindByUUID", "uuid")));
+        return this.queryOperations.getByUuid(uuid);
     }
 
     @MLuaDescription("Returns a live entity instance by UUID, or nil when absent.")
     public LuaValue GetByUUID(String uuid) {
-        return FindByUUID(uuid);
+        return this.queryOperations.getByUuid(uuid);
     }
 
     @MLuaDescription("Returns loaded entities, optionally matching an EntityQuery filter. Servers search loaded dimensions; clients search the current world.")
     public LuaTable GetAll(Optional<LuaValue> requestedFilter) {
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        return allEntities(filter);
+        return this.queryOperations.getAll(requestedFilter);
     }
 
     @MLuaDescription("Returns the first loaded entity matching an EntityQuery filter, or nil when no entity matches.")
     public LuaValue GetFirst(Optional<LuaValue> requestedFilter) {
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        return wrap(findFirstLoadedEntity(filter));
+        return this.queryOperations.getFirst(requestedFilter);
     }
 
     @MLuaDescription("Returns loaded entities in one world, dimension, or entity's world, optionally matching an EntityQuery filter.")
     public LuaTable GetInWorld(LuaValue worldValue, Optional<LuaValue> requestedFilter) {
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        Level level = resolveQueryLevel(worldValue);
-        LuaTable result = new LuaTable();
-        if (level == null) return result;
-        int[] index = {1};
-        forEachLoadedEntity(level, filter, entity -> result.set(index[0]++, wrap(entity)));
-        return result;
+        return this.queryOperations.getInWorld(worldValue, requestedFilter);
     }
 
     @MLuaDescription("Returns the first loaded entity in one world, dimension, or entity's world matching an EntityQuery filter, or nil when none matches.")
     public LuaValue GetFirstInWorld(LuaValue worldValue, Optional<LuaValue> requestedFilter) {
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        Level level = resolveQueryLevel(worldValue);
-        if (level == null) return LuaValue.NIL;
-        for (Entity entity : MLuaEntityQuery.loadedEntities(level)) {
-            if (filter.matches(entity)) return wrap(entity);
-        }
-        return LuaValue.NIL;
+        return this.queryOperations.getFirstInWorld(worldValue, requestedFilter);
     }
 
     @MLuaDescription("Counts loaded entities in one world, dimension, or entity's world, optionally matching an EntityQuery filter.")
     public int CountInWorld(LuaValue worldValue, Optional<LuaValue> requestedFilter) {
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        Level level = resolveQueryLevel(worldValue);
-        if (level == null) return 0;
-        int[] count = {0};
-        forEachLoadedEntity(level, filter, entity -> count[0]++);
-        return count[0];
+        return this.queryOperations.countInWorld(worldValue, requestedFilter);
     }
 
     @MLuaDescription("Counts loaded entities across the searchable worlds, optionally matching an EntityQuery filter.")
     public int Count(Optional<LuaValue> requestedFilter) {
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        int[] count = {0};
-        forEachLoadedEntity(filter, entity -> count[0]++);
-        return count[0];
+        return this.queryOperations.count(requestedFilter);
     }
 
     @MLuaDescription("Returns entities in the same world within a spherical radius, optionally matching an EntityQuery filter.")
     public LuaTable GetNearby(LuaValue centerValue, double radius, Optional<LuaValue> requestedFilter) {
-        radius = MLuaLuaArguments.finiteNonNegativeNumber(radius, "EntityService:GetNearby", "radius");
-        Entity centerEntity = entityValue(centerValue);
-        double[] center = centerEntity == null
-            ? MLuaLuaArguments.finiteVector3(centerValue, "EntityService:GetNearby center")
-            : new double[]{centerEntity.getX(), centerEntity.getY(), centerEntity.getZ()};
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        Level level = centerEntity != null ? centerEntity.level() : currentLevel();
-        LuaTable out = new LuaTable();
-        if (level == null) return out;
-        int[] index = {1};
-        MLuaEntityQuery.forEachWithinRadius(level, center[0], center[1], center[2],
-            radius, centerEntity, filter, entity -> out.set(index[0]++, wrap(entity)));
-        return out;
+        return this.queryOperations.getNearby(centerValue, radius, requestedFilter);
     }
 
     @MLuaDescription("Returns the nearest entity in the same world within a spherical radius matching an EntityQuery filter, or nil when none matches.")
     public LuaValue GetNearest(LuaValue centerValue, double radius, Optional<LuaValue> requestedFilter) {
-        radius = MLuaLuaArguments.finiteNonNegativeNumber(radius, "EntityService:GetNearest", "radius");
-        Entity centerEntity = entityValue(centerValue);
-        double[] center = centerEntity == null
-            ? MLuaLuaArguments.finiteVector3(centerValue, "EntityService:GetNearest center")
-            : new double[]{centerEntity.getX(), centerEntity.getY(), centerEntity.getZ()};
-        MLuaEntityQuery.Filter filter = MLuaEntityQuery.compileFilter(
-            requestedFilter.orElse(LuaValue.NIL), context.mlua().registration());
-        Level level = centerEntity != null ? centerEntity.level() : currentLevel();
-        return wrap(MLuaEntityQuery.findNearestWithinRadius(
-            level, center[0], center[1], center[2], radius, centerEntity, filter));
+        return this.queryOperations.getNearest(centerValue, radius, requestedFilter);
     }
 
     @MLuaDescription("Loads the target chunk and creates an entity in the supplied world, dimension, or the overworld by default. CFrame positions also set yaw and pitch; an entity anchor copies its rotation.")
@@ -226,80 +177,7 @@ public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
         return method.invoke(LuaValue.varargsOf(callArguments)).arg1();
     }
 
-    private LuaTable allEntities(MLuaEntityQuery.Filter filter) {
-        LuaTable out = new LuaTable();
-        int[] index = {1};
-        if (context.mlua().side() == Side.CLIENT) {
-            Level level = clientLevel();
-            if (level == null) {
-                return out;
-            }
-            forEachLoadedEntity(level, filter, entity -> out.set(index[0]++, wrap(entity)));
-            return out;
-        }
-        if (context.mlua().server() == null) {
-            return out;
-        }
-        forEachLoadedEntity(filter, entity -> out.set(index[0]++, wrap(entity)));
-        return out;
-    }
-
-    private Entity findFirstLoadedEntity(MLuaEntityQuery.Filter filter) {
-        if (context.mlua().side() == Side.CLIENT) {
-            Level level = clientLevel();
-            if (level == null) return null;
-            for (Entity entity : MLuaEntityQuery.loadedEntities(level)) {
-                if (filter.matches(entity)) return entity;
-            }
-            return null;
-        }
-        if (context.mlua().server() == null) return null;
-        for (ServerLevel level : context.mlua().server().getAllLevels()) {
-            for (Entity entity : MLuaEntityQuery.loadedEntities(level)) {
-                if (filter.matches(entity)) return entity;
-            }
-        }
-        return null;
-    }
-
-    private void forEachLoadedEntity(MLuaEntityQuery.Filter filter, Consumer<Entity> action) {
-        if (context.mlua().side() == Side.CLIENT) {
-            Level level = clientLevel();
-            if (level != null) forEachLoadedEntity(level, filter, action);
-            return;
-        }
-        if (context.mlua().server() == null) return;
-        for (ServerLevel level : context.mlua().server().getAllLevels()) {
-            forEachLoadedEntity(level, filter, action);
-        }
-    }
-
-    private static void forEachLoadedEntity(Level level, MLuaEntityQuery.Filter filter, Consumer<Entity> action) {
-        for (Entity entity : MLuaEntityQuery.loadedEntities(level)) {
-            if (filter.matches(entity)) action.accept(entity);
-        }
-    }
-
-    private Level resolveQueryLevel(LuaValue value) {
-        if (context.mlua().side() != Side.CLIENT) return resolveServerLevel(value);
-        Level current = clientLevel();
-        if (value.isnil()) return current;
-        if (value.istable() && context.mlua().registration().isInstanceOf(value, "Entity")) {
-            Entity entity = entityValue(value);
-            if (entity != null && entity.level() == current) return current;
-            throw new LuaError("[MLua] EntityService query entity is not in the current client world.");
-        }
-        if (!value.istable() || !context.mlua().registration().isInstanceOf(value, "World")) {
-            throw new LuaError("[MLua] EntityService world queries expect a World or Entity instance on the client.");
-        }
-        LuaValue raw = value.checktable().rawget("__level");
-        if (!raw.isuserdata(Level.class) || raw.touserdata(Level.class) != current) {
-            throw new LuaError("[MLua] EntityService world queries can only query the current client world.");
-        }
-        return current;
-    }
-
-    private Entity resolveEntity(int id) {
+    Entity resolveEntity(int id) {
         if (context.mlua().side() == Side.CLIENT) {
             Level level = clientLevel();
             return level != null ? level.getEntity(id) : null;
@@ -314,7 +192,7 @@ public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
         return lookup.value();
     }
 
-    private Entity resolveEntity(UUID uuid) {
+    Entity resolveEntity(UUID uuid) {
         if (context.mlua().side() == Side.CLIENT) {
             Level level = clientLevel();
             if (level == null) {
@@ -352,7 +230,7 @@ public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
         throw new LuaError("[MLua] Expected entity table or entity id.");
     }
 
-    private ServerLevel resolveServerLevel(LuaValue value) {
+    ServerLevel resolveServerLevel(LuaValue value) {
         if (context.mlua().server() == null) {
             throw new LuaError("[MLua] Server is not available.");
         }
@@ -386,14 +264,14 @@ public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
         return context.mlua().server().overworld();
     }
 
-    private Level currentLevel() {
+    Level currentLevel() {
         if (context.mlua().side() == Side.CLIENT) {
             return clientLevel();
         }
         return context.mlua().server() == null ? null : context.mlua().server().overworld();
     }
 
-    private static Level clientLevel() {
+    static Level clientLevel() {
         try {
             Object level = MLuaClientPlayerAccess.level();
             return level instanceof Level rawLevel ? rawLevel : null;
@@ -402,14 +280,14 @@ public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
         }
     }
 
-    private LuaValue wrap(Entity entity) {
+    LuaValue wrap(Entity entity) {
         if (entity == null) {
             return LuaValue.NIL;
         }
         return MLuaEntityWrapper.entityTable(entity, context.mlua().registration());
     }
 
-    private Entity entityValue(LuaValue value) {
+    Entity entityValue(LuaValue value) {
         if (!value.istable()) return null;
         if (!context.mlua().registration().isInstanceOf(value, "Entity")) return null;
         return MLuaEntityWrapper.requireLuaInstance(value, context.mlua().registration(), "Entity", "Entity");

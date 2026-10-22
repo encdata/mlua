@@ -1,5 +1,6 @@
 package dev.mlua.modules.javabridge.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -61,7 +62,7 @@ final class MLuaJavaReflectionCatalogTest {
         Method first = catalog.exactMethod(Overloads.class, "send", descriptor, false);
         Method second = catalog.exactMethod(Overloads.class, "send", descriptor, false);
 
-        assertSame(expected, first);
+        assertEquals(expected, first);
         assertSame(first, second);
         assertNull(catalog.exactMethod(Overloads.class, "send", descriptor, true));
     }

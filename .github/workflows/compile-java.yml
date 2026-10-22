@@ -94,6 +94,9 @@ jobs:
       - name: Validate model override ownership
         run: python .github/scripts/verify-model-service-contract.py
 
+      - name: Validate entity query ownership
+        run: python .github/scripts/verify-entity-service-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
