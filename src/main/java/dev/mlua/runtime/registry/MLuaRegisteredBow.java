@@ -46,7 +46,7 @@ final class MLuaRegisteredBow extends BowItem {
    //--version 1.20.1,1.21.1
    @Override
    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-      InteractionResultHolder<ItemStack> handled = MLuaItemFactory.invokeOnUse(this.registryKey, level, player, hand);
+      InteractionResultHolder<ItemStack> handled = MLuaItemBehaviorDispatcher.onUse(this.registryKey, level, player, hand);
       return handled != null ? handled : super.use(level, player, hand);
    }
    //--endversion
@@ -54,14 +54,14 @@ final class MLuaRegisteredBow extends BowItem {
    //--version 26.1
    @Override
    public InteractionResult use(Level level, Player player, InteractionHand hand) {
-      InteractionResult handled = MLuaItemFactory.invokeOnUse(this.registryKey, level, player, hand);
+      InteractionResult handled = MLuaItemBehaviorDispatcher.onUse(this.registryKey, level, player, hand);
       return handled != null ? handled : super.use(level, player, hand);
    }
    //--endversion
 
    @Override
    public InteractionResult useOn(UseOnContext context) {
-      InteractionResult handled = MLuaItemFactory.invokeOnUseOnBlock(this.registryKey, context);
+      InteractionResult handled = MLuaItemBehaviorDispatcher.onUseOnBlock(this.registryKey, context);
       return handled != null ? handled : super.useOn(context);
    }
 
@@ -69,7 +69,7 @@ final class MLuaRegisteredBow extends BowItem {
    @Override
    public boolean hurtEnemy(ItemStack stack, LivingEntity target,
                             LivingEntity attacker) {
-      return MLuaItemFactory.invokeOnAttackEntity(this.registryKey, stack, target, attacker)
+      return MLuaItemBehaviorDispatcher.onAttackEntity(this.registryKey, stack, target, attacker)
          && super.hurtEnemy(stack, target, attacker);
    }
    //--endversion
@@ -78,15 +78,16 @@ final class MLuaRegisteredBow extends BowItem {
    @Override
    public void hurtEnemy(ItemStack stack, LivingEntity target,
                          LivingEntity attacker) {
-      MLuaItemFactory.invokeOnAttackEntity(this.registryKey, stack, target, attacker);
-      super.hurtEnemy(stack, target, attacker);
+      if (MLuaItemBehaviorDispatcher.onAttackEntity(this.registryKey, stack, target, attacker)) {
+         super.hurtEnemy(stack, target, attacker);
+      }
    }
    //--endversion
 
    //--version 1.20.1,1.21.1
    @Override
    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-      MLuaItemFactory.invokeOnInventoryTick(this.registryKey, stack, level, entity, slot, selected);
+      MLuaItemBehaviorDispatcher.onInventoryTick(this.registryKey, stack, level, entity, slot, selected);
       super.inventoryTick(stack, level, entity, slot, selected);
    }
    //--endversion
@@ -95,7 +96,7 @@ final class MLuaRegisteredBow extends BowItem {
    @Override
    public void inventoryTick(ItemStack stack, ServerLevel level,
                              Entity entity, EquipmentSlot slot) {
-      MLuaItemFactory.invokeOnInventoryTick(this.registryKey, stack, level, entity, slot);
+      MLuaItemBehaviorDispatcher.onInventoryTick(this.registryKey, stack, level, entity, slot);
       super.inventoryTick(stack, level, entity, slot);
    }
    //--endversion
@@ -103,7 +104,7 @@ final class MLuaRegisteredBow extends BowItem {
    //--version 1.20.1,1.21.1
    @Override
    public void onCraftedBy(ItemStack stack, Level level, Player player) {
-      MLuaItemFactory.invokeOnCrafted(this.registryKey, stack, level, player);
+      MLuaItemBehaviorDispatcher.onCrafted(this.registryKey, stack, level, player);
       super.onCraftedBy(stack, level, player);
    }
    //--endversion
@@ -111,7 +112,7 @@ final class MLuaRegisteredBow extends BowItem {
    //--version 26.1
    @Override
    public void onCraftedBy(ItemStack stack, Player player) {
-      MLuaItemFactory.invokeOnCrafted(this.registryKey, stack, player);
+      MLuaItemBehaviorDispatcher.onCrafted(this.registryKey, stack, player);
       super.onCraftedBy(stack, player);
    }
    //--endversion
