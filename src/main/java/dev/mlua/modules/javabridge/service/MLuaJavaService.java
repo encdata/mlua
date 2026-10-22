@@ -34,7 +34,8 @@ public final class MLuaJavaService extends MLuaServiceBase {
     final MLuaJavaMemberResolver members = new MLuaJavaMemberResolver(reflection);
     private final MLuaJavaOverloadResolver overloads = new MLuaJavaOverloadResolver(this);
     private final MLuaJavaCoercionScorer coercionScorer = new MLuaJavaCoercionScorer(this);
-    private final MLuaJavaInputConverter inputConverter = new MLuaJavaInputConverter(this);
+    private final MLuaJavaTypedValueConverter typedValueConverter = new MLuaJavaTypedValueConverter(this);
+    private final MLuaJavaInputConverter inputConverter = new MLuaJavaInputConverter(this, this.typedValueConverter);
     private final MLuaJavaToLuaConverter toLuaConverter = new MLuaJavaToLuaConverter(this);
     private final MLuaJavaObjectProxyFactory objectProxies = new MLuaJavaObjectProxyFactory(this);
     private final MLuaJavaOutputAdapter outputAdapter = new MLuaJavaOutputAdapter(this);
@@ -173,6 +174,10 @@ public final class MLuaJavaService extends MLuaServiceBase {
 
     Object convertLuaValue(LuaValue value, Type targetType, IdentityHashMap<LuaTable, Boolean> activeTables, int depth) {
         return this.inputConverter.convertLuaValue(value, targetType, activeTables, depth);
+    }
+
+    void validateLuaConversionBudget(LuaValue value, MLuaJavaConversionBudget budget) {
+        this.inputConverter.validateLuaConversionBudget(value, budget);
     }
 
     Class<?> rawClass(Type type) {
@@ -322,11 +327,11 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     Object convertValue(Object rawValue, Class<?> targetType) {
-        return this.inputConverter.convertValue(rawValue, targetType);
+        return this.typedValueConverter.convertValue(rawValue, targetType);
     }
 
     Object convertValue(Object rawValue, Class<?> targetType, MLuaJavaConversionBudget budget) {
-        return this.inputConverter.convertValue(rawValue, targetType, budget);
+        return this.typedValueConverter.convertValue(rawValue, targetType, budget);
     }
 
     int coercionScore(Object value, Class<?> parameterType) {
@@ -338,7 +343,7 @@ public final class MLuaJavaService extends MLuaServiceBase {
     }
 
     Object convertNumber(Number number, Class<?> targetType) {
-        return this.inputConverter.convertNumber(number, targetType);
+        return this.typedValueConverter.convertNumber(number, targetType);
     }
 
     LuaValue toLuaTable(Object value, dev.mlua.runtime.client.MLuaRenderFrameScope.View frameScope) {
