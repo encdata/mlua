@@ -22,6 +22,7 @@ final class MLuaRegistryOreVeinApi {
                 if (!targets.istable() || MLuaLuaJson.jsonArrayLength(targets.checktable()) <= 0) {
                     throw new LuaError("[MLua] WorldGeneration:RegisterOreVein requires a non-empty targets array.");
                 }
+                validateTargets(targets.checktable());
                 MLuaRegistryDefinitions.stringValues(biomes, "ore vein biomes");
                 if (step.isnil() || (step.type() != LuaValue.TSTRING
                     && dev.mlua.modules.enums.MLuaEnumValue.toJava(
@@ -93,6 +94,29 @@ final class MLuaRegistryOreVeinApi {
     private static LuaValue field(LuaTable table, String lower, String upper) {
         LuaValue value = table.get(lower);
         return value.isnil() ? table.get(upper) : value;
+    }
+
+    private static void validateTargets(LuaTable targets) {
+        for (int index = 1; index <= targets.length(); index++) {
+            LuaValue entryValue = targets.get(index);
+            if (!entryValue.istable()) {
+                throw new LuaError("[MLua] Ore vein target " + index + " must be a table.");
+            }
+            LuaTable entry = entryValue.checktable();
+            LuaValue predicateValue = entry.get("target");
+            LuaValue stateValue = entry.get("state");
+            if (!predicateValue.istable() || !stateValue.istable()) {
+                throw new LuaError("[MLua] Ore vein target " + index + " requires target and state tables.");
+            }
+            LuaValue predicateType = predicateValue.checktable().get("predicate_type");
+            LuaValue blockName = stateValue.checktable().get("Name");
+            if (predicateType.type() != LuaValue.TSTRING || predicateType.tojstring().isBlank()) {
+                throw new LuaError("[MLua] Ore vein target " + index + " requires target.predicate_type.");
+            }
+            if (blockName.type() != LuaValue.TSTRING || blockName.tojstring().isBlank()) {
+                throw new LuaError("[MLua] Ore vein target " + index + " requires state.Name.");
+            }
+        }
     }
 
     private static int wholeNumber(LuaTable table, int fallback, String lower, String upper) {

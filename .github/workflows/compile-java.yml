@@ -47,6 +47,7 @@ jobs:
     name: Build ${{ matrix.target }} / ${{ matrix.loader }} (Linux)
     needs: select-targets
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       max-parallel: 10
