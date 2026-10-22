@@ -97,6 +97,9 @@ jobs:
       - name: Validate entity query ownership
         run: python .github/scripts/verify-entity-service-contract.py
 
+      - name: Validate advancement service ownership
+        run: python .github/scripts/verify-advancement-service-contract.py
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
