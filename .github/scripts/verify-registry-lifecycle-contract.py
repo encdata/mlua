@@ -70,6 +70,15 @@ if "assertFalse(GeneratedDataResources.contains(resourceType, fullId))" not in t
 if "bridge.featureCounts(owner).forAddon()" not in test:
     fail("the world generation bridge regression test does not verify addon-owned usage counts")
 
+runtime = (ROOT / "src/main/java/dev/mlua/core/MLuaRuntime.java").read_text(encoding="utf-8")
+generated_pack = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaGeneratedAssetPack.java").read_text(encoding="utf-8")
+if runtime.count("this.generateAssetPack();") < 2:
+    fail("registry startup and resource reload must both refresh generated pack data")
+if "else MLuaGeneratedAssetPack.generate();" not in runtime:
+    fail("dedicated servers must generate MLua data-pack resources without loading client hooks")
+if "net.minecraft.client" in generated_pack:
+    fail("generated data-pack generation must remain safe to call on a dedicated server")
+
 registry_api = (API_ROOT / "MLuaRegistryApi.java").read_text(encoding="utf-8")
 limits_api_path = API_ROOT / "MLuaRegistryLimitsApi.java"
 if not limits_api_path.is_file():

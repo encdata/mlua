@@ -14,6 +14,7 @@ import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.mixin.MixinRuleEngine;
 import dev.mlua.common.mixin.MLuaMixinCallbackRegistry;
 import dev.mlua.loaderapi.LoaderApi;
+import dev.mlua.runtime.client.MLuaGeneratedAssetPack;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.binding.MLuaLevelWrapper;
@@ -224,7 +225,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          this.reloadClientWorldLoadEntrypoints(true);
       }
       MixinRuleEngine.triggerRetransform();
-      this.generateClientAssets();
+      this.generateAssetPack();
       MLuaDocumentation.generate(LoaderApi.platform().gameDir());
    }
 
@@ -588,7 +589,7 @@ public final class MLuaRuntime implements MLuaRegistration {
          }
 
       });
-      this.generateClientAssets();
+      this.generateAssetPack();
 
       MixinRuleEngine.triggerRetransform();
       MLuaDocumentation.generate(LoaderApi.platform().gameDir());
@@ -947,6 +948,11 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    private void generateClientAssets() {
       if (LoaderApi.platform().isClient()) invokeClientHook("generateAssets", new Class<?>[0]);
+   }
+
+   private void generateAssetPack() {
+      if (LoaderApi.platform().isClient()) generateClientAssets();
+      else MLuaGeneratedAssetPack.generate();
    }
 
    private static Object invokeClientHook(String methodName, Class<?>[] parameterTypes, Object... arguments) {
