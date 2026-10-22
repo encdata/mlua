@@ -6,7 +6,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
-import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.modules.world.MLuaWorldChunkApi;
 import dev.mlua.runtime.server.MLuaServerThread;
 import java.util.HashMap;
 import java.util.Map;
@@ -143,7 +143,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
         MLuaWorldEffectsApi26.bind(this, context, result, implementations, level);
         MLuaWorldDataApi26.bind(this, context, result, implementations, level);
         MLuaWorldEntityQueryApi26.bind(this, context, result, implementations, level);
-        MLuaChunkWrapper.bindWorldMethods(result, context.mlua().registration());
+        MLuaWorldChunkApi.bind(result, context.mlua().registration());
         worldInstances.put(level, result);
         return result;
     }

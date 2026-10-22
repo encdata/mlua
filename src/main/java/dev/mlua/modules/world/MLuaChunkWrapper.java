@@ -11,7 +11,6 @@ import dev.mlua.minecraft.binding.MLuaBiomeWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateWrapper;
 import dev.mlua.minecraft.binding.MLuaBlockStateProperties;
 import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
-import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import dev.mlua.modules.players.classes.MLuaPlayerWrapper;
@@ -35,13 +34,14 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 
 public final class MLuaChunkWrapper {
-    private static final Map<MLuaRegistration, Map<LuaTable, Map<Long, WeakReference<LuaTable>>>> CHUNK_INSTANCES = new WeakHashMap<>();
+    private static final Map<MLuaRegistration, Map<LuaTable, ChunkInstances>> CHUNK_INSTANCES = new WeakHashMap<>();
 
     private MLuaChunkWrapper() {
     }
@@ -50,15 +50,37 @@ public final class MLuaChunkWrapper {
                                       LuaTable worldInstance) {
         long key = ((long)chunkX(position) << 32) | (chunkZ(position) & 0xffffffffL);
         synchronized (CHUNK_INSTANCES) {
-            Map<LuaTable, Map<Long, WeakReference<LuaTable>>> worlds = CHUNK_INSTANCES.computeIfAbsent(registration, ignored -> new WeakHashMap<>());
-            Map<Long, WeakReference<LuaTable>> chunks = worlds.computeIfAbsent(worldInstance, ignored -> new HashMap<>());
-            WeakReference<LuaTable> reference = chunks.get(key);
+            Map<LuaTable, ChunkInstances> worlds = CHUNK_INSTANCES.computeIfAbsent(
+                registration, ignored -> new WeakHashMap<>());
+            ChunkInstances chunks = worlds.computeIfAbsent(worldInstance, ignored -> new ChunkInstances());
+            chunks.reapCollectedInstances();
+            ChunkTableReference reference = chunks.byPosition.get(key);
             LuaTable cached = reference == null ? null : reference.get();
             if (cached != null && registration.isInstanceOf(cached, "Chunk")) return cached;
-            chunks.entrySet().removeIf(entry -> entry.getValue().get() == null);
             LuaTable chunk = createChunkTable(level, position, registration, worldInstance);
-            chunks.put(key, new WeakReference<>(chunk));
+            chunks.byPosition.put(key, new ChunkTableReference(chunk, key, chunks.collectedInstances));
             return chunk;
+        }
+    }
+
+    private static final class ChunkInstances {
+        private final ReferenceQueue<LuaTable> collectedInstances = new ReferenceQueue<>();
+        private final Map<Long, ChunkTableReference> byPosition = new HashMap<>();
+
+        private void reapCollectedInstances() {
+            ChunkTableReference collected;
+            while ((collected = (ChunkTableReference)this.collectedInstances.poll()) != null) {
+                this.byPosition.remove(collected.positionKey, collected);
+            }
+        }
+    }
+
+    private static final class ChunkTableReference extends WeakReference<LuaTable> {
+        private final long positionKey;
+
+        private ChunkTableReference(LuaTable instance, long positionKey, ReferenceQueue<LuaTable> queue) {
+            super(instance, queue);
+            this.positionKey = positionKey;
         }
     }
 
@@ -290,90 +312,7 @@ public final class MLuaChunkWrapper {
     }
 
     public static void bindWorldMethods(LuaTable world, MLuaRegistration registration) {
-        bindWorldMethod(world, registration, "IsChunkLoaded", args -> {
-            Level level = level(args.arg1());
-            ChunkPos position = chunkPosition(args, 2);
-            BlockPos origin = new BlockPos(position.getMinBlockX(), minBuildHeight(level), position.getMinBlockZ());
-            return LuaValue.valueOf(level.hasChunkAt(origin));
-        });
-        bindWorldMethod(world, registration, "IsBlockLoaded", args -> {
-            Level level = level(args.arg1());
-            double[] coordinates = MLuaPositionArguments.vector3(args, 2);
-            BlockPos position = BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]);
-            return LuaValue.valueOf(level.hasChunkAt(position));
-        });
-        LuaValue getChunk = worldMethod("GetChunk", args -> {
-            Level level = level(args.arg1());
-            return chunkTable(level, chunkPosition(args, 2), registration, args.arg1().checktable());
-        });
-        bindWorldMethod(world, registration, "GetChunk", getChunk);
-        bindWorldMethod(world, registration, "GetChunkAt", getChunk);
-        bindWorldMethod(world, registration, "LoadChunk", args -> {
-            Level level = level(args.arg1());
-            ServerLevel server = requireServerLevel(level, "World:LoadChunk");
-            ChunkPos position = chunkPosition(args, 2);
-            MLuaServerThread.call(server.getServer(), () -> server.getChunk(chunkX(position), chunkZ(position)));
-            return chunkTable(level, position, registration, args.arg1().checktable());
-        });
-        bindWorldMethod(world, registration, "UnloadChunk", args -> {
-            Level level = level(args.arg1());
-            ChunkPos position = chunkPosition(args, 2);
-            return LuaValue.valueOf(setForced(level, position, false, "World:UnloadChunk"));
-        });
-        bindWorldMethod(world, registration, "SetChunkForced", args -> {
-            Level level = level(args.arg1());
-            ChunkPos position = chunkPosition(args, 2);
-            boolean forced = args.checkboolean(3);
-            return LuaValue.valueOf(setForced(level, position, forced, "World:SetChunkForced"));
-        });
-        bindWorldMethod(world, registration, "ForceLoadChunk", args -> {
-            Level level = level(args.arg1());
-            ChunkPos position = chunkPosition(args, 2);
-            return LuaValue.valueOf(setForced(level, position, true, "World:ForceLoadChunk"));
-        });
-        bindWorldMethod(world, registration, "IsChunkForced", args -> {
-            Level level = level(args.arg1());
-            return level instanceof ServerLevel server
-                ? LuaValue.valueOf(isForced(server, chunkPosition(args, 2))) : LuaValue.FALSE;
-        });
-        bindWorldMethod(world, registration, "GetEntitiesInChunk", args -> {
-            Level level = level(args.arg1());
-            ChunkPos position = chunkPosition(args, 2);
-            BlockPos origin = new BlockPos(position.getMinBlockX(), minBuildHeight(level), position.getMinBlockZ());
-            boolean load = MLuaLuaArguments.optionalBoolean(
-                args, 3, true, "World:GetEntitiesInChunk", "loadChunk");
-            if (!level.hasChunkAt(origin)) {
-                if (!load || !(level instanceof ServerLevel server)) return new LuaTable();
-                MLuaServerThread.call(server.getServer(), () -> server.getChunk(chunkX(position), chunkZ(position)));
-            }
-            LuaTable chunk = chunkTable(level, position, registration, world);
-            return chunk.get("GetEntities").invoke(LuaValue.varargsOf(new LuaValue[]{chunk})).arg1();
-        });
-    }
-
-    private static void bindWorldMethod(LuaTable world, MLuaRegistration registration, String name, Body body) {
-        bindWorldMethod(world, registration, name, worldMethod(name, body));
-    }
-
-    private static void bindWorldMethod(LuaTable world, MLuaRegistration registration, String name, LuaValue method) {
-        String description = WorldModule.worldMethods().get(name);
-        if (description == null) throw new IllegalStateException("World method has no description: " + name);
-        MLuaClassMethods.bindInstanceMethod(registration, "World", world, name, method, description);
-    }
-
-    private static LuaValue worldMethod(String name, Body body) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs args) {
-                try {
-                    return body.apply(args);
-                } catch (LuaError error) {
-                    throw error;
-                } catch (Exception error) {
-                    throw MLuaLuaErrors.javaFailure("World:" + name, error);
-                }
-            }
-        };
+        MLuaWorldChunkApi.bind(world, registration);
     }
 
     private static ServerLevel requireServerLevel(Level level, String method) {
@@ -381,7 +320,7 @@ public final class MLuaChunkWrapper {
         throw new LuaError("[MLua] " + method + " is server-side only.");
     }
 
-    private static boolean setForced(Level level, ChunkPos position, boolean forced, String method) {
+    static boolean setForced(Level level, ChunkPos position, boolean forced, String method) {
         ServerLevel server = requireServerLevel(level, method);
         server.setChunkForced(chunkX(position), chunkZ(position), forced);
         return isForced(server, position) == forced;
@@ -463,7 +402,7 @@ public final class MLuaChunkWrapper {
         return new ChunkPos(table.get("__chunkX").checkint(), table.get("__chunkZ").checkint());
     }
 
-    private static int minBuildHeight(Level world) {
+    static int minBuildHeight(Level world) {
         //--version 26.1
         return world.getMinY();
         //--endversion
@@ -509,7 +448,7 @@ public final class MLuaChunkWrapper {
         return self.checktable().get("__chunkZ").checkint();
     }
 
-    private static Level level(LuaValue self) {
+    static Level level(LuaValue self) {
         LuaValue value = self.checktable().get("__level");
         if (!value.isuserdata(Level.class)) throw new LuaError("[MLua] Chunk has no live dimension.");
         return (Level)value.touserdata(Level.class);

@@ -24,6 +24,8 @@ ENTITY_QUERY_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/s
 DATA_API_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldDataApi26.java"
 WORLD_MODULE = ROOT / "src/main/java/dev/mlua/modules/world/WorldModule.java"
 SCRIPTED_BLOCK = ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaScriptedBlock.java"
+CHUNK_WRAPPER = ROOT / "src/main/java/dev/mlua/modules/world/MLuaChunkWrapper.java"
+WORLD_CHUNK_API = ROOT / "src/main/java/dev/mlua/modules/world/MLuaWorldChunkApi.java"
 
 
 def fail(message: str) -> None:
@@ -294,5 +296,32 @@ for backing_field in (
 ):
     if backing_field not in game_rule_entry_source:
         fail(f"shared GameRuleEntry builder is missing its backing contract: {backing_field}")
+
+# Chunk instances and World chunk operations have separate binding owners.
+chunk_wrapper_source = CHUNK_WRAPPER.read_text(encoding="utf-8")
+world_chunk_api_source = WORLD_CHUNK_API.read_text(encoding="utf-8")
+legacy_chunk_binder = method_body(chunk_wrapper_source,
+                                  r"\bpublic\s+static\s+void\s+bindWorldMethods\s*\(")
+if "MLuaWorldChunkApi.bind(world, registration)" not in legacy_chunk_binder:
+    fail("legacy chunk binder must delegate World chunk methods to MLuaWorldChunkApi")
+for path in (SHARED, FABRIC_120, COMMON_26):
+    source = path.read_text(encoding="utf-8")
+    if "MLuaWorldChunkApi.bind(" not in source:
+        fail(f"{path} does not delegate World chunk operations to MLuaWorldChunkApi")
+for method in ("IsChunkLoaded", "IsBlockLoaded", "GetChunk", "GetChunkAt", "LoadChunk",
+               "UnloadChunk", "SetChunkForced", "ForceLoadChunk", "IsChunkForced",
+               "GetEntitiesInChunk"):
+    binding = f'bindWorldMethod(world, registration, "{method}"'
+    if binding not in world_chunk_api_source:
+        fail(f"MLuaWorldChunkApi does not own World:{method}")
+    if binding in chunk_wrapper_source:
+        fail(f"World:{method} is still bound inline in MLuaChunkWrapper")
+if 'bind(chunk, "GetBlockAt"' not in chunk_wrapper_source:
+    fail("MLuaChunkWrapper no longer owns Chunk instance block access")
+if "ReferenceQueue<LuaTable>" not in chunk_wrapper_source \
+        or "byPosition.remove(collected.positionKey, collected)" not in chunk_wrapper_source:
+    fail("chunk wrapper cache must reap collected instances through its reference queue")
+if "chunks.entrySet().removeIf" in chunk_wrapper_source:
+    fail("chunk wrapper cache must not scan every cached chunk during each lookup")
 
 print(f"World service call contract passed ({len(pairs)} supported loader/version targets).")

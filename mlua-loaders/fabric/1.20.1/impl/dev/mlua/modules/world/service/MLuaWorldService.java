@@ -11,6 +11,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.modules.world.MLuaWorldChunkApi;
 import dev.mlua.modules.world.MLuaPositionArguments;
 import dev.mlua.modules.world.MLuaWorldGameRules;
 import dev.mlua.modules.entity.MLuaEntityQuery;
@@ -653,7 +654,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return LuaValue.NONE;
       }));
 
-      MLuaChunkWrapper.bindWorldMethods(table, context.mlua().registration());
+      MLuaWorldChunkApi.bind(table, context.mlua().registration());
       if (initial != null) this.worldInstances.put(initial, table);
       return table;
    }

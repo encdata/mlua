@@ -6,7 +6,7 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
-import dev.mlua.modules.world.MLuaChunkWrapper;
+import dev.mlua.modules.world.MLuaWorldChunkApi;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.modules.players.MLuaClientPlayerAccess;
 import dev.mlua.runtime.server.MLuaServerThread;
@@ -94,7 +94,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       MLuaWorldMutationApi.bind(table, supplier, context, context.mlua().registration(), context.mlua().ownerModId());
       MLuaWorldDataApi.bind(table, supplier, context);
 
-      MLuaChunkWrapper.bindWorldMethods(table, this.context.mlua().registration());
+      MLuaWorldChunkApi.bind(table, this.context.mlua().registration());
       WorldModule.bindWorldInstanceMethods(this.context.mlua().registration(), table);
       worldInstances.put(initial, table);
       return table;
