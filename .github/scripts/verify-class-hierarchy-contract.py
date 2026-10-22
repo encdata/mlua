@@ -21,6 +21,14 @@ for owner_field in ("Map<String, String> parents", "Map<String, Set<String>> chi
 for method in ("boolean hasChildren(String className)", "List<String> descendantsOf(String className)"):
     if method not in hierarchy:
         fail(f"MLuaClassHierarchy is missing {method}")
+if "Map<String, Set<LuaTable>> instancesByClass" not in registry:
+    fail("live instances must be indexed by class without replacing the weak instance ownership map")
+if "Collections.newSetFromMap(new WeakHashMap<>())" not in registry:
+    fail("the per-class instance index must not retain unattached Lua instances")
+if "instancesOfOrDescendants(className)" not in registry:
+    fail("class field validation and metadata refresh must query only instances of the affected class subtree")
+if "for (Map.Entry<LuaTable, LuaTable> entry : this.instanceClasses.entrySet())" in registry:
+    fail("class-scoped instance refreshes must not rescan every live instance")
 if "this.refreshInheritedMethodDescriptions(descendant);" not in registry \
         or "this.hierarchy.descendantsOf(changedClass)" not in registry:
     fail("class metadata refresh must traverse only the changed class and indexed descendants")

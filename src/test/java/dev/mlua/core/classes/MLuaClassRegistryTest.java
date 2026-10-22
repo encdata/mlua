@@ -71,6 +71,23 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
+    void inheritedPropertyChecksFindLiveInstancesThroughTheClassIndex() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        registry.register("Base", (String) null);
+        registry.register("Child", "Base");
+        LuaTable child = new LuaTable();
+        child.set("health", LuaValue.valueOf(20));
+        registry.attachInstance(child, "Child", null);
+
+        IllegalStateException conflict = assertThrows(IllegalStateException.class,
+            () -> registry.registerProperty("Base", "health", new VarArgFunction() {
+                @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf(20); }
+            }, LuaValue.NIL, "number", "shared:Shared", "Current health."));
+
+        assertTrue(conflict.getMessage().contains("live Child instance"));
+    }
+
+    @Test
     void parentClassCannotBeRemovedWhileAChildDependsOnIt() {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         LuaTable parent = registry.register("Parent", (String) null);
