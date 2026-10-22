@@ -27,6 +27,19 @@ for token in ("ResourceLocation", "Identifier", "readResourceLocation()", "readI
     if token not in packet:
         raise SystemExit(f"Animation sync packet is missing version-scoped codec support for {token}")
 
+modern_item = (ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/scripted/MLuaScriptedItem.java").read_text(encoding="utf-8")
+modern_item_dispatcher = (ROOT / "mlua-versions/common/26.1/dev/mlua/runtime/registry/MLuaItemBehaviorDispatcher.java").read_text(encoding="utf-8")
+for method in ("onUse", "onUseOnBlock", "onConsume", "onInventoryTick", "onAttackEntity", "onCrafted"):
+    if f"MLuaItemBehaviorDispatcher.{method}(" not in modern_item:
+        raise SystemExit(f"26.1 scripted items must delegate {method} behavior to the item dispatcher")
+    if f" {method}(" not in modern_item_dispatcher:
+        raise SystemExit(f"26.1 item behavior dispatcher is missing {method}")
+if "MLuaBehaviorRegistry" in modern_item or "MLuaBehaviorCallbackFailureTracker" in modern_item:
+    raise SystemExit("26.1 scripted item hooks must not own Lua callback lookup or failure handling")
+for field in ("ItemStack", "Entity", "EquipmentSlot"):
+    if f'context.set("{field}"' not in modern_item_dispatcher:
+        raise SystemExit(f"26.1 item callback contexts are missing {field}")
+
 root_compilers = (
     "gradle/mlua-fabric-project.gradle",
     "gradle/mlua-neoforge-project.gradle",

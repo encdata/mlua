@@ -41,7 +41,9 @@ final class RegistryDefinitionDocumentation {
             "Block", "Block", "Live block instance receiving the use.", "Face", "string", "Block face clicked.");
         schema(docs, "ItemInventoryTickContext", "Context passed while an item is in an inventory.",
             "Player", "Player|nil", "Owning player, when available.", "Entity", "Entity|nil", "Owning entity, when available.",
-            "World", "string", "World identifier.", "Slot", "number", "One-based inventory slot.",
+            "World", "string", "World identifier.", "Slot", "number", "Native slot value supplied by Minecraft's item hook.",
+            "SlotIndex?", "number", "One-based inventory position when the version's item hook provides one.",
+            "EquipmentSlot?", "string", "Equipment slot name when the item is held or worn and the hook can identify it.",
             "Selected", "boolean", "Whether this is the selected hotbar slot.", "Item", "Item", "Live item instance.",
             "ItemStack", "string", "Item stack description.");
         schema(docs, "ItemCraftedContext", "Context passed when an item is crafted.",
@@ -49,7 +51,9 @@ final class RegistryDefinitionDocumentation {
             "Position", "Vector3", "Crafting position.", "Hand", "string", "Hand value when supplied.",
             "Item", "Item", "Live crafted item.", "ItemStack", "string", "Crafted stack description.");
         schema(docs, "ItemConsumeContext", "Context passed when an item is consumed.",
-            "Player", "Player|nil", "Player consuming the item.", "World", "string", "World identifier.", "Item", "Item", "Live consumed item.");
+            "Player", "Player|nil", "Player consuming the item.", "Entity", "Entity", "Living entity consuming the item.",
+            "World", "string", "World identifier.", "Item", "Item", "Live consumed item.",
+            "ItemStack", "string", "Registered item behavior key.");
         schema(docs, "ItemAttackEntityContext", "Context passed when an item attacks an entity.",
             "Player", "Player|nil", "Player attacking with the item, when available.",
             "Attacker", "Entity|Player", "Entity performing the attack.",

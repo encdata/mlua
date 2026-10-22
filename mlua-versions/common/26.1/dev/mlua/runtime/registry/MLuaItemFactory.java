@@ -7,33 +7,14 @@ import java.util.TreeMap;
 import java.util.Locale;
 import java.lang.reflect.Field;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.Consumables;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.ToolMaterial;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.component.DataComponentInitializers;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.item.context.UseOnContext;
-import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
-import dev.mlua.core.MLuaRuntime;
 import dev.mlua.minecraft.scripted.MLuaScriptedItem;
-import dev.mlua.minecraft.binding.MLuaBlockWrapper;
-import dev.mlua.minecraft.binding.MLuaItemWrapper;
 import dev.mlua.minecraft.MLuaResourceLocations;
-import dev.mlua.modules.players.classes.MLuaEntityWrapper;
-import dev.mlua.modules.players.classes.MLuaPlayerWrapper;
-import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
-import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 
 /** 26.1 item factory. Tool behavior is configured through Item.Properties.tool APIs. */
 public final class MLuaItemFactory {
@@ -469,127 +450,6 @@ public final class MLuaItemFactory {
             throw new IllegalArgumentException("[MLua] Unknown item rarity: " + name
                 + ". Use Registry.Items:GetRarities() to list values available in this Minecraft version.", invalid);
         }
-    }
-
-    static InteractionResult invokeOnUse(String key, Level level, Player player, InteractionHand hand) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onUse");
-        if (callback.isnil()) return null;
-        try {
-            LuaTable context = new LuaTable();
-            var registration = MLuaRuntime.registrationForLevel(level);
-            context.set("World", level.dimension().identifier().toString());
-            context.set("Position", MLuaPlayerWrapper.positionTable(player.getX(), player.getY(), player.getZ()));
-            context.set("Hand", hand.name().toLowerCase(Locale.ROOT));
-            context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), registration));
-            context.set("ItemStack", key);
-            if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration));
-            }
-            Varargs result = invokeBehavior(key, "onUse", callback, context);
-            return result.arg1().isboolean() && result.arg1().toboolean() ? InteractionResult.SUCCESS : null;
-        } catch (Exception exception) {
-            dev.mlua.core.MLuaLogger.LOGGER.error("MLua item onUse callback failed for '{}': {}", key, exception.getMessage());
-            return null;
-        }
-    }
-
-    static InteractionResult invokeOnUseOnBlock(String key, UseOnContext context) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onUseOnBlock");
-        if (callback.isnil()) return null;
-        try {
-            LuaTable values = new LuaTable();
-            var level = context.getLevel();
-            var position = context.getClickedPos();
-            var registration = MLuaRuntime.registrationForLevel(level);
-            values.set("World", level.dimension().identifier().toString());
-            values.set("Position", MLuaPlayerWrapper.positionTable(position.getX(), position.getY(), position.getZ()));
-            values.set("Block", MLuaBlockWrapper.blockTable(level, position, registration));
-            values.set("Face", context.getClickedFace().getName());
-            values.set("Hand", context.getHand().name().toLowerCase(Locale.ROOT));
-            values.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), registration));
-            values.set("ItemStack", key);
-            if (context.getPlayer() instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                values.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration));
-            }
-            Varargs result = invokeBehavior(key, "onUseOnBlock", callback, values);
-            return result.arg1().isboolean() && result.arg1().toboolean() ? InteractionResult.SUCCESS : null;
-        } catch (Exception exception) {
-            dev.mlua.core.MLuaLogger.LOGGER.error("MLua item onUseOnBlock callback failed for '{}': {}", key, exception.getMessage());
-            return null;
-        }
-    }
-
-    static boolean invokeOnAttackEntity(String key, ItemStack stack, net.minecraft.world.entity.LivingEntity target,
-                                        net.minecraft.world.entity.LivingEntity attacker) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onAttackEntity");
-        if (callback.isnil()) return true;
-        try {
-            var registration = MLuaRuntime.registrationForLevel(target.level());
-            LuaTable targetTable = target instanceof net.minecraft.server.level.ServerPlayer player
-                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
-                : MLuaEntityWrapper.entityTable(target, registration);
-            LuaTable attackerTable = attacker instanceof net.minecraft.server.level.ServerPlayer player
-                ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
-                : MLuaEntityWrapper.entityTable(attacker, registration);
-            LuaTable context = new LuaTable();
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-            context.set("Entity", targetTable);
-            context.set("Target", targetTable);
-            context.set("Attacker", attackerTable);
-            if (attacker instanceof net.minecraft.server.level.ServerPlayer) context.set("Player", attackerTable);
-            context.set("ItemStack", key);
-            Varargs result = invokeBehavior(key, "onAttackEntity", callback, context);
-            return !result.arg1().isboolean() || result.arg1().toboolean();
-        } catch (Exception exception) {
-            dev.mlua.core.MLuaLogger.LOGGER.error("MLua item onAttackEntity callback failed for '{}': {}", key, exception.getMessage());
-            return true;
-        }
-    }
-
-    static void invokeOnInventoryTick(String key, ItemStack stack, ServerLevel level, Entity entity, EquipmentSlot slot) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onInventoryTick");
-        if (callback.isnil()) return;
-        try {
-            LuaTable context = new LuaTable();
-            var registration = MLuaRuntime.registrationForLevel(level);
-            context.set("World", level.dimension().identifier().toString());
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-            context.set("Slot", slot.ordinal());
-            context.set("Selected", LuaValue.valueOf(entity instanceof Player player && player.getMainHandItem() == stack));
-            context.set("Entity", MLuaEntityWrapper.entityTable(entity, registration));
-            context.set("ItemStack", key);
-            if (entity instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration));
-            }
-            invokeBehavior(key, "onInventoryTick", callback, context);
-        } catch (Exception exception) {
-            dev.mlua.core.MLuaLogger.LOGGER.error("MLua item onInventoryTick callback failed for '{}': {}", key, exception.getMessage());
-        }
-    }
-
-    static void invokeOnCrafted(String key, ItemStack stack, Player player) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("item", key, "onCrafted");
-        if (callback.isnil()) return;
-        try {
-            LuaTable context = new LuaTable();
-            var registration = MLuaRuntime.registrationForLevel(player.level());
-            context.set("World", player.level().dimension().identifier().toString());
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
-            context.set("ItemStack", key);
-            context.set("Position", MLuaPlayerWrapper.positionTable(player.getX(), player.getY(), player.getZ()));
-            context.set("Hand", player.getUsedItemHand() == null ? "main_hand" : player.getUsedItemHand().name().toLowerCase(Locale.ROOT));
-            if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(serverPlayer), registration));
-            }
-            invokeBehavior(key, "onCrafted", callback, context);
-        } catch (Exception exception) {
-            dev.mlua.core.MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}", key, exception.getMessage());
-        }
-    }
-
-    private static Varargs invokeBehavior(String key, String event, LuaValue callback, LuaTable context) {
-        return MLuaBehaviorRegistry.invokeCallback("item", key, event, callback,
-            LuaValue.varargsOf(new LuaValue[]{context}));
     }
 
     private static String kind(Map<String, Object> properties) {

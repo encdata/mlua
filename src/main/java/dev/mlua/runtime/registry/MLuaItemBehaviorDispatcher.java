@@ -76,6 +76,8 @@ final class MLuaItemBehaviorDispatcher {
             }
             context.set("World", level.dimension().location().toString());
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+            context.set("ItemStack", behaviorKey);
+            context.set("Entity", MLuaEntityWrapper.entityTable(livingEntity, registration));
             MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
                 LuaValue.varargsOf(new LuaValue[]{context}));
         } catch (Exception failure) {
@@ -164,6 +166,9 @@ final class MLuaItemBehaviorDispatcher {
                 context.set("Entity", MLuaEntityWrapper.entityTable(living, registration));
             }
             context.set("Slot", slot);
+            context.set("SlotIndex", slot + 1);
+            String equipmentSlot = equipmentSlot(entity, stack, selected);
+            if (equipmentSlot != null) context.set("EquipmentSlot", equipmentSlot);
             context.set("Selected", LuaValue.valueOf(selected));
             context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
             context.set("ItemStack", behaviorKey);
@@ -199,5 +204,14 @@ final class MLuaItemBehaviorDispatcher {
             MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}",
                 behaviorKey, failure.getMessage());
         }
+    }
+
+    private static String equipmentSlot(Entity entity, ItemStack stack, boolean selected) {
+        if (selected) return net.minecraft.world.entity.EquipmentSlot.MAINHAND.name();
+        if (!(entity instanceof LivingEntity living)) return null;
+        for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
+            if (living.getItemBySlot(slot) == stack) return slot.name();
+        }
+        return null;
     }
 }
