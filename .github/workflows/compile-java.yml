@@ -85,7 +85,7 @@ jobs:
       - name: Validate shared Lua callback error handling
         run: python .github/scripts/verify-lua-error-boundary-contract.py
 
-      - name: Validate indexed class hierarchy ownership
+      - name: Validate class registry ownership
         run: python .github/scripts/verify-class-registry-contract.py
 
       - uses: actions/setup-java@v4

@@ -10,7 +10,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.Collections;
-import java.util.WeakHashMap;
 import dev.mlua.module.MLuaRegistration;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -26,7 +25,7 @@ public final class MLuaClassRegistry {
    private final Map<String, List<String>> appliedMixins = new HashMap<>();
    private final Set<String> pendingClassRemovals = new HashSet<>();
    private final MLuaClassLiveInstances liveInstances = new MLuaClassLiveInstances();
-   private final Map<LuaTable, InstanceDescription> instanceDescriptions = new WeakHashMap<>();
+   private final MLuaClassMetadata metadata;
 
    public MLuaClassRegistry() {
       this.mixinRegistry = new MLuaClassMixinRegistry(new MLuaClassMixinRegistry.Host() {
@@ -38,6 +37,8 @@ public final class MLuaClassRegistry {
             MLuaClassRegistry.this.refreshClassesUsingMixin(mixinName);
          }
       });
+      this.metadata = new MLuaClassMetadata(this, this.classes, this.hierarchy, this.mixinRegistry,
+         this.appliedMixins, this.liveInstances);
    }
 
    public synchronized LuaTable register(String name, String parentName) {
@@ -56,7 +57,7 @@ public final class MLuaClassRegistry {
          this.pendingClassRemovals.remove(name);
          this.requireStableParent(name, parentName);
          this.refreshParentLookup(existing, name);
-         this.refreshInheritedMethodDescriptionsFrom(name);
+         this.metadata.refreshInheritedMethodDescriptionsFrom(name);
          return existing;
       }
 
@@ -69,7 +70,7 @@ public final class MLuaClassRegistry {
       this.registeredClassTables.add(classTable);
       if (parentName != null) this.recordParent(name, parentName);
       this.refreshParentLookup(classTable, name);
-      this.refreshInheritedMethodDescriptionsFrom(name);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(name);
       return classTable;
    }
 
@@ -129,7 +130,7 @@ public final class MLuaClassRegistry {
       this.registeredClassTables.add(classTable);
       if (parentName != null) this.recordParent(name, parentName);
       this.refreshParentLookup(classTable, name);
-      this.refreshInheritedMethodDescriptionsFrom(name);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(name);
       return classTable;
    }
 
@@ -225,7 +226,7 @@ public final class MLuaClassRegistry {
          affectedClasses.add(mixinOwner);
          affectedClasses.addAll(this.hierarchy.descendantsOf(mixinOwner));
       }
-      affectedClasses.forEach(this::refreshInheritedMethodDescriptions);
+      affectedClasses.forEach(this.metadata::refreshInheritedMethodDescriptions);
    }
 
    public synchronized void applyMixin(String className, String mixinName) {
@@ -241,7 +242,7 @@ public final class MLuaClassRegistry {
       List<String> applied = this.appliedMixins.computeIfAbsent(className, ignored -> new ArrayList<>());
       applied.add(mixinName);
       this.refreshParentLookup(this.classes.get(className), className);
-      this.refreshInheritedMethodDescriptionsFrom(className);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(className);
    }
 
    public synchronized boolean removeMixin(String mixinName) {
@@ -269,7 +270,7 @@ public final class MLuaClassRegistry {
       this.appliedMixins.values().forEach(values -> values.remove(mixinName));
       this.appliedMixins.entrySet().removeIf(entry -> entry.getValue().isEmpty());
       for (String className : this.classes.keySet()) this.refreshParentLookup(this.classes.get(className), className);
-      this.refreshInheritedMethodDescriptions();
+      this.metadata.refreshInheritedMethodDescriptions();
       for (String className : List.copyOf(this.pendingClassRemovals)) this.removePendingClassIfUnused(className);
    }
 
@@ -286,7 +287,7 @@ public final class MLuaClassRegistry {
          for (String candidateClass : this.classes.keySet()) {
             if (!candidateClass.equals(className)
                 && !this.inheritsFrom(candidateClass, className)) continue;
-            if (this.hasPropertyDefinition(candidateClass, methodName, new HashSet<>())) {
+            if (this.metadata.hasPropertyDefinition(candidateClass, methodName, new HashSet<>())) {
                throw new IllegalStateException("Cannot apply behavior mixin '" + mixinName + "' to class '"
                   + className + "': method '" + methodName + "' conflicts with a property on class '"
                   + candidateClass + "'");
@@ -321,7 +322,7 @@ public final class MLuaClassRegistry {
       for (String className : this.classes.keySet()) {
          List<String> effective = this.effectiveMixins(className, new HashSet<>());
          if (!effective.contains(mixinName)) continue;
-         if (this.hasPropertyDefinition(className, functionName, new HashSet<>())) {
+         if (this.metadata.hasPropertyDefinition(className, functionName, new HashSet<>())) {
             throw new IllegalStateException("Cannot add method '" + functionName + "' to behavior mixin '"
                + mixinName + "': class '" + className + "' already defines it as a property");
          }
@@ -362,7 +363,7 @@ public final class MLuaClassRegistry {
       if (applied.isEmpty()) this.appliedMixins.remove(className);
       LuaTable classTable = this.classes.get(className);
       if (classTable != null) this.refreshParentLookup(classTable, className);
-      this.refreshInheritedMethodDescriptionsFrom(className);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(className);
       this.removePendingClassIfUnused(className);
       this.removePendingMixinIfUnused(mixinName);
       return true;
@@ -381,8 +382,8 @@ public final class MLuaClassRegistry {
 
    public synchronized void refreshMetadata(String className) {
       if (!this.classes.containsKey(className)) return;
-      this.refreshInheritedMethodDescriptionsFrom(className);
-      this.refreshAttachedPropertyDescriptionsFrom(className);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(className);
+      this.metadata.refreshAttachedPropertyDescriptionsFrom(className);
       this.removePendingClassIfUnused(className);
    }
 
@@ -445,7 +446,7 @@ public final class MLuaClassRegistry {
          throw new IllegalStateException("Lua class '" + className + "' already defines function '" + name
             + "'; registration cannot replace an existing class method");
       }
-      if (this.hasPropertyDefinition(className, name, new HashSet<>())) {
+      if (this.metadata.hasPropertyDefinition(className, name, new HashSet<>())) {
          throw new IllegalStateException("Lua class '" + className + "' already defines property '" + name + "'");
       }
       this.ensureNoExistingInstanceFieldShadowingMethod(className, name);
@@ -468,7 +469,7 @@ public final class MLuaClassRegistry {
       owner.rawset(name, function);
       docs.rawset(name, LuaValue.valueOf(description));
       owner.rawset("__mlua_doc_methods", docs);
-      this.refreshInheritedMethodDescriptionsFrom(className);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(className);
       return owner;
    }
 
@@ -506,7 +507,7 @@ public final class MLuaClassRegistry {
          throw new IllegalStateException("Lua class '" + className + "' has invalid property descriptors");
       }
       LuaTable descriptors = descriptorsValue.istable()
-         ? copyTableOrNil(descriptorsValue).checktable() : new LuaTable();
+         ? MLuaClassMetadata.copyTableOrNil(descriptorsValue).checktable() : new LuaTable();
       LuaValue oldDescriptor = descriptorsValue.istable()
          ? descriptorsValue.checktable().rawget(propertyName) : LuaValue.NIL;
       if (oldDescriptor.istable()) {
@@ -522,7 +523,7 @@ public final class MLuaClassRegistry {
          throw new IllegalStateException("Lua class '" + className + "' property descriptions must be a table");
       }
       LuaTable docs = docsValue.istable()
-         ? copyTableOrNil(docsValue).checktable() : new LuaTable();
+         ? MLuaClassMetadata.copyTableOrNil(docsValue).checktable() : new LuaTable();
       LuaValue oldDescription = docsValue.istable()
          ? docsValue.checktable().rawget(propertyName) : LuaValue.NIL;
       if (oldDescription.isstring() && !description.equals(oldDescription.tojstring())) {
@@ -532,7 +533,7 @@ public final class MLuaClassRegistry {
          throw new IllegalStateException("Lua class '" + className + "' property '" + propertyName + "' has invalid description metadata");
       }
       LuaTable descriptor = oldDescriptor.istable()
-         ? copyTableOrNil(oldDescriptor).checktable() : new LuaTable();
+         ? MLuaClassMetadata.copyTableOrNil(oldDescriptor).checktable() : new LuaTable();
       descriptor.rawset("get", getter);
       descriptor.rawset("set", setter == null ? LuaValue.NIL : setter);
       if (valueType != null) {
@@ -544,7 +545,7 @@ public final class MLuaClassRegistry {
       this.pendingClassRemovals.remove(className);
       owner.rawset("__mlua_properties", descriptors);
       owner.rawset("__mlua_doc_properties", docs);
-      this.refreshAttachedPropertyDescriptionsFrom(className);
+      this.metadata.refreshAttachedPropertyDescriptionsFrom(className);
       return owner;
    }
 
@@ -556,16 +557,16 @@ public final class MLuaClassRegistry {
       LuaTable sourceDescriptors = descriptorsValue.checktable();
       LuaValue descriptorValue = sourceDescriptors.rawget(propertyName);
       if (!descriptorValue.istable() || descriptorValue.checktable().rawget("get") != expectedGetter) return false;
-      LuaTable descriptors = copyTableOrNil(descriptorsValue).checktable();
+      LuaTable descriptors = MLuaClassMetadata.copyTableOrNil(descriptorsValue).checktable();
       descriptors.rawset(propertyName, LuaValue.NIL);
       owner.rawset("__mlua_properties", descriptors);
       LuaValue docsValue = owner.rawget("__mlua_doc_properties");
       if (docsValue.istable()) {
-         LuaTable docs = copyTableOrNil(docsValue).checktable();
+         LuaTable docs = MLuaClassMetadata.copyTableOrNil(docsValue).checktable();
          docs.rawset(propertyName, LuaValue.NIL);
          owner.rawset("__mlua_doc_properties", docs);
       }
-      this.refreshAttachedPropertyDescriptionsFrom(className);
+      this.metadata.refreshAttachedPropertyDescriptionsFrom(className);
       this.removePendingClassIfUnused(className);
       return true;
    }
@@ -592,46 +593,6 @@ public final class MLuaClassRegistry {
       }
    }
 
-   private void refreshAttachedPropertyDescriptionsFrom(String changedClass) {
-      for (LuaTable instance : this.liveInstances.ofClassAndDescendants(
-            changedClass, this.hierarchy.descendantsOf(changedClass))) {
-         String instanceClassName = instance.rawget("__type").optjstring("");
-         LuaTable descriptions = new LuaTable();
-         this.collectPropertyDescriptions(instanceClassName, descriptions, new HashSet<>());
-         instance.rawset("__mlua_doc_properties", descriptions);
-      }
-   }
-
-   private synchronized LuaTable findPropertyDescriptor(String className, String propertyName, Set<String> visited) {
-      if (!visited.add(className)) return null;
-      LuaTable owner = this.classes.get(className);
-      if (owner == null) return null;
-      LuaValue descriptors = owner.rawget("__mlua_properties");
-      LuaValue descriptor = descriptors.istable() ? descriptors.checktable().rawget(propertyName) : LuaValue.NIL;
-      if (descriptor.istable()) return descriptor.checktable();
-      String parentName = this.hierarchy.parentOf(className);
-      if (parentName != null) {
-         LuaTable inherited = this.findPropertyDescriptor(parentName, propertyName, visited);
-         if (inherited != null) return inherited;
-      }
-      return null;
-   }
-
-   private synchronized boolean hasPropertyDefinition(String className, String propertyName, Set<String> visited) {
-      if (!visited.add(className)) return false;
-      LuaTable owner = this.classes.get(className);
-      if (owner == null) return false;
-      LuaValue descriptors = owner.rawget("__mlua_properties");
-      if (descriptors.istable() && !descriptors.checktable().rawget(propertyName).isnil()) return true;
-      LuaValue documented = owner.rawget("__mlua_doc_properties");
-      if (documented.istable() && !documented.checktable().rawget(propertyName).isnil()) return true;
-      String parentName = this.hierarchy.parentOf(className);
-      if (parentName != null) {
-         if (this.hasPropertyDefinition(parentName, propertyName, visited)) return true;
-      }
-      return false;
-   }
-
    public synchronized boolean unregisterFunction(String className, String name, LuaValue expectedFunction) {
       LuaTable owner = this.classes.get(className);
       if (owner == null || name == null || expectedFunction == null || owner.rawget(name) != expectedFunction) return false;
@@ -643,7 +604,7 @@ public final class MLuaClassRegistry {
       if (docs.istable()) docs.checktable().rawset(name, LuaValue.NIL);
       LuaValue dispatchers = owner.rawget("__mlua_service_dispatchers");
       if (dispatchers.istable()) dispatchers.checktable().rawset(name, LuaValue.NIL);
-      this.refreshInheritedMethodDescriptionsFrom(className);
+      this.metadata.refreshInheritedMethodDescriptionsFrom(className);
       this.removePendingClassIfUnused(className);
       return true;
    }
@@ -687,42 +648,7 @@ public final class MLuaClassRegistry {
       this.ensureNoShadowedProperties(instance, className, new HashSet<>());
       this.ensureNoShadowedMethods(instance, className, new HashSet<>());
       instance.rawset("__type", LuaValue.valueOf(className));
-      LuaValue classDescription = classTable.rawget("__mlua_doc_description");
-      LuaValue currentDescription = instance.rawget("__mlua_doc_description");
-      InstanceDescription previousDescription = this.instanceDescriptions.get(instance);
-      boolean inheritedDescription = currentDescription.isnil()
-         || (previousDescription != null && previousDescription.inherited()
-             && sameOptionalString(currentDescription, previousDescription.value()))
-         || (classDescription.isstring() && currentDescription.isstring()
-             && classDescription.tojstring().equals(currentDescription.tojstring()));
-      if (inheritedDescription) {
-         instance.rawset("__mlua_doc_description", classDescription.isstring() ? classDescription : LuaValue.NIL);
-      }
-      this.instanceDescriptions.put(instance, new InstanceDescription(inheritedDescription,
-         inheritedDescription && classDescription.isstring() ? classDescription.tojstring() : null));
-      instance.rawset("__mlua_doc_parents", copyTableOrNil(classTable.rawget("__mlua_doc_parents")));
-      LuaTable methodDescriptions = new LuaTable();
-      this.collectMethodDescriptions(className, methodDescriptions, new HashSet<>());
-      LuaValue existingDescriptions = instance.rawget("__mlua_doc_methods");
-      if (existingDescriptions.istable()) {
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = existingDescriptions.checktable().next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (methodDescriptions.rawget(key).isnil()
-                && hasInstanceImplementation(instance, key)) {
-               methodDescriptions.rawset(key, next.arg(2));
-            }
-         }
-      }
-      instance.rawset("__mlua_doc_methods", methodDescriptions);
-      LuaTable instanceDispatchers = new LuaTable();
-      this.collectInstanceDispatchers(className, instanceDispatchers, new HashSet<>());
-      instance.rawset("__mlua_instance_dispatchers", instanceDispatchers);
-      LuaTable propertyDescriptions = new LuaTable();
-      this.collectPropertyDescriptions(className, propertyDescriptions, new HashSet<>());
-      instance.rawset("__mlua_doc_properties", propertyDescriptions);
+      this.metadata.attachInstanceDocumentation(instance, className, classTable);
       LuaValue existingMetaValue = instance.getmetatable();
       LuaTable meta = existingMetaValue != null && existingMetaValue.istable() ? existingMetaValue.checktable() : new LuaTable();
       this.composeInstanceLookup(meta, classTable);
@@ -756,236 +682,12 @@ public final class MLuaClassRegistry {
       return List.copyOf(normalized);
    }
 
-   private void collectMethodDescriptions(String className, LuaTable output, Set<String> visited) {
-      if (!visited.add(className)) return;
-      LuaTable classTable = this.classes.get(className);
-      if (classTable != null) {
-         LuaValue descriptions = classTable.rawget("__mlua_doc_methods");
-         if (descriptions.istable()) {
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-               Varargs next = descriptions.checktable().next(key);
-               key = next.arg1();
-               if (key.isnil()) break;
-               output.rawset(key, next.arg(2));
-            }
-         }
-      }
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         LuaTable mixin = this.mixinRegistry.get(mixinName);
-         if (mixin == null) continue;
-         LuaValue descriptions = mixin.rawget("__mlua_doc_methods");
-         if (!descriptions.istable()) continue;
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = descriptions.checktable().next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
-         }
-      }
-      String parentName = this.hierarchy.parentOf(className);
-      if (parentName != null) {
-         LuaTable parentDescriptions = new LuaTable();
-         this.collectMethodDescriptions(parentName, parentDescriptions, new HashSet<>(visited));
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = parentDescriptions.next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
-         }
-      }
-   }
-
-   private void collectInstanceDispatchers(String className, LuaTable output, Set<String> visited) {
-      if (!visited.add(className)) return;
-      LuaTable classTable = this.classes.get(className);
-      if (classTable != null) {
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = classTable.next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (!key.isstring() || !next.arg(2).isfunction()) continue;
-            String methodName = key.tojstring();
-            if (methodName.startsWith("__") || MLuaRegistration.isReservedFunctionName(methodName)) continue;
-            LuaValue declared = classTable.rawget("__mlua_instance_dispatchers");
-            LuaValue isDispatcher = declared.istable() ? declared.checktable().rawget(key) : LuaValue.NIL;
-            output.rawset(key, isDispatcher.toboolean() ? LuaValue.TRUE : LuaValue.FALSE);
-         }
-      }
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         LuaTable mixin = this.mixinRegistry.get(mixinName);
-         if (mixin == null) continue;
-         LuaTable methods = MLuaClassMixinRegistry.methods(mixin);
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = methods.next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (output.rawget(key).isnil()) output.rawset(key, LuaValue.FALSE);
-         }
-      }
-      String parentName = this.hierarchy.parentOf(className);
-      if (parentName != null) {
-         LuaTable parentDispatchers = new LuaTable();
-         this.collectInstanceDispatchers(parentName, parentDispatchers, new HashSet<>(visited));
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = parentDispatchers.next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
-         }
-      }
-   }
-
-   private void refreshInheritedMethodDescriptions() {
-      for (String className : this.classes.keySet()) {
-         this.refreshInheritedMethodDescriptions(className);
-      }
-   }
-
-   private void refreshInheritedMethodDescriptionsFrom(String changedClass) {
-      this.refreshInheritedMethodDescriptions(changedClass);
-      for (String descendant : this.hierarchy.descendantsOf(changedClass)) {
-         this.refreshInheritedMethodDescriptions(descendant);
-      }
-   }
-
    private boolean inheritsFrom(String className, String ancestor) {
       return this.hierarchy.isAncestorOf(className, ancestor);
    }
 
    private boolean isClassOrParent(String className, String expectedName) {
       return this.isSubclassOf(className, expectedName);
-   }
-
-   private void refreshInheritedMethodDescriptions(String className) {
-      LuaTable classTable = this.classes.get(className);
-      if (classTable == null) return;
-      LuaTable inherited = new LuaTable();
-      Set<String> ancestry = new HashSet<>();
-      ancestry.add(className);
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         LuaTable mixin = this.mixinRegistry.get(mixinName);
-         if (mixin == null) continue;
-         LuaValue descriptions = mixin.rawget("__mlua_doc_methods");
-         if (!descriptions.istable()) continue;
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = descriptions.checktable().next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (classTable.rawget(key).isnil() && inherited.rawget(key).isnil()) inherited.rawset(key, next.arg(2));
-         }
-      }
-      String parentName = this.hierarchy.parentOf(className);
-      if (parentName != null) {
-         LuaTable parentDescriptions = new LuaTable();
-         this.collectMethodDescriptions(parentName, parentDescriptions, new HashSet<>(ancestry));
-         LuaValue key = LuaValue.NIL;
-         while (true) {
-            Varargs next = parentDescriptions.next(key);
-            key = next.arg1();
-            if (key.isnil()) break;
-            if (classTable.rawget(key).isnil() && inherited.rawget(key).isnil()) {
-               inherited.rawset(key, next.arg(2));
-            }
-         }
-      }
-      classTable.rawset("__mlua_doc_inherited_methods", inherited);
-      LuaTable documentedMixins = new LuaTable();
-      int mixinIndex = 1;
-      for (String mixinName : this.appliedMixins.getOrDefault(className, List.of())) {
-         documentedMixins.rawset(mixinIndex++, LuaValue.valueOf(mixinName));
-      }
-      classTable.rawset("__mlua_doc_mixins", documentedMixins);
-      this.refreshAttachedInstanceDescriptions(className);
-   }
-
-   private void refreshAttachedInstanceDescriptions(String className) {
-      LuaTable registeredClass = this.classes.get(className);
-      if (registeredClass == null) return;
-      for (LuaTable instance : this.liveInstances.ofClass(className)) {
-         // Luau-style freeze is an explicit promise that this instance will not change.
-         // Keep it tracked for class identity checks, but do not let a later class or
-         // mixin registration make an unrelated runtime operation fail on rawset.
-         if (instance.isfrozen()) continue;
-         InstanceDescription descriptionState = this.instanceDescriptions.get(instance);
-         if (descriptionState != null && descriptionState.inherited()
-             && sameOptionalString(instance.rawget("__mlua_doc_description"), descriptionState.value())) {
-            LuaValue classDescription = registeredClass.rawget("__mlua_doc_description");
-            instance.rawset("__mlua_doc_description", classDescription.isstring() ? classDescription : LuaValue.NIL);
-            this.instanceDescriptions.put(instance, new InstanceDescription(true,
-               classDescription.isstring() ? classDescription.tojstring() : null));
-         } else if (descriptionState != null && descriptionState.inherited()) {
-            this.instanceDescriptions.put(instance, new InstanceDescription(false, null));
-         }
-         instance.rawset("__mlua_doc_parents", copyTableOrNil(registeredClass.rawget("__mlua_doc_parents")));
-         LuaTable dispatchers = new LuaTable();
-         this.collectInstanceDispatchers(className, dispatchers, new HashSet<>());
-         instance.rawset("__mlua_instance_dispatchers", dispatchers);
-         LuaValue metaValue = instance.getmetatable();
-         if (metaValue.istable() && !metaValue.checktable().isfrozen()) {
-            metaValue.checktable().rawset("__mlua_class_thread_dispatchers", LuaValue.NIL);
-         }
-         LuaValue instanceMethodsValue = metaValue.istable()
-            ? metaValue.checktable().rawget("__mlua_instance_methods") : LuaValue.NIL;
-         if (instanceMethodsValue.istable()) {
-            LuaTable instanceMethods = instanceMethodsValue.checktable();
-            List<LuaValue> staleMethods = new ArrayList<>();
-            LuaValue methodKey = LuaValue.NIL;
-            while (true) {
-               Varargs method = instanceMethods.next(methodKey);
-               methodKey = method.arg1();
-               if (methodKey.isnil()) break;
-               if (!dispatchers.rawget(methodKey).toboolean()) staleMethods.add(methodKey);
-            }
-            staleMethods.forEach(method -> instanceMethods.rawset(method, LuaValue.NIL));
-         }
-         LuaTable descriptions = new LuaTable();
-         this.collectMethodDescriptions(className, descriptions, new HashSet<>());
-         LuaValue previousValue = instance.rawget("__mlua_doc_methods");
-         if (previousValue.istable()) {
-            LuaTable previous = previousValue.checktable();
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-               Varargs next = previous.next(key);
-               key = next.arg1();
-               if (key.isnil()) break;
-               if (descriptions.rawget(key).isnil() && hasInstanceImplementation(instance, key)) {
-                  descriptions.rawset(key, next.arg(2));
-               }
-            }
-         }
-         instance.rawset("__mlua_doc_methods", descriptions);
-         LuaTable propertyDescriptions = new LuaTable();
-         this.collectPropertyDescriptions(className, propertyDescriptions, new HashSet<>());
-         instance.rawset("__mlua_doc_properties", propertyDescriptions);
-      }
-   }
-
-   private void collectPropertyDescriptions(String className, LuaTable output, Set<String> visited) {
-      if (!visited.add(className)) return;
-      LuaTable classTable = this.classes.get(className);
-      if (classTable != null) {
-         LuaValue descriptions = classTable.rawget("__mlua_doc_properties");
-         if (descriptions.istable()) {
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-               Varargs next = descriptions.checktable().next(key);
-               key = next.arg1();
-               if (key.isnil()) break;
-               if (output.rawget(key).isnil()) output.rawset(key, next.arg(2));
-            }
-         }
-      }
-      String parentName = this.hierarchy.parentOf(className);
-      if (parentName != null) {
-         this.collectPropertyDescriptions(parentName, output, visited);
-      }
    }
 
    private void ensureNoShadowedProperties(LuaTable instance, String className, Set<String> visited) {
@@ -1007,7 +709,7 @@ public final class MLuaClassRegistry {
                throw new IllegalArgumentException("Live instance property '" + propertyName
                   + "' shadows a registered class method");
             }
-            if (this.hasPropertyDefinition(className, propertyName, new HashSet<>())) {
+            if (this.metadata.hasPropertyDefinition(className, propertyName, new HashSet<>())) {
                throw new IllegalArgumentException("Live instance property '" + propertyName
                   + "' conflicts with a registered class property");
             }
@@ -1051,33 +753,6 @@ public final class MLuaClassRegistry {
       }
    }
 
-   private static LuaValue copyTableOrNil(LuaValue value) {
-      if (!value.istable()) return LuaValue.NIL;
-      LuaTable copy = new LuaTable();
-      LuaValue key = LuaValue.NIL;
-      while (true) {
-         Varargs entry = value.checktable().next(key);
-         key = entry.arg1();
-         if (key.isnil()) return copy;
-         copy.rawset(key, entry.arg(2));
-      }
-   }
-
-   private static boolean sameOptionalString(LuaValue value, String expected) {
-      if (expected == null) return value.isnil();
-      return value.isstring() && expected.equals(value.tojstring());
-   }
-
-   private record InstanceDescription(boolean inherited, String value) { }
-
-   private static boolean hasInstanceImplementation(LuaTable instance, LuaValue key) {
-      if (instance.rawget(key).isfunction()) return true;
-      LuaValue metaValue = instance.getmetatable();
-      if (!metaValue.istable()) return false;
-      LuaValue methods = metaValue.checktable().rawget("__mlua_instance_methods");
-      return methods.istable() && methods.checktable().get(key).isfunction();
-   }
-
    private void composeInstanceLookup(LuaTable meta, LuaTable classTable) {
       LuaValue previousIndex = meta.rawget("__index");
       meta.rawset("__metatable", LuaValue.TRUE);
@@ -1097,7 +772,7 @@ public final class MLuaClassRegistry {
                return LuaValue.valueOf(className);
             }
             LuaTable property = key.isstring()
-               ? MLuaClassRegistry.this.findPropertyDescriptor(className, key.tojstring(), new HashSet<>()) : null;
+               ? MLuaClassRegistry.this.metadata.findPropertyDescriptor(className, key.tojstring(), new HashSet<>()) : null;
             if (property != null) {
                LuaValue getter = property.rawget("get");
                return getter.call(args.arg1());
@@ -1167,7 +842,7 @@ public final class MLuaClassRegistry {
                   throw new LuaError("[MLua] Cannot shadow registered class method '" + name
                      + "' on a live instance; register the method on its class with a description.");
                }
-               LuaTable property = MLuaClassRegistry.this.findPropertyDescriptor(
+               LuaTable property = MLuaClassRegistry.this.metadata.findPropertyDescriptor(
                   classTable.rawget("__type").optjstring(""), name, new HashSet<>());
                if (property != null) {
                   LuaValue setter = property.rawget("set");
