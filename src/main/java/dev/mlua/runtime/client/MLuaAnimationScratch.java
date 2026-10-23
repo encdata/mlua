@@ -7,6 +7,7 @@ final class MLuaAnimationScratch {
     final float[] position = new float[3];
     final float[] rotation = new float[3];
     final float[] scale = new float[3];
+    final double[] eulerAngles = new double[3];
 
     private MLuaAnimationScratch() { }
 

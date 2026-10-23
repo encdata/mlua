@@ -327,6 +327,16 @@ public final class MLuaCFrame {
    }
 
    public double[] toEulerAnglesXYZ() {
+      double[] result = new double[3];
+      this.toEulerAnglesXYZ(result);
+      return result;
+   }
+
+   /** Writes XYZ Euler angles into caller-owned storage without allocating. */
+   public void toEulerAnglesXYZ(double[] output) {
+      if (output == null || output.length < 3) {
+         throw new IllegalArgumentException("Euler angle output must contain at least three values");
+      }
       double ry = Math.asin(Math.max(-1.0, Math.min(1.0, this.r02)));
       double cy = Math.cos(ry);
       double rx;
@@ -339,7 +349,9 @@ public final class MLuaCFrame {
          rz = 0.0;
       }
 
-      return new double[]{rx, ry, rz};
+      output[0] = rx;
+      output[1] = ry;
+      output[2] = rz;
    }
 
    public float minecraftYaw() {

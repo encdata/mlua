@@ -433,6 +433,8 @@ if not vertex_emitter_path.is_file():
 vertex_emitter = vertex_emitter_path.read_text(encoding="utf-8")
 if "float[][] points" in vertex_emitter or "float[][] corners" in vertex_emitter:
     fail("shared BBModel face emission must not allocate nested coordinate arrays per face")
+if "transform.toEulerAnglesXYZ(scratch.eulerAngles)" not in vertex_emitter:
+    fail("shared vertex transforms must write into reusable Euler scratch storage")
 neoforge_build = NEOFORGE_CONFIG_GENERATOR.read_text(encoding="utf-8")
 for operation in ("@Mixin(value = ${arguments}, remap = false)",
                   "package dev.mlua.modules.mixin.service;', 'package dev.mlua.mixin.service;'",
@@ -473,6 +475,12 @@ if not animation_scratch_path.is_file():
 animation_scratch = animation_scratch_path.read_text(encoding="utf-8")
 if "ThreadLocal<MLuaAnimationScratch>" not in animation_scratch:
     fail("animation scratch vectors must not be shared across render threads")
+if "final double[] eulerAngles = new double[3]" not in animation_scratch:
+    fail("render transform angles must reuse a thread-local output vector")
+core_cframe_path = ROOT / "mlua-core/src/main/java/dev/mlua/math/MLuaCFrame.java"
+core_cframe = core_cframe_path.read_text(encoding="utf-8")
+if "void toEulerAnglesXYZ(double[] output)" not in core_cframe:
+    fail("CFrame must expose allocation-free XYZ Euler output for render loops")
 for operation in ("MLuaAnimationScratch.current()", "scratch.position", "scratch.rotation", "scratch.scale"):
     if operation not in render_manager:
         fail(f"BBModel render loops must reuse thread-local animation vectors: {operation}")

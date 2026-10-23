@@ -79,7 +79,9 @@ final class MLuaRenderVertexEmitter {
 
     static void applyTransform(PoseStack pose, MLuaCFrame transform) {
         pose.translate(transform.x(), transform.y(), transform.z());
-        double[] angles = transform.toEulerAnglesXYZ();
+        MLuaAnimationScratch scratch = MLuaAnimationScratch.current();
+        transform.toEulerAnglesXYZ(scratch.eulerAngles);
+        double[] angles = scratch.eulerAngles;
         pose.mulPose(Axis.XP.rotation((float) angles[0]));
         pose.mulPose(Axis.YP.rotation((float) angles[1]));
         pose.mulPose(Axis.ZP.rotation((float) angles[2]));

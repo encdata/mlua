@@ -649,7 +649,9 @@ public final class MLuaClientRenderManager {
 
     private static void applyTransform(PoseStack pose, MLuaCFrame transform) {
         pose.translate(transform.x(), transform.y(), transform.z());
-        double[] angles = transform.toEulerAnglesXYZ();
+        MLuaAnimationScratch scratch = MLuaAnimationScratch.current();
+        transform.toEulerAnglesXYZ(scratch.eulerAngles);
+        double[] angles = scratch.eulerAngles;
         pose.mulPose(Axis.XP.rotation((float)angles[0]));
         pose.mulPose(Axis.YP.rotation((float)angles[1]));
         pose.mulPose(Axis.ZP.rotation((float)angles[2]));
@@ -657,7 +659,9 @@ public final class MLuaClientRenderManager {
 
     private static void applyTransform(Matrix4f matrix, MLuaCFrame transform) {
         matrix.translate((float)transform.x(), (float)transform.y(), (float)transform.z());
-        double[] angles = transform.toEulerAnglesXYZ();
+        MLuaAnimationScratch scratch = MLuaAnimationScratch.current();
+        transform.toEulerAnglesXYZ(scratch.eulerAngles);
+        double[] angles = scratch.eulerAngles;
         matrix.rotateX((float)angles[0]).rotateY((float)angles[1]).rotateZ((float)angles[2]);
     }
 

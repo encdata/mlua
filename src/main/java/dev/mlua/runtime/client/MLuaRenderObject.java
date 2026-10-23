@@ -429,7 +429,9 @@ class MLuaRenderObject {
 
     void applyFollowOffset(PoseStack pose) {
         pose.translate(followOffset.x(), followOffset.y(), followOffset.z());
-        double[] angles = followOffset.toEulerAnglesXYZ();
+        MLuaAnimationScratch scratch = MLuaAnimationScratch.current();
+        followOffset.toEulerAnglesXYZ(scratch.eulerAngles);
+        double[] angles = scratch.eulerAngles;
         pose.mulPose(com.mojang.math.Axis.XP.rotation((float) angles[0]));
         pose.mulPose(com.mojang.math.Axis.YP.rotation((float) angles[1]));
         pose.mulPose(com.mojang.math.Axis.ZP.rotation((float) angles[2]));
