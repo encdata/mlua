@@ -636,14 +636,14 @@ public final class MLuaConfigRegistry {
       }
    }
 
-   private static boolean isWithinRange(Object value, Double minimum, Double maximum) {
+   static boolean isWithinRange(Object value, Double minimum, Double maximum) {
       if (!(value instanceof Number number)) return minimum == null && maximum == null;
       double numeric = number.doubleValue();
       return Double.isFinite(numeric) && (minimum == null || numeric >= minimum)
          && (maximum == null || numeric <= maximum);
    }
 
-   private static String rangeDescription(Double minimum, Double maximum) {
+   static String rangeDescription(Double minimum, Double maximum) {
       if (minimum != null && maximum != null) return "between " + minimum + " and " + maximum;
       if (minimum != null) return "at least " + minimum;
       if (maximum != null) return "at most " + maximum;

@@ -26,6 +26,23 @@ if selected_core_sources != available_core_sources:
         "Runtime target core source selection must include every mlua-core Java source "
         f"and no stale paths; missing={missing}, stale={stale}"
     )
+
+config_schema = (ROOT / "src/main/java/dev/mlua/runtime/config/MLuaConfigSchema.java").read_text(encoding="utf-8")
+if "MLuaConfigRegistry.isWithinRange(" not in config_schema or "MLuaConfigRegistry.rangeDescription(" not in config_schema:
+    raise SystemExit("Config schema must delegate shared range validation to the registry contract")
+config_registries = [
+    ROOT / "src/main/java/dev/mlua/runtime/config/MLuaConfigRegistry.java",
+    *ROOT.glob("mlua-loaders/**/src/main/java/dev/mlua/runtime/config/MLuaConfigRegistry.java"),
+]
+for source_path in config_registries:
+    source = source_path.read_text(encoding="utf-8")
+    for signature in (
+        "static boolean isWithinRange(Object value, Double minimum, Double maximum)",
+        "static String rangeDescription(Double minimum, Double maximum)",
+    ):
+        declaration = re.search(rf"^\s*(.*?)\b{re.escape(signature)}", source, re.MULTILINE)
+        if declaration is None or "private" in declaration.group(1).split():
+            raise SystemExit(f"{source_path.relative_to(ROOT)} must expose package-level {signature}")
 if "commonVersionRootExcludes" not in helper:
     raise SystemExit("Common version source ownership helper is missing")
 if "targetPathChain('mlua-versions/common/%s', minecraftVersion)" not in helper:

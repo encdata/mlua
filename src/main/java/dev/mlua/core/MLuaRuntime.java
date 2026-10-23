@@ -76,6 +76,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private final MLuaRuntimeSession session;
    private final MLuaServiceRegistry services = new MLuaServiceRegistry();
    private final MLuaClassRegistry classes = new MLuaClassRegistry();
+   private final MLuaServiceClassRegistration serviceClassRegistration;
    private volatile long lifecycleEpoch;
    private final MLuaClientScriptWatcher clientScriptWatcher = new MLuaClientScriptWatcher();
    private final Map<Path, MLuaScriptRegistration> registryScriptRegistrations = new LinkedHashMap<>();
@@ -94,6 +95,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public MLuaRuntime(MLuaRuntimeSession session) {
       this.session = Objects.requireNonNull(session, "session");
+      this.serviceClassRegistration = new MLuaServiceClassRegistration(this.services, this.classes, this);
       this.session.attachRegistration(this);
       this.session.setFailureReporter(this::reportRuntimeFailure);
    }
@@ -147,7 +149,7 @@ public final class MLuaRuntime implements MLuaRegistration {
           MLuaModuleLoader.get().loadAll();
           MLuaModuleLoader.get().registerClasses(this);
           this.services.names().forEach(name -> {
-             registerServiceClassIfAvailable(name, this.serviceClassName(name));
+             this.serviceClassRegistration.registerIfAvailable(name, this.serviceClassName(name));
           });
           MLuaModuleLoader.get().registerServices(this);
           MLuaModuleLoader.get().registerEventListeners();
@@ -290,7 +292,8 @@ public final class MLuaRuntime implements MLuaRegistration {
          throw new IllegalArgumentException("Service class name must be non-empty");
       }
       String existingClassName = this.services.explicitClassName(name);
-      String recordedClassName = existingClassName != null ? existingClassName : this.registeredServiceClassName(name);
+      String recordedClassName = existingClassName != null
+         ? existingClassName : this.serviceClassRegistration.registeredClassName(name);
       if (recordedClassName != null && className != null && !recordedClassName.equals(className)) {
          throw new IllegalStateException("Service '" + name + "' is already assigned to Lua class '"
             + recordedClassName + "'");
@@ -305,82 +308,17 @@ public final class MLuaRuntime implements MLuaRegistration {
       MLuaServiceRegistry.Registration registration = new MLuaServiceRegistry.Registration(
          name, selectedClassName, factory, description, functionDescriptions);
       this.services.validateBatch(side, List.of(registration));
-      validateServiceClassRegistration(selectedClassName, description, registration.functionDescriptions());
+      this.serviceClassRegistration.validate(selectedClassName, description, registration.functionDescriptions());
       boolean addedClassName = existingClassName == null;
       try {
          this.services.registerBatch(side, List.of(registration));
          if (addedClassName) this.services.assignClassName(name, selectedClassName);
-         registerServiceClassIfAvailable(name, selectedClassName);
+         this.serviceClassRegistration.registerIfAvailable(name, selectedClassName);
       } catch (RuntimeException | Error failure) {
          this.services.unregisterBatch(side, List.of(registration));
          if (addedClassName) this.services.clearClassName(name, selectedClassName);
          throw failure;
       }
-   }
-
-   private void validateServiceClassRegistration(String className, String description,
-                                                Map<String, String> functionDescriptions) {
-      if (this.serviceBaseClassName() == null) return;
-      LuaTable serviceClass = this.classes.get(className);
-      LuaValue existingDescription = serviceClass == null ? LuaValue.NIL : serviceClass.rawget("__mlua_doc_description");
-      if (!existingDescription.isnil() && !existingDescription.isstring()) {
-         throw new IllegalStateException("Lua service class '" + className + "' has invalid description metadata");
-      }
-      if (description != null && !description.isBlank() && existingDescription.isstring()
-         && !description.equals(existingDescription.tojstring())) {
-         throw new IllegalStateException("Lua service class '" + className
-            + "' is already registered with a different description");
-      }
-      LuaValue docsValue = serviceClass == null ? LuaValue.NIL : serviceClass.rawget("__mlua_doc_methods");
-      if (!docsValue.isnil() && !docsValue.istable()) {
-         throw new IllegalStateException("Lua service class '" + className + "' method descriptions must be a table");
-      }
-      LuaTable docs = docsValue.istable() ? docsValue.checktable() : null;
-      String inheritedOwner = serviceClass == null ? this.serviceBaseClassName() : className;
-      functionDescriptions.forEach((methodName, methodDescription) -> {
-         LuaValue existingMethod = serviceClass == null ? LuaValue.NIL : serviceClass.rawget(methodName);
-         if (!existingMethod.isnil() && !existingMethod.isfunction()) {
-            throw new IllegalStateException("Lua service class '" + className
-               + "' already defines non-function member '" + methodName + "'");
-         }
-         if (this.hasClassProperty(inheritedOwner, methodName)) {
-            throw new IllegalStateException("Lua service class '" + className
-               + "' cannot register function '" + methodName + "' because it is an inherited property");
-         }
-         LuaValue existingMethodDescription = docs == null ? LuaValue.NIL : docs.rawget(methodName);
-         if (!existingMethodDescription.isnil() && !existingMethodDescription.isstring()) {
-            throw new IllegalStateException("Lua service class '" + className + "' function '" + methodName
-               + "' has invalid description metadata");
-         }
-         if (existingMethodDescription.isstring() && !methodDescription.equals(existingMethodDescription.tojstring())) {
-            throw new IllegalStateException("Lua service class '" + className + "' function '" + methodName
-               + "' is already registered with a different description");
-         }
-      });
-   }
-
-   private String registeredServiceClassName(String serviceName) {
-      String found = null;
-      for (String candidate : this.classes.names()) {
-         LuaTable type = this.classes.get(candidate);
-         if (type == null) continue;
-         LuaValue marker = type.rawget("__mlua_service_class");
-         if (marker.isnil() || !marker.optboolean(false)
-            || !serviceName.equals(type.rawget("__mlua_service_name").optjstring(""))) continue;
-         if (found != null && !found.equals(candidate)) {
-            throw new IllegalStateException("Service '" + serviceName + "' has multiple registered classes");
-         }
-         found = candidate;
-      }
-      return found;
-   }
-
-   private void registerServiceClassIfAvailable(String name, String className) {
-      if (this.serviceBaseClassName() == null) return;
-      MLuaServiceRegistry.ServiceMetadata metadata = this.services.metadata(name);
-      if (metadata == null) return;
-      String selectedClassName = metadata.className() == null ? className : metadata.className();
-      this.registerServiceClass(name, selectedClassName, metadata.description(), metadata.functionDescriptions());
    }
 
    @Override
