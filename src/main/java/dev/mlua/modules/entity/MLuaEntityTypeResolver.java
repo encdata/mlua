@@ -31,6 +31,10 @@ final class MLuaEntityTypeResolver {
             : (owner == null || owner.isBlank() ? "minecraft" : owner) + ":" + requestedId;
         ResourceLocation location = MLuaResourceLocations.tryParseOrNull(id);
         if (location == null) return null;
+        // Entity types registered by Minecraft and addons live in the built-in registry. Check
+        // that hot path first; only consult the active world's registry for keys it does not own.
+        EntityType<?> builtIn = findType(BuiltInRegistries.ENTITY_TYPE, location);
+        if (builtIn != null) return builtIn;
         if (level != null) {
             //--version 26.1
             EntityType<?> worldType = level.registryAccess()
@@ -42,8 +46,6 @@ final class MLuaEntityTypeResolver {
             //--endversion
             if (worldType != null) return worldType;
         }
-        EntityType<?> builtIn = findType(BuiltInRegistries.ENTITY_TYPE, location);
-        if (builtIn != null) return builtIn;
         // Some loader registry facades expose a live entity through MLua's version adapter
         // even when the direct Registry view cannot resolve its key. Keep this compatibility
         // lookup after the allocation-free native paths above.
