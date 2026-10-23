@@ -53,7 +53,11 @@ Copy-Item (Join-Path $runRoot 'server.properties') (Join-Path $serverDir 'run') 
 Add-Content (Join-Path $serverDir 'run/server.properties') @('view-distance=2', 'simulation-distance=2')
 @(
     'renderDistance:2'
-    'simulationDistance:2'
+    'simulationDistance:5'
+    'graphicsMode:fast'
+    'biomeBlendRadius:0'
+    'mipmapLevels:0'
+    'entityShadows:false'
     'maxFps:30'
     'soundCategory_master:0.0'
 ) | Set-Content (Join-Path $clientDir 'run/options.txt')
