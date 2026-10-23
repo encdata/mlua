@@ -35,6 +35,19 @@ if "KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);" not in s
     fail("Minecraft keybind lookup must share the controller resolver")
 if "private final MLuaInputActions actions" not in service:
     fail("input service does not own its client key action component")
+if "MLuaClientThread.callOnClientThread(action)" not in actions:
+    fail("Minecraft key state mutations must run on the actual client thread")
+if "MLuaClientThread.callOnClientThread(action)" not in service:
+    fail("Minecraft keybinding registration and lookup must run on the actual client thread")
+for method in ("RegisterKeybinds", "IsKeyDown", "SetKeybind", "GetKeybind", "GetKeybinds",
+               "GetMinecraftKeybind", "GetMinecraftKeybinds"):
+    match = re.search(rf"public\s+[^{{]+\b{method}\s*\(", service)
+    if match is None:
+        fail(f"{method} public endpoint is missing")
+    next_method = service.find("\n   @MLuaDescription", match.end())
+    body = service[match.start():] if next_method < 0 else service[match.start():next_method]
+    if "this.onClientThread(" not in body:
+        fail(f"{method} must access Minecraft key mappings on the client thread")
 for method, delegate in (
     ("SetKeyDown", "setKeyDown"), ("SetKeyStates", "setKeyStates"),
     ("ReleasePressedKeys", "releasePressedKeys"), ("ClickKey", "clickKey"),

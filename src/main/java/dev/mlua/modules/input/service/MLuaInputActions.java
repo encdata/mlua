@@ -4,10 +4,12 @@ import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.MLuaRuntimeSession;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.minecraft.client.MLuaKeybindController;
+import dev.mlua.runtime.client.MLuaClientThread;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 import net.minecraft.client.KeyMapping;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -24,10 +26,13 @@ final class MLuaInputActions {
 
     void setKeyDown(String name, boolean pressed) {
         requireClientThread("SetKeyDown");
-        String owner = this.context.mlua().ownerModId();
-        KeyMapping mapping = resolveMapping(owner, name);
-        if (mapping == null) throw new LuaError("[MLua] InputService:SetKeyDown could not find key mapping '" + name + "'.");
-        MLuaKeybindController.setDown(mapping, pressed, (MLuaRuntimeSession) this.context.mlua().session(), owner);
+        onClientThread(() -> {
+            String owner = this.context.mlua().ownerModId();
+            KeyMapping mapping = resolveMapping(owner, name);
+            if (mapping == null) throw new LuaError("[MLua] InputService:SetKeyDown could not find key mapping '" + name + "'.");
+            MLuaKeybindController.setDown(mapping, pressed, (MLuaRuntimeSession) this.context.mlua().session(), owner);
+            return null;
+        });
     }
 
     void setKeyStates(LuaTable states) {
@@ -50,45 +55,60 @@ final class MLuaInputActions {
             requested.put(name, value.toboolean());
         }
 
-        List<MLuaKeybindController.KeyState> batch = new ArrayList<>(requested.size());
-        for (Map.Entry<String, Boolean> state : requested.entrySet()) {
-            KeyMapping mapping = resolveMapping(owner, state.getKey());
-            if (mapping == null) {
-                throw new LuaError("[MLua] InputService:SetKeyStates could not find key mapping '"
-                    + state.getKey() + "'. No key states were changed.");
+        onClientThread(() -> {
+            List<MLuaKeybindController.KeyState> batch = new ArrayList<>(requested.size());
+            for (Map.Entry<String, Boolean> state : requested.entrySet()) {
+                KeyMapping mapping = resolveMapping(owner, state.getKey());
+                if (mapping == null) {
+                    throw new LuaError("[MLua] InputService:SetKeyStates could not find key mapping '"
+                        + state.getKey() + "'. No key states were changed.");
+                }
+                batch.add(new MLuaKeybindController.KeyState(mapping, state.getValue()));
             }
-            batch.add(new MLuaKeybindController.KeyState(mapping, state.getValue()));
-        }
-        try {
-            MLuaKeybindController.setDownBatch(batch, (MLuaRuntimeSession) this.context.mlua().session(), owner);
-        } catch (IllegalArgumentException | IllegalStateException failure) {
-            throw MLuaLuaErrors.javaFailure("InputService:SetKeyStates", failure);
-        }
+            try {
+                MLuaKeybindController.setDownBatch(batch, (MLuaRuntimeSession) this.context.mlua().session(), owner);
+            } catch (IllegalArgumentException | IllegalStateException failure) {
+                throw MLuaLuaErrors.javaFailure("InputService:SetKeyStates", failure);
+            }
+            return null;
+        });
     }
 
     void releasePressedKeys() {
         requireClientThread("ReleasePressedKeys");
-        MLuaKeybindController.releaseOwnerPressedMappings((MLuaRuntimeSession) this.context.mlua().session(),
-            this.context.mlua().ownerModId());
+        onClientThread(() -> {
+            MLuaKeybindController.releaseOwnerPressedMappings((MLuaRuntimeSession) this.context.mlua().session(),
+                this.context.mlua().ownerModId());
+            return null;
+        });
     }
 
     void clickKey(String name) {
         requireClientThread("ClickKey");
-        KeyMapping mapping = resolveMapping(this.context.mlua().ownerModId(), name);
-        if (mapping == null) throw new LuaError("[MLua] InputService:ClickKey could not find key mapping '" + name + "'.");
-        MLuaKeybindController.click(mapping);
+        onClientThread(() -> {
+            KeyMapping mapping = resolveMapping(this.context.mlua().ownerModId(), name);
+            if (mapping == null) throw new LuaError("[MLua] InputService:ClickKey could not find key mapping '" + name + "'.");
+            MLuaKeybindController.click(mapping);
+            return null;
+        });
     }
 
     void setMinecraftKeyDown(String name, boolean pressed) {
         requireClientThread("SetMinecraftKeyDown");
-        KeyMapping mapping = requireMinecraftKeyMapping(name, "SetMinecraftKeyDown");
-        MLuaKeybindController.setDown(mapping, pressed, (MLuaRuntimeSession) this.context.mlua().session(),
-            this.context.mlua().ownerModId());
+        onClientThread(() -> {
+            KeyMapping mapping = requireMinecraftKeyMapping(name, "SetMinecraftKeyDown");
+            MLuaKeybindController.setDown(mapping, pressed, (MLuaRuntimeSession) this.context.mlua().session(),
+                this.context.mlua().ownerModId());
+            return null;
+        });
     }
 
     void clickMinecraftKey(String name) {
         requireClientThread("ClickMinecraftKey");
-        MLuaKeybindController.click(requireMinecraftKeyMapping(name, "ClickMinecraftKey"));
+        onClientThread(() -> {
+            MLuaKeybindController.click(requireMinecraftKeyMapping(name, "ClickMinecraftKey"));
+            return null;
+        });
     }
 
     void setMouseButtonDown(int button, boolean pressed) {
@@ -123,6 +143,10 @@ final class MLuaInputActions {
                 + " could not find Minecraft or another mod's key mapping '" + name + "'.");
         }
         return mapping;
+    }
+
+    private static <T> T onClientThread(Supplier<T> action) {
+        return MLuaClientThread.callOnClientThread(action);
     }
 
     private static void requireClientThread(String operation) {
