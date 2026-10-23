@@ -95,15 +95,15 @@ final class MLuaMathLibrary {
             }
             if (isMatrix(start, "Mat4") && isMatrix(finish, "Mat4")) {
                LuaTable a = start.checktable(), b = finish.checktable();
-               double[] values = new double[16];
-               for (int row = 1, i = 0; row <= 4; row++) {
-                  for (int column = 1; column <= 4; column++, i++) {
-                     String key = "v" + row + column;
-                     values[i] = lerp(a.get(key).checkdouble(), b.get(key).checkdouble(), alpha);
-                  }
-               }
-               return MLuaMat4.mat4(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7],
-                  values[8], values[9], values[10], values[11], values[12], values[13], values[14], values[15]);
+               return MLuaMat4.mat4(
+                  lerp(a, b, "v11", alpha), lerp(a, b, "v12", alpha),
+                  lerp(a, b, "v13", alpha), lerp(a, b, "v14", alpha),
+                  lerp(a, b, "v21", alpha), lerp(a, b, "v22", alpha),
+                  lerp(a, b, "v23", alpha), lerp(a, b, "v24", alpha),
+                  lerp(a, b, "v31", alpha), lerp(a, b, "v32", alpha),
+                  lerp(a, b, "v33", alpha), lerp(a, b, "v34", alpha),
+                  lerp(a, b, "v41", alpha), lerp(a, b, "v42", alpha),
+                  lerp(a, b, "v43", alpha), lerp(a, b, "v44", alpha));
             }
             throw new LuaError("math.lerp endpoints must have the same type: number, Vector2, Vector3, Vec4, Color3, Mat3, Mat4, or CFrame");
          }
@@ -148,6 +148,10 @@ final class MLuaMathLibrary {
 
    private static double lerp(double a, double b, double t) {
       return a + (b - a) * t;
+   }
+
+   private static double lerp(LuaTable start, LuaTable finish, String key, double alpha) {
+      return lerp(start.get(key).checkdouble(), finish.get(key).checkdouble(), alpha);
    }
 
    private static boolean isMatrix(LuaValue value, String type) {
