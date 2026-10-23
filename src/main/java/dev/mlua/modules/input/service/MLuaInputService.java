@@ -106,7 +106,7 @@ public final class MLuaInputService extends MLuaReflectiveService {
          this.context.mlua().globals(), this.context.mlua().scheduler(), owner, this.context.mlua().side());
    }
 
-   @MLuaDescription("Returns whether a registered or Minecraft keybind is currently pressed.")
+   @MLuaDescription("Returns whether a registered or Minecraft keybind is pressed, including a logical press held through InputService.")
    public boolean IsKeyDown(String name) {
       this.requireClientSide(this.name());
       return this.onClientThread(() -> {

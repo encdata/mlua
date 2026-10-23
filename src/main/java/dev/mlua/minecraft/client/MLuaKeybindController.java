@@ -386,7 +386,11 @@ public final class MLuaKeybindController {
       throw new IllegalStateException("[MLua] Failed to set key binding.");
    }
 
-   public static boolean isDown(KeyMapping keyMapping) {
+   /** Reads the effective state, including owner-held logical presses set through InputService. */
+   public static synchronized boolean isDown(KeyMapping keyMapping) {
+      if (keyMapping == null) return false;
+      Set<PressOwner> simulatedOwners = SIMULATED_PRESSES.get(keyMapping);
+      if (simulatedOwners != null && !simulatedOwners.isEmpty()) return true;
       Object value = invokeRequired(KEY_IS_DOWN, keyMapping, "read key mapping state");
       if (value instanceof Boolean down) return down;
       throw new IllegalStateException("[MLua] Minecraft returned an invalid key mapping state.");
@@ -414,15 +418,17 @@ public final class MLuaKeybindController {
       PressOwner owner = new PressOwner(runtimeSession, ownerModId == null ? "" : ownerModId);
       Set<PressOwner> owners = SIMULATED_PRESSES.get(keyMapping);
       if (down) {
-         if (owners == null) {
+         if (owners == null || owners.isEmpty()) {
+            boolean baseline = isDown(keyMapping);
+            setDown(keyMapping, true);
             owners = new LinkedHashSet<>();
+            owners.add(owner);
+            SIMULATED_BASELINE_DOWN.put(keyMapping, baseline);
             SIMULATED_PRESSES.put(keyMapping, owners);
-            if (!SIMULATED_BASELINE_DOWN.containsKey(keyMapping)) {
-               SIMULATED_BASELINE_DOWN.put(keyMapping, isDown(keyMapping));
-            }
+            return;
          }
-         owners.add(owner);
          setDown(keyMapping, true);
+         owners.add(owner);
          return;
       }
       // A release only undoes a press this runtime actually owns. Calling

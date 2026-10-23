@@ -8,9 +8,11 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputService.java"
 DEFINITIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaKeybindDefinitions.java"
 ACTIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputActions.java"
+CONTROLLER = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaKeybindController.java"
 service = SERVICE.read_text(encoding="utf-8")
 definitions = DEFINITIONS.read_text(encoding="utf-8")
 actions = ACTIONS.read_text(encoding="utf-8")
+controller = CONTROLLER.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -39,6 +41,9 @@ if "MLuaClientThread.callOnClientThread(action)" not in actions:
     fail("Minecraft key state mutations must run on the actual client thread")
 if "MLuaClientThread.callOnClientThread(action)" not in service:
     fail("Minecraft keybinding registration and lookup must run on the actual client thread")
+effective_key_state = controller.split("public static synchronized boolean isDown(KeyMapping keyMapping)", 1)
+if len(effective_key_state) != 2 or "SIMULATED_PRESSES.get(keyMapping)" not in effective_key_state[1].split("\n   }", 1)[0]:
+    fail("key state queries must include logical presses held through InputService")
 for method in ("RegisterKeybinds", "IsKeyDown", "SetKeybind", "GetKeybind", "GetKeybinds",
                "GetMinecraftKeybind", "GetMinecraftKeybinds"):
     match = re.search(rf"public\s+[^{{]+\b{method}\s*\(", service)

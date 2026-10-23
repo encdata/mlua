@@ -270,7 +270,7 @@ else
         "modern cooking recipe did not preserve its requested result count")
 end
 print("MLUA_CI_COOKING_RESULT_COUNT_OK")
-Registry.Loot:Register("ci_handle_loot", { type = "minecraft:block", pools = {} })
+Registry.Loot:Register("ci_handle_loot", '{"type":"minecraft:block","pools":[]}')
 local recipeHandle = Registry.Recipes:Get("ci_handle_recipe")
 local lootHandle = Registry.Loot:GetEntry("ci_handle_loot")
 assert(recipeHandle ~= nil and recipeHandle:IsA("GeneratedAssetResource")

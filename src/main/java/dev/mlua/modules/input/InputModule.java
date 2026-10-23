@@ -56,7 +56,7 @@ public class InputModule implements MLuaModule {
         registration.registerClassProperty("KeyMapping", "Name", mappingProperty("name"), LuaValue.NIL,
             "string", "client:Client", "The key mapping's registered identifier.");
         registration.registerClassProperty("KeyMapping", "IsDown", mappingProperty("down"), LuaValue.NIL,
-            "boolean", "client:Client", "Whether this key mapping is currently pressed.");
+            "boolean", "client:Client", "Whether this key mapping is physically or logically pressed.");
         registration.registerClassProperty("KeyMapping", "Key", mappingProperty("key"), keyMappingKeySetter(),
             "string", "client:Client", "The current key; only addon-owned keybinds can be changed.");
         registration.registerClassProperty("KeyMapping", "Category", mappingProperty("category"), LuaValue.NIL,
@@ -136,7 +136,7 @@ public class InputModule implements MLuaModule {
         docs.register(MLuaDocBuilder.Registration.clazz("Keybind", "MLuaInputService", "A live, addon-owned keybind with readable state, a change signal, and key reassignment.", "classes/keybind.html", "KeyMapping"));
         docs.register(MLuaDocBuilder.Registration.clazz("MinecraftKeybind", "MLuaInputService", "A live read-only view of a keybind registered by Minecraft or another mod.", "classes/minecraft-keybind.html", "KeyMapping"));
         docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.Name", "string", "The key mapping's registered identifier.", "client:Client"));
-        docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.IsDown", "boolean", "Whether this key mapping is currently pressed.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.IsDown", "boolean", "Whether this key mapping is physically or logically pressed.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.Key", "string", "The assigned key; only addon-owned keybinds can be changed.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("KeyMapping", "KeyMapping.Category", "string", "The Controls category. Minecraft 1.20.1 and 1.21.1 return its translation key; 26.1 returns its registered resource identifier.", "client:Client"));
         docs.register(MLuaDocBuilder.Registration.property("Keybind", "Keybind.Signal", "Signal", "Fires when this keybind is pressed.", "client:Client"));
