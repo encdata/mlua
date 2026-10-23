@@ -7,6 +7,7 @@ import java.util.function.Function;
 
 import dev.mlua.loaderapi.RegistryHandle;
 import dev.mlua.loaderapi.RegistryKind;
+import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import net.minecraft.core.Registry;
@@ -43,6 +44,11 @@ final class MLuaEntityTypeResolver {
         }
         EntityType<?> builtIn = findType(BuiltInRegistries.ENTITY_TYPE, location);
         if (builtIn != null) return builtIn;
+        // Some loader registry facades expose a live entity through MLua's version adapter
+        // even when the direct Registry view cannot resolve its key. Keep this compatibility
+        // lookup after the allocation-free native paths above.
+        Object adapted = MCApiRuntime.lookupRegistry("entity_type", location.toString());
+        if (adapted instanceof EntityType<?> entityType) return entityType;
         RegistryHandle<?> handle = MLuaLoaderRegistry.get(RegistryKind.ENTITY,
             MLuaResourceLocations.namespace(location), MLuaResourceLocations.path(location));
         Object registered = handle == null ? null : handle.get();
