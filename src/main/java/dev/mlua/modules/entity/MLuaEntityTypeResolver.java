@@ -35,6 +35,10 @@ final class MLuaEntityTypeResolver {
         // that hot path first; only consult the active world's registry for keys it does not own.
         EntityType<?> builtIn = findType(BuiltInRegistries.ENTITY_TYPE, location);
         if (builtIn != null) return builtIn;
+        // Loader registry views differ across game lines (some return Optional or Holder values).
+        // The version adapter normalizes those shapes and covers the built-in entity registry.
+        Object adapted = MCApiRuntime.lookupRegistry("entity_type", location.toString());
+        if (adapted instanceof EntityType<?> entityType) return entityType;
         if (level != null) {
             //--version 26.1
             EntityType<?> worldType = level.registryAccess()
@@ -46,11 +50,6 @@ final class MLuaEntityTypeResolver {
             //--endversion
             if (worldType != null) return worldType;
         }
-        // Some loader registry facades expose a live entity through MLua's version adapter
-        // even when the direct Registry view cannot resolve its key. Keep this compatibility
-        // lookup after the allocation-free native paths above.
-        Object adapted = MCApiRuntime.lookupRegistry("entity_type", location.toString());
-        if (adapted instanceof EntityType<?> entityType) return entityType;
         RegistryHandle<?> handle = MLuaLoaderRegistry.get(RegistryKind.ENTITY,
             MLuaResourceLocations.namespace(location), MLuaResourceLocations.path(location));
         Object registered = handle == null ? null : handle.get();

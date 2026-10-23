@@ -2,6 +2,7 @@ package dev.mlua.minecraft.binding;
 
 import dev.mlua.loaderapi.RegistryKind;
 import dev.mlua.minecraft.MLuaResourceLocations;
+import java.util.Optional;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
@@ -109,7 +110,7 @@ public final class MLuaRegistryEntry {
     }
 
     private static Object value(Entry entry) {
-        return switch (entry.kind) {
+        Object value = switch (entry.kind) {
             case ITEM, BLOCK_ITEM -> BuiltInRegistries.ITEM.get(entry.id);
             case BLOCK -> BuiltInRegistries.BLOCK.get(entry.id);
             case ENTITY -> BuiltInRegistries.ENTITY_TYPE.get(entry.id);
@@ -118,6 +119,9 @@ public final class MLuaRegistryEntry {
             case MOB_EFFECT -> BuiltInRegistries.MOB_EFFECT.get(entry.id);
             case CREATIVE_TAB -> BuiltInRegistries.CREATIVE_MODE_TAB.get(entry.id);
         };
+        if (value instanceof Optional<?> optional) value = optional.orElse(null);
+        if (value instanceof net.minecraft.core.Holder<?> holder) value = holder.value();
+        return value;
     }
 
     /**

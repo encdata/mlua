@@ -77,10 +77,10 @@ inventory_bindings_source = INVENTORY.read_text(encoding="utf-8")
 player_wrapper_source = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerWrapper.java").read_text(encoding="utf-8")
 players_module_source = (ROOT / "src/main/java/dev/mlua/modules/players/PlayersModule.java").read_text(encoding="utf-8")
 player_join_dispatcher_source = (ROOT / "src/main/java/dev/mlua/modules/players/MLuaPlayerJoinDispatcher.java").read_text(encoding="utf-8")
-players_service_source = (ROOT / "src/main/java/dev/mlua/modules/players/service/MLuaPlayersService.java").read_text(encoding="utf-8")
-if ('Class.forName("dev.mlua.modules.players.classes.MLuaClientPlayerWrapper"' not in players_service_source
-        or "wrapperType.getMethods()" not in players_service_source):
-    fail("local and remote client players must resolve through the client-only Player wrapper")
+player_directory_source = (ROOT / "src/main/java/dev/mlua/modules/players/service/MLuaPlayerDirectory.java").read_text(encoding="utf-8")
+if ('Class.forName("dev.mlua.modules.players.classes.MLuaClientPlayerWrapper"' not in player_directory_source
+        or "wrapperType.getMethods()" not in player_directory_source):
+    fail("player directory must resolve client instances through the client-only Player wrapper")
 if "playerJoinDispatcher::enqueue" not in players_module_source or "playerJoinDispatcher::dispatchPending" not in players_module_source:
     fail("PlayersModule must delegate player join lifecycle work to its dedicated dispatcher")
 if "pending.poll()" not in player_join_dispatcher_source or "this.dispatch(player)" not in player_join_dispatcher_source:
@@ -104,8 +104,8 @@ if "withResumeWaitHook" not in (ROOT / "src/main/java/dev/mlua/core/MLuaCallback
 join_scope_source = (ROOT / "src/main/java/dev/mlua/modules/players/MLuaPlayerJoinScope.java").read_text(encoding="utf-8")
 if "InheritableThreadLocal<ServerPlayer>" not in join_scope_source:
     fail("Joining-player lookup scope must reach LuaJ's child coroutine thread")
-if "MLuaPlayerJoinScope.current()" not in players_service_source or "joiningPlayer.getName().getString().equals(name)" not in players_service_source:
-    fail("Players lookup methods must resolve the joining player before the loader adds it to the live list")
+if "MLuaPlayerJoinScope.current()" not in player_directory_source or "joining.getName().getString().equals(name)" not in player_directory_source:
+    fail("player directory must resolve the joining player before the loader adds it to the live list")
 if "public static LuaValue invokeInstanceMethod(" not in class_methods_source:
     fail("shared class method owner is missing live instance invocation")
 for source in (inventory_service_source, inventory_bindings_source, player_wrapper_source):
