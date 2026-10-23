@@ -288,10 +288,8 @@ public final class MLuaEntityQuery {
             null, null, null, null, null, null, Set.of(), Set.of(), null, Set.of());
 
         private CompiledFilter {
-            if (types != null) types = Set.copyOf(types);
-            excludedTypes = Set.copyOf(excludedTypes);
-            requiredTags = Set.copyOf(requiredTags);
-            excludedTags = Set.copyOf(excludedTags);
+            // Filter compilation already converts Lua arrays to immutable sets. Copying those
+            // sets again here doubled allocation for every query filter without adding safety.
             Set<Entity> excludedCopy = Collections.newSetFromMap(new IdentityHashMap<>());
             excludedCopy.addAll(excludedEntities);
             excludedEntities = Collections.unmodifiableSet(excludedCopy);
