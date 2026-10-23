@@ -64,6 +64,7 @@ if not generated_asset_pack.is_file() or generated_asset_pack_overlay.exists():
     raise SystemExit("Generated asset pack must have one shared owner with version-specific code in that source")
 
 modern_item = (ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/scripted/MLuaScriptedItem.java").read_text(encoding="utf-8")
+modern_block_item = (ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java").read_text(encoding="utf-8")
 modern_item_dispatcher = (ROOT / "mlua-versions/common/26.1/dev/mlua/runtime/registry/MLuaItemBehaviorDispatcher.java").read_text(encoding="utf-8")
 for method in ("onUse", "onUseOnBlock", "onConsume", "onInventoryTick", "onAttackEntity", "onCrafted"):
     if f"MLuaItemBehaviorDispatcher.{method}(" not in modern_item:
@@ -72,6 +73,11 @@ for method in ("onUse", "onUseOnBlock", "onConsume", "onInventoryTick", "onAttac
         raise SystemExit(f"26.1 item behavior dispatcher is missing {method}")
 if "MLuaBehaviorRegistry" in modern_item or "MLuaBehaviorCallbackFailureTracker" in modern_item:
     raise SystemExit("26.1 scripted item hooks must not own Lua callback lookup or failure handling")
+for method in ("onUse", "onUseOnBlock", "onConsume", "onInventoryTick", "onAttackEntity", "onCrafted"):
+    if f"MLuaItemBehaviorDispatcher.{method}(" not in modern_block_item:
+        raise SystemExit(f"26.1 scripted block items must delegate {method} behavior to the item dispatcher")
+if "MLuaBehaviorRegistry" in modern_block_item or "MLuaBehaviorCallbackFailureTracker" in modern_block_item:
+    raise SystemExit("26.1 scripted block item hooks must not own Lua callback lookup or failure handling")
 for field in ("ItemStack", "Entity", "EquipmentSlot"):
     if f'context.set("{field}"' not in modern_item_dispatcher:
         raise SystemExit(f"26.1 item callback contexts are missing {field}")
