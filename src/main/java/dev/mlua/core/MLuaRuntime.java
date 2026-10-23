@@ -76,7 +76,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private final MLuaRuntimeSession session;
    private final MLuaServiceRegistry services = new MLuaServiceRegistry();
    private final MLuaClassRegistry classes = new MLuaClassRegistry();
-   private final MLuaRuntimeServiceClasses serviceClassRegistration;
+   private final MLuaRuntimeServiceRegistration serviceRegistration;
    private volatile long lifecycleEpoch;
    private final MLuaClientScriptWatcher clientScriptWatcher = new MLuaClientScriptWatcher();
    private final Map<Path, MLuaScriptRegistration> registryScriptRegistrations = new LinkedHashMap<>();
@@ -95,7 +95,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public MLuaRuntime(MLuaRuntimeSession session) {
       this.session = Objects.requireNonNull(session, "session");
-      this.serviceClassRegistration = new MLuaRuntimeServiceClasses(this.services, this.classes, this);
+      this.serviceRegistration = new MLuaRuntimeServiceRegistration(this.services, this.classes, this);
       this.session.attachRegistration(this);
       this.session.setFailureReporter(this::reportRuntimeFailure);
    }
@@ -149,7 +149,7 @@ public final class MLuaRuntime implements MLuaRegistration {
           MLuaModuleLoader.get().loadAll();
           MLuaModuleLoader.get().registerClasses(this);
           this.services.names().forEach(name -> {
-             this.serviceClassRegistration.registerIfAvailable(name, this.serviceClassName(name));
+             this.serviceRegistration.registerIfAvailable(name, this.serviceClassName(name));
           });
           MLuaModuleLoader.get().registerServices(this);
           MLuaModuleLoader.get().registerEventListeners();
@@ -288,37 +288,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    public synchronized void registerService(String name, String className, Side side,
                                             Function<MLuaService.Context, MLuaService> factory,
                                             String description, Map<String, String> functionDescriptions) {
-      if (className != null && className.isBlank()) {
-         throw new IllegalArgumentException("Service class name must be non-empty");
-      }
-      String existingClassName = this.services.explicitClassName(name);
-      String recordedClassName = existingClassName != null
-         ? existingClassName : this.serviceClassRegistration.registeredClassName(name);
-      if (recordedClassName != null && className != null && !recordedClassName.equals(className)) {
-         throw new IllegalStateException("Service '" + name + "' is already assigned to Lua class '"
-            + recordedClassName + "'");
-      }
-      String selectedClassName = className != null ? className : recordedClassName != null ? recordedClassName : name;
-      LuaTable namedClass = this.classes.get(selectedClassName);
-      if (namedClass != null && (!namedClass.rawget("__mlua_service_class").optboolean(false)
-         || !name.equals(namedClass.rawget("__mlua_service_name").optjstring("")))) {
-         throw new IllegalStateException("Service '" + name + "' conflicts with Lua class '" + selectedClassName
-            + "'; register it with a distinct explicit service class name");
-      }
-      MLuaServiceRegistry.Registration registration = new MLuaServiceRegistry.Registration(
-         name, selectedClassName, factory, description, functionDescriptions);
-      this.services.validateBatch(side, List.of(registration));
-      this.serviceClassRegistration.validate(selectedClassName, description, registration.functionDescriptions());
-      boolean addedClassName = existingClassName == null;
-      try {
-         this.services.registerBatch(side, List.of(registration));
-         if (addedClassName) this.services.assignClassName(name, selectedClassName);
-         this.serviceClassRegistration.registerIfAvailable(name, selectedClassName);
-      } catch (RuntimeException | Error failure) {
-         this.services.unregisterBatch(side, List.of(registration));
-         if (addedClassName) this.services.clearClassName(name, selectedClassName);
-         throw failure;
-      }
+      this.serviceRegistration.register(name, className, side, factory, description, functionDescriptions);
    }
 
    @Override

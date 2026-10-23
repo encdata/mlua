@@ -1,24 +1,64 @@
 package dev.mlua.core;
 
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
+import dev.mlua.common.enums.Side;
 import dev.mlua.core.classes.MLuaClassRegistry;
+import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import dev.mlua.module.MLuaRegistration;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /** Keeps Java service registrations and their Lua class contracts in sync. */
-final class MLuaRuntimeServiceClasses {
+final class MLuaRuntimeServiceRegistration {
    private final MLuaServiceRegistry services;
    private final MLuaClassRegistry classes;
    private final MLuaRegistration registration;
 
-   MLuaRuntimeServiceClasses(MLuaServiceRegistry services, MLuaClassRegistry classes,
-                             MLuaRegistration registration) {
+   MLuaRuntimeServiceRegistration(MLuaServiceRegistry services, MLuaClassRegistry classes,
+                                  MLuaRegistration registration) {
       this.services = services;
       this.classes = classes;
       this.registration = registration;
+   }
+
+   void register(String name, String className, Side side,
+                 Function<MLuaService.Context, MLuaService> factory,
+                 String description, Map<String, String> functionDescriptions) {
+      if (className != null && className.isBlank()) {
+         throw new IllegalArgumentException("Service class name must be non-empty");
+      }
+      String existingClassName = this.services.explicitClassName(name);
+      String recordedClassName = existingClassName != null
+         ? existingClassName : this.registeredClassName(name);
+      if (recordedClassName != null && className != null && !recordedClassName.equals(className)) {
+         throw new IllegalStateException("Service '" + name + "' is already assigned to Lua class '"
+            + recordedClassName + "'");
+      }
+      String selectedClassName = className != null ? className : recordedClassName != null ? recordedClassName : name;
+      LuaTable namedClass = this.classes.get(selectedClassName);
+      if (namedClass != null && (!namedClass.rawget("__mlua_service_class").optboolean(false)
+         || !name.equals(namedClass.rawget("__mlua_service_name").optjstring("")))) {
+         throw new IllegalStateException("Service '" + name + "' conflicts with Lua class '" + selectedClassName
+            + "'; register it with a distinct explicit service class name");
+      }
+      MLuaServiceRegistry.Registration service = new MLuaServiceRegistry.Registration(
+         name, selectedClassName, factory, description, functionDescriptions);
+      this.services.validateBatch(side, List.of(service));
+      this.validate(selectedClassName, description, service.functionDescriptions());
+      boolean addedClassName = existingClassName == null;
+      try {
+         this.services.registerBatch(side, List.of(service));
+         if (addedClassName) this.services.assignClassName(name, selectedClassName);
+         this.registerIfAvailable(name, selectedClassName);
+      } catch (RuntimeException | Error failure) {
+         this.services.unregisterBatch(side, List.of(service));
+         if (addedClassName) this.services.clearClassName(name, selectedClassName);
+         throw failure;
+      }
    }
 
    String registeredClassName(String serviceName) {
