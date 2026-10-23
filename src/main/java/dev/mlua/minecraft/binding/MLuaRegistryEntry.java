@@ -1,8 +1,8 @@
 package dev.mlua.minecraft.binding;
 
 import dev.mlua.loaderapi.RegistryKind;
+import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.minecraft.MLuaResourceLocations;
-import java.util.Optional;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
@@ -119,9 +119,7 @@ public final class MLuaRegistryEntry {
             case MOB_EFFECT -> BuiltInRegistries.MOB_EFFECT.get(entry.id);
             case CREATIVE_TAB -> BuiltInRegistries.CREATIVE_MODE_TAB.get(entry.id);
         };
-        if (value instanceof Optional<?> optional) value = optional.orElse(null);
-        if (value instanceof net.minecraft.core.Holder<?> holder) value = holder.value();
-        return value;
+        return MCApiRuntime.normalizeRegistryValue(value);
     }
 
     /**

@@ -9,6 +9,16 @@ import java.lang.reflect.Method;
 
 public final class MCApiRuntime {
     private static volatile MCApiRuntimeProvider provider = new ReflectiveProvider();
+    private static final ClassValue<java.util.Optional<Method>> HOLDER_VALUE_ACCESSORS = new ClassValue<>() {
+        @Override
+        protected java.util.Optional<Method> computeValue(Class<?> type) {
+            try {
+                return java.util.Optional.of(type.getMethod("value"));
+            } catch (NoSuchMethodException ignored) {
+                return java.util.Optional.empty();
+            }
+        }
+    };
 
     private MCApiRuntime() {
     }
@@ -75,6 +85,23 @@ public final class MCApiRuntime {
 
     public static Object lookupRegistry(String registry, String id) {
         return provider.lookupRegistry(registry, id);
+    }
+
+    /** Converts version-specific registry results such as Optional and Holder into their value. */
+    public static Object normalizeRegistryValue(Object value) {
+        if (value instanceof java.util.Optional<?> optional) {
+            if (optional.isEmpty()) return null;
+            value = optional.get();
+        }
+        if (value != null) {
+            try {
+                Method holderValue = HOLDER_VALUE_ACCESSORS.get(value.getClass()).orElse(null);
+                return holderValue == null ? value : holderValue.invoke(value);
+            } catch (ReflectiveOperationException ignored) {
+                // Ordinary registry values do not expose Holder.value().
+            }
+        }
+        return value;
     }
 
     public static String registryKey(String registry, Object value) {
@@ -295,7 +322,7 @@ public final class MCApiRuntime {
         public Object lookupRegistry(String registry, String id) {
             Object location = construct("net.minecraft.resources.ResourceLocation", new Class<?>[]{String.class}, id);
             Object value = tryLookupRegistryValue("net.minecraft.core.registries.BuiltInRegistries", registry.toUpperCase(), location);
-            return unwrapRegistryValue(value);
+            return normalizeRegistryValue(value);
         }
 
         @Override
@@ -331,18 +358,4 @@ public final class MCApiRuntime {
         }
     }
 
-    private static Object unwrapRegistryValue(Object value) {
-        if (value instanceof java.util.Optional<?> optional) {
-            if (optional.isEmpty()) return null;
-            value = optional.get();
-        }
-        if (value != null) {
-            try {
-                Method holderValue = value.getClass().getMethod("value");
-                return holderValue.invoke(value);
-            } catch (ReflectiveOperationException ignored) {
-            }
-        }
-        return value;
-    }
 }

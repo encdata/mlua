@@ -1,6 +1,7 @@
 package dev.mlua.mc.impl;
 
 import dev.mlua.mcapi.MCApiRuntimeProvider;
+import dev.mlua.mcapi.MCApiRuntime;
 import dev.mlua.mcapi.server.MCMinecraftServer;
 import dev.mlua.mcapi.world.MCLevel;
 import dev.mlua.mc.impl.item.alchemy.MCPotionImpl;
@@ -71,11 +72,7 @@ public final class MCApiVersionRuntimeProvider implements MCApiRuntimeProvider {
     @Override
     public Object lookupRegistry(String registry, String id) {
         Object value = registry(registry).get(ResourceLocation.tryParse(id));
-        if (value instanceof java.util.Optional<?> optional) {
-            if (optional.isEmpty()) return null;
-            value = optional.get();
-        }
-        return value instanceof net.minecraft.core.Holder<?> holder ? holder.value() : value;
+        return MCApiRuntime.normalizeRegistryValue(value);
     }
 
     @Override
