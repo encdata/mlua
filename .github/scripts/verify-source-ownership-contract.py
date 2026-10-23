@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +13,19 @@ OVERLAPS = sorted(
 )
 
 helper = (ROOT / "gradle/mlua-targets.gradle").read_text(encoding="utf-8")
+core_source_list = helper.split("ext.mluaCoreRuntimeSources = [", 1)[1].split("]", 1)[0]
+selected_core_sources = set(re.findall(r"'([^']+\.java)'", core_source_list))
+available_core_sources = {
+    path.relative_to(ROOT / "mlua-core/src/main/java").as_posix()
+    for path in (ROOT / "mlua-core/src/main/java").rglob("*.java")
+}
+if selected_core_sources != available_core_sources:
+    missing = sorted(available_core_sources - selected_core_sources)
+    stale = sorted(selected_core_sources - available_core_sources)
+    raise SystemExit(
+        "Runtime target core source selection must include every mlua-core Java source "
+        f"and no stale paths; missing={missing}, stale={stale}"
+    )
 if "commonVersionRootExcludes" not in helper:
     raise SystemExit("Common version source ownership helper is missing")
 if "targetPathChain('mlua-versions/common/%s', minecraftVersion)" not in helper:
