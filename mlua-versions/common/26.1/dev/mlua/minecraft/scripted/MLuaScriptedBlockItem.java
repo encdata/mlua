@@ -4,6 +4,7 @@ import dev.mlua.runtime.registry.MLuaItemBehaviorDispatcher;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 import dev.mlua.runtime.registry.MLuaRegistryNameHelper;
 import java.util.List;
+import java.util.function.Consumer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;

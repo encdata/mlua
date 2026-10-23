@@ -160,7 +160,7 @@ public final class MLuaAnimationController {
         TRACKS.forEach((key, tracks) -> {
             if (key.scope().equals(scope)) entries.add(Map.entry(key, tracks));
         });
-        tickScope(scope, entries, delta, null);
+        tickScope(scope, entries, delta, null, new IdentityHashMap<>());
     }
 
     /** Ticks all supplied entities after grouping their tracks in one runtime-wide map pass. */
@@ -188,17 +188,22 @@ public final class MLuaAnimationController {
         MLuaAnimationEventState.EventBudget batchBudget = new MLuaAnimationEventState.EventBudget(
             MLuaAnimationTrack.MAX_EVENT_CALLBACKS_PER_BATCH_TICK,
             MLuaAnimationTrack.MAX_EVENT_CALLBACKS_PER_ADDON_BATCH_TICK, null);
+        Map<Object, Long> ownerOrders = new IdentityHashMap<>();
         for (MLuaEntityScope scope : orderedScopes) {
-            tickScope(scope, grouped.getOrDefault(scope, List.of()), delta, batchBudget);
+            tickScope(scope, grouped.getOrDefault(scope, List.of()), delta, batchBudget, ownerOrders);
         }
     }
 
     private static void tickScope(MLuaEntityScope scope,
             List<Map.Entry<TrackKey, List<MLuaAnimationTrack>>> entries, float delta,
-            MLuaAnimationEventState.EventBudget batchBudget) {
+            MLuaAnimationEventState.EventBudget batchBudget, Map<Object, Long> ownerOrders) {
         if (entries.isEmpty()) return;
+        for (Map.Entry<TrackKey, List<MLuaAnimationTrack>> entry : entries) {
+            Object owner = entry.getKey().runtimeOwner();
+            ownerOrders.computeIfAbsent(owner, MLuaAnimationController::ownerOrder);
+        }
         entries.sort(Comparator.comparingLong((Map.Entry<TrackKey, List<MLuaAnimationTrack>> entry) ->
-            ownerOrder(entry.getKey().runtimeOwner())).thenComparing(entry -> entry.getKey().addonOwner()));
+            ownerOrders.get(entry.getKey().runtimeOwner())).thenComparing(entry -> entry.getKey().addonOwner()));
         Map<String, List<Map.Entry<TrackKey, List<MLuaAnimationTrack>>>> entriesByAddon = new LinkedHashMap<>();
         entries.stream().map(entry -> entry.getKey().addonOwner()).distinct().sorted()
             .forEach(addon -> entriesByAddon.put(addon, new ArrayList<>()));
