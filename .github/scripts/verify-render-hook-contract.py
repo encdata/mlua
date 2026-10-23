@@ -435,11 +435,14 @@ if "float[][] points" in vertex_emitter or "float[][] corners" in vertex_emitter
     fail("shared BBModel face emission must not allocate nested coordinate arrays per face")
 neoforge_build = NEOFORGE_CONFIG_GENERATOR.read_text(encoding="utf-8")
 for operation in ("@Mixin(value = ${arguments}, remap = false)",
+                  "package dev.mlua.modules.mixin.service;', 'package dev.mlua.mixin.service;'",
                   "replace(', at = @At', ', remap = false, at = @At')",
                   "@At(value = \"$1\", remap = false)",
                   "@Invoker(value = \"$1\", remap = false)"):
     if operation not in neoforge_build:
         fail(f"NeoForge service mixin preparation must disable foreign obfuscation mappings: {operation}")
+if "package: 'dev.mlua.mixin.service'" not in neoforge_build:
+    fail("NeoForge service mixins must use a package retained in the loader JAR")
 if "ENTITY_MODELS" in render_manager or "HELD_ITEM_MODELS" in render_manager:
     fail("render manager must not own target index storage")
 

@@ -4,8 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import dev.mlua.math.MLuaCFrame;
+import dev.mlua.runtime.client.model.MLuaBBModelAsset;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import dev.mlua.minecraft.animation.MLuaBBModelAsset;
 
 /** Shared 26.1 vertex and face emission for mesh and Blockbench render targets. */
 final class MLuaRenderVertexEmitter {

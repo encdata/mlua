@@ -84,6 +84,7 @@ def prepareNeoForgeServiceMixinSources = tasks.register('prepareNeoForgeServiceM
         rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
         fileTree(destinationDir).matching { include '**/*.java' }.each { source ->
             def text = source.getText('UTF-8')
+            text = text.replace('package dev.mlua.modules.mixin.service;', 'package dev.mlua.mixin.service;')
             text = text.replaceAll(/@Mixin\(([^)\n]+)\)/) { match, arguments ->
                 if (arguments.contains('remap =')) return match
                 arguments.startsWith('targets =')
@@ -350,7 +351,7 @@ def generateNeoForgeServiceMixinConfig = tasks.register('generateNeoForgeService
         output.get().asFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
             required: true,
             minVersion: '0.8',
-            package: 'dev.mlua.modules.mixin.service',
+            package: 'dev.mlua.mixin.service',
             compatibilityLevel: 'JAVA_17',
             refmap: 'mlua.refmap.json',
             client: clientMixins,
