@@ -16,7 +16,7 @@ public abstract class ChatLineMixin {
             + "Lnet/minecraft/client/GuiMessageTag;Z)V",
         at = @At("HEAD"),
         argsOnly = true,
-        require = 0
+        require = 1
     )
     @Group(name = "mlua$chatLineAdded", min = 1, max = 3)
     private Component mlua$beforeLegacyChatLineAdded(Component message) {
@@ -30,9 +30,9 @@ public abstract class ChatLineMixin {
             + "Lnet/minecraft/client/GuiMessageTag;)V",
         at = @At("HEAD"),
         argsOnly = true,
-        require = 0
+        require = 1
     )
-    @Group(name = "mlua$chatLineAdded")
+    @Group(name = "mlua$chatLineAdded", min = 1)
     private Component mlua$beforeTaggedChatLineAdded(Component message) {
         return MLuaGuiService.beforeChatLineAdded(message);
     }
@@ -45,9 +45,9 @@ public abstract class ChatLineMixin {
             + "Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V",
         at = @At("HEAD"),
         argsOnly = true,
-        require = 0
+        require = 1
     )
-    @Group(name = "mlua$chatLineAdded")
+    @Group(name = "mlua$chatLineAdded", min = 1)
     private Component mlua$beforeSourcedChatLineAdded(Component message) {
         return MLuaGuiService.beforeChatLineAdded(message);
     }

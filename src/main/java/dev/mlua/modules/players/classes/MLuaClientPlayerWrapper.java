@@ -3,6 +3,7 @@ package dev.mlua.modules.players.classes;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import dev.mlua.common.mixin.MLuaMappingResolvers;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
@@ -24,6 +25,7 @@ import dev.mlua.mc.impl.entity.MCEntityImpl;
 import dev.mlua.mc.impl.entity.MCLocalPlayerImpl;
 import dev.mlua.mc.impl.entity.MCPlayerImpl;
 import java.lang.reflect.Method;
+import java.util.LinkedHashSet;
 import java.util.List;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
@@ -481,18 +483,24 @@ public final class MLuaClientPlayerWrapper {
    private static Method findClientChatSubmissionMethod() {
       try {
          Class<?> connectionType = Minecraft.class.getMethod("getConnection").getReturnType();
+         LinkedHashSet<String> candidates = new LinkedHashSet<>();
          for (String name : List.of("sendChat", "sendChatMessage")) {
+            try {
+               String mapped = MLuaMappingResolvers.current().mapMethod(
+                  "net.minecraft.client.multiplayer.ClientPacketListener", name, "(Ljava/lang/String;)V").name();
+               if (mapped != null && !mapped.isBlank()) candidates.add(mapped);
+            } catch (RuntimeException ignored) { }
+            candidates.add(name);
+         }
+         for (String name : candidates) {
             try {
                Method method = connectionType.getMethod(name, String.class);
                if (method.getReturnType() == Void.TYPE) return method;
             } catch (ReflectiveOperationException ignored) { }
             try {
                Method method = connectionType.getDeclaredMethod(name, String.class);
-               if (method.getReturnType() == Void.TYPE) {
-                  method.setAccessible(true);
-                  return method;
-               }
-            } catch (ReflectiveOperationException ignored) { }
+               if (method.getReturnType() == Void.TYPE && method.trySetAccessible()) return method;
+            } catch (ReflectiveOperationException | RuntimeException ignored) { }
          }
       } catch (ReflectiveOperationException ignored) { }
       return null;

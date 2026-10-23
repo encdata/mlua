@@ -67,10 +67,26 @@ def prepareNeoForgeProjectResources = registerMergedTree(project, 'prepareNeoFor
 def prepareNeoForgeAdapterSources = registerMergedTree(project, 'prepareNeoForgeAdapterSources',
     targetPathChain('mlua-loaders/common/%s/impl', targetVersion) +
         targetPathChain('mlua-loaders/neoforge/%s/impl', targetVersion), neoForgeImplExcludes)
+def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
+def neoForgeServiceMixinNames = [
+    'CameraInvoker', 'CameraMixin', 'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin',
+    'HumanoidModelMixin', 'MouseHandlerMixin', 'PlayerModelMixin'
+]
+if (is26Family) neoForgeServiceMixinNames += 'ExperienceBarRendererMixin'
+def prepareNeoForgeServiceMixinSources = tasks.register('prepareNeoForgeServiceMixinSources', Sync) {
+    from(rootProject.file('src/main/java')) {
+        neoForgeServiceMixinNames.each { name ->
+            include "dev/mlua/modules/mixin/service/${name}.java"
+        }
+    }
+    into layout.buildDirectory.dir('generated/neoforge-service-mixin-java')
+    doLast {
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
+    }
+}
 
 base { archivesName = "${mod_id}-neoforge-${minecraft_version}" }
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
-def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 def neoForgeRootExcludes = [
     'dev/mlua/MLuaMod.java', 'dev/mlua/runtime/client/MLuaClientModels.java',
     'dev/mlua/runtime/client/MLuaConfigClientHooks.java', 'dev/mlua/runtime/client/MLuaPackFinder.java',
@@ -129,7 +145,8 @@ sourceSets.main.java.setSrcDirs([
     rootProject.file('mlua-api/src/main/java'), rootProject.file('mlua-loader-api/src/main/java'),
     rootProject.file('mlua-mc-api/src/main/java'), file("${buildDir}/generated/neoforge-transformer-java"),
     rootProject.file('mlua-common/src/main/java'), rootProject.file('mlua-luaj/src/main/java'),
-    file("${buildDir}/generated/prepareCommonVersionSources"), file("${buildDir}/generated/prepareNeoForgeAdapterSources")
+    file("${buildDir}/generated/prepareCommonVersionSources"), file("${buildDir}/generated/prepareNeoForgeAdapterSources"),
+    file("${buildDir}/generated/neoforge-service-mixin-java")
 ])
 sourceSets.main.resources.setSrcDirs([rootProject.file('mlua-transformer/src/main/resources'), rootProject.file('src/main/resources'), file("${buildDir}/generated/prepareNeoForgeProjectResources")])
 sourceSets.main.resources.exclude('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')
@@ -137,12 +154,15 @@ if (is26Family) sourceSets.main.resources.exclude('META-INF/services/cpw.mods.mo
 sourceSets.test.java.setSrcDirs([])
 sourceSets.test.resources.setSrcDirs([])
 
-tasks.compileJava.dependsOn tasks.prepareNeoForgeTransformerSources, tasks.prepareNeoForgeRootSources, prepareNeoForgeProjectSources, prepareNeoForgeProjectResources, prepareCommonVersionSources, prepareNeoForgeAdapterSources
+tasks.compileJava.dependsOn tasks.prepareNeoForgeTransformerSources, tasks.prepareNeoForgeRootSources,
+    prepareNeoForgeProjectSources, prepareNeoForgeProjectResources, prepareCommonVersionSources,
+    prepareNeoForgeAdapterSources, prepareNeoForgeServiceMixinSources
 if (is26Family) {
     tasks.named('compileJava').configure {
         doFirst {
             ["${buildDir}/generated/neoforge-root-java", "${buildDir}/generated/prepareCommonVersionSources",
-             "${buildDir}/generated/prepareNeoForgeAdapterSources", "${buildDir}/generated/prepareNeoForgeProjectSources"].each { dir ->
+             "${buildDir}/generated/prepareNeoForgeAdapterSources", "${buildDir}/generated/prepareNeoForgeProjectSources",
+             "${buildDir}/generated/neoforge-service-mixin-java"].each { dir ->
                 fileTree(dir).matching { include '**/*.java' }.each { source ->
                     def text = source.getText('UTF-8')
 
@@ -306,8 +326,29 @@ def generateNeoForgeMixinConfig = tasks.register('generateNeoForgeMixinConfig') 
         ])) + System.lineSeparator()
     }
 }
+def generateNeoForgeServiceMixinConfig = tasks.register('generateNeoForgeServiceMixinConfig') {
+    def output = layout.buildDirectory.file('generated/neoforge-mixins/mlua.service.mixins.json')
+    outputs.file(output)
+    doLast {
+        def clientMixins = neoForgeServiceMixinNames.toList()
+        output.get().asFile.parentFile.mkdirs()
+        output.get().asFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+            required: true,
+            minVersion: '0.8',
+            package: 'dev.mlua.modules.mixin.service',
+            compatibilityLevel: 'JAVA_17',
+            refmap: 'mlua.refmap.json',
+            client: clientMixins,
+            injectors: [defaultRequire: 1]
+        ])) + System.lineSeparator()
+    }
+}
+tasks.named('processResources', ProcessResources).configure {
+    dependsOn generateNeoForgeServiceMixinConfig
+    from(generateNeoForgeServiceMixinConfig) { into '' }
+}
 tasks.named('jar', Jar).configure {
-    dependsOn generateNeoForgeMixinConfig
+    dependsOn generateNeoForgeMixinConfig, generateNeoForgeServiceMixinConfig
     from(generateNeoForgeMixinConfig.map { it.outputs.files.singleFile })
     excludeMluaExternalScripts(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -315,7 +356,8 @@ tasks.named('jar', Jar).configure {
     from(project(':mlua-common').sourceSets.main.output)
     manifest {
         attributes([
-            'Automatic-Module-Name': 'mlua_loader', 'MixinConfigs': 'mlua.firstperson.mixins.json', 'Specification-Title': mod_id,
+            'Automatic-Module-Name': 'mlua_loader',
+            'MixinConfigs': 'mlua.firstperson.mixins.json,mlua.service.mixins.json', 'Specification-Title': mod_id,
             'Specification-Vendor': mod_authors, 'Specification-Version': '1', 'Implementation-Title': project.name,
             'Implementation-Version': project.jar.archiveVersion, 'Implementation-Vendor': mod_authors
         ])

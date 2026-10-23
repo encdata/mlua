@@ -10,7 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = ROOT / "gradle/mlua-targets.json"
 SHARED = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldService.java"
-FABRIC_120 = ROOT / "mlua-loaders/fabric/1.20.1/impl/dev/mlua/modules/world/service/MLuaWorldService.java"
+FABRIC_LEGACY_OVERLAY = ROOT / "mlua-loaders/fabric/1.20.1/impl/dev/mlua/modules/world/service/MLuaWorldService.java"
 COMMON_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldService.java"
 GAME_RULES_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/MLuaWorldGameRules26.java"
 GAME_RULES_SHARED = ROOT / "src/main/java/dev/mlua/modules/world/MLuaWorldGameRules.java"
@@ -56,15 +56,19 @@ pairs = sorted({(str(target["minecraft"]), loader)
                 for target in targets for loader in target["loaders"]})
 implementations = {}
 for version, loader in pairs:
-    if version == "1.20.1" and loader == "fabric":
-        path = FABRIC_120
-    elif version.startswith("26."):
+    if version.startswith("26."):
         path = COMMON_26
     else:
         path = SHARED
     if not path.is_file():
         fail(f"{loader} {version} selects a missing implementation: {path}")
     implementations.setdefault(path, []).append((version, loader))
+
+if FABRIC_LEGACY_OVERLAY.exists():
+    fail("Fabric must use the shared legacy World service; the stale 838-line overlay must be removed")
+fabric_build = (ROOT / "gradle/mlua-fabric-project.gradle").read_text(encoding="utf-8")
+if "dev/mlua/modules/world/service/MLuaWorldService.java" not in fabric_build:
+    fail("Fabric source selection must explicitly exclude the stale implementation overlay")
 
 for path, covered_targets in implementations.items():
     source = path.read_text(encoding="utf-8")
@@ -82,7 +86,7 @@ for path, covered_targets in implementations.items():
 bounds_helper = ROOT / "src/main/java/dev/mlua/modules/entity/MLuaEntityBounds.java"
 if not bounds_helper.is_file():
     fail("shared EntityBounds implementation is missing")
-for path in (SHARED, FABRIC_120, COMMON_26):
+for path in (SHARED, COMMON_26):
     source = path.read_text(encoding="utf-8")
     if path == SHARED:
         raycast_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldRaycastApi.java"
@@ -112,14 +116,6 @@ world_binder = method_body(world_module_text,
 if '"__mlua_instance_methods"' not in world_binder:
     fail("World method finalization no longer recognizes methods installed by shared binders")
 
-# The Fabric 1.20.1 source overlay must use the shared GameRuleEntry instance
-# factory; the old reserved __mlua_* callback fields conflict with class metadata.
-fabric_120_text = FABRIC_120.read_text(encoding="utf-8")
-if "MLuaWorldGameRules.list(" not in fabric_120_text \
-        or "MLuaWorldGameRules.entry(" not in fabric_120_text \
-        or "__mlua_get_game_rule_value" in fabric_120_text:
-    fail("Fabric 1.20.1 World service does not use the shared typed gamerule implementation")
-
 scripted_block_text = SCRIPTED_BLOCK.read_text(encoding="utf-8")
 block_entity_factory = method_body(scripted_block_text,
                                    r"\bpublic\s+BlockEntity\s+newBlockEntity\s*\(")
@@ -132,7 +128,7 @@ if not query_helper.is_file():
 query_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEntityQueryApi.java"
 if not query_api.is_file():
     fail("shared world entity query API binding is missing")
-for path in (SHARED, FABRIC_120, COMMON_26):
+for path in (SHARED, COMMON_26):
     source = path.read_text(encoding="utf-8")
     if path == SHARED:
         source += query_api.read_text(encoding="utf-8")
@@ -213,7 +209,7 @@ for method in ("GetPlayers", "GetEntities", "FindEntitiesInRadius", "GetEntities
 instance_cache = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldInstanceCache.java"
 if not instance_cache.is_file():
     fail("shared world instance cache is missing")
-for path in (SHARED, FABRIC_120, COMMON_26):
+for path in (SHARED, COMMON_26):
     source = path.read_text(encoding="utf-8")
     if "new MLuaWorldInstanceCache()" not in source:
         fail(f"{path} does not use shared world wrapper identity management")
@@ -307,7 +303,7 @@ legacy_chunk_binder = method_body(chunk_wrapper_source,
                                   r"\bpublic\s+static\s+void\s+bindWorldMethods\s*\(")
 if "MLuaWorldChunkApi.bind(world, registration)" not in legacy_chunk_binder:
     fail("legacy chunk binder must delegate World chunk methods to MLuaWorldChunkApi")
-for path in (SHARED, FABRIC_120, COMMON_26):
+for path in (SHARED, COMMON_26):
     source = path.read_text(encoding="utf-8")
     if "MLuaWorldChunkApi.bind(" not in source:
         fail(f"{path} does not delegate World chunk operations to MLuaWorldChunkApi")

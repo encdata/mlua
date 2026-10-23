@@ -14,12 +14,14 @@ def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as 
 def isUnobfuscated = is26Family
 def prepareFabricCommonVersionSources = registerMergedTree(project, 'prepareFabricCommonVersionSources',
     commonVersionPathChain(targetVersion))
-def fabricImplExcludes = []
+// The shared world service owns the Lua API for legacy targets. The old
+// Fabric implementation duplicated that service and had already drifted from
+// the shared entity resolver and world API components.
+def fabricImplExcludes = [
+    'dev/mlua/modules/world/service/MLuaWorldService.java'
+]
 if (is26Family) {
-    fabricImplExcludes += [
-        'dev/mlua/modules/world/service/MLuaWorldService.java',
-        'dev/mlua/modules/mixin/service/BlockItemMixin.java'
-    ]
+    fabricImplExcludes += 'dev/mlua/modules/mixin/service/BlockItemMixin.java'
 }
 def prepareFabricImplSources = registerMergedTree(project, 'prepareFabricImplSources',
     targetPathChain('mlua-loaders/common/%s/impl', targetVersion) +
@@ -83,8 +85,11 @@ def rootExcludes = [
     'dev/mlua/runtime/forge/**',
     'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
     'dev/mlua/modules/mixin/service/HumanoidModelMixin.java',
-    'dev/mlua/modules/world/service/MLuaWorldService.java',
 ]
+if (is26Family) {
+    // 26.1 has its own Minecraft API implementation under mlua-versions.
+    rootExcludes += 'dev/mlua/modules/world/service/MLuaWorldService.java'
+}
 if (isUnobfuscated) {
     // The 26.x camera path has loader-specific invokers and hooks. Older Fabric
     // targets use the shared implementations from src/main/java.
