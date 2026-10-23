@@ -47,6 +47,16 @@ foreach ($sideDir in @($serverDir, $clientDir)) {
 }
 Copy-Item (Join-Path $runRoot 'eula.txt') (Join-Path $serverDir 'run') -Force
 Copy-Item (Join-Path $runRoot 'server.properties') (Join-Path $serverDir 'run') -Force
+# Player smoke tests run two full game processes on one hosted runner. Keep the
+# view small so Mesa software rendering and chunk generation do not starve the
+# client tick callbacks that drive the simulation.
+Add-Content (Join-Path $serverDir 'run/server.properties') @('view-distance=2', 'simulation-distance=2')
+@(
+    'renderDistance:2'
+    'simulationDistance:2'
+    'maxFps:30'
+    'soundCategory_master:0.0'
+) | Set-Content (Join-Path $clientDir 'run/options.txt')
 
 $serverOut = Join-Path $projectDir 'player-server.gradle.log'
 $serverErr = "$serverOut.stderr"
