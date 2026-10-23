@@ -508,9 +508,9 @@ public final class MLuaLuauTypes {
       LuaTable a = requireColor3(start);
       LuaTable b = requireColor3(end);
       if (!Double.isFinite(alpha)) throw new LuaError("math.lerp alpha must be finite");
-      return color3(lerp(a.get("R").todouble(), b.get("R").todouble(), alpha),
-         lerp(a.get("G").todouble(), b.get("G").todouble(), alpha),
-         lerp(a.get("B").todouble(), b.get("B").todouble(), alpha));
+      return color3(MLuaMathLibrary.lerp(a.get("R").todouble(), b.get("R").todouble(), alpha),
+         MLuaMathLibrary.lerp(a.get("G").todouble(), b.get("G").todouble(), alpha),
+         MLuaMathLibrary.lerp(a.get("B").todouble(), b.get("B").todouble(), alpha));
    }
 
    private static LuaTable colorFromHSV(double h, double s, double v) {
