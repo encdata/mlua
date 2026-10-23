@@ -7,6 +7,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class MLuaHandPoseRegistryTest {
@@ -29,6 +32,26 @@ final class MLuaHandPoseRegistryTest {
         assertEquals(0.0, combined.x(), 1.0e-9);
         assertEquals(2.0, combined.y(), 1.0e-9);
         assertTrue(registry.getValue(first, HumanoidArm.RIGHT).isnil());
+    }
+
+    @Test
+    void reusesComposedPoseUntilPartialTickOrOwnedPoseChanges() {
+        MLuaHandPoseRegistry registry = new MLuaHandPoseRegistry();
+        var owner = new MLuaHandPoseRegistry.Owner(new Object(), "animated-addon");
+        registry.set(owner, HumanoidArm.RIGHT, MLuaCFrame.at(1, 0, 0));
+
+        MLuaCFrame firstFrame = registry.composed(HumanoidArm.RIGHT, 1.0f);
+        assertSame(firstFrame, registry.composed(HumanoidArm.RIGHT, 1.0f));
+        assertNotSame(firstFrame, registry.composed(HumanoidArm.RIGHT, 0.5f));
+
+        registry.set(owner, HumanoidArm.RIGHT, MLuaCFrame.at(0, 2, 0));
+        MLuaCFrame updated = registry.composed(HumanoidArm.RIGHT, 1.0f);
+        assertNotSame(firstFrame, updated);
+        assertEquals(0.0, updated.x(), 1.0e-9);
+        assertEquals(2.0, updated.y(), 1.0e-9);
+
+        registry.clearOwned(owner);
+        assertNull(registry.composed(HumanoidArm.RIGHT, 1.0f));
     }
 
     @Test
