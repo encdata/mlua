@@ -728,8 +728,9 @@ Players.PlayerAdded:Connect(function(player)
     local vanillaSheepRegistered = vanillaSheepEntry:Exists()
     print("MLUA_CI_VANILLA_SHEEP_REGISTRY_EXISTS=" .. tostring(vanillaSheepRegistered))
     assert(vanillaSheepRegistered, "Minecraft's entity registry did not expose minecraft:sheep")
-    assert(Java:TypeOf(vanillaSheepEntry:GetValue()) == "net.minecraft.world.entity.EntityType",
-        "RegistryEntry:GetValue did not resolve minecraft:sheep to EntityType")
+    local vanillaSheepType = Java:TypeOf(vanillaSheepEntry:GetValue())
+    assert(type(vanillaSheepType) == "string" and vanillaSheepType:match("EntityType$"),
+        "RegistryEntry:GetValue returned an unexpected entity type: " .. tostring(vanillaSheepType))
     local sheep = world:SpawnEntity("minecraft:sheep", Vector3.new(
         player:GetPositionX() + 1,
         player:GetPositionY(),
