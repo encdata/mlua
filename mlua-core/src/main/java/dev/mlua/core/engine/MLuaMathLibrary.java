@@ -139,9 +139,15 @@ final class MLuaMathLibrary {
          public Varargs invoke(Varargs args) {
             int dimensions = args.narg();
             if (dimensions < 1 || dimensions > 5) throw new LuaError("math.noise expects between 1 and 5 coordinates");
-            double[] coordinates = new double[dimensions];
-            for (int i = 0; i < dimensions; i++) coordinates[i] = args.checkdouble(i + 1);
-            return LuaValue.valueOf(MLuaNoise.sample(coordinates));
+            return LuaValue.valueOf(switch (dimensions) {
+               case 1 -> MLuaNoise.sample(args.checkdouble(1));
+               case 2 -> MLuaNoise.sample(args.checkdouble(1), args.checkdouble(2));
+               case 3 -> MLuaNoise.sample(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3));
+               case 4 -> MLuaNoise.sample(args.checkdouble(1), args.checkdouble(2),
+                  args.checkdouble(3), args.checkdouble(4));
+               default -> MLuaNoise.sample(args.checkdouble(1), args.checkdouble(2), args.checkdouble(3),
+                  args.checkdouble(4), args.checkdouble(5));
+            });
          }
       });
    }
