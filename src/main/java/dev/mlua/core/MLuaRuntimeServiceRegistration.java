@@ -47,21 +47,22 @@ final class MLuaRuntimeServiceRegistration {
       }
       MLuaServiceRegistry.Registration service = new MLuaServiceRegistry.Registration(
          name, selectedClassName, factory, description, functionDescriptions);
-      this.services.validateBatch(side, List.of(service));
+      List<MLuaServiceRegistry.Registration> batch = List.of(service);
+      this.services.validateBatch(side, batch);
       this.validate(selectedClassName, description, service.functionDescriptions());
       boolean addedClassName = existingClassName == null;
       try {
-         this.services.registerBatch(side, List.of(service));
+         this.services.registerBatch(side, batch);
          if (addedClassName) this.services.assignClassName(name, selectedClassName);
          this.registerIfAvailable(name, selectedClassName);
       } catch (RuntimeException | Error failure) {
-         this.services.unregisterBatch(side, List.of(service));
+         this.services.unregisterBatch(side, batch);
          if (addedClassName) this.services.clearClassName(name, selectedClassName);
          throw failure;
       }
    }
 
-   String registeredClassName(String serviceName) {
+   private String registeredClassName(String serviceName) {
       String found = null;
       for (String candidate : this.classes.names()) {
          LuaTable type = this.classes.get(candidate);
@@ -77,7 +78,7 @@ final class MLuaRuntimeServiceRegistration {
       return found;
    }
 
-   void validate(String className, String description, Map<String, String> functionDescriptions) {
+   private void validate(String className, String description, Map<String, String> functionDescriptions) {
       String serviceBaseClassName = this.registration.serviceBaseClassName();
       if (serviceBaseClassName == null) return;
 
