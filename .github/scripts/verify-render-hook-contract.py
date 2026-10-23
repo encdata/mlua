@@ -492,6 +492,13 @@ if "ThreadLocal<double[]> EULER_SCRATCH" not in camera or "offset.toEulerAnglesX
 if "offset.toEulerAnglesXYZ()" in camera:
     fail("first-person hand transforms must not allocate Euler arrays per render")
 
+hand_pose_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaHandPoseRegistry.java"
+hand_pose = hand_pose_path.read_text(encoding="utf-8")
+for operation in ("class ComposedPose", "private long poseRevision", "invalidateComposedPoses();",
+                  "cached.revision == poseRevision", "cached.partialTickBits == partialTickBits"):
+    if operation not in hand_pose:
+        fail(f"held-item pose composition must cache immutable frame results: {operation}")
+
 for path in (
     ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaScriptedEntity.java",
     ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/scripted/MLuaScriptedEntity.java",

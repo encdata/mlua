@@ -43,12 +43,20 @@ public final class MLuaHandPoseRegistry {
         private volatile Object executionLock = MLuaHandPoseRegistry.class;
     }
 
+    private static final class ComposedPose {
+        private long revision = Long.MIN_VALUE;
+        private int partialTickBits;
+        private MLuaCFrame value;
+    }
+
     private final Map<Owner, EnumMap<HumanoidArm, Pose>> poses = new LinkedHashMap<>();
+    private final EnumMap<HumanoidArm, ComposedPose> composedPoses = new EnumMap<>(HumanoidArm.class);
+    private long poseRevision;
 
     public synchronized void set(Owner owner, HumanoidArm arm, MLuaCFrame offset) {
         Owner resolved = resolveOwner(owner);
         if (offset == null) {
-            remove(resolved, arm);
+            if (remove(resolved, arm)) invalidateComposedPoses();
             return;
         }
         Pose pose = pose(resolved, arm);
@@ -56,6 +64,7 @@ public final class MLuaHandPoseRegistry {
         pose.sampler = null;
         pose.previous = offset;
         pose.current = offset;
+        invalidateComposedPoses();
     }
 
     public synchronized void setCallback(Owner owner, HumanoidArm arm, LuaValue callback,
@@ -70,6 +79,7 @@ public final class MLuaHandPoseRegistry {
         pose.sampler = sampler;
         if (pose.current == null) pose.current = MLuaCFrame.IDENTITY;
         pose.previous = pose.current;
+        invalidateComposedPoses();
     }
 
     public synchronized LuaValue getValue(Owner owner, HumanoidArm arm) {
@@ -102,8 +112,11 @@ public final class MLuaHandPoseRegistry {
                     sampled = pose.sampler.sample(player, hand, stack, callbackArm);
                 }
                 if (sampled == null) throw new IllegalArgumentException("callback must return a CFrame");
-                pose.previous = pose.current;
-                pose.current = sampled;
+                synchronized (this) {
+                    pose.previous = pose.current;
+                    pose.current = sampled;
+                    invalidateComposedPoses();
+                }
             } catch (RuntimeException failure) {
                 synchronized (this) {
                     pose.callback = LuaValue.NIL;
@@ -118,7 +131,11 @@ public final class MLuaHandPoseRegistry {
     }
 
     public synchronized MLuaCFrame composed(HumanoidArm arm, float partialTick) {
+        if (arm == null) throw new IllegalArgumentException("Hand arm is required");
         float alpha = Float.isFinite(partialTick) ? Math.max(0.0f, Math.min(1.0f, partialTick)) : 1.0f;
+        int partialTickBits = Float.floatToIntBits(alpha);
+        ComposedPose cached = composedPoses.computeIfAbsent(arm, ignored -> new ComposedPose());
+        if (cached.revision == poseRevision && cached.partialTickBits == partialTickBits) return cached.value;
         MLuaCFrame result = MLuaCFrame.IDENTITY;
         boolean found = false;
         for (EnumMap<HumanoidArm, Pose> byArm : poses.values()) {
@@ -129,16 +146,19 @@ public final class MLuaHandPoseRegistry {
             result = result.mul(previous.lerp(current, alpha));
             found = true;
         }
-        return found ? result : null;
+        cached.revision = poseRevision;
+        cached.partialTickBits = partialTickBits;
+        cached.value = found ? result : null;
+        return cached.value;
     }
 
     public synchronized void clearOwned(Owner owner) {
-        poses.remove(resolveOwner(owner));
+        if (poses.remove(resolveOwner(owner)) != null) invalidateComposedPoses();
     }
 
     public synchronized void clearRuntime(Object runtimeSession) {
         if (runtimeSession == null) return;
-        poses.keySet().removeIf(owner -> owner.runtimeSession() == runtimeSession);
+        if (poses.keySet().removeIf(owner -> owner.runtimeSession() == runtimeSession)) invalidateComposedPoses();
     }
 
     public synchronized void clearRuntime(Object runtimeSession, String modId) {
@@ -147,7 +167,10 @@ public final class MLuaHandPoseRegistry {
     }
 
     public synchronized void clear() {
-        poses.clear();
+        if (!poses.isEmpty()) {
+            poses.clear();
+            invalidateComposedPoses();
+        }
     }
 
     private Pose pose(Owner owner, HumanoidArm arm) {
@@ -156,11 +179,15 @@ public final class MLuaHandPoseRegistry {
             .computeIfAbsent(arm, ignored -> new Pose());
     }
 
-    private void remove(Owner owner, HumanoidArm arm) {
+    private boolean remove(Owner owner, HumanoidArm arm) {
         EnumMap<HumanoidArm, Pose> byArm = poses.get(owner);
-        if (byArm == null) return;
-        byArm.remove(arm);
+        if (byArm == null || byArm.remove(arm) == null) return false;
         if (byArm.isEmpty()) poses.remove(owner);
+        return true;
+    }
+
+    private void invalidateComposedPoses() {
+        poseRevision++;
     }
 
     private static Owner resolveOwner(Owner owner) {
