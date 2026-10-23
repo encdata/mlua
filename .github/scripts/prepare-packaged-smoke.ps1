@@ -723,6 +723,12 @@ Players.PlayerAdded:Connect(function(player)
     assert(scriptedEntity ~= nil and scriptedEntity:IsA("ScriptedEntity"),
         "World:SpawnEntity did not return the registered scripted entity class")
     print("MLUA_CI_SCRIPTED_ENTITY_SPAWN_REQUEST_OK")
+    local vanillaSheepEntry = RegistryEntry.new("entity", "minecraft:sheep")
+    local vanillaSheepRegistered = vanillaSheepEntry:Exists()
+    print("MLUA_CI_VANILLA_SHEEP_REGISTRY_EXISTS=" .. tostring(vanillaSheepRegistered))
+    assert(vanillaSheepRegistered, "Minecraft's entity registry did not expose minecraft:sheep")
+    assert(Java:TypeOf(vanillaSheepEntry:GetValue()) == "net.minecraft.world.entity.EntityType",
+        "RegistryEntry:GetValue did not resolve minecraft:sheep to EntityType")
     local sheep = world:SpawnEntity("minecraft:sheep", Vector3.new(
         player:GetPositionX() + 1,
         player:GetPositionY(),
