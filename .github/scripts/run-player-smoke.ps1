@@ -171,6 +171,24 @@ function Test-PlayerServerListening {
         Select-Object -First 1)
 }
 
+function Write-PlayerGameThreadDumps {
+    $jcmd = Join-Path $env:JAVA_HOME 'bin/jcmd.exe'
+    if (-not (Test-Path $jcmd)) {
+        Write-Host 'jcmd is unavailable; cannot capture Minecraft thread dumps.'
+        return
+    }
+    $games = Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" |
+        Where-Object { $_.CommandLine -match 'KnotClient|KnotServer|BootstrapLauncher|net\.minecraft\.(client|server)\.main\.Main' }
+    foreach ($game in $games) {
+        Write-Host "--- Minecraft JVM thread dump (PID $($game.ProcessId)) ---"
+        try {
+            & $jcmd $game.ProcessId Thread.print 2>&1 | ForEach-Object { Write-Host $_ }
+        } catch {
+            Write-Host "Could not capture PID $($game.ProcessId): $_"
+        }
+    }
+}
+
 $serverProcess = $null
 $clientProcess = $null
 $serverPaths = @($serverOut, $serverErr, $serverLatest)
@@ -347,6 +365,8 @@ try {
                 "playerMovementPassed=$playerMovementPassed",
                 "mousePressReleasePassed=$mousePressReleasePassed"
             ) -join ", "
+            Write-Host "Timed out during player simulation ($simulationDiagnostics). Capturing game JVM thread dumps."
+            Write-PlayerGameThreadDumps
             throw "Timed out during player simulation ($simulationDiagnostics)."
         }
         Start-Sleep -Seconds 2
