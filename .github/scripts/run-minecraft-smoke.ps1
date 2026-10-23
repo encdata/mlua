@@ -5,7 +5,8 @@ param(
     [string[]]$RequiredMarker = @(),
     [Parameter(Mandatory = $true)][string]$LogFile,
     [int]$TimeoutSeconds = 480,
-    [int]$ShutdownGraceSeconds = 30
+    [int]$ShutdownGraceSeconds = 30,
+    [int]$AssetDownloadRetries = 2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -113,6 +114,25 @@ try {
             } else {
                 Write-Host "--- $path was not created ---"
             }
+        }
+        if ($AssetDownloadRetries -gt 0 -and $text -match '(?i)(downloadAssets FAILED|Failed to download file from .*https?://|Failed download after \d+ attempts)') {
+            $attempt = 3 - $AssetDownloadRetries
+            Copy-Item $stdoutPath "$stdoutPath.attempt$attempt.log" -Force -ErrorAction SilentlyContinue
+            Copy-Item $stderrPath "$stderrPath.attempt$attempt.log" -Force -ErrorAction SilentlyContinue
+            Write-Host "Minecraft asset download failed transiently; retrying the packaged boot (attempt $($attempt + 1) of 3)."
+            Start-Sleep -Seconds (5 * $attempt)
+            $retryArguments = @{
+                Task = $Task
+                GradleArgs = $GradleArgs
+                BootMarker = $BootMarker
+                RequiredMarker = $RequiredMarker
+                LogFile = $LogFile
+                TimeoutSeconds = $TimeoutSeconds
+                ShutdownGraceSeconds = $ShutdownGraceSeconds
+                AssetDownloadRetries = $AssetDownloadRetries - 1
+            }
+            & $PSCommandPath @retryArguments
+            return
         }
         throw "Gradle task '$Task' exited before MLua emitted '$BootMarker'."
     }
