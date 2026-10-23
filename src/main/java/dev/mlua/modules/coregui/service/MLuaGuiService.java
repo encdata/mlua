@@ -74,7 +74,11 @@ public final class MLuaGuiService implements MLuaService {
         MLuaChatLine.Backing backing = new MLuaChatLine.Backing(message);
         LuaTable instance = MLuaChatLine.instance(runtime, backing);
         try {
-            service.state.chatLineAdding.fireOnSide(Side.CLIENT, LuaValue.varargsOf(new LuaValue[]{instance}));
+            // Chat line construction is synchronous and the backing expires as soon as this
+            // method returns. Run listeners on the caller's client thread so a coroutine cannot
+            // yield while Minecraft is waiting for the transformed Component.
+            service.state.chatLineAdding.fireInlineOnSession(runtime.session(), Side.CLIENT,
+                LuaValue.varargsOf(new LuaValue[]{instance}));
             return backing.result();
         } finally {
             backing.expire();
