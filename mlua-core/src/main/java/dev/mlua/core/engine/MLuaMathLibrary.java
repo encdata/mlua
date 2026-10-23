@@ -64,12 +64,15 @@ final class MLuaMathLibrary {
                return MLuaLuauTypes.color3Lerp(start, finish, alpha);
             }
             if (MLuaVector.isVector2(start) && MLuaVector.isVector2(finish)) {
-               double[] a = MLuaVector.components2(start), b = MLuaVector.components2(finish);
-               return MLuaVector.vector2(lerp(a[0], b[0], alpha), lerp(a[1], b[1], alpha));
+               LuaTable a = start.checktable(), b = finish.checktable();
+               return MLuaVector.vector2(lerp(a.get("X").checkdouble(), b.get("X").checkdouble(), alpha),
+                  lerp(a.get("Y").checkdouble(), b.get("Y").checkdouble(), alpha));
             }
             if (MLuaVector.isVector3(start) && MLuaVector.isVector3(finish)) {
-               double[] a = MLuaVector.components3(start), b = MLuaVector.components3(finish);
-               return MLuaVector.vector3(lerp(a[0], b[0], alpha), lerp(a[1], b[1], alpha), lerp(a[2], b[2], alpha));
+               LuaTable a = start.checktable(), b = finish.checktable();
+               return MLuaVector.vector3(lerp(a.get("X").checkdouble(), b.get("X").checkdouble(), alpha),
+                  lerp(a.get("Y").checkdouble(), b.get("Y").checkdouble(), alpha),
+                  lerp(a.get("Z").checkdouble(), b.get("Z").checkdouble(), alpha));
             }
             if (MLuaVec4.isVec4(start) && MLuaVec4.isVec4(finish)) {
                LuaTable a = start.checktable(), b = finish.checktable();
