@@ -13,6 +13,8 @@ ext.mluaCoreRuntimeSources = [
     'dev/mlua/core/engine/MLuaEnvironment.java',
     'dev/mlua/core/engine/MLuaLuauTranspiler.java',
     'dev/mlua/core/engine/MLuaLuauTypes.java',
+    'dev/mlua/core/engine/MLuaLuauStandardLibraries.java',
+    'dev/mlua/core/engine/MLuaMathLibrary.java',
     'dev/mlua/core/engine/MLuaValue.java',
     'dev/mlua/core/require/MLuaModuleCache.java',
     'dev/mlua/core/MLuaThreadHandoff.java',
