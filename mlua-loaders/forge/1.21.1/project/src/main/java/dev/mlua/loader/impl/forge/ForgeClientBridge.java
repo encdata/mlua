@@ -22,6 +22,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.event.IModBusEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -164,7 +165,7 @@ public class ForgeClientBridge implements ClientBridge {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private boolean tryRegisterOverlayListener(IEventBus modBus, String eventClassName, Consumer<Object> listener) {
         try {
-            Class<?> eventClass = Class.forName(eventClassName, false, modBus.getClass().getClassLoader());
+            Class<?> eventClass = Class.forName(eventClassName, false, IModBusEvent.class.getClassLoader());
             IEventBus eventBus = isModBusEvent(eventClass) ? modBus : MinecraftForge.EVENT_BUS;
             eventBus.addListener(EventPriority.NORMAL, false, (Class) eventClass, (Consumer) listener);
             return true;
@@ -177,14 +178,7 @@ public class ForgeClientBridge implements ClientBridge {
     }
 
     private static boolean isModBusEvent(Class<?> eventClass) {
-        for (Class<?> contract : eventClass.getInterfaces()) {
-            if (contract.getName().equals("net.minecraftforge.fml.event.IModBusEvent")
-                    || isModBusEvent(contract)) {
-                return true;
-            }
-        }
-        Class<?> parent = eventClass.getSuperclass();
-        return parent != null && parent != Object.class && isModBusEvent(parent);
+        return IModBusEvent.class.isAssignableFrom(eventClass);
     }
 
     private void handleAddGuiOverlayLayers(Object event) {
