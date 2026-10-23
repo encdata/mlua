@@ -415,6 +415,31 @@ for overlay in (
         fail(f"{overlay.relative_to(ROOT)} must preserve held-item indexing for shared render objects")
     if "static void invalidateRenderOrder()" not in overlay_source:
         fail(f"{overlay.relative_to(ROOT)} must invalidate cached order for shared render objects")
+    for operation in ("MLuaRenderVertexEmitter.submitBBFace(",
+                      "MLuaRenderVertexEmitter.submitVertex(",
+                      "MLuaRenderVertexEmitter.applyTransform("):
+        if operation not in overlay_source:
+            fail(f"{overlay.relative_to(ROOT)} must delegate shared geometry to the vertex emitter: {operation}")
+    if "private static void submitBBFace(" in overlay_source or "private static void submitVertex(" in overlay_source:
+        fail(f"{overlay.relative_to(ROOT)} still duplicates common vertex emission")
+    for operation in ("MLuaAnimationScratch.current()", "scratch.position", "scratch.rotation", "scratch.scale"):
+        if operation not in overlay_source:
+            fail(f"{overlay.relative_to(ROOT)} must reuse render-thread animation vectors: {operation}")
+    if "new float[3]" in overlay_source:
+        fail(f"{overlay.relative_to(ROOT)} must not allocate animation scratch vectors per draw")
+vertex_emitter_path = ROOT / "mlua-loaders/common/26.1/project/src/main/java/dev/mlua/runtime/client/MLuaRenderVertexEmitter.java"
+if not vertex_emitter_path.is_file():
+    fail("26.1 mesh and Blockbench vertex emission must have one common source owner")
+vertex_emitter = vertex_emitter_path.read_text(encoding="utf-8")
+if "float[][] points" in vertex_emitter or "float[][] corners" in vertex_emitter:
+    fail("shared BBModel face emission must not allocate nested coordinate arrays per face")
+neoforge_build = NEOFORGE_CONFIG_GENERATOR.read_text(encoding="utf-8")
+for operation in ("@Mixin(value = ${arguments}, remap = false)",
+                  "replace(', at = @At', ', remap = false, at = @At')",
+                  "@At(value = \"$1\", remap = false)",
+                  "@Invoker(value = \"$1\", remap = false)"):
+    if operation not in neoforge_build:
+        fail(f"NeoForge service mixin preparation must disable foreign obfuscation mappings: {operation}")
 if "ENTITY_MODELS" in render_manager or "HELD_ITEM_MODELS" in render_manager:
     fail("render manager must not own target index storage")
 

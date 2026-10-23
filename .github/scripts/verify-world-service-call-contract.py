@@ -65,10 +65,16 @@ for version, loader in pairs:
     implementations.setdefault(path, []).append((version, loader))
 
 if FABRIC_LEGACY_OVERLAY.exists():
-    fail("Fabric must use the shared legacy World service; the stale 838-line overlay must be removed")
+    fail("Fabric must use the shared legacy World service; its stale loader overlay still exists")
 fabric_build = (ROOT / "gradle/mlua-fabric-project.gradle").read_text(encoding="utf-8")
-if "dev/mlua/modules/world/service/MLuaWorldService.java" not in fabric_build:
+world_service_path = "dev/mlua/modules/world/service/MLuaWorldService.java"
+if not re.search(r"def\s+fabricImplExcludes\s*=\s*\[\s*'" + re.escape(world_service_path) + r"'\s*\]", fabric_build):
     fail("Fabric source selection must explicitly exclude the stale implementation overlay")
+if re.search(r"rootExcludes\s*=\s*\[[^\]]*'" + re.escape(world_service_path) + r"'", fabric_build):
+    fail("Fabric must keep the shared World service for legacy targets")
+if not re.search(r"if\s*\(is26Family\)\s*\{[^}]*rootExcludes\s*\+=\s*'"
+                 + re.escape(world_service_path) + r"'", fabric_build, re.DOTALL):
+    fail("Fabric 26.1 must select its common version World service implementation")
 
 for path, covered_targets in implementations.items():
     source = path.read_text(encoding="utf-8")
@@ -189,6 +195,8 @@ for method in ("SetBlock", "SetBlockState", "BreakBlock", "PlaySound", "SpawnPar
                "SpawnEntity", "DropItem", "Explode", "SpawnLightning"):
     if f'table.rawset("{method}"' not in mutation_api_source:
         fail(f"world mutation API owner is missing {method}")
+if 'if (entity == null) return LuaValue.NIL;' not in mutation_api_source:
+    fail("World:SpawnEntity must return nil when Minecraft rejects the spawn")
 
 raycast_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldRaycastApi.java"
 if not raycast_api.is_file() or "MLuaWorldRaycastApi.bind(" not in shared_world:

@@ -82,6 +82,21 @@ def prepareNeoForgeServiceMixinSources = tasks.register('prepareNeoForgeServiceM
     into layout.buildDirectory.dir('generated/neoforge-service-mixin-java')
     doLast {
         rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
+        fileTree(destinationDir).matching { include '**/*.java' }.each { source ->
+            def text = source.getText('UTF-8')
+            text = text.replaceAll(/@Mixin\(([^)\n]+)\)/) { match, arguments ->
+                if (arguments.contains('remap =')) return match
+                arguments.startsWith('targets =')
+                    ? "@Mixin(${arguments}, remap = false)"
+                    : "@Mixin(value = ${arguments}, remap = false)"
+            }
+            text = text.replace(', at = @At', ', remap = false, at = @At')
+                .replaceAll(/@At\("([^"]+)"\)/, '@At(value = "$1", remap = false)')
+                .replace('value = "INVOKE",', 'value = "INVOKE", remap = false,')
+                .replaceAll(/@Invoker\("([^"]+)"\)/, '@Invoker(value = "$1", remap = false)')
+                .replaceAll(/@Accessor\("([^"]+)"\)/, '@Accessor(value = "$1", remap = false)')
+            source.setText(text, 'UTF-8')
+        }
     }
 }
 

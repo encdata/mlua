@@ -153,6 +153,7 @@ final class MLuaWorldMutationApi {
          EntityType<?> entityType = MLuaEntitySpawner.resolveType(level, ownerModId, entityId);
          if (entityType == null) throw new LuaError("[MLua] Unknown entity: " + entityId);
          Entity entity = MLuaEntitySpawner.spawn(level, entityType, pos[0], pos[1], pos[2], yaw, pitch);
+         if (entity == null) return LuaValue.NIL;
          return MLuaEntityWrapper.entityTable(entity, registration);
       }));
       table.rawset("DropItem", MLuaWorldApiSupport.serverLevelFn(context, supplier, (level, args) -> {
