@@ -1,20 +1,21 @@
-package dev.mlua.core.service;
+package dev.mlua.core;
 
 import java.util.Map;
 
 import dev.mlua.core.classes.MLuaClassRegistry;
+import dev.mlua.core.service.MLuaServiceRegistry;
 import dev.mlua.module.MLuaRegistration;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /** Keeps Java service registrations and their Lua class contracts in sync. */
-final class MLuaServiceClassRegistration {
+final class MLuaRuntimeServiceClasses {
    private final MLuaServiceRegistry services;
    private final MLuaClassRegistry classes;
    private final MLuaRegistration registration;
 
-   MLuaServiceClassRegistration(MLuaServiceRegistry services, MLuaClassRegistry classes,
-                                MLuaRegistration registration) {
+   MLuaRuntimeServiceClasses(MLuaServiceRegistry services, MLuaClassRegistry classes,
+                             MLuaRegistration registration) {
       this.services = services;
       this.classes = classes;
       this.registration = registration;

@@ -76,7 +76,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private final MLuaRuntimeSession session;
    private final MLuaServiceRegistry services = new MLuaServiceRegistry();
    private final MLuaClassRegistry classes = new MLuaClassRegistry();
-   private final MLuaServiceClassRegistration serviceClassRegistration;
+   private final MLuaRuntimeServiceClasses serviceClassRegistration;
    private volatile long lifecycleEpoch;
    private final MLuaClientScriptWatcher clientScriptWatcher = new MLuaClientScriptWatcher();
    private final Map<Path, MLuaScriptRegistration> registryScriptRegistrations = new LinkedHashMap<>();
@@ -95,7 +95,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public MLuaRuntime(MLuaRuntimeSession session) {
       this.session = Objects.requireNonNull(session, "session");
-      this.serviceClassRegistration = new MLuaServiceClassRegistration(this.services, this.classes, this);
+      this.serviceClassRegistration = new MLuaRuntimeServiceClasses(this.services, this.classes, this);
       this.session.attachRegistration(this);
       this.session.setFailureReporter(this::reportRuntimeFailure);
    }
