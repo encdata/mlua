@@ -179,13 +179,30 @@ function Write-PlayerGameThreadDumps {
         return
     }
     $games = Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" |
-        Where-Object { $_.CommandLine -match 'KnotClient|KnotServer|BootstrapLauncher|net\.minecraft\.(client|server)\.main\.Main' }
+        Where-Object { $_.CommandLine -match 'KnotClient|KnotServer|BootstrapLauncher|ForgeBootstrap|net\.minecraft\.(client|server)\.main\.Main' }
     foreach ($game in $games) {
         Write-Host "--- Minecraft JVM thread dump (PID $($game.ProcessId)) ---"
+        $dumpOut = Join-Path $env:RUNNER_TEMP "mlua-thread-$($game.ProcessId).log"
+        $dumpErr = "$dumpOut.stderr"
         try {
-            & $jcmd $game.ProcessId Thread.print 2>&1 | ForEach-Object { Write-Host $_ }
+            Remove-Item $dumpOut, $dumpErr -Force -ErrorAction SilentlyContinue
+            $dumpProcess = Start-Process -FilePath $jcmd `
+                -ArgumentList @([string]$game.ProcessId, 'Thread.print') `
+                -NoNewWindow -RedirectStandardOutput $dumpOut -RedirectStandardError $dumpErr -PassThru
+            if (-not $dumpProcess.WaitForExit(20000)) {
+                Write-Host "jcmd timed out while attaching to PID $($game.ProcessId); stopping the diagnostic process."
+                $dumpProcess.Kill()
+                if (-not $dumpProcess.WaitForExit(5000)) {
+                    Write-Host "jcmd diagnostic process for PID $($game.ProcessId) did not exit after termination."
+                }
+            }
+            foreach ($path in @($dumpOut, $dumpErr)) {
+                if (Test-Path $path) { Get-Content $path | ForEach-Object { Write-Host $_ } }
+            }
         } catch {
             Write-Host "Could not capture PID $($game.ProcessId): $_"
+        } finally {
+            Remove-Item $dumpOut, $dumpErr -Force -ErrorAction SilentlyContinue
         }
     }
 }
