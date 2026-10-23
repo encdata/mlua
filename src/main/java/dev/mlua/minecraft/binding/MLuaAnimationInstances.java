@@ -487,7 +487,7 @@ final class MLuaAnimationInstances {
         return requireAnimationOwner(registration, method);
     }
 
-    private static MLuaContext requireAnimationOwner(MLuaRegistration registration, String method) {
+    static MLuaContext requireAnimationOwner(MLuaRegistration registration, String method) {
         MLuaContext context = MLuaLuaBindings.activeContext(registration);
         if (context == null) {
             throw new LuaError("[MLua] " + method

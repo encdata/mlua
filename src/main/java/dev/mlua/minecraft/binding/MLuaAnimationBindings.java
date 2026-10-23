@@ -261,6 +261,10 @@ public final class MLuaAnimationBindings {
         return new dev.mlua.runtime.client.MLuaRenderOwnershipRegistry.Owner(runtimeOwner, context.ownerModId());
     }
 
+    static MLuaContext requireAnimationOwner(MLuaRegistration registration, String caller) {
+        return MLuaAnimationInstances.requireAnimationOwner(registration, caller);
+    }
+
     static Object runtimeSession(MLuaRegistration registration) {
         return registration instanceof MLuaRuntime runtime ? runtime.session() : null;
     }
