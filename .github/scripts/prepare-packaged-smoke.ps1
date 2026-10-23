@@ -584,6 +584,7 @@ local Players = Minecraft:GetService("Players")
 local Inventory = Minecraft:GetService("InventoryService")
 local Chat = Minecraft:GetService("Chat")
 local Events = Minecraft:GetService("Events")
+local Java = Minecraft:GetService("Java")
 local ciTestSheepUuid
 local ciTestPlayer
 Events.ItemPickup:Connect(function(event)
