@@ -101,6 +101,7 @@ $playerFailurePatterns = @(
     'Animation event callback limit reached',
     'Animation event callback limit reached for addon',
     'hand pose callback failed',
+    'Signal listener crashed and was disconnected',
     'MLua .+ callback failed',
     'RenderObject FollowOffset callback failed'
 )
