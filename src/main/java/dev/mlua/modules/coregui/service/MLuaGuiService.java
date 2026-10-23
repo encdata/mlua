@@ -173,8 +173,10 @@ public final class MLuaGuiService implements MLuaService {
             LuaTable event = service.nativeControls(LuaValue.NIL, false, screen);
             LuaValue screenInstance = runtime == null || runtime.session() == null ? LuaValue.NIL
                 : MLuaNativeScreen.instance(runtime, screen);
-            service.state.screenOpened.fireOnSide(Side.CLIENT,
-                LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(screen.getClass().getName()), event, screenInstance}));
+            if (runtime != null && runtime.session() != null) {
+                service.state.screenOpened.fireInlineOnSession(runtime.session(), Side.CLIENT,
+                    LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(screen.getClass().getName()), event, screenInstance}));
+            }
         }
     }
 
@@ -190,7 +192,7 @@ public final class MLuaGuiService implements MLuaService {
             MLuaNativeScreenManager.runCloseCallback(screen, () -> {
                 LuaTable controls = service.nativeControls(LuaValue.NIL, false, screen);
                 LuaValue screenInstance = MLuaNativeScreen.instance(runtime, screen);
-                service.state.screenClosed.fireOnSide(Side.CLIENT,
+                service.state.screenClosed.fireInlineOnSession(runtime.session(), Side.CLIENT,
                     LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(screen.getClass().getName()), controls, screenInstance}));
             });
         } finally {
