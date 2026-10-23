@@ -241,9 +241,10 @@ public class MLuaScriptedEntity extends PathfinderMob {
                + MLuaAnimationSyncPacket.MAX_BONES + " bones");
          }
          List<MLuaAnimationSyncPacket.BonePoseEntry> entries = new ArrayList<>(orderedPose.size());
+         double[] euler = new double[3];
          for (Map.Entry<String, MLuaCFrame> entry : orderedPose.entrySet()) {
-            double[] euler = entry.getValue().toEulerAnglesXYZ();
             MLuaCFrame transform = entry.getValue();
+            transform.toEulerAnglesXYZ(euler);
             entries.add(new MLuaAnimationSyncPacket.BonePoseEntry(entry.getKey(), (float)transform.x(),
                (float)transform.y(), (float)transform.z(), (float)euler[0], (float)euler[1], (float)euler[2]));
          }

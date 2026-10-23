@@ -484,6 +484,23 @@ if "void toEulerAnglesXYZ(double[] output)" not in core_cframe:
 for operation in ("MLuaAnimationScratch.current()", "scratch.position", "scratch.rotation", "scratch.scale"):
     if operation not in render_manager:
         fail(f"BBModel render loops must reuse thread-local animation vectors: {operation}")
+
+camera_path = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaCameraController.java"
+camera = camera_path.read_text(encoding="utf-8")
+if "ThreadLocal<double[]> EULER_SCRATCH" not in camera or "offset.toEulerAnglesXYZ(euler)" not in camera:
+    fail("first-person hand transforms must reuse thread-local Euler output storage")
+if "offset.toEulerAnglesXYZ()" in camera:
+    fail("first-person hand transforms must not allocate Euler arrays per render")
+
+for path in (
+    ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaScriptedEntity.java",
+    ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/scripted/MLuaScriptedEntity.java",
+):
+    scripted_entity = path.read_text(encoding="utf-8")
+    if "double[] euler = new double[3];" not in scripted_entity or "transform.toEulerAnglesXYZ(euler);" not in scripted_entity:
+        fail(f"{path.relative_to(ROOT)} must reuse one Euler output array per animation sync")
+    if "entry.getValue().toEulerAnglesXYZ()" in scripted_entity:
+        fail(f"{path.relative_to(ROOT)} must not allocate Euler arrays per synced bone")
 if "new float[3]" in render_manager:
     fail("BBModel render loops must not allocate animation scratch vectors per draw")
 

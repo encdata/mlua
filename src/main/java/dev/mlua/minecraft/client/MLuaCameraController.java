@@ -19,6 +19,7 @@ import dev.mlua.runtime.client.MLuaHandPoseRegistry;
 import dev.mlua.runtime.client.MLuaRenderCallbacks;
 
 public final class MLuaCameraController {
+   private static final ThreadLocal<double[]> EULER_SCRATCH = ThreadLocal.withInitial(() -> new double[3]);
    private static MLuaCFrame scriptableCFrame;
    private static MLuaCFrame previousScriptableCFrame;
    private record CameraFrameSample(MLuaCFrame previous, MLuaCFrame current,
@@ -109,7 +110,8 @@ public final class MLuaCameraController {
        MLuaCFrame offset = HAND_POSES.composed(arm, partialTick);
        if (offset == null) return;
        poseStack.translate(offset.x(), offset.y(), offset.z());
-       double[] euler = offset.toEulerAnglesXYZ();
+       double[] euler = EULER_SCRATCH.get();
+       offset.toEulerAnglesXYZ(euler);
        if (euler[0] != 0.0) poseStack.mulPose(Axis.XP.rotation((float) euler[0]));
        if (euler[1] != 0.0) poseStack.mulPose(Axis.YP.rotation((float) euler[1]));
        if (euler[2] != 0.0) poseStack.mulPose(Axis.ZP.rotation((float) euler[2]));
