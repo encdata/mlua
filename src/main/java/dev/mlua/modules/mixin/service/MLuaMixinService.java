@@ -1,4 +1,4 @@
-package dev.mlua.modules.mixin.runtime;
+package dev.mlua.modules.mixin.service;
 
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.mixin.MLuaMixinCallbackRegistry;

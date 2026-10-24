@@ -1,6 +1,6 @@
 package dev.mlua.modules.texture;
 
-import dev.mlua.modules.texture.binding.MLuaTextureService;
+import dev.mlua.modules.texture.service.MLuaTextureService;
 import dev.mlua.common.enums.Side;
 import dev.mlua.module.MLuaDocBuilder;
 import dev.mlua.module.MLuaModule;

@@ -51,6 +51,8 @@ def discover_service_sources() -> dict[str, tuple[Path, Path]]:
             matches = list(module_sources.rglob(f"{implementation_name}.java"))
             if len(matches) != 1:
                 fail(f"service {service_name} resolves to {len(matches)} files for {implementation_name}")
+            if matches[0].parent.name != "service":
+                fail(f"service {service_name} implementation must live in its module's service package: {matches[0]}")
             if service_name in discovered:
                 fail(f"service name {service_name} is registered by multiple modules")
             discovered[service_name] = (matches[0], module_path)
@@ -88,6 +90,9 @@ for loader, path in loader_projects.items():
         fail("neoforge player simulation must use a reduced client window for software rendering")
 if "'clouds:off'" not in runner_text:
     fail("software-rendered player simulation must disable the expensive cloud pass")
+for setting in ("'level-type=minecraft:flat'", "'generate-structures=false'"):
+    if setting not in runner_text:
+        fail(f"software-rendered player simulation must apply {setting} to its isolated server")
 
 starts = len(re.findall(r"(?m)^(?:.*=\s*)?@'\s*$", prepare_text))
 ends = len(re.findall(r"(?m)^'@(?:\s*\|.*)?$", prepare_text))

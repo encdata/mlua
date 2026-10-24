@@ -738,6 +738,8 @@ Players.PlayerAdded:Connect(function(player)
     assert(sheep ~= nil and sheep:IsA("LivingEntity"),
         "World:SpawnEntity did not return a live LivingEntity for the mob render simulation")
     ciTestSheepUuid = sheep:GetUUID()
+    print(string.format("MLUA_CI_PLAYER_TEST_SHEEP_POSITION:%.3f,%.3f,%.3f",
+        sheep:GetPositionX(), sheep:GetPositionY(), sheep:GetPositionZ()))
     player:SendMessage("MLUA_CI_PLAYER_TEST_SHEEP:" .. ciTestSheepUuid)
     print("MLUA_CI_PLAYER_MOB_SPAWN_OK")
 end)
@@ -1170,6 +1172,9 @@ local testSheepUuid
 local attackSubmitted = false
 local nearbyQueryDiagnosticLogged = false
 local nearbyQueryResultLogged = false
+local nearbyQueryDetailsLogged = false
+local nearbyQueryRetryTicks = 0
+local nearbyQueryRetryCount = 0
 local attackConfirmed = false
 local connection
 local chatLineHookObserved = false
@@ -1385,13 +1390,25 @@ connection = RunService.Heartbeat:Connect(function()
         print("MLUA_CI_PLAYER_CONTAINER_CLOSED")
     end
     if testSheepUuid and not attackSubmitted then
+        nearbyQueryRetryTicks = nearbyQueryRetryTicks + 1
+    end
+    if testSheepUuid and not attackSubmitted
+            and (nearbyQueryRetryCount == 0 or nearbyQueryRetryTicks >= 5) then
+        nearbyQueryRetryCount = nearbyQueryRetryCount + 1
+        nearbyQueryRetryTicks = 0
         if not nearbyQueryDiagnosticLogged then
             nearbyQueryDiagnosticLogged = true
             print("MLUA_CI_PLAYER_NEARBY_QUERY_BEGIN")
+            print(string.format("MLUA_CI_PLAYER_NEARBY_QUERY_CENTER:%.3f,%.3f,%.3f",
+                player:GetPositionX(), player:GetPositionY(), player:GetPositionZ()))
         end
         local nearbyEntityCount = 0
         for _, entity in ipairs(player:GetNearbyEntities(8)) do
             nearbyEntityCount = nearbyEntityCount + 1
+            if not nearbyQueryDetailsLogged and nearbyEntityCount <= 8 then
+                print(string.format("MLUA_CI_PLAYER_NEARBY_ENTITY:%s:%.3f,%.3f,%.3f",
+                    entity:GetUUID(), entity:GetPositionX(), entity:GetPositionY(), entity:GetPositionZ()))
+            end
             if entity.UUID == testSheepUuid then
                 print("MLUA_CI_PLAYER_ATTACK_CALL_BEGIN")
                 assert(entity:Attack(), "Entity:Attack did not submit the local-player attack")
@@ -1403,6 +1420,12 @@ connection = RunService.Heartbeat:Connect(function()
         if not nearbyQueryResultLogged then
             nearbyQueryResultLogged = true
             print("MLUA_CI_PLAYER_NEARBY_QUERY_DONE:" .. nearbyEntityCount)
+        end
+        if nearbyEntityCount > 0 and not nearbyQueryDetailsLogged then
+            nearbyQueryDetailsLogged = true
+        elseif nearbyQueryRetryCount % 100 == 0 then
+            print("MLUA_CI_PLAYER_NEARBY_QUERY_RETRY:" .. nearbyQueryRetryCount
+                .. ":" .. nearbyEntityCount)
         end
     end
     -- Input and movement are independent of the item-pickup event. Keep pickup

@@ -48,9 +48,16 @@ foreach ($sideDir in @($serverDir, $clientDir)) {
 Copy-Item (Join-Path $runRoot 'eula.txt') (Join-Path $serverDir 'run') -Force
 Copy-Item (Join-Path $runRoot 'server.properties') (Join-Path $serverDir 'run') -Force
 # Player smoke tests run two full game processes on one hosted runner. Keep the
-# view small so Mesa software rendering and chunk generation do not starve the
-# client tick callbacks that drive the simulation.
-Add-Content (Join-Path $serverDir 'run/server.properties') @('view-distance=2', 'simulation-distance=2')
+# view small and use a superflat test world so Mesa software rendering and
+# terrain generation do not starve the client tick callbacks that drive the
+# simulation. Gameplay assertions still place and interact with real blocks,
+# spawn real entities, and exercise the normal world render hooks.
+Add-Content (Join-Path $serverDir 'run/server.properties') @(
+    'view-distance=2'
+    'simulation-distance=2'
+    'level-type=minecraft:flat'
+    'generate-structures=false'
+)
 @(
     'renderDistance:2'
     'simulationDistance:5'

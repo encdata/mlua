@@ -1,9 +1,10 @@
-package dev.mlua.modules.texture.binding;
+package dev.mlua.modules.texture.service;
 
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaReflectiveService;
 import dev.mlua.mcapi.MCApiRuntime;
+import dev.mlua.modules.texture.binding.MLuaTextureInstance;
 import org.luaj.vm2.LuaTable;
 
 import java.util.Map;
