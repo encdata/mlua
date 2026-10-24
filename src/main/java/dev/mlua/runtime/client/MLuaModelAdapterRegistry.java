@@ -125,15 +125,15 @@ public final class MLuaModelAdapterRegistry {
         private long registrationOrder() { return registrationOrder; }
     }
     /** Lua-defined adapter for model hierarchies that do not use Minecraft ModelPart. */
-    private static final class CustomAdapter {
-        private final String modelClass;
-        private final List<String> bones;
-        private final LuaValue apply;
-        private final LuaValue applyPose;
-        private final MLuaContext context;
-        private final Owner owner;
-        private final long registrationOrder;
-        private volatile boolean active = true;
+    static final class CustomAdapter {
+        final String modelClass;
+        final List<String> bones;
+        final LuaValue apply;
+        final LuaValue applyPose;
+        final MLuaContext context;
+        final Owner owner;
+        final long registrationOrder;
+        volatile boolean active = true;
 
         private CustomAdapter(String modelClass, List<String> bones, LuaValue apply, LuaValue applyPose,
                               MLuaContext context, Owner owner, long registrationOrder) {
@@ -174,7 +174,7 @@ public final class MLuaModelAdapterRegistry {
                 resolvedParts(model, safeMappings).forEach((bone, part) -> bones.put(part, bone));
                 java.util.LinkedHashSet<String> customBones = new java.util.LinkedHashSet<>();
                 customAdaptersForModel(adaptedModel.getClass()).adapters().forEach((adapter, names) -> {
-                    if (invokeCustomApply(adapter, adaptedModel, scope, names)) customBones.addAll(names);
+                    if (MLuaCustomModelAdapterInvoker.apply(adapter, adaptedModel, scope, names)) customBones.addAll(names);
                 });
                 java.util.LinkedHashSet<String> resolved = new java.util.LinkedHashSet<>(bones.values());
                 resolved.addAll(customBones);
@@ -869,102 +869,7 @@ public final class MLuaModelAdapterRegistry {
         return customAdaptersForModel(modelClass).byBone().get(boneName);
     }
 
-    private static LuaTable customBoneStates(MLuaEntityScope scope, List<String> bones) {
-        LuaTable result = new LuaTable();
-        Map<String, MLuaCFrame> animationPoses = renderPose(scope);
-        Map<String, MLuaClientModelManager.PartState> partStates =
-            MLuaClientModelManager.getMergedPartStates(scope, bones);
-        for (String bone : bones) {
-            LuaTable state = new LuaTable();
-            MLuaCFrame animation = animationPoses.get(bone);
-            if (animation != null) state.set("Animation", animation.toLua());
-            MLuaClientModelManager.PartState override =
-                partStates.get(MLuaClientModelManager.normalizePartName(bone));
-            if (override != null) {
-                if (override.cframe() != null) state.set("CFrame", override.cframe().toLua());
-                if (override.offset() != null) state.set("Offset", override.offset());
-                if (override.scale() != null) state.set("Scale", override.scale());
-                if (override.visible() != null) state.set("Visible", LuaValue.valueOf(override.visible()));
-            }
-            result.set(bone, state);
-        }
-        return result;
-    }
-
-    private static Map<String, MLuaCFrame> renderPose(MLuaEntityScope scope) {
-        return MLuaEntityModelRenderState.renderPose(scope);
-    }
-
-    private static Entity entityForScope(MLuaEntityScope scope) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (scope == null || minecraft.level == null
-                || !minecraft.level.dimension().location().toString().equals(scope.dimension())) return null;
-        Entity entity = minecraft.level.getEntity(scope.entityId());
-        return entity != null && entity.getUUID().equals(scope.uuid()) ? entity : null;
-    }
-
-    private static boolean invokeCustomApply(CustomAdapter adapter, Object model,
-            MLuaEntityScope scope, List<String> bones) {
-        Entity entity = entityForScope(scope);
-        LuaValue entityValue = entity == null ? LuaValue.NIL
-            : dev.mlua.modules.players.classes.MLuaEntityWrapper.entityTable(entity, adapter.context.registration());
-        LuaValue modelValue;
-        MLuaRenderFrameScope frameScope = new MLuaRenderFrameScope();
-        try {
-            modelValue = LuaValue.userdataOf(frameScope.view().scopedReference(model));
-            LuaTable states = customBoneStates(scope, bones);
-            invokeCustomCallback(adapter, adapter.apply,
-                LuaValue.varargsOf(new LuaValue[]{modelValue, entityValue, states}), frameScope);
-            return adapter.active;
-        } finally {
-            frameScope.close();
-        }
-    }
-
-    private static boolean invokeCustomApplyPose(CustomAdapter adapter, Object model, String bone,
-            PoseStack poseStack, MLuaEntityScope scope) {
-        if (adapter == null || !adapter.active || adapter.applyPose == null || adapter.applyPose.isnil()
-                || !adapter.bones.contains(bone)) return false;
-        Entity entity = entityForScope(scope);
-        LuaValue entityValue = entity == null ? LuaValue.NIL
-            : dev.mlua.modules.players.classes.MLuaEntityWrapper.entityTable(entity, adapter.context.registration());
-        MLuaRenderFrameScope frameScope = new MLuaRenderFrameScope();
-        try {
-            LuaValue modelValue = LuaValue.userdataOf(frameScope.view().scopedReference(model));
-            LuaValue poseValue = LuaValue.userdataOf(frameScope.view().scopedReference(poseStack));
-            LuaTable state = customBoneStates(scope, List.of(bone)).get(bone).checktable();
-            Varargs result = invokeCustomCallback(adapter, adapter.applyPose,
-                LuaValue.varargsOf(new LuaValue[]{modelValue, LuaValue.valueOf(bone), poseValue,
-                    entityValue, state}), frameScope);
-            return adapter.active && result.arg1().isboolean() && result.arg1().toboolean();
-        } finally {
-            frameScope.close();
-        }
-    }
-
-    private static Varargs invokeCustomCallback(CustomAdapter adapter, LuaValue callback, Varargs args,
-            MLuaRenderFrameScope frameScope) {
-        if (!adapter.active) return LuaValue.NONE;
-        try {
-            try (MLuaRenderFrameScope.ScopeBinding ignored = frameScope.view().enter()) {
-                return MLuaLuaBindings.withContext(adapter.context, () -> {
-                    if (!adapter.active) return LuaValue.NONE;
-                    if (adapter.context.globals() == null) return callback.invoke(args);
-                    try (LuaInstructionBudget.Scope instructionBudget = adapter.context.globals()
-                            .beginInstructionBudget(MAX_RESOLVER_LUA_INSTRUCTIONS)) {
-                        return callback.invoke(args);
-                    }
-                });
-            }
-        } catch (VirtualMachineError | ThreadDeath fatal) {
-            throw fatal;
-        } catch (Throwable failure) {
-            disableCustomAdapter(adapter, failure);
-            return LuaValue.NONE;
-        }
-    }
-
-    private static void disableCustomAdapter(CustomAdapter adapter, Throwable failure) {
+    static void disableCustomAdapter(CustomAdapter adapter, Throwable failure) {
         if (adapter == null || !adapter.active) return;
         synchronized (MLuaModelAdapterRegistry.class) {
             if (!adapter.active) return;
@@ -1015,7 +920,7 @@ public final class MLuaModelAdapterRegistry {
         }
         java.util.LinkedHashSet<String> customBones = new java.util.LinkedHashSet<>();
         customAdapters.forEach((adapter, bones) -> {
-            if (invokeCustomApply(adapter, model, scope, bones)) customBones.addAll(bones);
+            if (MLuaCustomModelAdapterInvoker.apply(adapter, model, scope, bones)) customBones.addAll(bones);
         });
         applied.addAll(customBones);
         java.util.Set<String> resolved = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(applied));
@@ -1240,7 +1145,7 @@ public final class MLuaModelAdapterRegistry {
         String path = mapping == null ? null : mapping.get(boneName);
         if (path == null) {
             CustomAdapter custom = customAdapterForBone(model.getClass(), boneName);
-            if (custom != null) return invokeCustomApplyPose(custom, model, boneName, poseStack, scope);
+            if (custom != null) return MLuaCustomModelAdapterInvoker.applyPose(custom, model, boneName, poseStack, scope);
             reportMissingPath(model.getClass(), boneName, null);
             return false;
         }
@@ -1256,7 +1161,7 @@ public final class MLuaModelAdapterRegistry {
         String path = mapping == null ? null : mapping.get(boneName);
         if (path == null) {
             CustomAdapter custom = customAdapterForBone(model.getClass(), boneName);
-            if (custom != null) return invokeCustomApplyPose(custom, model, boneName, poseStack, scope);
+            if (custom != null) return MLuaCustomModelAdapterInvoker.applyPose(custom, model, boneName, poseStack, scope);
             reportMissingPath(model.getClass(), boneName, path);
             return false;
         }

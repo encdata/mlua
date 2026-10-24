@@ -29,6 +29,7 @@ RENDER_OBJECT_API = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRe
 RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java"
 OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectCreation.java"
 MODEL_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterRegistry.java"
+CUSTOM_ADAPTER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaCustomModelAdapterInvoker.java"
 RENDERER_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRendererAdapterRegistry.java"
 MODEL_FIELD_ACCESS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelFieldAccess.java"
 
@@ -343,6 +344,16 @@ if "MLuaConnection.owned(resolver, MLuaModelAdapterRegistry::unregisterResolver"
     fail("model resolver connections are not bound to the exact resolver registration")
 if "MLuaConnection.owned(replacement, MLuaModelAdapterRegistry::unregisterCustomAdapter" not in model_registry:
     fail("custom model adapter connections are not bound to the exact adapter registration")
+if not CUSTOM_ADAPTER_INVOKER.is_file():
+    fail("custom model adapter callback execution must have a dedicated render-frame owner")
+custom_adapter_invoker = CUSTOM_ADAPTER_INVOKER.read_text(encoding="utf-8")
+for operation in ("static boolean apply(", "static boolean applyPose(", "new MLuaRenderFrameScope()",
+                  "beginInstructionBudget(MLuaModelAdapterRegistry.MAX_RESOLVER_LUA_INSTRUCTIONS)",
+                  "MLuaModelAdapterRegistry.disableCustomAdapter(adapter, failure)"):
+    if operation not in custom_adapter_invoker:
+        fail(f"custom model adapter invoker is missing {operation}")
+if "invokeCustomCallback(" in model_registry or "customBoneStates(" in model_registry:
+    fail("model adapter registry still owns custom Lua render callback execution")
 if "WeakReference<T> reference = new WeakReference<>(resource)" not in connection_source:
     fail("owned Connection handles must not strongly retain render/model callback resources")
 if "this.disconnect = null;" not in connection_source or "this.active = null;" not in connection_source:
