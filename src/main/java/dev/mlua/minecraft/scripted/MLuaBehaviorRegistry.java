@@ -3,7 +3,6 @@ package dev.mlua.minecraft.scripted;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -41,20 +40,20 @@ public final class MLuaBehaviorRegistry {
                               int activeBlockContainers, int blockContainersForAddon,
                               int activeContainerTypes, int containerTypesForAddon,
                               int activeEntityAIConfigs, int entityAIConfigsForAddon) { }
-   private static final class BehaviorSet {
+   static final class BehaviorSet {
       private final Map<String, LuaValue> callbacks;
       private final MLuaContext context;
       private final Snapshot snapshot;
 
-      private BehaviorSet(Map<String, LuaValue> callbacks, MLuaContext context,
+      BehaviorSet(Map<String, LuaValue> callbacks, MLuaContext context,
                           String domain, String key) {
          this.callbacks = Map.copyOf(callbacks);
          this.context = context;
          this.snapshot = new Snapshot(this.callbacks, context, domain, key, this);
       }
 
-      private Map<String, LuaValue> callbacks() { return this.callbacks; }
-      private MLuaContext context() { return this.context; }
+      Map<String, LuaValue> callbacks() { return this.callbacks; }
+      MLuaContext context() { return this.context; }
    }
    public static final class Snapshot {
       private final Map<String, LuaValue> callbacks;
@@ -97,7 +96,6 @@ public final class MLuaBehaviorRegistry {
          return "Snapshot[callbacks=" + callbacks + ", context=" + context + "]";
       }
    }
-   private static final ConcurrentMap<String, ConcurrentMap<String, BehaviorSet>> SCRIPTED_BEHAVIORS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, Integer> ENTITY_AI_INTERVAL = new ConcurrentHashMap();
    static final Object REGISTRATION_LOCK = new Object();
 
@@ -129,44 +127,7 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static void registerBehavior(String domain, String key, String event, LuaValue behavior) {
-      if (domain == null || domain.isBlank() || key == null || key.isBlank() || event == null || event.isBlank()) {
-         throw new IllegalArgumentException("Scripted behavior domain, key, and member must be non-empty");
-      }
-      validateBehaviorName(event);
-      validateBehaviorKey(key);
-      if (behavior != null && !behavior.isnil() && !behavior.isfunction()) {
-         throw new IllegalArgumentException("Scripted behavior callback must be a Lua function or nil");
-      }
-      if (behavior == null || behavior.isnil()) {
-         synchronized (REGISTRATION_LOCK) {
-            SCRIPTED_BEHAVIORS.computeIfPresent(domain, (ignoredDomain, definitions) -> {
-               definitions.computeIfPresent(key, (ignored, current) -> {
-                  Map<String, LuaValue> updated = new java.util.HashMap<>(current.callbacks());
-                  updated.remove(event);
-                  return updated.isEmpty() ? null : new BehaviorSet(updated, current.context(), domain, key);
-               });
-               return definitions.isEmpty() ? null : definitions;
-            });
-         }
-         return;
-      }
-      synchronized (REGISTRATION_LOCK) {
-         ConcurrentMap<String, BehaviorSet> definitions = SCRIPTED_BEHAVIORS.get(domain);
-         BehaviorSet current = definitions == null ? null : definitions.get(key);
-         Map<String, LuaValue> updated = current == null ? new java.util.HashMap<>() : new java.util.HashMap<>(current.callbacks());
-         updated.put(event, behavior);
-         ensureBehaviorCapacity(domain, key, current == null ? null : current.context());
-         if (updated.size() > MAX_CALLBACKS_PER_DEFINITION) {
-            throw new IllegalStateException("Scripted behavior callback limit reached (" + MAX_CALLBACKS_PER_DEFINITION + " per definition)");
-         }
-         SCRIPTED_BEHAVIORS.compute(domain, (ignoredDomain, currentDefinitions) -> {
-            ConcurrentMap<String, BehaviorSet> result = currentDefinitions == null
-               ? new ConcurrentHashMap<>() : currentDefinitions;
-            result.put(key, new BehaviorSet(updated, current == null ? null : current.context(), domain, key));
-            return result;
-         });
-      }
-      MLuaLogger.LOGGER.debug("Registered {} behavior '{}' for {}", domain, event, key);
+      MLuaScriptedBehaviorDefinitions.registerBehavior(domain, key, event, behavior);
    }
 
    /** Replaces a content definition's complete behavior set in one visible update. */
@@ -176,71 +137,32 @@ public final class MLuaBehaviorRegistry {
 
    public static Map<String, LuaValue> registerBehaviors(String domain, String key, Map<String, LuaValue> behaviors,
                                                          MLuaContext context) {
-      if (domain == null || domain.isBlank() || key == null || key.isBlank()) {
-         throw new IllegalArgumentException("Scripted behavior domain and key must be non-empty");
-      }
-      Map<String, LuaValue> definition = new java.util.HashMap<>();
-      if (behaviors != null) {
-         behaviors.forEach((event, behavior) -> {
-            if (behavior == null || behavior.isnil()) return;
-            if (event == null || event.isBlank()) throw new IllegalArgumentException("Scripted behavior name must be non-empty");
-            validateBehaviorName(event);
-            if ("entity".equals(domain) && "AI".equals(event) && behavior.istable()) {
-               // AI is the one content behavior that may be a structured definition. Copy it
-               // at the registry boundary so later mutation of the registering script's table
-               // cannot change live entities without a new registration/reload.
-               definition.put(event, snapshotEntityAI(behavior.checktable()));
-            } else if (behavior.isfunction()) {
-               definition.put(event, behavior);
-            } else {
-               throw new IllegalArgumentException("Scripted behavior callback '" + event
-                  + "' must be a Lua function or nil"
-                  + ("entity".equals(domain) && "AI".equals(event) ? ", or an AI state definition table" : ""));
-            }
-         });
-      }
-      validateBehaviorKey(key);
-      if (definition.size() > MAX_CALLBACKS_PER_DEFINITION) {
-         throw new IllegalArgumentException("Scripted behavior callback limit reached (" + MAX_CALLBACKS_PER_DEFINITION + " per definition)");
-      }
-      synchronized (REGISTRATION_LOCK) {
-         BehaviorSet current = definition(domain, key);
-         if (!definition.isEmpty()) ensureBehaviorCapacity(domain, key, context);
-         SCRIPTED_BEHAVIORS.compute(domain, (ignoredDomain, definitions) -> {
-            if (definitions == null && definition.isEmpty()) return null;
-            ConcurrentMap<String, BehaviorSet> result = definitions == null
-               ? new ConcurrentHashMap<>() : definitions;
-            if (definition.isEmpty()) result.remove(key);
-            else result.put(key, new BehaviorSet(definition, context, domain, key));
-            return result.isEmpty() ? null : result;
-         });
-      }
-      return Map.copyOf(definition);
+      return MLuaScriptedBehaviorDefinitions.registerBehaviors(domain, key, behaviors, context);
    }
 
    public static LuaValue getBehavior(String domain, String key, String event) {
-      BehaviorSet definition = definition(domain, key);
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       return definition == null ? LuaValue.NIL : definition.callbacks().getOrDefault(event, LuaValue.NIL);
    }
 
    public static Map<String, LuaValue> getBehaviors(String domain, String key) {
-      BehaviorSet definition = definition(domain, key);
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       return definition == null ? Map.of() : definition.callbacks();
    }
 
    public static Snapshot snapshotBehaviors(String domain, String key) {
-      BehaviorSet definition = definition(domain, key);
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       return definition == null ? new Snapshot(Map.of(), null, domain, key, null) : definition.snapshot;
    }
 
    public static Varargs invokeBehavior(String domain, String key, String event, Varargs args) {
-      BehaviorSet definition = definition(domain, key);
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       if (definition == null) return LuaValue.NONE;
       return invokeCallback(definition.context(), definition.callbacks().get(event), args);
    }
 
    public static Varargs invokeCallback(String domain, String key, String event, LuaValue callback, Varargs args) {
-      BehaviorSet definition = definition(domain, key);
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       // Callback lookup and invocation are separate operations in several Minecraft hooks. If a
       // script reload replaced the behavior in between, never run the old closure under the new
       // script's context (or keep invoking a callback that has already been removed).
@@ -254,7 +176,7 @@ public final class MLuaBehaviorRegistry {
    /** Invokes a callback nested inside a registered definition only while that parent remains current. */
    public static Varargs invokeNestedCallback(String domain, String key, String parentEvent,
                                               LuaValue expectedParent, LuaValue callback, Varargs args) {
-      BehaviorSet definition = definition(domain, key);
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       if (definition == null || parentEvent == null || expectedParent == null
           || definition.callbacks().get(parentEvent) != expectedParent) {
          return LuaValue.NONE;
@@ -270,7 +192,8 @@ public final class MLuaBehaviorRegistry {
       if (owner.domain != null && owner.key != null) {
          // Entity and block-entity hooks may retain a snapshot while a script reloads.
          // Only invoke it while the exact definition that produced it is still registered.
-         if (owner.definition == null || definition(owner.domain, owner.key) != owner.definition) {
+         if (owner.definition == null
+               || MLuaScriptedBehaviorDefinitions.definition(owner.domain, owner.key) != owner.definition) {
             return LuaValue.NONE;
          }
       }
@@ -293,15 +216,10 @@ public final class MLuaBehaviorRegistry {
          () -> MLuaCallbackBudget.run(context, () -> callback.invoke(invocationArgs)));
    }
 
-   private static BehaviorSet definition(String domain, String key) {
-      ConcurrentMap<String, BehaviorSet> definitions = SCRIPTED_BEHAVIORS.get(domain);
-      return definitions == null ? null : definitions.get(key);
-   }
-
    /** Restores a previous behavior set only while the definition still matches the failed registration. */
    public static boolean restoreBehaviors(String domain, String key, Map<String, LuaValue> expected,
                                           Map<String, LuaValue> previous) {
-      BehaviorSet current = definition(domain, key);
+      BehaviorSet current = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       MLuaContext expectedContext = current == null ? null : current.context();
       return restoreBehaviors(domain, key, expected,
          previous == null ? new Snapshot(Map.of(), null) : new Snapshot(previous, null), expectedContext);
@@ -309,32 +227,7 @@ public final class MLuaBehaviorRegistry {
 
    public static boolean restoreBehaviors(String domain, String key, Map<String, LuaValue> expected,
                                           Snapshot previous, MLuaContext expectedContext) {
-      if (domain == null || key == null) return false;
-      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
-      synchronized (REGISTRATION_LOCK) {
-         SCRIPTED_BEHAVIORS.compute(domain, (ignored, definitions) -> {
-            ConcurrentMap<String, BehaviorSet> values = definitions == null
-               ? new ConcurrentHashMap<>() : definitions;
-            values.compute(key, (ignoredKey, current) -> {
-               Map<String, LuaValue> actual = current == null ? Map.of() : current.callbacks();
-               if (!sameBehaviors(actual, expected == null ? Map.of() : expected)
-                   || current != null && current.context() != expectedContext) return current;
-               restored.set(true);
-               return previous == null || previous.callbacks().isEmpty() ? null
-                  : new BehaviorSet(previous.callbacks(), previous.context(), domain, key);
-            });
-            return values.isEmpty() ? null : values;
-         });
-      }
-      return restored.get();
-   }
-
-   private static boolean sameBehaviors(Map<String, LuaValue> left, Map<String, LuaValue> right) {
-      if (left.size() != right.size()) return false;
-      for (Map.Entry<String, LuaValue> entry : left.entrySet()) {
-         if (right.get(entry.getKey()) != entry.getValue()) return false;
-      }
-      return true;
+      return MLuaScriptedBehaviorDefinitions.restore(domain, key, expected, previous, expectedContext);
    }
 
    /** Compatibility name used by scripted content dispatchers. */
@@ -379,12 +272,7 @@ public final class MLuaBehaviorRegistry {
    }
 
    private static void clearBehaviors(String domain, String key) {
-      synchronized (REGISTRATION_LOCK) {
-         SCRIPTED_BEHAVIORS.computeIfPresent(domain, (ignoredDomain, definitions) -> {
-            definitions.remove(key);
-            return definitions.isEmpty() ? null : definitions;
-         });
-      }
+      MLuaScriptedBehaviorDefinitions.clear(domain, key);
    }
 
    public static void registerBlockContainer(String key, int rows, String title) {
@@ -412,14 +300,8 @@ public final class MLuaBehaviorRegistry {
    public static ScriptLimits scriptLimits(String ownerModId) {
       String owner = ownerModId == null ? "" : ownerModId;
       synchronized (REGISTRATION_LOCK) {
-         int behaviorCount = 0;
-         int ownedBehaviorCount = 0;
-         for (Map.Entry<String, ConcurrentMap<String, BehaviorSet>> domain : SCRIPTED_BEHAVIORS.entrySet()) {
-            for (Map.Entry<String, BehaviorSet> definition : domain.getValue().entrySet()) {
-               behaviorCount++;
-               if (owner.equals(ownerFor(definition.getValue().context(), definition.getKey()))) ownedBehaviorCount++;
-            }
-         }
+         int behaviorCount = MLuaScriptedBehaviorDefinitions.count();
+         int ownedBehaviorCount = MLuaScriptedBehaviorDefinitions.countForOwner(owner);
          int classCount = MLuaScriptedContentClassRegistry.count();
          int ownedClassCount = MLuaScriptedContentClassRegistry.countForOwner(owner);
          int blockContainers = MLuaScriptedContainerRegistry.blockCount();
@@ -517,10 +399,7 @@ public final class MLuaBehaviorRegistry {
       if (owner == null || owner.isBlank()) return;
       String prefix = owner.trim() + ":";
       synchronized (REGISTRATION_LOCK) {
-         SCRIPTED_BEHAVIORS.forEach((domain, ignored) -> SCRIPTED_BEHAVIORS.computeIfPresent(domain, (domainKey, definitions) -> {
-            definitions.keySet().removeIf(behaviorKey -> behaviorKey.startsWith(prefix));
-            return definitions.isEmpty() ? null : definitions;
-         }));
+         MLuaScriptedBehaviorDefinitions.clearOwnerPrefix(prefix);
          MLuaScriptedContentClassRegistry.clearOwnerPrefix(prefix);
          MLuaScriptedContainerRegistry.clearOwnerPrefix(prefix);
          ENTITY_AI_INTERVAL.keySet().removeIf(key -> key.startsWith(prefix));
@@ -556,54 +435,13 @@ public final class MLuaBehaviorRegistry {
        return restored.get();
     }
 
-   private static void validateBehaviorName(String name) {
-      if (name.length() > MAX_BEHAVIOR_NAME_LENGTH) {
-         throw new IllegalArgumentException("Scripted behavior names cannot exceed " + MAX_BEHAVIOR_NAME_LENGTH + " characters");
-      }
-   }
-
-   private static void validateBehaviorKey(String key) {
+   static void validateBehaviorKey(String key) {
       if (key == null || key.isBlank()) {
          throw new IllegalArgumentException("Scripted content identifier must be non-empty");
       }
       if (key.length() > MAX_BEHAVIOR_KEY_LENGTH) {
          throw new IllegalArgumentException("Scripted content identifiers cannot exceed " + MAX_BEHAVIOR_KEY_LENGTH + " characters");
       }
-   }
-
-   private static void ensureBehaviorCapacity(String domain, String key, MLuaContext context) {
-      int total = 0;
-      int ownerCount = 0;
-      for (Map.Entry<String, ConcurrentMap<String, BehaviorSet>> domainEntry : SCRIPTED_BEHAVIORS.entrySet()) {
-         for (Map.Entry<String, BehaviorSet> entry : domainEntry.getValue().entrySet()) {
-            if (domainEntry.getKey().equals(domain) && entry.getKey().equals(key)) continue;
-            total++;
-            if (sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
-         }
-      }
-      if (total >= MAX_BEHAVIOR_DEFINITIONS) {
-         throw new IllegalStateException("Scripted behavior definition limit reached (" + MAX_BEHAVIOR_DEFINITIONS + " total)");
-      }
-      if (ownerCount >= MAX_BEHAVIOR_DEFINITIONS_PER_ADDON) {
-         throw new IllegalStateException("Addon scripted behavior definition limit reached (" + MAX_BEHAVIOR_DEFINITIONS_PER_ADDON + ")");
-      }
-   }
-
-   private static boolean sameOwner(MLuaContext left, MLuaContext right, String key) {
-      if (left != null && right != null) return left.ownerModId().equals(right.ownerModId());
-      int separator = key.indexOf(':');
-      String keyOwner = separator > 0 ? key.substring(0, separator) : "";
-      String leftOwner = left == null ? keyOwner : left.ownerModId();
-      String rightOwner = right == null ? keyOwner : right.ownerModId();
-      return leftOwner.equals(rightOwner);
-   }
-
-   private static String ownerFor(MLuaContext context, String key) {
-      if (context != null && context.ownerModId() != null && !context.ownerModId().isBlank()) {
-         return context.ownerModId();
-      }
-      int separator = key == null ? -1 : key.indexOf(':');
-      return separator > 0 ? key.substring(0, separator) : "";
    }
 
    private static int countOwnerKeys(Map<String, ?> values, String owner) {

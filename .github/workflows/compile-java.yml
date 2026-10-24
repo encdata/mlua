@@ -88,6 +88,8 @@ jobs:
         run: python .github/scripts/verify-scripted-container-registry-contract.py
       - name: Validate scripted content class registry ownership
         run: python .github/scripts/verify-content-class-registry-contract.py
+      - name: Validate scripted behavior definition ownership
+        run: python .github/scripts/verify-scripted-behavior-definition-ownership.py
 
       - name: Validate Java input conversion ownership
         run: python .github/scripts/verify-java-conversion-ownership-contract.py
