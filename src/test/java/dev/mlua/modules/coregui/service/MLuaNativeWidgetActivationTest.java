@@ -81,7 +81,7 @@ final class MLuaNativeWidgetActivationTest {
     }
 
     private static class ParentWidget {
-        private int parentPresses;
+        int parentPresses;
         private void onPress() { this.parentPresses++; }
     }
 

@@ -311,12 +311,6 @@ tasks.named('processResources', ProcessResources).configure {
     configureMluaIcon(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     dependsOn runtimeProject.tasks.named('jar'), prepareNeoForgeProjectResources
-    from(file("${buildDir}/generated/prepareNeoForgeProjectResources/META-INF/neoforge.mods.toml")) {
-        into 'META-INF'
-        expand(minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range, neo_forge_version: neo_forge_version,
-            neo_forge_version_range: neo_forge_version_range, neo_loader_version_range: neo_loader_version_range, mod_id: mod_id,
-            mod_name: mod_name, mod_license: mod_license, mod_version: mod_version, mod_authors: mod_authors, mod_description: mod_description)
-    }
     from({ def bcelJar = configurations.runtimeClasspath.find { it.name.contains('bcel') }; bcelJar == null ? [] : zipTree(bcelJar) }) {
         exclude 'META-INF/**', 'module-info.class'
     }
@@ -385,7 +379,15 @@ def prepareNeoForgeMixinMetadata = tasks.register('prepareNeoForgeMixinMetadata'
 tasks.named('processResources', ProcessResources).configure {
     dependsOn generateNeoForgeServiceMixinConfig, prepareNeoForgeMixinMetadata
     from(generateNeoForgeServiceMixinConfig) { into '' }
-    from(prepareNeoForgeMixinMetadata) { into 'META-INF'; rename { 'neoforge.mods.toml' } }
+    from(prepareNeoForgeMixinMetadata) {
+        into 'META-INF'
+        rename { 'neoforge.mods.toml' }
+        expand(minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            neo_forge_version: neo_forge_version, neo_forge_version_range: neo_forge_version_range,
+            neo_loader_version_range: neo_loader_version_range, mod_id: mod_id, mod_name: mod_name,
+            mod_license: mod_license, mod_version: mod_version, mod_authors: mod_authors,
+            mod_description: mod_description)
+    }
 }
 tasks.named('jar', Jar).configure {
     dependsOn generateNeoForgeMixinConfig, generateNeoForgeServiceMixinConfig
