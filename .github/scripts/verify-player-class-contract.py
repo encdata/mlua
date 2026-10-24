@@ -18,6 +18,8 @@ ENTITY_STATE_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/M
 ENTITY_PROPERTIES_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaEntityPropertiesBindings.java"
 ENTITY_INSTANCE_CACHE = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaEntityInstanceCache.java"
 ENTITY_ACTION_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaEntityActionBindings.java"
+PLAYERS_SERVICE = ROOT / "src/main/java/dev/mlua/modules/players/service/MLuaPlayersService.java"
+INVENTORY_SERVICE = ROOT / "src/main/java/dev/mlua/modules/inventory/service/MLuaInventoryService.java"
 
 
 def fail(message: str) -> None:
@@ -27,6 +29,12 @@ def fail(message: str) -> None:
 
 player_source = PLAYER.read_text(encoding="utf-8")
 client_player_source = CLIENT_PLAYER.read_text(encoding="utf-8")
+players_service_source = PLAYERS_SERVICE.read_text(encoding="utf-8")
+if "extends MLuaGameThreadReflectiveService" not in players_service_source:
+    fail("client and server Players lookups must run on their owning game thread")
+inventory_service_source = INVENTORY_SERVICE.read_text(encoding="utf-8")
+if "extends MLuaGameThreadReflectiveService" not in inventory_service_source:
+    fail("live inventory and container lookups must run on their owning game thread")
 if "import net.minecraft.client." in player_source or "import net.minecraft.client.player.LocalPlayer" in player_source or "import net.minecraft.client.player.AbstractClientPlayer" in player_source:
     fail("shared Player wrapper must not resolve client-only Minecraft classes on dedicated servers")
 if '"dev.mlua.modules.players.classes.MLuaClientPlayerWrapper"' not in player_source:

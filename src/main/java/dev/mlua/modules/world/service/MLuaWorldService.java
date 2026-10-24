@@ -161,7 +161,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaValue varArg(Function<Varargs, Varargs> fn) {
       return MLuaLuaErrors.varargsOperation("World service call", args -> {
-         return MLuaGameThreadAccess.call(context, () -> fn.apply(args));
+         return MLuaGameThreadAccess.callUnchecked(context, () -> fn.apply(args));
       });
    }
 

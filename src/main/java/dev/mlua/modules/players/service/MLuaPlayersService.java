@@ -8,7 +8,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServerThreadReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.modules.players.classes.MLuaPlayerWrapper;
 import dev.mlua.mc.impl.entity.MCServerPlayerImpl;
@@ -18,7 +18,7 @@ import net.minecraft.server.level.ServerPlayer;
 import org.luaj.vm2.LuaError;
 
 @MLuaDescription("Manages player connections and provides player instances.")
-public final class MLuaPlayersService extends MLuaServerThreadReflectiveService {
+public final class MLuaPlayersService extends MLuaGameThreadReflectiveService {
    private final MLuaPlayerDirectory directory;
    public static final MLuaSignal PLAYER_ADDED = new MLuaSignal();
    public static final MLuaSignal PLAYER_REMOVING = new MLuaSignal();

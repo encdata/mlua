@@ -74,18 +74,18 @@ if "return level.isClientSide();" not in game_thread_access or "return level.isC
     fail("shared game-thread access must resolve the target-specific client-side API")
 
 for path, expected in (
-    (SHARED, "MLuaGameThreadAccess.call(context, () -> fn.apply(args))"),
-    (COMMON_26, "MLuaGameThreadAccess.call(context, () -> action.apply(args))"),
+    (SHARED, "MLuaGameThreadAccess.callUnchecked(context, () -> fn.apply(args))"),
+    (COMMON_26, "MLuaGameThreadAccess.callUnchecked(context, () -> action.apply(args))"),
 ):
     if expected not in path.read_text(encoding="utf-8"):
         fail(f"{path.name} must route World service calls through the shared game-thread policy")
 world_api_support = (ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldApiSupport.java").read_text(encoding="utf-8")
-if "MLuaGameThreadAccess.call(level, () -> function.apply(level, args))" not in world_api_support:
+if "MLuaGameThreadAccess.callUnchecked(level, () -> function.apply(level, args))" not in world_api_support:
     fail("legacy World instance queries must dispatch on the owning client or server thread")
-if "MLuaGameThreadAccess.call(serverLevel, () -> function.apply(serverLevel, args))" not in world_api_support:
+if "MLuaGameThreadAccess.callUnchecked(serverLevel, () -> function.apply(serverLevel, args))" not in world_api_support:
     fail("legacy server World mutations must use the shared game-thread policy")
 world26 = COMMON_26.read_text(encoding="utf-8")
-if "MLuaGameThreadAccess.call(level, () -> action.apply(level, args))" not in world26:
+if "MLuaGameThreadAccess.callUnchecked(level, () -> action.apply(level, args))" not in world26:
     fail("26.1 World instance queries must dispatch on the owning client or server thread")
 
 if FABRIC_LEGACY_OVERLAY.exists():

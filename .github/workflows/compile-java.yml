@@ -98,6 +98,9 @@ jobs:
       - name: Validate entity query ownership
         run: python .github/scripts/verify-entity-service-contract.py
 
+      - name: Validate player and entity class ownership
+        run: python .github/scripts/verify-player-class-contract.py
+
       - name: Validate advancement service ownership
         run: python .github/scripts/verify-advancement-service-contract.py
 

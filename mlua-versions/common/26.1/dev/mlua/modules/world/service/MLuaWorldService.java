@@ -69,7 +69,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
     private VarArgFunction serviceFunction(Function<Varargs, Varargs> action) {
         return MLuaLuaErrors.varargsOperation("World service call", args -> {
-            return MLuaGameThreadAccess.call(context, () -> action.apply(args));
+            return MLuaGameThreadAccess.callUnchecked(context, () -> action.apply(args));
         });
     }
 
@@ -186,7 +186,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
     static VarArgFunction levelFunction(Level level, BiFunction<Level, Varargs, LuaValue> action) {
         return function(args -> {
-            return MLuaGameThreadAccess.call(level, () -> action.apply(level, args));
+            return MLuaGameThreadAccess.callUnchecked(level, () -> action.apply(level, args));
         });
     }
 

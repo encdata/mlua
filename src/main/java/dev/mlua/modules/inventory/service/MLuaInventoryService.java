@@ -1,7 +1,7 @@
 package dev.mlua.modules.inventory.service;
 
 import dev.mlua.api.MLuaDescription;
-import dev.mlua.core.service.MLuaServerThreadReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.minecraft.binding.MLuaItemWrapper;
@@ -14,7 +14,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Access player inventories and common container operations from Lua.")
-public final class MLuaInventoryService extends MLuaServerThreadReflectiveService {
+public final class MLuaInventoryService extends MLuaGameThreadReflectiveService {
     public MLuaInventoryService(MLuaService.Context context) {
         super(context);
     }
