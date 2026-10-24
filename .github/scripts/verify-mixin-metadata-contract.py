@@ -6,6 +6,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PACKAGING = (ROOT / "build.gradle").read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -38,6 +39,10 @@ if 'from(file("${buildDir}/generated/prepareNeoForgeProjectResources/META-INF/ne
     fail("NeoForge must package the generated mixin metadata instead of the unmodified TOML")
 if "expand(minecraft_version: minecraft_version" not in neo_build:
     fail("NeoForge's generated mixin metadata must still expand its version properties")
+for required in ("registeredMixinConfigs", "mixinFiles.findAll", "fabric.mod.json",
+                 "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "MixinConfigs"):
+    if required not in PACKAGING:
+        fail(f"Packaged artifact validation does not verify mixin registration: {required}")
 
 for version in ("1.20.1", "1.21.1", "26.1"):
     path = ROOT / f"mlua-loaders/fabric/{version}/project/src/main/resources/mlua.fabric.mixins.json"

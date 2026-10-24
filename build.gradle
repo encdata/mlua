@@ -146,6 +146,50 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
             def mixinFiles = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
                 zip.entries().findAll { it.name.endsWith('.mixins.json') }.collect { it.name }
             }
+            def registeredMixinConfigs = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+                def registered = [] as Set
+                if (loaderProject.loader == 'fabric') {
+                    def metadata = zip.getEntry('fabric.mod.json')
+                    if (metadata == null) throw new GradleException("${artifact.name} is missing fabric.mod.json")
+                    def fabric = json.parseText(zip.getInputStream(metadata).getText('UTF-8'))
+                    (fabric.mixins instanceof List ? fabric.mixins : []).each { entry ->
+                        def config = entry instanceof Map ? entry.config : entry
+                        if (config instanceof String && !config.isBlank()) registered.add(config)
+                    }
+                } else if (loaderProject.loader == 'forge' && loaderProject.target == '1.20.1') {
+                    def metadata = zip.getEntry('META-INF/mods.toml')
+                    if (metadata == null) throw new GradleException("${artifact.name} is missing META-INF/mods.toml")
+                    def metadataText = zip.getInputStream(metadata).getText('UTF-8')
+                    def legacyConfig = metadataText =~ /(?m)^mixinConfig\s*=\s*"([^"]+)"\s*$/
+                    if (legacyConfig.find()) registered.add(legacyConfig.group(1))
+                    def manifestEntry = zip.getEntry('META-INF/MANIFEST.MF')
+                    def manifest = manifestEntry == null ? null
+                        : new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
+                    def manifestConfigs = manifest?.mainAttributes?.getValue('MixinConfigs')
+                    if (manifestConfigs != null) {
+                        manifestConfigs.split(',').each { config -> registered.add(config.trim()) }
+                    }
+                } else if (loaderProject.loader == 'forge') {
+                    def manifestEntry = zip.getEntry('META-INF/MANIFEST.MF')
+                    def manifest = manifestEntry == null ? null
+                        : new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
+                    def manifestConfigs = manifest?.mainAttributes?.getValue('MixinConfigs')
+                    if (manifestConfigs != null) {
+                        manifestConfigs.split(',').each { config -> registered.add(config.trim()) }
+                    }
+                } else if (loaderProject.loader == 'neoforge') {
+                    def metadata = zip.getEntry('META-INF/neoforge.mods.toml')
+                    if (metadata == null) throw new GradleException("${artifact.name} is missing META-INF/neoforge.mods.toml")
+                    def text = zip.getInputStream(metadata).getText('UTF-8')
+                    def matcher = text =~ /(?m)^config\s*=\s*"([^"]+)"\s*$/
+                    while (matcher.find()) registered.add(matcher.group(1))
+                }
+                registered
+            }
+            def unregisteredMixinConfigs = mixinFiles.findAll { !registeredMixinConfigs.contains(it) }
+            if (!unregisteredMixinConfigs.isEmpty()) {
+                throw new GradleException("${artifact.name} packages unregistered mixin configs: ${unregisteredMixinConfigs.sort()}")
+            }
             mixinFiles.each { mixinPath ->
                 def mixins = new java.util.zip.ZipFile(artifact).withCloseable { zip ->
                     json.parseText(zip.getInputStream(zip.getEntry(mixinPath)).getText('UTF-8'))
