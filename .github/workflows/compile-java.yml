@@ -71,6 +71,9 @@ jobs:
       - name: Validate cross-loader render hook contract
         run: python .github/scripts/verify-render-hook-contract.py
 
+      - name: Validate loader mixin metadata
+        run: python .github/scripts/verify-mixin-metadata-contract.py
+
       - name: Validate cross-loader event bridge contract
         run: python .github/scripts/verify-event-bridge-contract.py
 

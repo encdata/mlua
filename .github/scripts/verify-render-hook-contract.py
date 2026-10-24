@@ -139,6 +139,12 @@ expected = {
 if supported != expected:
     fail(f"render audit target list drifted; expected {len(expected)} targets, found {len(supported)}")
 
+neoforge_build = NEOFORGE_CONFIG_GENERATOR.read_text(encoding="utf-8")
+for required in ("prepareNeoForgeMixinMetadata", "[[mixins]]", "mlua.service.mixins.json",
+                 "'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin'"):
+    if required not in neoforge_build:
+        fail(f"NeoForge does not register its shared service mixin configuration through mod metadata: {required}")
+
 def model_part_source(version: str, loader: str) -> Path:
     if version.startswith("26.") and loader == "fabric":
         return ROOT / "mlua-loaders/fabric/26.1/impl/dev/mlua/modules/mixin/service/ModelPartMixin.java"

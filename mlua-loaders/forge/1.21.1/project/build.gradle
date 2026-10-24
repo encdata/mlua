@@ -189,12 +189,38 @@ tasks.named('test').configure {
     enabled = false
 }
 
+def prepareForgeMixinMetadata = tasks.register('prepareForgeMixinMetadata') {
+    dependsOn prepareForgeProjectResources
+    def input = layout.buildDirectory.file('generated/prepareForgeProjectResources/META-INF/mods.toml')
+    def output = layout.buildDirectory.file('generated/forge-mixins/META-INF/mods.toml')
+    inputs.file(input)
+    outputs.file(output)
+    doLast {
+        def source = input.get().asFile
+        def destination = output.get().asFile
+        destination.parentFile.mkdirs()
+        def metadata = source.getText('UTF-8')
+        def previousStyle = java.util.regex.Pattern.compile('(?m)^mixinConfig\\s*=\\s*"([^"]+)"\\s*$')
+        def matcher = previousStyle.matcher(metadata)
+        def mixinConfigs = [] as LinkedHashSet
+        while (matcher.find()) mixinConfigs.add(matcher.group(1))
+        metadata = matcher.replaceAll('')
+        mixinConfigs.add('mlua.firstperson.mixins.json')
+        metadata = metadata.replaceAll('(?m)\\n{3,}', '\n\n')
+        mixinConfigs.each { config ->
+            metadata += "\n[[mixins]]\nconfig=\"${config}\"\n"
+        }
+        destination.setText(metadata, 'UTF-8')
+    }
+}
+
 tasks.named('processResources', ProcessResources).configure {
     configureMluaIcon(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    dependsOn 'generateMethodMapping', runtimeProject.tasks.named('jar'), prepareForgeProjectResources
-    from(file("${buildDir}/generated/prepareForgeProjectResources/META-INF/mods.toml")) {
+    dependsOn 'generateMethodMapping', runtimeProject.tasks.named('jar'), prepareForgeProjectResources, prepareForgeMixinMetadata
+    from(prepareForgeMixinMetadata) {
         into 'META-INF'
+        rename { 'mods.toml' }
         expand(
             minecraft_version: minecraft_version,
             minecraft_version_range: minecraft_version_range,
@@ -258,7 +284,6 @@ tasks.named('jar', Jar).configure {
     manifest {
         attributes([
                 'Automatic-Module-Name': 'mlua_loader',
-                'MixinConfigs': 'mlua.forge.mixins.json,mlua.firstperson.mixins.json',
                 'Specification-Title': mod_id,
                 'Specification-Vendor': mod_authors,
                 'Specification-Version': '1',

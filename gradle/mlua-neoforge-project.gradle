@@ -358,9 +358,34 @@ def generateNeoForgeServiceMixinConfig = tasks.register('generateNeoForgeService
         ])) + System.lineSeparator()
     }
 }
+def prepareNeoForgeMixinMetadata = tasks.register('prepareNeoForgeMixinMetadata') {
+    dependsOn prepareNeoForgeProjectResources
+    def input = layout.buildDirectory.file('generated/prepareNeoForgeProjectResources/META-INF/neoforge.mods.toml')
+    def output = layout.buildDirectory.file('generated/neoforge-mixins/META-INF/neoforge.mods.toml')
+    inputs.file(input)
+    outputs.file(output)
+    doLast {
+        def source = input.get().asFile
+        def destination = output.get().asFile
+        destination.parentFile.mkdirs()
+        def metadata = source.getText('UTF-8')
+        def previousStyle = java.util.regex.Pattern.compile('(?m)^mixinConfig\\s*=\\s*"([^"]+)"\\s*$')
+        def matcher = previousStyle.matcher(metadata)
+        def mixinConfigs = [] as LinkedHashSet
+        while (matcher.find()) mixinConfigs.add(matcher.group(1))
+        metadata = matcher.replaceAll('')
+        mixinConfigs.add('mlua.service.mixins.json')
+        metadata = metadata.replaceAll('(?m)\\n{3,}', '\n\n')
+        mixinConfigs.each { config ->
+            metadata += "\n[[mixins]]\nconfig=\"${config}\"\n"
+        }
+        destination.setText(metadata, 'UTF-8')
+    }
+}
 tasks.named('processResources', ProcessResources).configure {
-    dependsOn generateNeoForgeServiceMixinConfig
+    dependsOn generateNeoForgeServiceMixinConfig, prepareNeoForgeMixinMetadata
     from(generateNeoForgeServiceMixinConfig) { into '' }
+    from(prepareNeoForgeMixinMetadata) { into 'META-INF'; rename { 'neoforge.mods.toml' } }
 }
 tasks.named('jar', Jar).configure {
     dependsOn generateNeoForgeMixinConfig, generateNeoForgeServiceMixinConfig
@@ -372,7 +397,7 @@ tasks.named('jar', Jar).configure {
     manifest {
         attributes([
             'Automatic-Module-Name': 'mlua_loader',
-            'MixinConfigs': 'mlua.firstperson.mixins.json,mlua.service.mixins.json', 'Specification-Title': mod_id,
+            'Specification-Title': mod_id,
             'Specification-Vendor': mod_authors, 'Specification-Version': '1', 'Implementation-Title': project.name,
             'Implementation-Version': project.jar.archiveVersion, 'Implementation-Vendor': mod_authors
         ])
