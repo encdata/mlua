@@ -1431,7 +1431,9 @@ connection = RunService.Heartbeat:Connect(function()
     -- Input and movement are independent of the item-pickup event. Keep pickup
     -- as its own asserted gameplay path so a pickup regression cannot hide
     -- whether simulated controls still work.
-    if playerSeen and clientContainerClosed and inputPressState == 0 then
+    local containerInteractionFinished = clientContainerClosed
+        or (containerUseAttempts >= 3 and containerUseState == 0)
+    if playerSeen and containerInteractionFinished and inputPressState == 0 then
         print("MLUA_CI_PLAYER_INPUT_PRESS_BEGIN")
         inputStartX = player:GetPositionX()
         inputStartZ = player:GetPositionZ()

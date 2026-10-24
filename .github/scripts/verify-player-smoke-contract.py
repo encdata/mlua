@@ -70,6 +70,10 @@ gui_api_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiAp
 gui_screen_manager_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaNativeScreenManager.java").read_text(encoding="utf-8")
 gui_module_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/GuiModule.java").read_text(encoding="utf-8")
 runtime_marker_source = prepare_text + "\n" + gui_service_text
+runtime_marker_source += "\n" + (ROOT / "src/main/java/dev/mlua/runtime/MLuaBootstrap.java").read_text(encoding="utf-8")
+for project in loader_projects.values():
+    for source_path in project.parent.glob("src/**/*.java"):
+        runtime_marker_source += "\n" + source_path.read_text(encoding="utf-8")
 render_service_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java").read_text(encoding="utf-8")
 render_object_operations_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java").read_text(encoding="utf-8")
 render_manager_text = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
@@ -107,9 +111,23 @@ markers = sorted(set(re.findall(r"MLUA_CI_(?:PLAYER|SCRIPTED_ENTITY)_[A-Z0-9_]+"
 missing = [marker for marker in markers if marker not in runtime_marker_source]
 if missing:
     fail("runner waits for markers not emitted by generated scripts: " + ", ".join(missing))
+for marker in ("MLUA_PACKAGED_CLIENT_BOOT_OK", "MLUA_PACKAGED_SERVER_BOOT_OK"):
+    if marker not in runner_text or marker not in runtime_marker_source:
+        fail(f"player simulation must verify packaged {marker.removeprefix('MLUA_PACKAGED_').removesuffix('_BOOT_OK').lower()} boot")
 
 client_runtime_markers = (
+    "MLUA_RUNTIME_BOOTSTRAP_OK",
     "MLUA_CI_CLIENT_SERVICE_SCRIPT_OK",
+    "MLUA_CI_GENERATED_ASSET_HANDLES_OK",
+    "MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK",
+    "MLUA_CI_REGISTRY_PROPERTIES_OK",
+    "MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK",
+    "MLUA_CI_ORE_VEIN_REGISTRATION_OK",
+    "MLUA_CI_TOAST_API_OK",
+    "MLUA_CI_MODEL_TRANSFORM_OK",
+    "MLUA_CI_TASK_LIMITS_OK",
+    "MLUA_CI_NESTED_TASK_SCHEDULE_OK",
+    "MLUA_CI_PARTICLE_EMITTER_API_OK",
     "MLUA_CI_PLAYER_HEARTBEAT_FIRED",
     "MLUA_CI_PLAYER_CHAT_LINE_HOOK_REGISTERED",
     "MLUA_CI_CHAT_LINE_BRIDGE_ENTERED",
@@ -139,6 +157,12 @@ required_runtime_block = re.search(
 if required_runtime_block is None:
     fail("player runner does not define required runtime checks for its isolated client")
 required_runtime_markers = set(re.findall(r"'([^']+)'", required_runtime_block.group(1)))
+required_server_runtime_block = re.search(
+    r"(?s)\$requiredServerRuntimeMarkers\s*=\s*@\((.*?)\n\)", runner_text
+)
+if required_server_runtime_block is None:
+    fail("player runner does not define required runtime checks for its isolated server")
+required_server_runtime_markers = set(re.findall(r"'([^']+)'", required_server_runtime_block.group(1)))
 missing_runtime_markers = [marker for marker in client_runtime_markers if marker not in required_runtime_markers]
 if missing_runtime_markers:
     fail("isolated player client does not require these service/UI markers: "
@@ -147,16 +171,43 @@ unemitted_runtime_markers = [marker for marker in client_runtime_markers if mark
 if unemitted_runtime_markers:
     fail("isolated player client waits for markers not emitted by its generated script: "
          + ", ".join(unemitted_runtime_markers))
+server_runtime_markers = (
+    "MLUA_RUNTIME_BOOTSTRAP_OK",
+    "MLUA_SCRIPT_MIXIN_HOOK_OK",
+    "MLUA_EMPTY_STACK_ISOLATION_OK",
+    "MLUA_CI_SERVER_SERVICE_SCRIPT_OK",
+    "MLUA_CI_ITEM_PROPERTIES_APPLIED_OK",
+    "MLUA_CI_TIERED_TOOL_CREATED_OK",
+    "MLUA_CI_NATIVE_BOW_CREATED_OK",
+    "MLUA_CI_SCRIPTED_BOW_CREATED_OK",
+    "MLUA_CI_ITEM_COPY_CREATED_OK",
+    "MLUA_CI_ITEM_PICKUP_EVENT_OK",
+    "MLUA_CI_SCOREBOARD_CLASSES_OK",
+    "MLUA_CI_GENERATED_ASSET_HANDLES_OK",
+    "MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK",
+    "MLUA_CI_REGISTRY_PROPERTIES_OK",
+    "MLUA_CI_COOKING_RESULT_COUNT_OK",
+    "MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK",
+    "MLUA_CI_ORE_VEIN_REGISTRATION_OK",
+)
+missing_server_markers = [marker for marker in server_runtime_markers if marker not in required_server_runtime_markers]
+if missing_server_markers:
+    fail("isolated player server does not require these service/registry markers: "
+         + ", ".join(missing_server_markers))
+unemitted_server_markers = [marker for marker in server_runtime_markers if marker not in runtime_marker_source]
+if unemitted_server_markers:
+    fail("isolated player server waits for markers not emitted by its generated scripts: "
+         + ", ".join(unemitted_server_markers))
 if "$missingClientRuntimeMarkers.Count -eq 0" not in runner_text:
     fail("isolated client service/UI runtime markers do not gate player simulation success")
-if not re.search(r"(?s)if playerSeen and clientContainerClosed and inputPressState == 0 then.*?MLUA_CI_PLAYER_INPUT_PRESS_BEGIN", prepare_text):
-    fail("input simulation must start after local-player readiness and vanilla screen closure")
+if not re.search(r"(?s)local containerInteractionFinished = clientContainerClosed\s+or \(containerUseAttempts >= 3 and containerUseState == 0\).*?if playerSeen and containerInteractionFinished and inputPressState == 0 then.*?MLUA_CI_PLAYER_INPUT_PRESS_BEGIN", prepare_text):
+    fail("input simulation must start after local-player readiness and completion of container interaction attempts")
 if 'print("MLUA_CI_PLAYER_MOVEMENT_DELTA:"' not in prepare_text:
     fail("player movement failures must log the observed X/Z displacement")
 if 'Gui:CloseCurrentScreen()' not in prepare_text \
-        or "clientContainerClosed and inputPressState == 0" not in prepare_text \
+        or "containerInteractionFinished and inputPressState == 0" not in prepare_text \
         or 'MLUA_CI_PLAYER_CONTAINER_CLOSED' not in runner_text:
-    fail("player movement simulation must wait for the opened vanilla container screen to close")
+    fail("player movement simulation must wait for the opened vanilla container screen to close or interaction retries to finish")
 if 'table.set("CloseCurrentScreen"' not in gui_api_text \
         or "closeCurrentScreen()" not in gui_screen_manager_text \
         or 'Registration.method("Gui", "Gui:CloseCurrentScreen()"' not in gui_module_text:
@@ -234,14 +285,16 @@ for service_name, method_list in declared_contracts:
 if 'colonLimits.Maximum == dotLimits.Maximum' not in prepare_text \
         or prepare_text.find('print("MLUA_CI_SERVICE_PARITY_OK")') < prepare_text.find('colonLimits.Maximum == dotLimits.Maximum'):
     fail("client service parity marker is not gated on matching colon/dot service results")
-if 'MLUA_CI_COOKING_RESULT_COUNT_OK' not in workflow_text:
+if 'MLUA_CI_COOKING_RESULT_COUNT_OK' not in required_server_runtime_markers:
     fail("dedicated-server smoke does not require the cooking recipe result-count check")
 if 'MLUA_CI_ORE_VEIN_REGISTRATION_OK' not in prepare_text \
-        or workflow_text.count('MLUA_CI_ORE_VEIN_REGISTRATION_OK') != 2:
+        or 'MLUA_CI_ORE_VEIN_REGISTRATION_OK' not in required_runtime_markers \
+        or 'MLUA_CI_ORE_VEIN_REGISTRATION_OK' not in required_server_runtime_markers:
     fail("packaged smoke does not require ore-vein registration on both client and server targets")
 if '__MLUA_TARGET__' not in prepare_text or '$env:MLUA_TARGET' not in prepare_text:
     fail("cooking recipe smoke does not select the format expected by the target version")
-if 'print("MLUA_CI_MODEL_TRANSFORM_OK")' not in prepare_text or 'MLUA_CI_MODEL_TRANSFORM_OK' not in workflow_text:
+if 'print("MLUA_CI_MODEL_TRANSFORM_OK")' not in prepare_text \
+        or 'MLUA_CI_MODEL_TRANSFORM_OK' not in required_runtime_markers:
     fail("packaged client smoke does not require the model-transform CFrame contract")
 if 'MLUA_CI_PLAYER_MODEL_TRANSFORM_DRAW_OK' not in runner_text:
     fail("player simulation does not wait for a transformed Mesh draw submission")
@@ -329,8 +382,8 @@ if "run/player-*/run/crash-reports/*.txt" not in workflow_text:
     fail("player smoke artifacts do not include crash reports from the isolated game directories")
 if "Upload simulated player logs" not in workflow_text:
     fail("workflow does not preserve player simulation logs for debugging")
-if workflow_text.index("Boot dedicated server with the packaged MLua JAR") > workflow_text.index("Simulate player gameplay against the dedicated server"):
-    fail("player simulation is scheduled before the dedicated server boot check")
+if "Boot packaged client and server, then simulate player gameplay" not in workflow_text:
+    fail("player simulation must be the packaged client/server boot check")
 for operation in (
     "WorldService.Get(dimension)",
     "player:SendChatMessage(",
@@ -392,7 +445,7 @@ for contract in ("127.0.0.1:25565", "ServerAddress", "ServerData", "ConnectScree
         fail(f"shared player smoke connector is missing {contract}")
 if "net.minecraft.client.multiplayer.resolver.ServerAddress" not in connector_source:
     fail("player smoke connector must resolve ServerAddress from Minecraft's resolver package")
-if "run-player-smoke.ps1" not in workflow_text or "Simulate player gameplay" not in workflow_text:
+if "run-player-smoke.ps1" not in workflow_text or "Boot packaged client and server, then simulate player gameplay" not in workflow_text:
     fail("compile-java workflow does not run the player simulation")
 parse_step = workflow_text.find("Parse Windows smoke scripts before downloading Minecraft")
 run_client_job = workflow_text.find("  run-client:")

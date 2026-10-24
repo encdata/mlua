@@ -64,6 +64,10 @@ if workflow.count(matrix_expression) != 2:
     fail("both the Linux build and Windows player jobs must use the selected shared matrix")
 if "needs: select-targets" not in workflow or "needs: [select-targets, build]" not in workflow:
     fail("build and player jobs must depend on target selection")
+if "Boot packaged client and server, then simulate player gameplay" not in workflow \
+        or "Boot Minecraft client with the packaged MLua JAR" in workflow \
+        or "Boot dedicated server with the packaged MLua JAR" in workflow:
+    fail("the Windows smoke must boot both packaged sides inside the player simulation without duplicate launches")
 
 def run_selector(selection: str) -> tuple[int, dict | None]:
     environment = dict(os.environ)

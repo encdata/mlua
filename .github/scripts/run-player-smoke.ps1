@@ -114,21 +114,51 @@ $playerFailurePatterns = @(
     'RenderObject FollowOffset callback failed'
 )
 $requiredClientRuntimeMarkers = @(
+    'MLUA_RUNTIME_BOOTSTRAP_OK',
     'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK',
-    'MLUA_CI_PLAYER_HEARTBEAT_FIRED',
-    'MLUA_CI_PLAYER_CHAT_LINE_HOOK_REGISTERED',
-    'MLUA_CI_CHAT_LINE_BRIDGE_ENTERED',
-    'MLUA_CI_PLAYER_CHAT_LINE_HOOK_FIRED',
+    'MLUA_CI_GENERATED_ASSET_HANDLES_OK',
+    'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK',
+    'MLUA_CI_REGISTRY_PROPERTIES_OK',
+    'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK',
+    'MLUA_CI_ORE_VEIN_REGISTRATION_OK',
     'MLUA_CI_INPUT_KEYBINDS_OK',
+    'MLUA_CI_TOAST_API_OK',
     'MLUA_CI_BBMODEL_HIERARCHY_OK',
+    'MLUA_CI_MODEL_TRANSFORM_OK',
+    'MLUA_CI_TASK_LIMITS_OK',
+    'MLUA_CI_NESTED_TASK_SCHEDULE_OK',
     'MLUA_CI_ANIMATION_API_OK',
+    'MLUA_CI_PARTICLE_EMITTER_API_OK',
     'MLUA_CI_NATIVE_SCREEN_STATE_OK',
     'MLUA_CI_NATIVE_SCREEN_TICK_OK',
     'MLUA_CI_NATIVE_SCREEN_CONTROLS_OK',
     'MLUA_CI_NATIVE_SCREEN_BUTTON_CALLBACK_OK',
     'MLUA_CI_NATIVE_SCREEN_EDITBOX_CHANGE_OK',
     'MLUA_CI_CLOSED_SCREEN_CONTROLS_OK',
-    'MLUA_CI_SERVICE_PARITY_OK'
+    'MLUA_CI_SERVICE_PARITY_OK',
+    'MLUA_CI_PLAYER_HEARTBEAT_FIRED',
+    'MLUA_CI_PLAYER_CHAT_LINE_HOOK_REGISTERED',
+    'MLUA_CI_CHAT_LINE_BRIDGE_ENTERED',
+    'MLUA_CI_PLAYER_CHAT_LINE_HOOK_FIRED'
+)
+$requiredServerRuntimeMarkers = @(
+    'MLUA_RUNTIME_BOOTSTRAP_OK',
+    'MLUA_SCRIPT_MIXIN_HOOK_OK',
+    'MLUA_EMPTY_STACK_ISOLATION_OK',
+    'MLUA_CI_SERVER_SERVICE_SCRIPT_OK',
+    'MLUA_CI_ITEM_PROPERTIES_APPLIED_OK',
+    'MLUA_CI_TIERED_TOOL_CREATED_OK',
+    'MLUA_CI_NATIVE_BOW_CREATED_OK',
+    'MLUA_CI_SCRIPTED_BOW_CREATED_OK',
+    'MLUA_CI_ITEM_COPY_CREATED_OK',
+    'MLUA_CI_ITEM_PICKUP_EVENT_OK',
+    'MLUA_CI_SCOREBOARD_CLASSES_OK',
+    'MLUA_CI_GENERATED_ASSET_HANDLES_OK',
+    'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK',
+    'MLUA_CI_REGISTRY_PROPERTIES_OK',
+    'MLUA_CI_COOKING_RESULT_COUNT_OK',
+    'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK',
+    'MLUA_CI_ORE_VEIN_REGISTRATION_OK'
 )
 function Get-CombinedLog([string[]]$Paths) {
     foreach ($path in $Paths) {
@@ -290,6 +320,11 @@ try {
         $missingClientRuntimeMarkers = @($requiredClientRuntimeMarkers | Where-Object {
             -not $clientLog.Contains($_)
         })
+        $missingServerRuntimeMarkers = @($requiredServerRuntimeMarkers | Where-Object {
+            -not $serverLog.Contains($_)
+        })
+        $clientBootPassed = $clientLog.Contains('MLUA_PACKAGED_CLIENT_BOOT_OK')
+        $serverBootPassed = $serverLog.Contains('MLUA_PACKAGED_SERVER_BOOT_OK')
         $clientJoin = [regex]::Match($clientLog, 'MLUA_CI_PLAYER_CLIENT_JOINED:([A-Za-z0-9_]+)')
         $serverJoin = [regex]::Match($serverLog, 'MLUA_CI_PLAYER_SERVER_JOINED:([A-Za-z0-9_]+)')
         $clientJoined = $clientJoin.Success
@@ -329,7 +364,8 @@ try {
         $playerMovementPassed = $clientLog.Contains('MLUA_CI_PLAYER_MOVEMENT_OK')
         $mousePressReleasePassed = $clientLog.Contains('MLUA_CI_PLAYER_MOUSE_PRESS_RELEASE_OK')
         $checksComplete = (
-            $missingClientRuntimeMarkers.Count -eq 0 -and
+            $missingClientRuntimeMarkers.Count -eq 0 -and $missingServerRuntimeMarkers.Count -eq 0 -and
+            $clientBootPassed -and $serverBootPassed -and
             $clientJoined -and $serverJoined -and $samePlayer -and
             $serverWorldDotCallPassed -and
             $clientChatSent -and $serverChatReceived -and $serverGreetingReceived -and
@@ -356,8 +392,12 @@ try {
         }
         if ([DateTime]::UtcNow -ge $deadline) {
             $missingRuntime = if ($missingClientRuntimeMarkers.Count -eq 0) { 'none' } else { $missingClientRuntimeMarkers -join ', ' }
+            $missingServerRuntime = if ($missingServerRuntimeMarkers.Count -eq 0) { 'none' } else { $missingServerRuntimeMarkers -join ', ' }
             $simulationDiagnostics = @(
                 "missingClientRuntimeMarkers=$missingRuntime",
+                "missingServerRuntimeMarkers=$missingServerRuntime",
+                "clientBootPassed=$clientBootPassed",
+                "serverBootPassed=$serverBootPassed",
                 "clientJoined=$clientJoined",
                 "serverJoined=$serverJoined",
                 "samePlayer=$samePlayer",
@@ -400,7 +440,7 @@ try {
         }
         Start-Sleep -Seconds 2
     }
-    Write-Host "Player simulation passed for '$($clientJoin.Groups[1].Value)': the isolated client completed its Java service and native-screen callbacks, join/chat round-tripped, Entity:Attack reached the server and produced an EntityHurt event for the intended sheep, the player picked up a server-dropped stack with the expected count, the scripted block entity accessed its live container and NBT during onLoad, a simulated right-click opened the scripted container on both server and client, a scripted entity ran spawn/tick/AI-transition callbacks, simulated inputs moved the player and released cleanly, world geometry and held-item render passes fired, and Lua adapters applied animation poses to the player and a sheep model."
+    Write-Host "Packaged client and dedicated server booted; player simulation passed for '$($clientJoin.Groups[1].Value)' with the complete client/server service marker sets, join/chat round-trip, Entity:Attack, item pickup, scripted containers and entities, simulated input, world and held-item rendering, and player/sheep animation adapters."
 }
 finally {
     foreach ($process in @($clientProcess, $serverProcess)) {

@@ -9,33 +9,22 @@ import dev.mlua.runtime.client.MLuaInputHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.LayeredDraw;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.event.IModBusEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 
 public class ForgeClientBridge implements ClientBridge {
-    private static final String ADD_GUI_OVERLAY_LAYERS_EVENT = "net.minecraftforge.client.event.AddGuiOverlayLayersEvent";
-    private static final String REGISTER_GUI_OVERLAYS_EVENT = "net.minecraftforge.client.event.RegisterGuiOverlaysEvent";
-    private static final ResourceLocation MLUA_GUI = ResourceLocation.fromNamespaceAndPath("mlua", "gui");
-    private static final ResourceLocation MLUA_OVERLAYS = ResourceLocation.fromNamespaceAndPath("mlua", "overlays");
-
     private final ClientOverlayRegistry overlays = new ClientOverlayRegistry();
     private final List<KeyMapping> pendingKeyMappings = new ArrayList<>();
     private final List<ModelLayerRegistration> pendingModelLayers = new ArrayList<>();
@@ -62,7 +51,12 @@ public class ForgeClientBridge implements ClientBridge {
                 modelLayersRegistered = true;
             }
         });
-        registerOverlayHooks(modBus);
+        modBus.addListener((RegisterGuiOverlaysEvent event) -> {
+            event.registerAboveAll("mlua_gui", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+                MLuaGuiRenderer.renderAll(graphics, screenWidth, screenHeight));
+            event.registerAboveAll("mlua_overlays", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+                overlays.render(graphics));
+        });
     }
 
     @Override
@@ -149,94 +143,6 @@ public class ForgeClientBridge implements ClientBridge {
             }
         });
         inputHandlersRegistered = true;
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private void registerOverlayHooks(IEventBus modBus) {
-        if (tryRegisterOverlayListener(modBus, ADD_GUI_OVERLAY_LAYERS_EVENT, this::handleAddGuiOverlayLayers)) {
-            return;
-        }
-        if (tryRegisterOverlayListener(modBus, REGISTER_GUI_OVERLAYS_EVENT, this::handleRegisterGuiOverlays)) {
-            return;
-        }
-        MLuaLogger.LOGGER.warn("[MLua] No supported Forge overlay registration event found; client overlays are disabled");
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private boolean tryRegisterOverlayListener(IEventBus modBus, String eventClassName, Consumer<Object> listener) {
-        try {
-            Class<?> eventClass = Class.forName(eventClassName, false, IModBusEvent.class.getClassLoader());
-            IEventBus eventBus = isModBusEvent(eventClass) ? modBus : MinecraftForge.EVENT_BUS;
-            eventBus.addListener(EventPriority.NORMAL, false, (Class) eventClass, (Consumer) listener);
-            return true;
-        } catch (ClassNotFoundException ignored) {
-            return false;
-        } catch (Throwable throwable) {
-            MLuaLogger.LOGGER.warn("[MLua] Failed to register Forge overlay listener for {}", eventClassName, throwable);
-            return false;
-        }
-    }
-
-    private static boolean isModBusEvent(Class<?> eventClass) {
-        return IModBusEvent.class.isAssignableFrom(eventClass);
-    }
-
-    private void handleAddGuiOverlayLayers(Object event) {
-        try {
-            Object layeredDraw = event.getClass().getMethod("getLayeredDraw").invoke(event);
-            Method addMethod = layeredDraw.getClass().getMethod("add", ResourceLocation.class, LayeredDraw.Layer.class);
-            addMethod.invoke(layeredDraw, MLUA_GUI, (LayeredDraw.Layer) (graphics, deltaTracker) -> {
-                Minecraft minecraft = Minecraft.getInstance();
-                MLuaGuiRenderer.renderAll(
-                    graphics,
-                    minecraft.getWindow().getGuiScaledWidth(),
-                    minecraft.getWindow().getGuiScaledHeight()
-                );
-            });
-            addMethod.invoke(layeredDraw, MLUA_OVERLAYS, (LayeredDraw.Layer) (graphics, deltaTracker) -> {
-                overlays.render(graphics);
-            });
-        } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("[MLua] Failed to register AddGuiOverlayLayersEvent overlays", exception);
-        }
-    }
-
-    private void handleRegisterGuiOverlays(Object event) {
-        try {
-            Method registerAboveAll = findRegisterAboveAllMethod(event.getClass());
-            registerAboveAll.invoke(event, "mlua_gui", createLegacyOverlay(registerAboveAll.getParameterTypes()[1], true));
-            registerAboveAll.invoke(event, "mlua_overlays", createLegacyOverlay(registerAboveAll.getParameterTypes()[1], false));
-        } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("[MLua] Failed to register RegisterGuiOverlaysEvent overlays", exception);
-        }
-    }
-
-    private Method findRegisterAboveAllMethod(Class<?> eventClass) {
-        for (Method method : eventClass.getMethods()) {
-            if (method.getName().equals("registerAboveAll") && method.getParameterCount() == 2) {
-                return method;
-            }
-        }
-        throw new IllegalStateException("[MLua] registerAboveAll(String, overlay) method not found on " + eventClass.getName());
-    }
-
-    private Object createLegacyOverlay(Class<?> overlayInterface, boolean guiOverlay) {
-        return Proxy.newProxyInstance(
-            overlayInterface.getClassLoader(),
-            new Class<?>[]{overlayInterface},
-            (proxy, method, args) -> {
-                if (!method.getName().equals("render") || args == null || args.length < 5 || !(args[1] instanceof GuiGraphics graphics)) {
-                    return null;
-                }
-
-                if (guiOverlay) {
-                    MLuaGuiRenderer.renderAll(graphics, (Integer) args[3], (Integer) args[4]);
-                } else {
-                    overlays.render(graphics);
-                }
-                return null;
-            }
-        );
     }
 
     private double extractScrollDelta(InputEvent.MouseScrollingEvent event) {

@@ -271,71 +271,7 @@ jobs:
           MLUA_FORGE_LOADER_RANGE: ${{ matrix.forgeLoaderRange }}
           MLUA_NEOFORGE_VERSION: ${{ matrix.neoForgeVersion }}
 
-      - name: Boot Minecraft client with the packaged MLua JAR
-        shell: pwsh
-        working-directory: client-smoke/${{ matrix.loader }}
-        run: |
-          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
-          if ('${{ matrix.loader }}' -eq 'fabric') {
-            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
-          } elseif ('${{ matrix.loader }}' -eq 'forge') {
-            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
-          } else {
-            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
-          }
-          $bootTimeout = if ('${{ matrix.loader }}' -eq 'forge') { 600 } else { 300 }
-          & ../../.github/scripts/run-minecraft-smoke.ps1 `
-            -Task runClient `
-            -GradleArgs $gradleArgs `
-            -BootMarker 'MLUA_PACKAGED_CLIENT_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_CI_CLIENT_SERVICE_SCRIPT_OK', 'MLUA_CI_INPUT_KEYBINDS_OK', 'MLUA_CI_TOAST_API_OK', 'MLUA_CI_BBMODEL_HIERARCHY_OK', 'MLUA_CI_MODEL_TRANSFORM_OK', 'MLUA_CI_TASK_LIMITS_OK', 'MLUA_CI_NESTED_TASK_SCHEDULE_OK', 'MLUA_CI_ANIMATION_API_OK', 'MLUA_CI_PARTICLE_EMITTER_API_OK', 'MLUA_CI_NATIVE_SCREEN_STATE_OK', 'MLUA_CI_NATIVE_SCREEN_TICK_OK', 'MLUA_CI_NATIVE_SCREEN_CONTROLS_OK', 'MLUA_CI_NATIVE_SCREEN_BUTTON_CALLBACK_OK', 'MLUA_CI_NATIVE_SCREEN_EDITBOX_CHANGE_OK', 'MLUA_CI_CLOSED_SCREEN_CONTROLS_OK', 'MLUA_CI_SERVICE_PARITY_OK', 'MLUA_CI_GENERATED_ASSET_HANDLES_OK', 'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK', 'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK', 'MLUA_CI_ORE_VEIN_REGISTRATION_OK') `
-            -LogFile 'client-smoke.log' `
-            -TimeoutSeconds $bootTimeout
-
-      - name: Upload client logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: client-logs-${{ matrix.loader }}-${{ matrix.target }}
-          path: |
-            ${{ github.workspace }}/client-smoke/**/*.log*
-            ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt
-          if-no-files-found: ignore
-          retention-days: 5
-
-      - name: Boot dedicated server with the packaged MLua JAR
-        if: ${{ always() && !cancelled() }}
-        shell: pwsh
-        working-directory: client-smoke/${{ matrix.loader }}
-        run: |
-          $gradleArgs = @('--no-daemon', '--stacktrace', "-PminecraftVersion=${{ matrix.target }}", "-PjavaVersion=${{ matrix.java }}")
-          if ('${{ matrix.loader }}' -eq 'fabric') {
-            $gradleArgs += @("-PfabricLoaderVersion=${{ matrix.loaderVersion }}", "-PfabricApiVersion=${{ matrix.fabricApi }}", "-PloomVersion=${{ matrix.loom }}")
-          } elseif ('${{ matrix.loader }}' -eq 'forge') {
-            $gradleArgs += @("-PforgeVersion=${{ matrix.forgeVersion }}", "-PforgeLoaderRange=${{ matrix.forgeLoaderRange }}")
-          } else {
-            $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
-          }
-          & ../../.github/scripts/run-minecraft-smoke.ps1 `
-            -Task runServer `
-            -GradleArgs $gradleArgs `
-            -BootMarker 'MLUA_PACKAGED_SERVER_BOOT_OK' `
-            -RequiredMarker @('MLUA_RUNTIME_BOOTSTRAP_OK', 'MLUA_SCRIPT_MIXIN_HOOK_OK', 'MLUA_EMPTY_STACK_ISOLATION_OK', 'MLUA_CI_SERVER_SERVICE_SCRIPT_OK', 'MLUA_CI_ITEM_PROPERTIES_APPLIED_OK', 'MLUA_CI_TIERED_TOOL_CREATED_OK', 'MLUA_CI_NATIVE_BOW_CREATED_OK', 'MLUA_CI_SCRIPTED_BOW_CREATED_OK', 'MLUA_CI_ITEM_COPY_CREATED_OK', 'MLUA_CI_ITEM_PICKUP_EVENT_OK', 'MLUA_CI_SCOREBOARD_CLASSES_OK', 'MLUA_CI_GENERATED_ASSET_HANDLES_OK', 'MLUA_CI_SCRIPTED_CONTAINER_REGISTRATION_OK', 'MLUA_CI_REGISTRY_PROPERTIES_OK', 'MLUA_CI_COOKING_RESULT_COUNT_OK', 'MLUA_CI_DYNAMIC_REGISTRY_ENTRY_OK', 'MLUA_CI_ORE_VEIN_REGISTRATION_OK') `
-            -LogFile 'server-smoke.log' `
-            -TimeoutSeconds 600
-
-      - name: Upload server logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-logs-${{ matrix.loader }}-${{ matrix.target }}
-          path: |
-            ${{ github.workspace }}/client-smoke/**/*.log*
-            ${{ github.workspace }}/client-smoke/**/crash-reports/*.txt
-          if-no-files-found: ignore
-          retention-days: 5
-
-      - name: Simulate player gameplay against the dedicated server
+      - name: Boot packaged client and server, then simulate player gameplay
         if: ${{ success() }}
         shell: pwsh
         working-directory: client-smoke/${{ matrix.loader }}
@@ -352,6 +288,7 @@ jobs:
           $playerSummary = @"
           ### Player simulation passed
 
+          - The packaged client and dedicated server booted and passed their full client/server service marker sets.
           - Minecraft client connected to the isolated dedicated server as the same player.
           - Client chat reached the server, and the server greeting reached the client.
           - Client `Entity:Attack()` hit the identified sheep; the server confirmed its hurt event and notified the client.
