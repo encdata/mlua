@@ -9,10 +9,12 @@ SERVICE = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputService.
 DEFINITIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaKeybindDefinitions.java"
 ACTIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputActions.java"
 CONTROLLER = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaKeybindController.java"
+MODULE = ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java"
 service = SERVICE.read_text(encoding="utf-8")
 definitions = DEFINITIONS.read_text(encoding="utf-8")
 actions = ACTIONS.read_text(encoding="utf-8")
 controller = CONTROLLER.read_text(encoding="utf-8")
+module = MODULE.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -37,6 +39,10 @@ if "KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);" not in s
     fail("Minecraft keybind lookup must share the controller resolver")
 if "private final MLuaInputActions actions" not in service:
     fail("input service does not own its client key action component")
+if "onClientTickStart(dev.mlua.minecraft.client.MLuaKeybindController::refreshSimulatedPresses)" not in module:
+    fail("simulated key states must be restored before Minecraft samples player input")
+if "public static synchronized void refreshSimulatedPresses()" not in controller:
+    fail("key controller must reassert addon-held mappings every client tick")
 if "MLuaClientThread.callOnClientThread(action)" not in actions:
     fail("Minecraft key state mutations must run on the actual client thread")
 if "MLuaClientThread.callOnClientThread(action)" not in service:

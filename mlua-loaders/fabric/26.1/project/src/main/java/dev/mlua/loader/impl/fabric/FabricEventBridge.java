@@ -43,6 +43,7 @@ public final class FabricEventBridge implements EventBridge {
     private static final List<BlockPlaceCallback> blockPlaceCallbacks = new CopyOnWriteArrayList<>();
     private ClientWorldLifecycleTracker clientWorldTracker;
     private boolean clientWorldTrackerRegistered;
+    @Override public void onClientTickStart(Runnable callback) { ClientTickEvents.START_CLIENT_TICK.register(client -> callback.run()); }
     @Override public void onClientTickEnd(Runnable callback) { ClientTickEvents.END_CLIENT_TICK.register(client -> callback.run()); }
     @Override public void onServerTickEnd(Consumer<Object> callback) { ServerTickEvents.END_SERVER_TICK.register(server -> callback.accept(server)); }
     @Override public void onServerLevelTickEnd(Consumer<Object> callback) { ServerTickEvents.END_LEVEL_TICK.register(level -> { if (!level.isClientSide()) callback.accept(level); }); }

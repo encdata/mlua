@@ -34,6 +34,11 @@ public class NeoForgeEventBridge implements EventBridge {
     }
 
     @Override
+    public void onClientTickStart(Runnable callback) {
+        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre event) -> callback.run());
+    }
+
+    @Override
     public void onClientTickEnd(Runnable callback) {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> callback.run());
     }

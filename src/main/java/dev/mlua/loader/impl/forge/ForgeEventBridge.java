@@ -32,6 +32,13 @@ public class ForgeEventBridge implements EventBridge {
     }
 
     @Override
+    public void onClientTickStart(Runnable callback) {
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.START) callback.run();
+        });
+    }
+
+    @Override
     public void onClientTickEnd(Runnable callback) {
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) {

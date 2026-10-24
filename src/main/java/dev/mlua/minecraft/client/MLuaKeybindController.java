@@ -396,6 +396,16 @@ public final class MLuaKeybindController {
       throw new IllegalStateException("[MLua] Minecraft returned an invalid key mapping state.");
    }
 
+   /** Reasserts addon-held logical presses after Minecraft refreshes physical key state, before player input is sampled. */
+   public static synchronized void refreshSimulatedPresses() {
+      if (!dev.mlua.runtime.client.MLuaClientThread.isClientThread()) {
+         throw new IllegalStateException("[MLua] Simulated key states must be refreshed on Minecraft's client thread.");
+      }
+      for (Map.Entry<KeyMapping, Set<PressOwner>> entry : SIMULATED_PRESSES.entrySet()) {
+         if (!entry.getValue().isEmpty()) setDown(entry.getKey(), true);
+      }
+   }
+
    /** Sets the logical pressed state of one Minecraft key mapping. Call on the client thread. */
    public static void setDown(KeyMapping keyMapping, boolean down) {
       requireClientThread("SetKeyDown");

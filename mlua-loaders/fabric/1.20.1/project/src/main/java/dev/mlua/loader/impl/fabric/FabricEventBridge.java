@@ -46,6 +46,11 @@ public final class FabricEventBridge implements EventBridge {
     private boolean clientWorldTrackerRegistered;
 
     @Override
+    public void onClientTickStart(Runnable callback) {
+        ClientTickEvents.START_CLIENT_TICK.register(client -> callback.run());
+    }
+
+    @Override
     public void onClientTickEnd(Runnable callback) {
         ClientTickEvents.END_CLIENT_TICK.register(client -> callback.run());
     }

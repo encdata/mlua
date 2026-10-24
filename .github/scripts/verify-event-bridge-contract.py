@@ -69,6 +69,16 @@ for (version, loader), path in BRIDGES.items():
     missing_hooks = sorted(required_hooks - implemented_hooks)
     if missing_hooks:
         fail(f"{target} is missing required EventBridge hooks: {', '.join(missing_hooks)}")
+    start_tick_hook = re.search(r"\bonClientTickStart\s*\([^)]*\)\s*\{([^}]*)\}", source, re.S)
+    if start_tick_hook is None:
+        fail(f"{target} has no implementation for the client input refresh hook")
+    expected_start = {
+        "fabric": "ClientTickEvents.START_CLIENT_TICK",
+        "forge": "TickEvent.Phase.START",
+        "neoforge": "ClientTickEvent.Pre",
+    }[loader]
+    if expected_start not in start_tick_hook.group(1):
+        fail(f"{target} must refresh simulated input before the client tick begins")
 
     for method in ("onItemPickup", "onEntityHurt", "onPlayerRespawn", "onWorldLoad", "onWorldUnload",
                    "onClientWorldLoad", "onClientWorldUnload", "onClientEntityUnload"):
