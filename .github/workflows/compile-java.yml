@@ -89,6 +89,9 @@ jobs:
       - name: Validate class registry ownership
         run: python .github/scripts/verify-class-registry-contract.py
 
+      - name: Validate class thread dispatch
+        run: python .github/scripts/verify-class-thread-dispatch-contract.py
+
       - name: Validate scoreboard team ownership
         run: python .github/scripts/verify-scoreboard-service-contract.py
 

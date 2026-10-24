@@ -70,7 +70,7 @@ def prepareNeoForgeAdapterSources = registerMergedTree(project, 'prepareNeoForge
 def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 def neoForgeServiceMixinNames = [
     'CameraInvoker', 'CameraMixin', 'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin',
-    'HumanoidModelMixin', 'MouseHandlerMixin', 'PlayerModelMixin'
+    'HumanoidModelMixin', 'KeyboardInputMixin', 'MouseHandlerMixin', 'PlayerModelMixin'
 ]
 if (is26Family) neoForgeServiceMixinNames += 'ExperienceBarRendererMixin'
 def prepareNeoForgeServiceMixinSources = tasks.register('prepareNeoForgeServiceMixinSources', Sync) {

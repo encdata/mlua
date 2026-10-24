@@ -22,6 +22,20 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def versioned_source(source: str, target: str) -> str:
+    output = []
+    active = True
+    for line in source.splitlines():
+        marker = line.strip()
+        if marker.startswith("//--version "):
+            active = target in {value.strip() for value in marker[len("//--version "):].split(",")}
+        elif marker == "//--endversion":
+            active = True
+        elif active:
+            output.append(line)
+    return "\n".join(output)
+
+
 module_sources = ROOT / "src/main/java/dev/mlua/modules"
 
 
@@ -56,6 +70,8 @@ render_object_operations_text = (ROOT / "src/main/java/dev/mlua/modules/render/s
 render_manager_text = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
 process_helper_text = (ROOT / ".github/scripts/smoke-process.ps1").read_text(encoding="utf-8")
 client_player_wrapper_text = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java").read_text(encoding="utf-8")
+input_module_text = (ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java").read_text(encoding="utf-8")
+keyboard_input_mixin = (ROOT / "src/main/java/dev/mlua/modules/mixin/service/KeyboardInputMixin.java").read_text(encoding="utf-8")
 
 starts = len(re.findall(r"(?m)^(?:.*=\s*)?@'\s*$", prepare_text))
 ends = len(re.findall(r"(?m)^'@(?:\s*\|.*)?$", prepare_text))
@@ -116,6 +132,36 @@ if not re.search(r"(?s)if playerSeen and inputPressState == 0 then.*?MLUA_CI_PLA
     fail("input simulation must start after local-player readiness, independently of item pickup")
 if re.search(r"(?s)if playerPickupReceived and inputPressState == 0 then", prepare_text):
     fail("input simulation is still blocked on the independent item-pickup event")
+if '@Inject(method = "tick", at = @At("HEAD"))' not in keyboard_input_mixin \
+        or "MLuaKeybindController.refreshSimulatedPresses();" not in keyboard_input_mixin:
+    fail("simulated mappings must be refreshed immediately before Minecraft samples keyboard movement input")
+if "//--version 1.20.1,1.21.1" not in keyboard_input_mixin \
+        or "boolean slowDown, float slowDownFactor" not in keyboard_input_mixin \
+        or "//--version 26.1" not in keyboard_input_mixin:
+    fail("keyboard input injection signatures must follow the mapped tick signature for each supported version family")
+for version, signature in (
+    ("1.20.1", "boolean slowDown, float slowDownFactor"),
+    ("1.21.1", "boolean slowDown, float slowDownFactor"),
+    ("26.1", "CallbackInfo callback"),
+):
+    selected = versioned_source(keyboard_input_mixin, version)
+    if signature not in selected or selected.count("MLuaKeybindController.refreshSimulatedPresses();") != 1:
+        fail(f"{version} keyboard input hook does not match its selected signature")
+if "onClientTickStart(dev.mlua.minecraft.client.MLuaKeybindController::refreshSimulatedPresses)" in input_module_text:
+    fail("simulated key refresh must not rely on a loader tick event that runs before key-state polling")
+for relative in (
+    "src/main/resources/mlua.mixins.json",
+    "src/main/resources/mlua.forge.mixins.json",
+    "mlua-loaders/fabric/1.20.1/project/src/main/resources/mlua.fabric.mixins.json",
+    "mlua-loaders/fabric/1.21.1/project/src/main/resources/mlua.fabric.mixins.json",
+    "mlua-loaders/fabric/26.1/project/src/main/resources/mlua.fabric.mixins.json",
+):
+    if '"KeyboardInputMixin"' not in (ROOT / relative).read_text(encoding="utf-8"):
+        fail(f"{relative} does not install the simulated movement input hook")
+if "'HumanoidModelMixin', 'KeyboardInputMixin', 'MouseHandlerMixin'" not in (
+    ROOT / "gradle/mlua-neoforge-project.gradle"
+).read_text(encoding="utf-8"):
+    fail("NeoForge service mixin generation does not install the simulated movement input hook")
 
 if 'print("MLUA_CI_COOKING_RESULT_COUNT_OK")' not in prepare_text:
     fail("generated registry smoke does not exercise cooking recipe result counts")

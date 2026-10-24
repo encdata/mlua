@@ -39,7 +39,6 @@ public class InputModule implements MLuaModule {
 
     @Override
     public void registerEvents(dev.mlua.loaderapi.EventBridge events) {
-        events.onClientTickStart(dev.mlua.minecraft.client.MLuaKeybindController::refreshSimulatedPresses);
         events.onClientDisconnect(dev.mlua.minecraft.client.MLuaKeybindController::releaseAllPressedMappings);
     }
     @Override

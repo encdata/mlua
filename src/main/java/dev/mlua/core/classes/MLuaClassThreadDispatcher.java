@@ -1,7 +1,6 @@
 package dev.mlua.core.classes;
 
-import dev.mlua.runtime.server.MLuaServerThread;
-import net.minecraft.server.level.ServerLevel;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -22,7 +21,7 @@ final class MLuaClassThreadDispatcher {
     }
 
     static LuaValue bind(LuaTable receiver, LuaValue implementation) {
-        if (serverLevel(receiver) == null) return implementation;
+        if (level(receiver) == null) return implementation;
         if (implementation instanceof OwnerThreadFunction) return implementation;
         LuaValue metaValue = receiver.getmetatable();
         if (!metaValue.istable()) return bind(implementation);
@@ -52,32 +51,29 @@ final class MLuaClassThreadDispatcher {
         }
 
         @Override public Varargs invoke(Varargs args) {
-            ServerLevel level = serverLevel(args.arg1());
+            Level level = level(args.arg1());
             if (level == null) return implementation.invoke(args);
-            return MLuaServerThread.call(level.getServer(), () -> implementation.invoke(args));
+            return MLuaGameThreadAccess.callUnchecked(level, () -> implementation.invoke(args));
         }
     }
 
-    private static ServerLevel serverLevel(LuaValue receiver) {
+    /** Resolves native state for both client and server instances. */
+    private static Level level(LuaValue receiver) {
         if (!receiver.istable()) return null;
         LuaValue entityValue = receiver.rawget("__entity");
         if (entityValue.isuserdata(Entity.class)) {
             Level level = ((Entity) entityValue.touserdata(Entity.class)).level();
-            if (level instanceof ServerLevel serverLevel) return serverLevel;
+            if (level != null) return level;
         }
 
         LuaValue blockEntityValue = receiver.rawget("__block_entity");
         if (blockEntityValue.isuserdata(BlockEntity.class)) {
             Level level = ((BlockEntity) blockEntityValue.touserdata(BlockEntity.class)).getLevel();
-            if (level instanceof ServerLevel serverLevel) return serverLevel;
+            if (level != null) return level;
         }
 
         LuaValue levelValue = receiver.rawget("__level");
         if (!levelValue.isuserdata(Level.class)) levelValue = receiver.rawget("__world");
-        if (levelValue.isuserdata(Level.class)
-            && levelValue.touserdata(Level.class) instanceof ServerLevel serverLevel) {
-            return serverLevel;
-        }
-        return null;
+        return levelValue.isuserdata(Level.class) ? (Level) levelValue.touserdata(Level.class) : null;
     }
 }

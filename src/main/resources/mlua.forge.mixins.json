@@ -13,6 +13,7 @@
     "HumanoidModelMixin",
     "LivingEntityRendererMixin",
     "ThirdPersonItemRendererMixin",
+    "KeyboardInputMixin",
     "PlayerModelMixin",
     "ScreenLayoutMixin",
     "ChatLineMixin",

@@ -10,11 +10,13 @@ DEFINITIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaKeybindDe
 ACTIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputActions.java"
 CONTROLLER = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaKeybindController.java"
 MODULE = ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java"
+KEYBOARD_MIXIN = ROOT / "src/main/java/dev/mlua/modules/mixin/service/KeyboardInputMixin.java"
 service = SERVICE.read_text(encoding="utf-8")
 definitions = DEFINITIONS.read_text(encoding="utf-8")
 actions = ACTIONS.read_text(encoding="utf-8")
 controller = CONTROLLER.read_text(encoding="utf-8")
 module = MODULE.read_text(encoding="utf-8")
+keyboard_mixin = KEYBOARD_MIXIN.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -39,8 +41,14 @@ if "KeyMapping mapping = MLuaKeybindController.minecraftKeybind(name);" not in s
     fail("Minecraft keybind lookup must share the controller resolver")
 if "private final MLuaInputActions actions" not in service:
     fail("input service does not own its client key action component")
-if "onClientTickStart(dev.mlua.minecraft.client.MLuaKeybindController::refreshSimulatedPresses)" not in module:
-    fail("simulated key states must be restored before Minecraft samples player input")
+if '@Inject(method = "tick", at = @At("HEAD"))' not in keyboard_mixin \
+        or "MLuaKeybindController.refreshSimulatedPresses();" not in keyboard_mixin:
+    fail("simulated key states must be restored immediately before Minecraft samples keyboard input")
+if "boolean slowDown, float slowDownFactor" not in keyboard_mixin \
+        or "//--version 26.1" not in keyboard_mixin:
+    fail("keyboard input hook parameters must match each supported version family")
+if "onClientTickStart(dev.mlua.minecraft.client.MLuaKeybindController::refreshSimulatedPresses)" in module:
+    fail("simulated key refresh must be owned by the keyboard input boundary, not a tick callback")
 if "public static synchronized void refreshSimulatedPresses()" not in controller:
     fail("key controller must reassert addon-held mappings every client tick")
 if "MLuaClientThread.callOnClientThread(action)" not in actions:

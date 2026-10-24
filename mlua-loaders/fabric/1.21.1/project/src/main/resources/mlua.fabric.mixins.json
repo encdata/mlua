@@ -24,6 +24,7 @@
     "ModelPartMixin",
     "FirstPersonItemRendererMixin",
     "ThirdPersonItemRendererMixin",
+    "KeyboardInputMixin",
     "MouseHandlerMixin",
     "HumanoidModelMixin",
     "LivingEntityRendererMixin",
