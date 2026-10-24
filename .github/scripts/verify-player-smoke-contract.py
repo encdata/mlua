@@ -64,6 +64,9 @@ prepare_text = prepare.read_text(encoding="utf-8")
 runner_text = runner.read_text(encoding="utf-8")
 workflow_text = workflow.read_text(encoding="utf-8")
 gui_service_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiService.java").read_text(encoding="utf-8")
+gui_api_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiApi.java").read_text(encoding="utf-8")
+gui_screen_manager_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaNativeScreenManager.java").read_text(encoding="utf-8")
+gui_module_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/GuiModule.java").read_text(encoding="utf-8")
 runtime_marker_source = prepare_text + "\n" + gui_service_text
 render_service_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java").read_text(encoding="utf-8")
 render_object_operations_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java").read_text(encoding="utf-8")
@@ -137,6 +140,10 @@ if 'Gui:CloseCurrentScreen()' not in prepare_text \
         or "clientContainerClosed and inputPressState == 0" not in prepare_text \
         or 'MLUA_CI_PLAYER_CONTAINER_CLOSED' not in runner_text:
     fail("player movement simulation must wait for the opened vanilla container screen to close")
+if 'table.set("CloseCurrentScreen"' not in gui_api_text \
+        or "closeCurrentScreen()" not in gui_screen_manager_text \
+        or 'Registration.method("Gui", "Gui:CloseCurrentScreen()"' not in gui_module_text:
+    fail("Gui screen closure must be implemented and documented on the public service")
 if re.search(r"(?s)if playerPickupReceived and inputPressState == 0 then", prepare_text):
     fail("input simulation is still blocked on the independent item-pickup event")
 if '@Inject(method = "tick", at = @At("HEAD"))' not in keyboard_input_mixin \
