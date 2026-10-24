@@ -191,8 +191,9 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
                     def text = zip.getInputStream(metadata).getText('UTF-8')
                     def modsHeader = text.indexOf('[[mods]]')
                     def firstMixinHeader = text.indexOf('[[mixins]]')
-                    if (modsHeader < 0 || firstMixinHeader < 0 || firstMixinHeader < modsHeader) {
-                        throw new GradleException("${artifact.name} must declare NeoForge mixin tables after [[mods]]")
+                    if (modsHeader < 0 || firstMixinHeader < 0 || firstMixinHeader > modsHeader
+                        || text.contains('mixinConfig=')) {
+                        throw new GradleException("NeoForge artifacts must declare mixin tables before [[mods]]")
                     }
                     def matcher = text =~ /(?m)^config\s*=\s*"([^"]+)"\s*$/
                     while (matcher.find()) registered.add(matcher.group(1))

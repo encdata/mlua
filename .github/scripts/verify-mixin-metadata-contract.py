@@ -41,7 +41,7 @@ for metadata_path in (ROOT / "src/main/resources/META-INF/mods.toml",
 neo_build = (ROOT / "gradle/mlua-neoforge-project.gradle").read_text(encoding="utf-8")
 for required in ("prepareNeoForgeMixinMetadata", "[[mixins]]", "mlua.service.mixins.json",
                  "neoForgeServiceMixinNames", "'ChatLineMixin'", "from(prepareNeoForgeMixinMetadata)",
-                 "metadata.indexOf('[[mods]]')", "metadata.indexOf('[[', modsHeader"):
+                 "metadata.indexOf('[[mods]]')", "metadata.substring(0, modsHeader) + mixinMetadata"):
     if required not in neo_build:
         fail(f"NeoForge mixin metadata generation is missing {required}")
 if "'MixinConfigs': 'mlua.firstperson.mixins.json,mlua.service.mixins.json'" in neo_build:
