@@ -74,7 +74,7 @@ public final class MLuaClientRenderManager {
                 // NeoForge 26.1 moved custom geometry submission from a buffer source to
                 // SubmitNodeCollector. Keep this lookup in the shared adapter so the Lua
                 // RenderContext contract remains the same across loader generations.
-                Object buffers = MLuaRenderContextAccess.optional(context, "consumers", "getRenderTypeBuffer",
+                Object buffers = MLuaRenderContextAccess.optional(context, "renderSource", "consumers", "getRenderTypeBuffer",
                     "bufferSource", "getSubmitNodeCollector", "submitNodeCollector", "getRenderCollector");
                 Object camera = MLuaRenderContextAccess.optional(context, "camera", "getCamera");
                 MLuaRenderCallbacks.renderWorldGeometry(context, pose, buffers, camera);
