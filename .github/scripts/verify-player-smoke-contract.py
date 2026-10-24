@@ -74,6 +74,7 @@ render_manager_text = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientR
 render_manager_text += "\n" + (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaWorldRenderPipeline.java").read_text(encoding="utf-8")
 process_helper_text = (ROOT / ".github/scripts/smoke-process.ps1").read_text(encoding="utf-8")
 client_player_wrapper_text = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java").read_text(encoding="utf-8")
+client_player_wrapper_text += "\n" + (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaLocalPlayerBindings.java").read_text(encoding="utf-8")
 input_module_text = (ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java").read_text(encoding="utf-8")
 keyboard_input_mixin = (ROOT / "src/main/java/dev/mlua/modules/mixin/service/KeyboardInputMixin.java").read_text(encoding="utf-8")
 

@@ -7,6 +7,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 PLAYER = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerWrapper.java"
 CLIENT_PLAYER = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java"
+LOCAL_PLAYER_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaLocalPlayerBindings.java"
 INVENTORY = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerInventoryBindings.java"
 FOOD_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerFoodBindings.java"
 PLAYER_RELATIONSHIPS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerRelationshipBindings.java"
@@ -29,6 +30,8 @@ def fail(message: str) -> None:
 
 player_source = PLAYER.read_text(encoding="utf-8")
 client_player_source = CLIENT_PLAYER.read_text(encoding="utf-8")
+local_player_source = LOCAL_PLAYER_BINDINGS.read_text(encoding="utf-8")
+client_bindings_source = client_player_source + local_player_source
 players_service_source = PLAYERS_SERVICE.read_text(encoding="utf-8")
 if "extends MLuaGameThreadReflectiveService" not in players_service_source:
     fail("client and server Players lookups must run on their owning game thread")
@@ -39,8 +42,8 @@ if "import net.minecraft.client." in player_source or "import net.minecraft.clie
     fail("shared Player wrapper must not resolve client-only Minecraft classes on dedicated servers")
 if '"dev.mlua.modules.players.classes.MLuaClientPlayerWrapper"' not in player_source:
     fail("client Player bindings must be loaded only through the lazy client delegate")
-if "LocalPlayer" not in client_player_source or "AbstractClientPlayer" not in client_player_source:
-    fail("client Player wrapper must own local and remote client player bindings")
+if "AbstractClientPlayer" not in client_player_source or "LocalPlayer" not in local_player_source:
+    fail("remote and local client Player bindings must have separate owners")
 client_access_source = (ROOT / "src/main/java/dev/mlua/modules/players/MLuaClientPlayerAccess.java").read_text(encoding="utf-8")
 if ("ClassValue<Member> PLAYER_ACCESSORS" not in client_access_source
         or "ClassValue<Member> LEVEL_ACCESSORS" not in client_access_source
@@ -50,14 +53,14 @@ if "method.trySetAccessible()" not in client_access_source or "getDeclaredField(
     fail("client player access must support non-public Minecraft mappings")
 if "MLuaPlayerInventoryBindings.attach(table, player, true, true, registration)" not in player_source:
     fail("server Player instances must delegate inventory binding to its owner")
-if player_source.count("MLuaPlayerInventoryBindings.attach(") != 1 or client_player_source.count("MLuaPlayerInventoryBindings.attach(") != 2:
+if player_source.count("MLuaPlayerInventoryBindings.attach(") != 1 or client_bindings_source.count("MLuaPlayerInventoryBindings.attach(") != 2:
     fail("server, remote-client, and local-client Player tables must share the inventory binding owner")
 if "attachInventoryMethods(" in player_source:
     fail("Player wrapper still owns inventory and open-container binding")
 food_source = FOOD_BINDINGS.read_text(encoding="utf-8")
 if "MLuaPlayerFoodBindings.bind(table, player)" not in player_source:
     fail("Player wrapper must delegate food methods to their binding owner")
-if "MLuaPlayerFoodBindings.bind(table, player)" not in client_player_source or "bindFoodMethods(table, player)" in client_player_source:
+if "MLuaPlayerFoodBindings.bind(table, player)" not in client_bindings_source or "bindFoodMethods(table, player)" in client_bindings_source:
     fail("client Player wrapper must delegate food methods to the shared binding owner")
 for method in ("GetFoodLevel", "SetFoodLevel", "GetSaturation", "SetSaturation", "CauseFoodExhaustion"):
     if f'"{method}"' not in food_source:
@@ -67,7 +70,7 @@ if "MLuaPlayerRelationshipBindings.bindNearbyPlayers(table, player, registration
     fail("Player wrapper must delegate nearby-player queries to their binding owner")
 if '"GetNearbyPlayers"' not in relationship_source or "MLuaClassMethods.varArg(" not in relationship_source:
     fail("Player relationship binding owner must register GetNearbyPlayers through the shared callback adapter")
-if (player_source + client_player_source).count("MLuaEntityWrapper.livingEntityTableBase(") != 3:
+if (player_source + client_bindings_source).count("MLuaEntityWrapper.livingEntityTableBase(") != 3:
     fail("server, remote-client, and local-client Player wrappers must attach Player before live properties")
 entity_source = ENTITY.read_text(encoding="utf-8")
 entity_factory_source = ENTITY_FACTORY.read_text(encoding="utf-8")
@@ -103,9 +106,9 @@ if "ownerRuntime.deliverPendingServerDiagnostics(player)" not in player_join_dis
     fail("PlayerAdded must deliver diagnostics and initial synchronized state after listeners finish")
 if "playerJoinDispatcher.clear()" not in players_module_source:
     fail("Queued PlayerAdded callbacks must be discarded when their module runtime reloads or unloads")
-if "MLuaClientThread.isClientExecutionContext()" not in client_player_source:
+if "MLuaClientThread.isClientExecutionContext()" not in local_player_source:
     fail("local Player mutations must accept MLua's synchronous client coroutine context")
-if "MLuaClientThread.callOnClientThread(" not in client_player_source:
+if "MLuaClientThread.callOnClientThread(" not in local_player_source:
     fail("local Player actions must execute on Minecraft's actual client thread")
 if "withResumeWaitHook" not in (ROOT / "src/main/java/dev/mlua/core/MLuaCallbackBudget.java").read_text(encoding="utf-8"):
     fail("synchronous Lua callbacks must keep the Minecraft owner thread responsive while LuaJ runs")
