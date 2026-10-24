@@ -41,8 +41,36 @@ public final class MLuaClientRenderManager {
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
     private static volatile RenderObject[] drawOrderSnapshot = new RenderObject[0];
     private static volatile boolean drawOrderDirty = true;
+    private static boolean worldRenderersRegistered;
 
     private MLuaClientRenderManager() {
+    }
+
+    public static synchronized void registerOverlay() {
+        MLuaRenderFrameLifecycle.registerAnimationClock();
+        dev.mlua.loaderapi.LoaderApi.client().registerOverlay("mlua_render_service", obj -> {
+            if (!(obj instanceof GuiGraphics graphics)) {
+                return;
+            }
+            renderAll(graphics);
+        });
+        if (!worldRenderersRegistered) {
+            for (String stage : dev.mlua.loaderapi.ClientBridge.WORLD_RENDER_STAGES) {
+                dev.mlua.loaderapi.LoaderApi.client().registerWorldRenderer(stage,
+                    context -> renderWorldContext(stage, context));
+            }
+            dev.mlua.loaderapi.LoaderApi.client().registerWorldGeometryRenderer(context -> {
+                Object pose = MLuaRenderContextAccess.optional(context, "matrixStack", "getPoseStack", "poseStack");
+                // NeoForge 26.1 moved custom geometry submission from a buffer source to
+                // SubmitNodeCollector. Keep this lookup in the shared adapter so the Lua
+                // RenderContext contract remains the same across loader generations.
+                Object buffers = MLuaRenderContextAccess.optional(context, "renderSource", "consumers", "getRenderTypeBuffer",
+                    "bufferSource", "getSubmitNodeCollector", "submitNodeCollector", "getRenderCollector");
+                Object camera = MLuaRenderContextAccess.optional(context, "camera", "getCamera");
+                MLuaRenderCallbacks.renderWorldGeometry(context, pose, buffers, camera);
+            });
+            worldRenderersRegistered = true;
+        }
     }
 
     static void tickAnimations() {
@@ -97,7 +125,7 @@ public final class MLuaClientRenderManager {
         }
     }
 
-    static void renderWorldContext(String stage, Object context) {
+    private static void renderWorldContext(String stage, Object context) {
         MLuaWorldRenderPipeline.renderWorldContext(stage, context);
     }
 
