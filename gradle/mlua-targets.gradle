@@ -2,7 +2,10 @@ import groovy.json.JsonSlurper
 
 // mlua-core owns these classes. Resolve its source file list from the source tree
 // so package additions cannot be silently omitted or cause shadow compilation.
-def mluaCoreSourceRoot = rootProject.file('mlua-core/src/main/java')
+// This script is also applied from settings.gradle, where rootProject is a
+// ProjectDescriptor and does not provide Project.file(). projectDir exists in
+// both settings and project evaluation, so resolve the owned source root from it.
+def mluaCoreSourceRoot = new File(rootProject.projectDir, 'mlua-core/src/main/java')
 def mluaCoreRuntimeSources = []
 if (mluaCoreSourceRoot.isDirectory()) {
     mluaCoreSourceRoot.eachFileRecurse { source ->
