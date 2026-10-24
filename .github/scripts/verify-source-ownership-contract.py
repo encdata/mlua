@@ -49,6 +49,21 @@ if "targetPathChain('mlua-versions/common/%s', minecraftVersion)" not in helper:
     raise SystemExit("Common source exclusions must follow the resolved target inheritance chain")
 if "new File(sourceRoot, relative).isFile()" not in helper:
     raise SystemExit("Common source exclusions must be derived from actual root/overlay path collisions")
+common_loader_chain = helper.split("ext.targetCommonLoaderPathChain = {", 1)[1].split(
+    "\next.commonVersionPathChain =", 1)[0]
+if common_loader_chain.index("roots.add(commonRoots[index])") > common_loader_chain.index("roots.add(loaderRoots[index])"):
+    raise SystemExit("Common and loader sources must be interleaved by each inherited target version")
+merged_tree = helper.split("ext.registerMergedTree =", 1)[1]
+if "roots.findAll { it.exists() }.reverseEach" not in merged_tree:
+    raise SystemExit("Most-specific common or loader sources must take precedence in merged source trees")
+for relative in (
+    "gradle/mlua-fabric-project.gradle",
+    "gradle/mlua-neoforge-project.gradle",
+    "gradle/mlua-runtime-neoforge-target.gradle",
+):
+    source = (ROOT / relative).read_text(encoding="utf-8")
+    if "targetCommonLoaderPathChain(" not in source:
+        raise SystemExit(f"{relative} must merge common and loader sources by target inheritance")
 
 packet = (ROOT / "src/main/java/dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java").read_text(encoding="utf-8")
 packet_overlay = ROOT / "mlua-versions/common/26.1/dev/mlua/minecraft/network/MLuaAnimationSyncPacket.java"
