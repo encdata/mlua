@@ -115,6 +115,13 @@ for api in ('registration.registerClass("Item"', '"new"', '"GetId"', '"GetCount"
             '"SetCount"', '"SetLore"', '"SetTag"', '"GetEnchantments"', '"BlockItem"', '"Weapon"'):
     if api not in item_class_text:
         fail(f"Item class registrar is missing {api}")
+for helper in ("itemTable", "maxDamage", "remainingDurability", "damagePercent", "toItemStack",
+               "damage", "setDamage", "cloneItem"):
+    if f"MLuaItemWrapper.{helper}(" not in item_class_text:
+        fail(f"Item class registrar must delegate {helper} to the item wrapper")
+block_entity_class = (ROOT / "src/main/java/dev/mlua/minecraft/binding/MLuaBlockEntityClass.java").read_text(encoding="utf-8")
+if "import dev.mlua.module.MLuaRegistration;" not in block_entity_class:
+    fail("BlockEntity class registrar must import its registration API from the module package")
 
 starts = len(re.findall(r"(?m)^(?:.*=\s*)?@'\s*$", prepare_text))
 ends = len(re.findall(r"(?m)^'@(?:\s*\|.*)?$", prepare_text))

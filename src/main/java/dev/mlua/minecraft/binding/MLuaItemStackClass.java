@@ -75,26 +75,26 @@ final class MLuaItemStackClass {
             MCItemStack item = MLuaItemWrapper.stack(self);
             int amount = MLuaItemWrapper.nonNegativeCount(MLuaLuaArguments.wholeInt(args, 2, "Item:Split", "count"), "Split");
             int count = Math.min(amount, Math.max(0, item.getCount()));
-            if (count == 0 || !MLuaItemWrapper.hasItemType(item)) return itemTable(ItemStack.EMPTY, registration);
+            if (count == 0 || !MLuaItemWrapper.hasItemType(item)) return MLuaItemWrapper.itemTable(ItemStack.EMPTY, registration);
             ItemStack source = ((MCItemStackImpl)item).inner();
             ItemStack result = source.copy();
             result.setCount(count);
             source.setCount(source.getCount() - count);
-            return itemTable(result, registration);
+            return MLuaItemWrapper.itemTable(result, registration);
          }), "Moves up to the requested number of items into a new stack and removes them from this stack.");
          LuaValue getMaxStackSize = MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(MLuaItemWrapper.stack(self).getMaxStackSize()));
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxStackSize", getMaxStackSize, "Returns the maximum stack size for this item.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxCount", getMaxStackSize, "Compatibility alias for GetMaxStackSize.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxDamage", MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(maxDamage(MLuaItemWrapper.rawStack(self)))), "Returns the maximum durability damage for this item.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetMaxDamage", MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(MLuaItemWrapper.maxDamage(MLuaItemWrapper.rawStack(self)))), "Returns the maximum durability damage for this item.");
          LuaValue getRemainingDurability = MLuaItemWrapper.selfItem((self, ignored) -> {
-            return LuaValue.valueOf(remainingDurability(MLuaItemWrapper.rawStack(self)));
+            return LuaValue.valueOf(MLuaItemWrapper.remainingDurability(MLuaItemWrapper.rawStack(self)));
          });
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetRemainingDurability",
             getRemainingDurability, "Returns remaining durability, or zero for items without durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDurabilityRemaining",
             getRemainingDurability, "Alias for GetRemainingDurability; returns zero when this item has no durability.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamagePercent", MLuaItemWrapper.selfItem((self, ignored) -> {
-            return LuaValue.valueOf(damagePercent(MLuaItemWrapper.rawStack(self)));
+            return LuaValue.valueOf(MLuaItemWrapper.damagePercent(MLuaItemWrapper.rawStack(self)));
          }), "Returns durability damage as a fraction from zero to one.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsEnchantable", MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)MLuaItemWrapper.stack(self)).inner().isEnchantable())), "Returns whether this stack can receive enchantments.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "IsStackable", MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(((MCItemStackImpl)MLuaItemWrapper.stack(self)).inner().isStackable())), "Returns whether this stack can be stacked with another matching stack.");
@@ -103,12 +103,12 @@ final class MLuaItemStackClass {
             if (!registration.isInstanceOf(other, "Item")) {
                throw new LuaError("[MLua] Item:CanStackWith expects another Item instance.");
             }
-            return LuaValue.valueOf(MLuaItemWrapper.stack(self).canCombine(new MCItemStackImpl(toItemStack(other, registration))));
+            return LuaValue.valueOf(MLuaItemWrapper.stack(self).canCombine(new MCItemStackImpl(MLuaItemWrapper.toItemStack(other, registration))));
          }), "Returns whether another item stack has the same item and data, ignoring stack counts.");
-         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(damage(MLuaItemWrapper.rawStack(self)))), "Returns this item's current durability damage.");
+         MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetDamage", MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(MLuaItemWrapper.damage(MLuaItemWrapper.rawStack(self)))), "Returns this item's current durability damage.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "SetDamage", MLuaItemWrapper.selfItem((self, args) -> {
             int damage = MLuaLuaArguments.wholeInt(args, 2, "Item:SetDamage", "damage");
-            setDamage(MLuaItemWrapper.rawStack(self), damage, "Item:SetDamage");
+            MLuaItemWrapper.setDamage(MLuaItemWrapper.rawStack(self), damage, "Item:SetDamage");
             return LuaValue.NONE;
          }), "Sets this item's current durability damage to a whole number of zero or greater. The stack must be damageable.");
          LuaValue isEmpty = MLuaItemWrapper.selfItem((self, ignored) -> LuaValue.valueOf(MLuaItemWrapper.stack(self).isEmpty()));
@@ -199,7 +199,7 @@ final class MLuaItemStackClass {
             return LuaValue.valueOf(tag != null && tag.contains(args.checkjstring(2)));
          }), "Returns whether this item's NBT data contains the given key.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Clone", MLuaItemWrapper.selfItem((self, ignored) -> {
-            return cloneItem(self, registration);
+            return MLuaItemWrapper.cloneItem(self, registration);
          }), "Returns a copy of this item stack.");
          MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "Copy", classTable.rawget("Clone"), "Returns a copy of this item stack.");
           MLuaClassMethods.registerClassMethod(registration, "Item", classTable, "GetEnchantments", MLuaItemWrapper.selfItem((self, ignored) -> {

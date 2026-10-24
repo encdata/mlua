@@ -3,6 +3,7 @@ package dev.mlua.minecraft.binding;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.mc.impl.world.MCLevelImpl;
+import dev.mlua.module.MLuaRegistration;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Container;
