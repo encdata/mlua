@@ -157,6 +157,22 @@ for relative in ("gradle/mlua-neoforge-project.gradle", "gradle/mlua-runtime-neo
     if "mlua-loaders/neoforge/shared/project/src/main/java" not in source:
         raise SystemExit(f"{relative} does not assemble the shared NeoForge event bridge source")
 
+neo_registry = ROOT / "mlua-loaders/neoforge/shared/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeRegistry.java"
+if not neo_registry.is_file():
+    raise SystemExit("NeoForge registry coordination must have one cross-version implementation owner")
+for relative in (
+    "mlua-loaders/neoforge/1.21.1/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeRegistry.java",
+    "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeRegistry.java",
+):
+    if ROOT.joinpath(relative).exists():
+        raise SystemExit(f"{relative} duplicates the shared NeoForge registry implementation")
+for version in ("1.21.1", "26.1"):
+    factory = ROOT / f"mlua-loaders/neoforge/{version}/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeBlockEntityTypeFactory.java"
+    if not factory.is_file():
+        raise SystemExit(f"NeoForge {version} is missing its version-specific block entity type adapter")
+if "MLuaNeoForgeBlockEntityTypeFactory.create(" not in neo_registry.read_text(encoding="utf-8"):
+    raise SystemExit("Shared NeoForge registry must delegate its version-specific block entity type construction")
+
 # 26.1 loader adapters and Minecraft helpers live in the common source roots.
 common_26_1_files = (
     ROOT / "mlua-loaders/common/26.1/impl/dev/mlua/runtime/client/MLuaProjectileRenderer.java",

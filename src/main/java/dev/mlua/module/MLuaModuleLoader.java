@@ -8,14 +8,9 @@ import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.EventBridge;
 import dev.mlua.loaderapi.ScopedEventBridge;
 import dev.mlua.common.enums.Side;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -78,7 +73,7 @@ public final class MLuaModuleLoader {
         this.loaded = true;
         Iterable<MLuaModule> providers = LoaderApi.platform().isClient()
             ? ServiceLoader.load(MLuaModule.class)
-            : serverProviders();
+            : MLuaServerModuleDiscovery.discover();
         Set<String> providerTypes = new HashSet<>();
         // Iterate defensively. A client-only module can fail class resolution on a
         // dedicated server before ServiceLoader.Provider#get returns. The failure
@@ -471,40 +466,6 @@ public final class MLuaModuleLoader {
             this.registerEvents(module);
             MLuaLogger.LOGGER.debug("  Registered event hooks from module '{}'", module.id());
         }
-    }
-
-    private Iterable<MLuaModule> serverProviders() {
-        List<MLuaModule> result = new ArrayList<>();
-        String serviceName = "META-INF/services/" + MLuaModule.class.getName();
-        try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            Enumeration<URL> resources = classLoader.getResources(serviceName);
-            while (resources.hasMoreElements()) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    resources.nextElement().openStream(), StandardCharsets.UTF_8))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        String providerName = line.replaceFirst("#.*$", "").trim();
-                        if (providerName.isEmpty()) continue;
-                        try {
-                            Class<?> providerType = Class.forName(providerName, false, classLoader);
-                            MLuaModuleSide metadata = providerType.getAnnotation(MLuaModuleSide.class);
-                            if (metadata != null && metadata.value() == Side.CLIENT) {
-                                MLuaLogger.LOGGER.debug("Skipped client-only MLua module on dedicated server: {}", providerName);
-                                continue;
-                            }
-                            Class<?> provider = Class.forName(providerName, true, classLoader);
-                            result.add((MLuaModule) provider.getDeclaredConstructor().newInstance());
-                        } catch (Throwable error) {
-                            MLuaLogger.LOGGER.debug("Skipped unavailable MLua server module provider {}", providerName, error);
-                        }
-                    }
-                }
-            }
-        } catch (Throwable error) {
-            MLuaLogger.LOGGER.warn("Could not discover MLua server module providers", error);
-        }
-        return result;
     }
 
     public void generateDocs(MLuaDocBuilder docs) {

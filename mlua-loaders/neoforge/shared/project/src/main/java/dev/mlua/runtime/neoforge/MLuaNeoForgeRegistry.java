@@ -1,6 +1,5 @@
 package dev.mlua.runtime.neoforge;
 
-import com.mojang.datafixers.types.Type;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.mlua.loaderapi.GeneratedAssetKind;
@@ -35,7 +34,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.entity.BlockEntityType.Builder;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -276,28 +274,32 @@ public final class MLuaNeoForgeRegistry {
    }
 
    public void registerVisualBlockEntityTypes() {
-      Iterator var1 = ((Set)this.blocks.keySet().stream().map((k) -> {
-         return k.substring(0, k.indexOf(58));
-      }).collect(Collectors.toSet())).iterator();
+      Set<String> modIds = this.blocks.keySet().stream()
+         .map(key -> key.substring(0, key.indexOf(':')))
+         .collect(Collectors.toSet());
 
-      while(var1.hasNext()) {
-         String modId = (String)var1.next();
-         AtomicReference<Supplier<BlockEntityType<?>>> ref = this.visualBlockEntityTypes.computeIfAbsent(modId, (id) -> new AtomicReference());
-         if (ref.get() == null) {
-            DeferredRegister<BlockEntityType<?>> reg = this.blockEntityRegister(modId);
-            ref.set(reg.register("visual_block_entity", () -> {
-               List<Block> modBlocks = this.blocks.entrySet().stream().filter((entry) -> {
-                  return ((String)entry.getKey()).startsWith(modId + ":");
-               }).map((entry) -> {
-                  return (Block)((Supplier)entry.getValue()).get();
-               }).filter(Objects::nonNull).toList();
-               return Builder.of(MLuaVisualBlockEntity::new, (Block[])modBlocks.toArray((x$0) -> {
-                  return new Block[x$0];
-               })).build((Type)null);
-            }));
+      for (String modId : modIds) {
+         AtomicReference<Supplier<BlockEntityType<?>>> reference = this.visualBlockEntityTypes
+            .computeIfAbsent(modId, ignored -> new AtomicReference<>());
+         if (reference.get() != null) {
+            continue;
          }
-      }
 
+         DeferredRegister<BlockEntityType<?>> register = this.blockEntityRegister(modId);
+         reference.set(register.register("visual_block_entity", () -> {
+            Block[] validBlocks = this.blocks.entrySet().stream()
+               .filter(entry -> entry.getKey().startsWith(modId + ":"))
+               .map(Map.Entry::getValue)
+               .map(Supplier::get)
+               .filter(Objects::nonNull)
+               .toArray(Block[]::new);
+            if (validBlocks.length == 0) {
+               throw new IllegalStateException("[MLua] Cannot register visual block entity type for '"
+                  + modId + "': no blocks were registered");
+            }
+            return MLuaNeoForgeBlockEntityTypeFactory.create(MLuaVisualBlockEntity::new, validBlocks);
+         }));
+      }
    }
 
    public MLuaTextureDescriptor getItemTexture(String namespace, String path) {
