@@ -93,6 +93,10 @@ if "MLuaGameThreadAccess.call(level, () -> body.apply(args))" not in chunk_api:
 chunk_wrapper = CHUNK_WRAPPER.read_text(encoding="utf-8")
 if "MLuaGameThreadAccess.call(world, () -> body.apply(args))" not in chunk_wrapper:
     fail("live Chunk instance methods must dispatch on their owning client or server thread")
+for source, owner in ((chunk_wrapper, "Chunk instance methods"), (chunk_api, "World chunk methods"),
+                      (world_api_support, "World API chunk loading")):
+    if "MLuaServerThread.call" in source:
+        fail(f"{owner} must rely on the shared API boundary instead of nested server-thread dispatch")
 
 if FABRIC_LEGACY_OVERLAY.exists():
     fail("Fabric must use the shared legacy World service; its stale loader overlay still exists")

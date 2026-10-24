@@ -12,6 +12,7 @@ QUERIES = ROOT / "src/main/java/dev/mlua/modules/entity/service/MLuaEntityQueryO
 service = SERVICE.read_text(encoding="utf-8")
 queries = QUERIES.read_text(encoding="utf-8")
 instance_bindings = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaEntityPropertiesBindings.java").read_text(encoding="utf-8")
+spawner = (ROOT / "src/main/java/dev/mlua/modules/entity/MLuaEntitySpawner.java").read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -58,5 +59,9 @@ if "MLuaEntityQuery.compileFilter(" in service or "MLuaEntityQuery.forEachWithin
     fail("filter compilation or spatial query logic remains in the EntityService facade")
 if "MLuaGameThreadAccess.callUnchecked(entity.level(), query::get)" not in instance_bindings:
     fail("Entity:GetNearbyEntities must query the world on its owning client or server thread")
+if "MLuaGameThreadAccess.callUnchecked(level," not in spawner or "spawnOnLevelThread(level," not in spawner:
+    fail("entity creation must run on its owning server thread through shared game-thread access")
+if "MLuaServerThread.call" in spawner:
+    fail("entity creation must not use a separate nested server-thread dispatch")
 
-print("Entity service contract passed (query ownership and client/server thread dispatch are explicit).")
+print("Entity service contract passed (query ownership and entity creation dispatch are explicit).")
