@@ -624,7 +624,8 @@ Chat.OnMessage:Connect(function(event)
         print("MLUA_CI_PLAYER_CHAT_SENT")
         local world = Minecraft:GetService("World"):Get(event.Player:GetWorld():GetDimension())
         assert(world ~= nil, "World:Get could not resolve the chat sender's dimension")
-        assert(world:DropItem(event.Player:GetPosition(), "minecraft:diamond", 3) ~= nil,
+        local pickupPosition = event.Player:GetPosition() + event.Player:GetLookVector() * 0.75
+        assert(world:DropItem(pickupPosition, "minecraft:diamond", 3) ~= nil,
             "server could not drop the item for the player-pickup simulation")
         print("MLUA_CI_PLAYER_PICKUP_DROPPED")
     end
@@ -1170,11 +1171,13 @@ local clientContainerCloseRequested = false
 local clientContainerClosed = false
 local testSheepUuid
 local entityService = Minecraft:GetService("EntityService")
-local attackSubmitted = false
+local attackAttempts = 0
+local attackRetryTicks = 0
+local sheepCameraReady = false
+local sheepCameraSettleTicks = 0
 local nearbyQueryDiagnosticLogged = false
 local nearbyQueryResultLogged = false
 local nearbyQueryDetailsLogged = false
-local nearbyQueryRetryTicks = 0
 local nearbyQueryRetryCount = 0
 local attackConfirmed = false
 local connection
@@ -1390,13 +1393,29 @@ connection = RunService.Heartbeat:Connect(function()
         clientContainerClosed = true
         print("MLUA_CI_PLAYER_CONTAINER_CLOSED")
     end
-    if testSheepUuid and not attackSubmitted then
-        nearbyQueryRetryTicks = nearbyQueryRetryTicks + 1
+    if testSheepUuid and not sheepCameraReady then
+        local sheep = entityService:GetByUUID(testSheepUuid)
+        if sheep ~= nil then
+            if not thirdPersonRequested then
+                Camera:SetViewMode("third_person")
+                thirdPersonRequested = true
+            end
+            player:LookAt(sheep)
+            sheepCameraReady = true
+            sheepCameraSettleTicks = 3
+            print("MLUA_CI_PLAYER_SHEEP_CAMERA_READY")
+        end
     end
-    if testSheepUuid and not attackSubmitted
-            and (nearbyQueryRetryCount == 0 or nearbyQueryRetryTicks >= 5) then
+    if sheepCameraReady and sheepCameraSettleTicks > 0 then
+        sheepCameraSettleTicks = sheepCameraSettleTicks - 1
+    end
+    if sheepCameraReady and sheepCameraSettleTicks == 0 and not attackConfirmed and attackAttempts < 3 then
+        attackRetryTicks = attackRetryTicks + 1
+    end
+    if sheepCameraReady and sheepCameraSettleTicks == 0 and not attackConfirmed and attackAttempts < 3
+            and (attackAttempts == 0 or attackRetryTicks >= 20) then
         nearbyQueryRetryCount = nearbyQueryRetryCount + 1
-        nearbyQueryRetryTicks = 0
+        attackRetryTicks = 0
         if not nearbyQueryDiagnosticLogged then
             nearbyQueryDiagnosticLogged = true
             print("MLUA_CI_PLAYER_NEARBY_QUERY_BEGIN")
@@ -1423,7 +1442,7 @@ connection = RunService.Heartbeat:Connect(function()
             if entity.UUID == testSheepUuid then
                 print("MLUA_CI_PLAYER_ATTACK_CALL_BEGIN")
                 assert(entity:Attack(), "Entity:Attack did not submit the local-player attack")
-                attackSubmitted = true
+                attackAttempts = attackAttempts + 1
                 print("MLUA_CI_PLAYER_ATTACK_SUBMITTED")
                 break
             end
