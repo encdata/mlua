@@ -133,14 +133,19 @@ if any(f'{name}.set("Register"' in registry_api for name in ("tabs", "particles"
 # Visual block entity types are required for scripted blocks with containers
 # and callbacks. Keep registration on the loader's native lifecycle.
 forge_registry = (ROOT / "src/main/java/dev/mlua/runtime/registry/MLuaForgeRegistry.java").read_text(encoding="utf-8")
-neoforge_1211_registry = (ROOT / "mlua-loaders/neoforge/1.21.1/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeRegistry.java").read_text(encoding="utf-8")
-neoforge_261_registry = (ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeRegistry.java").read_text(encoding="utf-8")
-for loader, source in (("Forge", forge_registry), ("NeoForge 1.21.1", neoforge_1211_registry)):
+neoforge_registry = (ROOT / "mlua-loaders/neoforge/shared/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeRegistry.java").read_text(encoding="utf-8")
+for loader, source in (("Forge", forge_registry), ("NeoForge", neoforge_registry)):
     if "private DeferredRegister<BlockEntityType<?>> blockEntityRegister(String modId)" not in source \
             or "this.attachIfNeeded(id, DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, id))" not in source:
         fail(f"{loader} visual block entity registry is not attached to its mod event bus")
-if "new BlockEntityType<>(MLuaVisualBlockEntity::new, validBlocks)" not in neoforge_261_registry:
-    fail("NeoForge 26.1 visual block entity registration has no native BlockEntityType constructor")
+if "MLuaNeoForgeBlockEntityTypeFactory.create(MLuaVisualBlockEntity::new, validBlocks)" not in neoforge_registry:
+    fail("shared NeoForge registry does not delegate block entity type creation to its version adapter")
+neoforge_1211_factory = (ROOT / "mlua-loaders/neoforge/1.21.1/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeBlockEntityTypeFactory.java").read_text(encoding="utf-8")
+neoforge_261_factory = (ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/runtime/neoforge/MLuaNeoForgeBlockEntityTypeFactory.java").read_text(encoding="utf-8")
+if "BlockEntityType.Builder.of(factory::apply, validBlocks).build(null)" not in neoforge_1211_factory:
+    fail("NeoForge 1.21.1 adapter does not use its builder-based block entity type API")
+if "new BlockEntityType<>(factory::apply, validBlocks)" not in neoforge_261_factory:
+    fail("NeoForge 26.1 adapter does not use its constructor-based block entity type API")
 fabric_registry = (ROOT / "mlua-loaders/fabric/1.21.1/project/src/main/java/dev/mlua/loader/impl/fabric/FabricRegistryBridge.java").read_text(encoding="utf-8")
 if "FabricBlockEntityTypeBuilder" not in fabric_registry or ".build();" not in fabric_registry:
     fail("Fabric visual block entity registration does not use Fabric's cross-version builder")
