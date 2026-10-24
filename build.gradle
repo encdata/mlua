@@ -181,6 +181,11 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
                     def metadata = zip.getEntry('META-INF/neoforge.mods.toml')
                     if (metadata == null) throw new GradleException("${artifact.name} is missing META-INF/neoforge.mods.toml")
                     def text = zip.getInputStream(metadata).getText('UTF-8')
+                    def modsHeader = text.indexOf('[[mods]]')
+                    def finalMixinHeader = text.lastIndexOf('[[mixins]]')
+                    if (modsHeader < 0 || finalMixinHeader < 0 || finalMixinHeader > modsHeader) {
+                        throw new GradleException("${artifact.name} must declare NeoForge mixin tables before [[mods]]")
+                    }
                     def matcher = text =~ /(?m)^config\s*=\s*"([^"]+)"\s*$/
                     while (matcher.find()) registered.add(matcher.group(1))
                 }

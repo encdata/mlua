@@ -370,9 +370,12 @@ def prepareNeoForgeMixinMetadata = tasks.register('prepareNeoForgeMixinMetadata'
         metadata = matcher.replaceAll('')
         mixinConfigs.add('mlua.service.mixins.json')
         metadata = metadata.replaceAll('(?m)\\n{3,}', '\n\n')
-        mixinConfigs.each { config ->
-            metadata += "\n[[mixins]]\nconfig=\"${config}\"\n"
-        }
+        def modsHeader = metadata.indexOf('[[mods]]')
+        if (modsHeader < 0) throw new GradleException('NeoForge mod metadata is missing its [[mods]] table')
+        def mixinMetadata = mixinConfigs.collect { config ->
+            "[[mixins]]\nconfig=\"${config}\"\n"
+        }.join('\n')
+        metadata = metadata.substring(0, modsHeader) + mixinMetadata + '\n' + metadata.substring(modsHeader)
         destination.setText(metadata, 'UTF-8')
     }
 }
