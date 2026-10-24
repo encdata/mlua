@@ -34,7 +34,8 @@ if (is26Family) {
     runtimeNeoForgeOverrideExcludes += 'dev/mlua/MLuaMod.java'
 }
 def prepareRuntimeNeoForgeOverrideSources = registerMergedTree(project, 'prepareRuntimeNeoForgeOverrideSources',
-    targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), runtimeNeoForgeOverrideExcludes)
+    [rootProject.file('mlua-loaders/neoforge/shared/project/src/main/java')] +
+        targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), runtimeNeoForgeOverrideExcludes)
 if (is26Family) {
     prepareRuntimeNeoForgeOverrideSources.configure {
         targetPathChain('mlua-loaders/common/%s/project/src/main/java', targetVersion).each { root ->

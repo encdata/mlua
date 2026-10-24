@@ -393,6 +393,7 @@ processResources {
     ])
     from("${rootProject.projectDir}/src/main/resources") {
         exclude 'META-INF/mods.toml'
+        exclude 'mlua.forge.mixins.json'
         exclude 'mlua.mixins.json'
         exclude 'mlua.firstperson.mixins.json'
         exclude 'Icon.png'

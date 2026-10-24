@@ -143,6 +143,20 @@ for relative, owner_script in delegated_projects.items():
     if owner_script not in source:
         raise SystemExit(f"{relative} must delegate root source selection to {owner_script}")
 
+neo_event_bridge = ROOT / "mlua-loaders/neoforge/shared/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java"
+if not neo_event_bridge.is_file():
+    raise SystemExit("NeoForge event bridge must have one shared owner across supported Minecraft generations")
+for relative in (
+    "mlua-loaders/neoforge/1.21.1/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
+    "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
+):
+    if ROOT.joinpath(relative).exists():
+        raise SystemExit(f"{relative} duplicates the shared NeoForge event bridge")
+for relative in ("gradle/mlua-neoforge-project.gradle", "gradle/mlua-runtime-neoforge-target.gradle"):
+    source = (ROOT / relative).read_text(encoding="utf-8")
+    if "mlua-loaders/neoforge/shared/project/src/main/java" not in source:
+        raise SystemExit(f"{relative} does not assemble the shared NeoForge event bridge source")
+
 # 26.1 loader adapters and Minecraft helpers live in the common source roots.
 common_26_1_files = (
     ROOT / "mlua-loaders/common/26.1/impl/dev/mlua/runtime/client/MLuaProjectileRenderer.java",

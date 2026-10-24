@@ -49,7 +49,9 @@ if (is26Family) {
     neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedItem.java'
     neoForgeProjectExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java'
 }
-def prepareNeoForgeProjectSources = registerMergedTree(project, 'prepareNeoForgeProjectSources', targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), neoForgeProjectExcludes)
+def prepareNeoForgeProjectSources = registerMergedTree(project, 'prepareNeoForgeProjectSources',
+    [rootProject.file('mlua-loaders/neoforge/shared/project/src/main/java')] +
+        targetPathChain('mlua-loaders/neoforge/%s/project/src/main/java', targetVersion), neoForgeProjectExcludes)
 if (is26Family) {
     prepareNeoForgeProjectSources.configure {
         targetPathChain('mlua-loaders/common/%s/project/src/main/java', targetVersion).each { root ->
