@@ -3,7 +3,7 @@ package dev.mlua.modules.toast.service;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.api.MLuaLuaCoercions;
 import dev.mlua.common.enums.Side;
-import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.chat.Component;
@@ -12,7 +12,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Displays native Minecraft client toasts with vanilla multiline wrapping.")
-public final class MLuaToastService extends MLuaReflectiveService {
+public final class MLuaToastService extends MLuaGameThreadReflectiveService {
     public MLuaToastService(Context context) {
         super(context);
     }
@@ -38,9 +38,7 @@ public final class MLuaToastService extends MLuaReflectiveService {
         }
         Component toastTitle = component(title, "title");
         Component toastMessage = component(message, "message");
-        Runnable show = () -> display(minecraft, toastTitle, toastMessage);
-        if (dev.mlua.runtime.client.MLuaClientThread.isClientThread()) show.run();
-        else minecraft.execute(show);
+        display(minecraft, toastTitle, toastMessage);
     }
 
     private static void display(Minecraft minecraft, Component title, Component message) {

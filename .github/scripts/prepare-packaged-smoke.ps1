@@ -1424,6 +1424,7 @@ connection = RunService.Heartbeat:Connect(function()
                 "InputService did not release this addon's simulated forward key")
             local dx = player:GetPositionX() - inputStartX
             local dz = player:GetPositionZ() - inputStartZ
+            print("MLUA_CI_PLAYER_MOVEMENT_DELTA:" .. tostring(dx) .. "," .. tostring(dz))
             assert(dx * dx + dz * dz > 0.0025,
                 "holding the simulated forward key did not move the local player")
             playerMovementPassed = true

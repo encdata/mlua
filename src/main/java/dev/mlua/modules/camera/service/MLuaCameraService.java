@@ -6,7 +6,7 @@ import org.luaj.vm2.LuaValue;
 import dev.mlua.common.enums.Side;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
@@ -30,7 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import org.luaj.vm2.Varargs;
 
 @MLuaDescription("Client-side camera control for transforms, subjects, field of view, and held-item offsets.")
-public final class MLuaCameraService extends MLuaReflectiveService {
+public final class MLuaCameraService extends MLuaGameThreadReflectiveService {
    public MLuaCameraService(MLuaService.Context context) {
       super(context);
    }

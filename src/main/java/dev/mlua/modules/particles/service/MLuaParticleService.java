@@ -6,7 +6,7 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.api.MLuaDescription;
-import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.classes.MLuaClassMethods;
@@ -25,7 +25,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 @MLuaDescription("Client-side particles, typed particle specs, and persistent emitters.")
-public final class MLuaParticleService extends MLuaReflectiveService {
+public final class MLuaParticleService extends MLuaGameThreadReflectiveService {
     public static void registerEmitterClass(MLuaRegistration registration) {
         MLuaParticleEmitterBinding.register(registration);
     }

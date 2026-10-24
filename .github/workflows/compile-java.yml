@@ -92,6 +92,9 @@ jobs:
       - name: Validate class thread dispatch
         run: python .github/scripts/verify-class-thread-dispatch-contract.py
 
+      - name: Validate client service thread ownership
+        run: python .github/scripts/verify-client-service-thread-contract.py
+
       - name: Validate scoreboard team ownership
         run: python .github/scripts/verify-scoreboard-service-contract.py
 

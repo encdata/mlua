@@ -1,7 +1,7 @@
 package dev.mlua.modules.client.service;
 
 import dev.mlua.api.MLuaDescription;
-import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.client.MLuaMinecraftClient;
@@ -12,7 +12,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Read-only access to local Minecraft client and window state.")
-public final class MLuaClientService extends MLuaReflectiveService {
+public final class MLuaClientService extends MLuaGameThreadReflectiveService {
     private boolean hasMouseSample;
     private boolean lastMouseGrabbed;
     private double lastMouseX;

@@ -130,6 +130,8 @@ if "$missingClientRuntimeMarkers.Count -eq 0" not in runner_text:
     fail("isolated client service/UI runtime markers do not gate player simulation success")
 if not re.search(r"(?s)if playerSeen and inputPressState == 0 then.*?MLUA_CI_PLAYER_INPUT_PRESS_BEGIN", prepare_text):
     fail("input simulation must start after local-player readiness, independently of item pickup")
+if 'print("MLUA_CI_PLAYER_MOVEMENT_DELTA:"' not in prepare_text:
+    fail("player movement failures must log the observed X/Z displacement")
 if re.search(r"(?s)if playerPickupReceived and inputPressState == 0 then", prepare_text):
     fail("input simulation is still blocked on the independent item-pickup event")
 if '@Inject(method = "tick", at = @At("HEAD"))' not in keyboard_input_mixin \
