@@ -100,7 +100,7 @@ for loader, path in loader_projects.items():
         fail("neoforge player simulation must use a reduced client window for software rendering")
 if "'clouds:off'" not in runner_text:
     fail("software-rendered player simulation must disable the expensive cloud pass")
-for setting in ("'level-type=minecraft:flat'", "'generate-structures=false'"):
+for setting in ("'level-type=minecraft:flat'", "'generate-structures=false'", "'difficulty=peaceful'"):
     if setting not in runner_text:
         fail(f"software-rendered player simulation must apply {setting} to its isolated server")
 

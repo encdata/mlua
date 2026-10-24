@@ -57,6 +57,7 @@ Add-Content (Join-Path $serverDir 'run/server.properties') @(
     'simulation-distance=2'
     'level-type=minecraft:flat'
     'generate-structures=false'
+    'difficulty=peaceful'
 )
 @(
     'renderDistance:2'
