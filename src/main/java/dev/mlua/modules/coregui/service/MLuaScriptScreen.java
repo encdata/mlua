@@ -3,8 +3,6 @@ package dev.mlua.modules.coregui.service;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.LuaError;
-import org.luaj.vm2.lib.VarArgFunction;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -12,15 +10,12 @@ import dev.mlua.core.MLuaContext;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.binding.MLuaNativeControl;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.lang.ref.WeakReference;
 import java.nio.file.Path;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 //--version 26.1
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.KeyEvent;
@@ -44,7 +39,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     private final WeakReference<Object> runtimeOwner;
     private MLuaContext context;
     private final MLuaScriptScreenRenderer renderer = new MLuaScriptScreenRenderer();
-    private final List<ScreenCallback> controlCallbacks = new CopyOnWriteArrayList<>();
+    private final MLuaScriptScreenControls controls = new MLuaScriptScreenControls(this);
     private final MLuaScriptScreenCallbacks classCallbacks = new MLuaScriptScreenCallbacks(this);
     private final MLuaScriptScreenInput input = new MLuaScriptScreenInput(this.classCallbacks);
     private LuaValue closed = LuaValue.NIL;
@@ -59,7 +54,6 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     private boolean closing;
     private boolean tickFailed;
     private boolean renderFailed;
-    private int nextNativeControlIndex = 1;
 
     MLuaScriptScreen(Object title, LuaValue initialize, MLuaRegistration registration,
                              MLuaGuiState state, String ownerModId, MLuaContext context) {
@@ -113,11 +107,10 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         this.pendingOpen = false;
         MLuaNativeScreenManager.forget(this);
         if (this.disposed || this.initializationFailed) return;
-        this.clearControlCallbacks();
+        this.controls.reset();
         this.renderer.clear();
         this.tickFailed = false;
         this.renderFailed = false;
-        this.nextNativeControlIndex = 1;
         LuaTable builder = MLuaScriptScreenBuilder.create(this);
         try {
             synchronized (this.state.executionLock) {
@@ -149,13 +142,6 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         }
     }
 
-    private static Object nativeWidget(LuaValue value) {
-        LuaValue wrapped = value.istable() ? value.checktable().rawget("__javaObject") : LuaValue.NIL;
-        if (!wrapped.isnil() && wrapped.isuserdata()) return wrapped.touserdata();
-        if (value.isuserdata()) return value.touserdata();
-        throw new LuaError("[MLua] Screen:AddRenderableWidget expects a live Java widget from Java:New or a Java method.");
-    }
-
     @Override public void setOnClose(LuaValue callback) { this.closed = callback; }
 
     @Override public void setOnTick(LuaValue callback) {
@@ -170,79 +156,26 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
 
     @Override public LuaTable addButton(Object label, LuaTable position, LuaTable size, LuaValue callback) {
-        return this.addNativeButton(label, position, size, callback);
+        return this.controls.addButton(label, position, size, callback);
     }
 
     @Override public LuaTable addEditBox(LuaTable position, LuaTable size, String initialText, LuaValue changed) {
-        return this.addNativeEditBox(position, size, initialText, changed);
+        return this.controls.addEditBox(position, size, initialText, changed);
     }
 
     @Override public LuaTable addRenderableWidget(LuaValue value) {
-        Object widget = nativeWidget(value);
-        if (!(widget instanceof AbstractWidget abstractWidget)) {
-            throw new LuaError("[MLua] Screen:AddRenderableWidget expects a Minecraft AbstractWidget instance.");
-        }
-        AbstractWidget added = this.addRenderableWidget(abstractWidget);
-        int index = this.nextNativeControlIndex++;
+        return this.controls.addRenderableWidget(value);
+    }
+
+    int screenWidth() { return this.width; }
+    int screenHeight() { return this.height; }
+    net.minecraft.client.gui.Font screenFont() { return this.font; }
+
+    LuaTable addNativeWidget(AbstractWidget widget, int index) {
+        AbstractWidget added = this.addRenderableWidget(widget);
         return MLuaNativeControl.instance(this.registration,
             new MLuaNativeControl.Backing(added, this, this.getClass().getName(), index,
                 this.ownerModId, this.runtimeOwner.get()));
-    }
-
-    private LuaTable addNativeButton(Object label, LuaTable position, LuaTable size, LuaValue callback) {
-        int x = MLuaGuiValueParser.screenCoordinate(position, "X", this.width);
-        int y = MLuaGuiValueParser.screenCoordinate(position, "Y", this.height);
-        int width = MLuaGuiValueParser.screenCoordinate(size, "X", this.width);
-        int height = MLuaGuiValueParser.screenCoordinate(size, "Y", this.height);
-        if (width < 1 || height < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
-        int buttonIndex = this.nextNativeControlIndex++;
-        LuaTable[] controlRef = new LuaTable[1];
-        ScreenCallback callbackRef = this.trackControlCallback(callback);
-        Component component = label instanceof Component styled ? styled : Component.literal((String) label);
-        Button button = Button.builder(component, clicked -> {
-            LuaValue activeCallback = callbackRef.get();
-            if (!activeCallback.isfunction()) return;
-            try {
-                this.invokeLua(activeCallback, LuaValue.varargsOf(new LuaValue[]{controlRef[0]}));
-            }
-            catch (RuntimeException failure) {
-                callbackRef.clear();
-                MLuaLogger.LOGGER.error("Lua screen button callback failed; callback disabled", failure);
-            }
-        }).bounds(x, y, width, height).build();
-        this.addRenderableWidget(button);
-        controlRef[0] = MLuaNativeControl.instance(this.registration,
-            new MLuaNativeControl.Backing(button, this, this.getClass().getName(), buttonIndex,
-                this.ownerModId, this.runtimeOwner.get()));
-        return controlRef[0];
-    }
-
-    private LuaTable addNativeEditBox(LuaTable position, LuaTable size, String initialText, LuaValue changed) {
-        int x = MLuaGuiValueParser.screenCoordinate(position, "X", this.width);
-        int y = MLuaGuiValueParser.screenCoordinate(position, "Y", this.height);
-        int width = MLuaGuiValueParser.screenCoordinate(size, "X", this.width);
-        int height = MLuaGuiValueParser.screenCoordinate(size, "Y", this.height);
-        if (width < 1 || height < 1) throw new LuaError("[MLua] Screen edit box dimensions must be positive.");
-        int controlIndex = this.nextNativeControlIndex++;
-        EditBox field = new EditBox(this.font, x, y, width, height, Component.literal(""));
-        field.setValue(initialText);
-        LuaTable control = MLuaNativeControl.instance(this.registration,
-            new MLuaNativeControl.Backing(field, this, this.getClass().getName(), controlIndex,
-                this.ownerModId, this.runtimeOwner.get()));
-        if (changed.isfunction()) {
-            ScreenCallback callbackRef = this.trackControlCallback(changed);
-            field.setResponder(value -> {
-                LuaValue activeCallback = callbackRef.get();
-                if (!activeCallback.isfunction()) return;
-                try { this.invokeLua(activeCallback, LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf(value), control})); }
-                catch (RuntimeException failure) {
-                    callbackRef.clear();
-                    MLuaLogger.LOGGER.error("Lua screen edit box callback failed; callback disabled", failure);
-                }
-            });
-        }
-        this.addRenderableWidget(field);
-        return control;
     }
 
     private void notifyClosed() {
@@ -472,7 +405,7 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
 
     private void releaseLuaReferences() {
-        this.clearControlCallbacks();
+        this.controls.clear();
         this.closed = LuaValue.NIL;
         this.tickCallback = LuaValue.NIL;
         this.renderCallback = LuaValue.NIL;
@@ -490,17 +423,6 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
         this.context = null;
         this.classCallbacks.clear();
         MLuaNativeControl.invalidateScreen(this);
-    }
-
-    private ScreenCallback trackControlCallback(LuaValue callback) {
-        ScreenCallback reference = new ScreenCallback(callback);
-        this.controlCallbacks.add(reference);
-        return reference;
-    }
-
-    private void clearControlCallbacks() {
-        for (ScreenCallback callback : this.controlCallbacks) callback.clear();
-        this.controlCallbacks.clear();
     }
 
     Varargs invokeLua(LuaValue function, Varargs arguments) {
@@ -549,21 +471,4 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
     //--endversion
 
-    /** Mutable indirection lets native widgets outlive a screen without retaining Lua closures. */
-    private static final class ScreenCallback {
-        private volatile LuaValue callback;
-
-        private ScreenCallback(LuaValue callback) {
-            this.callback = callback;
-        }
-
-        private LuaValue get() {
-            LuaValue current = this.callback;
-            return current == null ? LuaValue.NIL : current;
-        }
-
-        private void clear() {
-            this.callback = LuaValue.NIL;
-        }
-    }
 }

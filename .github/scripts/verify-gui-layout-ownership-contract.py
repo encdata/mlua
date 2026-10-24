@@ -17,6 +17,7 @@ builder_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScript
 callbacks_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenCallbacks.java"
 input_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenInput.java"
 renderer_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenRenderer.java"
+screen_controls_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenControls.java"
 chat_mixin_path = ROOT / "src/main/java/dev/mlua/modules/mixin/service/ChatLineMixin.java"
 chat_bridge_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiChatLineBridge.java"
 value_parser_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiValueParser.java"
@@ -30,6 +31,7 @@ builder = builder_path.read_text(encoding="utf-8")
 callbacks = callbacks_path.read_text(encoding="utf-8")
 screen_input = input_path.read_text(encoding="utf-8")
 renderer = renderer_path.read_text(encoding="utf-8")
+screen_controls = screen_controls_path.read_text(encoding="utf-8")
 chat_mixin = chat_mixin_path.read_text(encoding="utf-8")
 chat_bridge = chat_bridge_path.read_text(encoding="utf-8")
 value_parser = value_parser_path.read_text(encoding="utf-8")
@@ -130,6 +132,14 @@ if "MLuaScriptScreenInput input" not in screen or "this.input." not in screen:
     fail("script screen must delegate Minecraft input conversion to MLuaScriptScreenInput")
 if "MLuaScriptScreenRenderer renderer" not in screen or "this.renderer.createCanvas(" not in screen:
     fail("script screen must delegate canvas creation and rendering to MLuaScriptScreenRenderer")
+if "MLuaScriptScreenControls controls" not in screen or "this.controls.addButton(" not in screen \
+        or "this.controls.addEditBox(" not in screen or "this.controls.addRenderableWidget(" not in screen:
+    fail("script screen must delegate native widget creation to MLuaScriptScreenControls")
+if "this.controls.clear()" not in screen or "CallbackReference" not in screen_controls \
+        or "MLuaNativeControl.instance" not in screen:
+    fail("native screen controls must own callback references and preserve native control backing")
+if any(operation in screen for operation in ("Button.builder(", "new EditBox(", "private static Object nativeWidget(")):
+    fail("native widget construction remains coupled to the Minecraft Screen lifecycle adapter")
 if "textLines" in screen or "private record ScreenText" in screen:
     fail("script text placement remains implemented in the Screen subclass")
 for operation in ("createCanvas(", "drawText(", "screenCoordinate(", "ScreenCanvas:Fill", "ScreenCanvas:DrawText"):
