@@ -5,7 +5,7 @@ import java.util.Map;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.common.enums.AnimationPriority;
 import dev.mlua.common.enums.Side;
-import dev.mlua.core.service.MLuaReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaAnimation;
@@ -22,7 +22,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Service for creating and managing animations.")
-public final class MLuaAnimationService extends MLuaReflectiveService {
+public final class MLuaAnimationService extends MLuaGameThreadReflectiveService {
     public static final int MAX_REGISTERED_ANIMATIONS = MLuaAnimationCatalog.MAX_REGISTERED_ANIMATIONS;
     public static final int MAX_REGISTERED_ANIMATIONS_PER_ADDON = MLuaAnimationCatalog.MAX_REGISTERED_ANIMATIONS_PER_ADDON;
     private final MLuaAnimationCatalog registeredAnimations = this.sharedState(

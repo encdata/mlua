@@ -6,7 +6,6 @@ import dev.mlua.math.MLuaCFrame;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.client.model.MLuaAnimationPlayer;
 import dev.mlua.runtime.client.model.MLuaBBModelAsset;
-import dev.mlua.runtime.client.model.MLuaBBModelRenderPlan;
 import dev.mlua.runtime.client.model.MLuaMeshDefinition;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
