@@ -90,6 +90,8 @@ render_manager_text += "\n" + (ROOT / "src/main/java/dev/mlua/runtime/client/MLu
 process_helper_text = (ROOT / ".github/scripts/smoke-process.ps1").read_text(encoding="utf-8")
 client_player_wrapper_text = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java").read_text(encoding="utf-8")
 client_player_wrapper_text += "\n" + (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaLocalPlayerBindings.java").read_text(encoding="utf-8")
+item_wrapper_text = (ROOT / "src/main/java/dev/mlua/minecraft/binding/MLuaItemWrapper.java").read_text(encoding="utf-8")
+item_class_text = (ROOT / "src/main/java/dev/mlua/minecraft/binding/MLuaItemStackClass.java").read_text(encoding="utf-8")
 input_module_text = (ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java").read_text(encoding="utf-8")
 keyboard_input_mixin = (ROOT / "src/main/java/dev/mlua/modules/mixin/service/KeyboardInputMixin.java").read_text(encoding="utf-8")
 
@@ -106,6 +108,13 @@ if "'clouds:off'" not in runner_text:
 for setting in ("'level-type=minecraft:flat'", "'generate-structures=false'", "'difficulty=peaceful'"):
     if setting not in runner_text:
         fail(f"software-rendered player simulation must apply {setting} to its isolated server")
+
+if "return MLuaItemStackClass.register(registration);" not in item_wrapper_text:
+    fail("Item wrapper must delegate class API ownership to MLuaItemStackClass")
+for api in ('registration.registerClass("Item"', '"new"', '"GetId"', '"GetCount"',
+            '"SetCount"', '"SetLore"', '"SetTag"', '"GetEnchantments"', '"BlockItem"', '"Weapon"'):
+    if api not in item_class_text:
+        fail(f"Item class registrar is missing {api}")
 
 starts = len(re.findall(r"(?m)^(?:.*=\s*)?@'\s*$", prepare_text))
 ends = len(re.findall(r"(?m)^'@(?:\s*\|.*)?$", prepare_text))
