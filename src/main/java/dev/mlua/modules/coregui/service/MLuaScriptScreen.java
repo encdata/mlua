@@ -190,10 +190,10 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
 
     private LuaTable addNativeButton(Object label, LuaTable position, LuaTable size, LuaValue callback) {
-        int x = MLuaGuiService.screenCoordinate(position, "X", this.width);
-        int y = MLuaGuiService.screenCoordinate(position, "Y", this.height);
-        int width = MLuaGuiService.screenCoordinate(size, "X", this.width);
-        int height = MLuaGuiService.screenCoordinate(size, "Y", this.height);
+        int x = MLuaGuiValueParser.screenCoordinate(position, "X", this.width);
+        int y = MLuaGuiValueParser.screenCoordinate(position, "Y", this.height);
+        int width = MLuaGuiValueParser.screenCoordinate(size, "X", this.width);
+        int height = MLuaGuiValueParser.screenCoordinate(size, "Y", this.height);
         if (width < 1 || height < 1) throw new LuaError("[MLua] Screen button dimensions must be positive.");
         int buttonIndex = this.nextNativeControlIndex++;
         LuaTable[] controlRef = new LuaTable[1];
@@ -218,10 +218,10 @@ final class MLuaScriptScreen extends Screen implements MLuaScriptScreenBuilder.H
     }
 
     private LuaTable addNativeEditBox(LuaTable position, LuaTable size, String initialText, LuaValue changed) {
-        int x = MLuaGuiService.screenCoordinate(position, "X", this.width);
-        int y = MLuaGuiService.screenCoordinate(position, "Y", this.height);
-        int width = MLuaGuiService.screenCoordinate(size, "X", this.width);
-        int height = MLuaGuiService.screenCoordinate(size, "Y", this.height);
+        int x = MLuaGuiValueParser.screenCoordinate(position, "X", this.width);
+        int y = MLuaGuiValueParser.screenCoordinate(position, "Y", this.height);
+        int width = MLuaGuiValueParser.screenCoordinate(size, "X", this.width);
+        int height = MLuaGuiValueParser.screenCoordinate(size, "Y", this.height);
         if (width < 1 || height < 1) throw new LuaError("[MLua] Screen edit box dimensions must be positive.");
         int controlIndex = this.nextNativeControlIndex++;
         EditBox field = new EditBox(this.font, x, y, width, height, Component.literal(""));

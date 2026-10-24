@@ -19,6 +19,7 @@ input_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptSc
 renderer_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenRenderer.java"
 chat_mixin_path = ROOT / "src/main/java/dev/mlua/modules/mixin/service/ChatLineMixin.java"
 chat_bridge_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiChatLineBridge.java"
+value_parser_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiValueParser.java"
 service = service_path.read_text(encoding="utf-8")
 controller = controller_path.read_text(encoding="utf-8")
 targets = targets_path.read_text(encoding="utf-8")
@@ -31,6 +32,7 @@ screen_input = input_path.read_text(encoding="utf-8")
 renderer = renderer_path.read_text(encoding="utf-8")
 chat_mixin = chat_mixin_path.read_text(encoding="utf-8")
 chat_bridge = chat_bridge_path.read_text(encoding="utf-8")
+value_parser = value_parser_path.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -65,7 +67,7 @@ for operation in ("createCore", "setCoreEnabled", "removeOwnedChildren", "Screen
 if "private final MLuaGuiNativeControlRegistry nativeControlRegistry" not in service:
     fail("GUI service does not delegate native widget discovery to its control registry")
 if "nativeControlRegistry.find(selector, firstOnly, screen)" not in service or \
-        "MLuaGuiNativeControlRegistry.requireSelector(selector)" not in service:
+        "MLuaGuiNativeControlRegistry.requireSelector(selector)" not in value_parser:
     fail("native control compatibility methods must delegate to their registry")
 if "MLuaNativeWidgetAccess.isNativeControl" in service:
     fail("native control discovery remains implemented in the GUI service facade")
@@ -111,6 +113,14 @@ if "fireInlineOnSession(runtime.session(), Side.CLIENT" not in chat_bridge \
     fail("chat line bridge must invoke listeners synchronously and expire each short-lived wrapper")
 if "beforeChatLineAdded" in service or "MLuaChatLine" in service:
     fail("chat line dispatch remains coupled to the GUI service facade")
+
+for operation in ("nativeText(", "readColor(", "optionalColor(", "requireScreenUDim2(",
+                  "screenCoordinate(", "requireCoreGuiType(", "requireNativeSelector("):
+    if operation not in value_parser:
+        fail(f"GUI value parser is missing {operation}")
+if any(operation in service for operation in ("nativeText(", "readColor(", "screenCoordinate(",
+                                               "requireScreenUDim2(", "requireCoreGuiType(")):
+    fail("GUI argument conversion remains implemented in the stateful service facade")
 
 if "MLuaScriptScreenBuilder.create(this)" not in screen:
     fail("script screen must delegate its Lua initialization builder to MLuaScriptScreenBuilder")

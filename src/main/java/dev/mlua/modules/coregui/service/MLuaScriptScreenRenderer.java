@@ -19,8 +19,8 @@ final class MLuaScriptScreenRenderer {
 
     void addText(Object text, LuaTable position, int color, int width, int height) {
         textLines.add(new ScreenText(text,
-            MLuaGuiService.screenCoordinate(position, "X", width),
-            MLuaGuiService.screenCoordinate(position, "Y", height), color));
+            MLuaGuiValueParser.screenCoordinate(position, "X", width),
+            MLuaGuiValueParser.screenCoordinate(position, "Y", height), color));
     }
 
     void drawText(Drawing drawing) {
@@ -39,16 +39,16 @@ final class MLuaScriptScreenRenderer {
                     MLuaLuaArguments.wholeInt(args, 3, "ScreenCanvas:Fill", "top"),
                     MLuaLuaArguments.wholeInt(args, 4, "ScreenCanvas:Fill", "right"),
                     MLuaLuaArguments.wholeInt(args, 5, "ScreenCanvas:Fill", "bottom"),
-                    MLuaGuiService.readColor(args.arg(6), "ScreenCanvas:Fill", "color"));
+                    MLuaGuiValueParser.readColor(args.arg(6), "ScreenCanvas:Fill", "color"));
                 return LuaValue.NONE;
             }
         });
         canvas.set("DrawText", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawing.text(MLuaGuiService.nativeText(args.arg(2)),
+                drawing.text(MLuaGuiValueParser.nativeText(args.arg(2)),
                     MLuaLuaArguments.wholeInt(args, 3, "ScreenCanvas:DrawText", "x"),
                     MLuaLuaArguments.wholeInt(args, 4, "ScreenCanvas:DrawText", "y"),
-                    MLuaGuiService.optionalColor(args.arg(5), 0xFFFFFF, "ScreenCanvas:DrawText", "color"),
+                    MLuaGuiValueParser.optionalColor(args.arg(5), 0xFFFFFF, "ScreenCanvas:DrawText", "color"),
                     args.arg(6).optboolean(true));
                 return LuaValue.NONE;
             }

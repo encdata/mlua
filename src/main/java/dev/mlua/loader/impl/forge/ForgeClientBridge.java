@@ -11,7 +11,13 @@ import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+//--version 1.20.1
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+//--endversion
+//--version 1.21.1
 import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
+import net.minecraft.resources.ResourceLocation;
+//--endversion
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -50,16 +56,26 @@ public class ForgeClientBridge implements ClientBridge {
                 modelLayersRegistered = true;
             }
         });
+        //--version 1.20.1
+        modBus.addListener((RegisterGuiOverlaysEvent event) -> {
+            event.registerAboveAll("mlua_gui", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+                MLuaGuiRenderer.renderAll(graphics, screenWidth, screenHeight));
+            event.registerAboveAll("mlua_overlays", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+                overlays.render(graphics));
+        });
+        //--endversion
+        //--version 1.21.1
         modBus.addListener((AddGuiOverlayLayersEvent event) -> {
-            event.getLayeredDraw().add(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("mlua", "gui"),
+            event.getLayeredDraw().add(ResourceLocation.fromNamespaceAndPath("mlua", "gui"),
                 (graphics, deltaTracker) -> {
                     Minecraft minecraft = Minecraft.getInstance();
                     MLuaGuiRenderer.renderAll(graphics,
                         minecraft.getWindow().getGuiScaledWidth(), minecraft.getWindow().getGuiScaledHeight());
                 });
-            event.getLayeredDraw().add(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("mlua", "overlays"),
+            event.getLayeredDraw().add(ResourceLocation.fromNamespaceAndPath("mlua", "overlays"),
                 (graphics, deltaTracker) -> overlays.render(graphics));
         });
+        //--endversion
     }
 
     @Override

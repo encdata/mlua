@@ -68,7 +68,7 @@ final class MLuaHudRenderer {
         });
         canvas.set("DrawText", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                drawText(frame.requireGraphics(), MLuaGuiService.nativeText(args.arg(2)),
+                drawText(frame.requireGraphics(), MLuaGuiValueParser.nativeText(args.arg(2)),
                     MLuaLuaArguments.wholeInt(args, 3, "HudCanvas:DrawText", "x"),
                     MLuaLuaArguments.wholeInt(args, 4, "HudCanvas:DrawText", "y"),
                     args.arg(5).isnil() ? 0xFFFFFF

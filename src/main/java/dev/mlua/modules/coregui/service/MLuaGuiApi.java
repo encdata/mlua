@@ -127,7 +127,7 @@ final class MLuaGuiApi {
 
         table.set("OpenNativeScreen", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
-                Object title = service.nativeText(args.arg(2));
+                Object title = MLuaGuiValueParser.nativeText(args.arg(2));
                 LuaValue initialize = args.arg(3);
                 if (!initialize.isfunction()) throw new LuaError("[MLua] Gui:OpenNativeScreen expects an initialization function.");
                 Minecraft minecraft = Minecraft.getInstance();
@@ -146,7 +146,7 @@ final class MLuaGuiApi {
             @Override public Varargs invoke(Varargs args) {
                 if (service.context == null) throw new LuaError("[MLua] Gui service context is unavailable.");
                 String className = args.arg(2).checkjstring();
-                Object title = service.nativeText(args.arg(3));
+                Object title = MLuaGuiValueParser.nativeText(args.arg(3));
                 LuaValue fieldsValue = args.arg(4);
                 if (!fieldsValue.isnil() && !fieldsValue.istable()) throw new LuaError("[MLua] Gui:OpenScreen fields must be a table.");
                 if (fieldsValue.istable()) {
@@ -196,7 +196,7 @@ final class MLuaGuiApi {
             public Varargs invoke(Varargs args) {
                 LuaValue typeVal = args.arg(2);
                 boolean enabled = args.arg(3).optboolean(true);
-                CoreGuiType type = service.requireCoreGuiType(typeVal, "SetCoreGuiEnabled");
+                CoreGuiType type = MLuaGuiValueParser.requireCoreGuiType(typeVal, "SetCoreGuiEnabled");
                 service.setCoreGuiEnabled(type, enabled);
                 return LuaValue.NONE;
             }
@@ -205,7 +205,7 @@ final class MLuaGuiApi {
         table.set("GetCoreGuiEnabled", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 LuaValue typeVal = args.arg(2);
-                CoreGuiType type = service.requireCoreGuiType(typeVal, "GetCoreGuiEnabled");
+                CoreGuiType type = MLuaGuiValueParser.requireCoreGuiType(typeVal, "GetCoreGuiEnabled");
                 return LuaValue.valueOf(service.isCoreGuiEnabled(type));
             }
         });
@@ -259,7 +259,7 @@ final class MLuaGuiApi {
 
         table.set("GetCoreGui", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                CoreGuiType type = service.requireCoreGuiType(args.arg(2), "GetCoreGui");
+                CoreGuiType type = MLuaGuiValueParser.requireCoreGuiType(args.arg(2), "GetCoreGui");
                 ScreenGui screen = service.getCoreGui(type);
                 return screen == null ? LuaValue.NIL : screen.toLua();
             }
@@ -267,7 +267,7 @@ final class MLuaGuiApi {
 
         table.set("CreateCoreGui", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                CoreGuiType type = service.requireCoreGuiType(args.arg(2), "CreateCoreGui");
+                CoreGuiType type = MLuaGuiValueParser.requireCoreGuiType(args.arg(2), "CreateCoreGui");
                 if (type == CoreGuiType.All) {
                     throw new LuaError("[MLua] Gui:CreateCoreGui requires one specific CoreGuiType, not All");
                 }
@@ -280,7 +280,7 @@ final class MLuaGuiApi {
             @Override public Varargs invoke(Varargs args) {
                 LuaValue selector = args.arg(2);
                 if (!selector.isnil() && !selector.istable()) throw new LuaError("[MLua] Gui:GetNativeControls selector must be a table");
-                if (selector.istable()) service.requireNativeSelector(selector.checktable());
+                if (selector.istable()) MLuaGuiValueParser.requireNativeSelector(selector.checktable());
                 return service.nativeControls(selector, false);
             }
         });
@@ -288,7 +288,7 @@ final class MLuaGuiApi {
         table.set("GetNativeControl", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 LuaTable selector = args.checktable(2);
-                service.requireNativeSelector(selector);
+                MLuaGuiValueParser.requireNativeSelector(selector);
                 return service.nativeControls(selector, true).get(1);
             }
         });
@@ -300,7 +300,7 @@ final class MLuaGuiApi {
                 if (target.isBlank()) throw new LuaError("[MLua] Gui:SetNativeLayout requires a screen class name or 'Any'");
                 LuaTable selector = args.checktable(3);
                 LuaTable properties = args.checktable(4);
-                service.requireNativeSelector(selector);
+                MLuaGuiValueParser.requireNativeSelector(selector);
                 if (properties.keys().length == 0) throw new LuaError("[MLua] Native layout needs at least one property");
                 for (LuaValue key : properties.keys()) {
                     if (key.type() != LuaValue.TSTRING || key.tojstring().isBlank() || !Character.isLetter(key.tojstring().charAt(0))

@@ -490,6 +490,14 @@ if "modBus.addListener((AddGuiOverlayLayersEvent event) ->" not in forge_client_
 if "tryRegisterOverlayListener" in forge_client_bridge:
     fail("Forge 1.21.1 overlay registration must not probe event classes reflectively")
 
+root_forge_bridge = (ROOT / "src/main/java/dev/mlua/loader/impl/forge/ForgeClientBridge.java").read_text(encoding="utf-8")
+legacy_forge_bridge = filter_versioned_source(root_forge_bridge, "1.20.1")
+modern_forge_bridge = filter_versioned_source(root_forge_bridge, "1.21.1")
+if "RegisterGuiOverlaysEvent" not in legacy_forge_bridge or "AddGuiOverlayLayersEvent" in legacy_forge_bridge:
+    fail("Forge 1.20.1 must retain its RegisterGuiOverlaysEvent API")
+if "AddGuiOverlayLayersEvent" not in modern_forge_bridge or "RegisterGuiOverlaysEvent" in modern_forge_bridge:
+    fail("Forge 1.21.1 must use AddGuiOverlayLayersEvent")
+
 model_render_plan_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaBBModelRenderPlan.java"
 if not model_render_plan_path.is_file():
     fail("deferred BBModel material batching must have one dedicated owner")

@@ -31,23 +31,23 @@ final class MLuaScriptScreenBuilder {
             return LuaValue.NONE;
         }));
         builder.set("AddText", function(args -> {
-            Object text = MLuaGuiService.nativeText(args.arg(2));
-            LuaTable position = MLuaGuiService.requireScreenUDim2(args.arg(3), "Position");
-            int color = MLuaGuiService.optionalColor(args.arg(4), 0xFFFFFF, "NativeScreen:AddText", "color");
+            Object text = MLuaGuiValueParser.nativeText(args.arg(2));
+            LuaTable position = MLuaGuiValueParser.requireScreenUDim2(args.arg(3), "Position");
+            int color = MLuaGuiValueParser.optionalColor(args.arg(4), 0xFFFFFF, "NativeScreen:AddText", "color");
             host.addText(text, position, color);
             return LuaValue.NONE;
         }));
         builder.set("AddButton", function(args -> {
-            Object label = MLuaGuiService.nativeText(args.arg(2));
-            LuaTable position = MLuaGuiService.requireScreenUDim2(args.arg(3), "Position");
-            LuaTable size = MLuaGuiService.requireScreenUDim2(args.arg(4), "Size");
+            Object label = MLuaGuiValueParser.nativeText(args.arg(2));
+            LuaTable position = MLuaGuiValueParser.requireScreenUDim2(args.arg(3), "Position");
+            LuaTable size = MLuaGuiValueParser.requireScreenUDim2(args.arg(4), "Size");
             LuaValue callback = args.arg(5);
             requireCallback(callback, "Screen:AddButton");
             return host.addButton(label, position, size, callback);
         }));
         builder.set("AddEditBox", function(args -> {
-            LuaTable position = MLuaGuiService.requireScreenUDim2(args.arg(2), "Position");
-            LuaTable size = MLuaGuiService.requireScreenUDim2(args.arg(3), "Size");
+            LuaTable position = MLuaGuiValueParser.requireScreenUDim2(args.arg(2), "Position");
+            LuaTable size = MLuaGuiValueParser.requireScreenUDim2(args.arg(3), "Size");
             String initialText = args.arg(4).optjstring("");
             LuaValue changed = args.arg(5);
             if (!changed.isnil() && !changed.isfunction()) {

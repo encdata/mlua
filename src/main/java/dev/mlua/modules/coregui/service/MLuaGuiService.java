@@ -1,7 +1,6 @@
 package dev.mlua.modules.coregui.service;
 
 import dev.mlua.common.enums.CoreGuiType;
-import dev.mlua.modules.enums.MLuaEnumValue;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.LuaError;
@@ -10,7 +9,6 @@ import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.scheduler.MLuaTaskSchedulerView;
 import dev.mlua.core.engine.MLuaLuaBindings;
-import dev.mlua.core.engine.MLuaLuauTypes;
 import dev.mlua.common.enums.Side;
 import dev.mlua.minecraft.ui.element.GuiBase;
 import dev.mlua.minecraft.ui.element.GuiObject;
@@ -18,14 +16,12 @@ import dev.mlua.minecraft.ui.element.ScreenGui;
 import dev.mlua.minecraft.ui.element.GuiButton;
 import dev.mlua.minecraft.binding.MLuaNativeControl;
 import dev.mlua.minecraft.binding.MLuaNativeScreen;
-import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicLong;
-import net.minecraft.network.chat.Component;
 //--version 26.1
 //--endversion
 //--version 1.20.1,1.21.1
@@ -89,23 +85,6 @@ public final class MLuaGuiService implements MLuaService {
             return registered;
         });
         MLuaHudRenderer.render(elements, graphics);
-    }
-
-    static Object nativeText(LuaValue value) {
-        if (value.type() == LuaValue.TSTRING) return value.checkjstring();
-        try {
-            Object component = dev.mlua.api.MLuaLuaCoercions.javaValue(value, Component.class);
-            if (component instanceof Component) return component;
-        } catch (RuntimeException ignored) { }
-        throw new LuaError("[MLua] Expected a string or Java Component value.");
-    }
-
-    static int readColor(LuaValue value, String method, String parameter) {
-        return MLuaLuaArguments.wholeInt32Bits(value, method, parameter);
-    }
-
-    static int optionalColor(LuaValue value, int fallback, String method, String parameter) {
-        return value.isnil() ? fallback : readColor(value, method, parameter);
     }
 
     public static boolean matchesRegisteredScreenTarget(MLuaTaskSchedulerView scheduler, String target, Object screen) {
@@ -234,18 +213,6 @@ public final class MLuaGuiService implements MLuaService {
 
     public static void setNativeControlProperties(MLuaNativeControl.Backing backing, LuaTable updates) {
         MLuaGuiNativeControlProperties.setProperties(backing, updates);
-    }
-
-    static LuaTable requireScreenUDim2(LuaValue value, String property) {
-        if (!MLuaLuauTypes.isUDim2(value)) {
-            throw new LuaError("[MLua] Screen " + property + " requires a UDim2 value.");
-        }
-        return value.checktable();
-    }
-
-    static int screenCoordinate(LuaTable dimensions, String axis, int extent) {
-        LuaValue dimension = dimensions.get(axis);
-        return (int) Math.round(dimension.get("Scale").todouble() * extent + dimension.get("Offset").toint());
     }
 
     MLuaNativeLayout findNativeLayout(String screen, int index, String owner) { return this.nativeLayoutController.findNativeLayout(screen, index, owner); }
@@ -412,16 +379,6 @@ public final class MLuaGuiService implements MLuaService {
 
     boolean removeScreen(LuaValue target) {
         return this.screenRegistry.remove(target);
-    }
-
-    static CoreGuiType requireCoreGuiType(LuaValue value, String method) {
-        CoreGuiType type = MLuaEnumValue.toJava(value, CoreGuiType.class);
-        if (type == null) throw new LuaError("[MLua] Gui:" + method + " expects an Enum.CoreGuiType value");
-        return type;
-    }
-
-    static void requireNativeSelector(LuaTable selector) {
-        MLuaGuiNativeControlRegistry.requireSelector(selector);
     }
 
     static void applyScreenProperties(ScreenGui screen, LuaTable definition) {
