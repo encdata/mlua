@@ -49,6 +49,8 @@ service_api_sources = discover_service_sources()
 prepare_text = prepare.read_text(encoding="utf-8")
 runner_text = runner.read_text(encoding="utf-8")
 workflow_text = workflow.read_text(encoding="utf-8")
+gui_service_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiService.java").read_text(encoding="utf-8")
+runtime_marker_source = prepare_text + "\n" + gui_service_text
 render_service_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java").read_text(encoding="utf-8")
 render_object_operations_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java").read_text(encoding="utf-8")
 render_manager_text = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
@@ -64,13 +66,15 @@ for path in ("ci_player.client.lua", "ci_player.server.lua"):
         fail(f"prepare script does not generate {path}")
 
 markers = sorted(set(re.findall(r"MLUA_CI_(?:PLAYER|SCRIPTED_ENTITY)_[A-Z0-9_]+", runner_text)))
-missing = [marker for marker in markers if marker not in prepare_text]
+missing = [marker for marker in markers if marker not in runtime_marker_source]
 if missing:
     fail("runner waits for markers not emitted by generated scripts: " + ", ".join(missing))
 
 client_runtime_markers = (
     "MLUA_CI_CLIENT_SERVICE_SCRIPT_OK",
     "MLUA_CI_PLAYER_HEARTBEAT_FIRED",
+    "MLUA_CI_PLAYER_CHAT_LINE_HOOK_REGISTERED",
+    "MLUA_CI_CHAT_LINE_BRIDGE_ENTERED",
     "MLUA_CI_PLAYER_CHAT_LINE_HOOK_FIRED",
     "MLUA_CI_INPUT_KEYBINDS_OK",
     "MLUA_CI_BBMODEL_HIERARCHY_OK",
@@ -101,7 +105,7 @@ missing_runtime_markers = [marker for marker in client_runtime_markers if marker
 if missing_runtime_markers:
     fail("isolated player client does not require these service/UI markers: "
          + ", ".join(missing_runtime_markers))
-unemitted_runtime_markers = [marker for marker in client_runtime_markers if marker not in prepare_text]
+unemitted_runtime_markers = [marker for marker in client_runtime_markers if marker not in runtime_marker_source]
 if unemitted_runtime_markers:
     fail("isolated player client waits for markers not emitted by its generated script: "
          + ", ".join(unemitted_runtime_markers))

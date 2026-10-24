@@ -1292,7 +1292,7 @@ Render:RegisterEntityRenderPass("minecraft:sheep", "mlua:ci-sheep-model", functi
         print("MLUA_CI_PLAYER_MOB_ANIMATION_POSE_READY")
     end
 end)
-Gui.ChatLineAdding:Connect(function(line)
+local chatLineConnection = Gui.ChatLineAdding:Connect(function(line)
     if not chatLineHookObserved then
         chatLineHookObserved = true
         print("MLUA_CI_PLAYER_CHAT_LINE_HOOK_FIRED")
@@ -1319,6 +1319,8 @@ Gui.ChatLineAdding:Connect(function(line)
         print("MLUA_CI_PLAYER_ATTACK_CONFIRMED")
     end
 end)
+assert(chatLineConnection.Connected, "Gui.ChatLineAdding listener did not connect")
+print("MLUA_CI_PLAYER_CHAT_LINE_HOOK_REGISTERED")
 connection = RunService.Heartbeat:Connect(function()
     heartbeatTicks = heartbeatTicks + 1
     if heartbeatTicks == 1 then print("MLUA_CI_PLAYER_HEARTBEAT_FIRED") end

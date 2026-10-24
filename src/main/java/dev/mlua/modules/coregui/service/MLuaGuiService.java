@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.network.chat.Component;
 //--version 26.1
@@ -34,6 +35,8 @@ import net.minecraft.network.chat.Component;
 
 public final class MLuaGuiService implements MLuaService {
     private static final Map<MLuaTaskSchedulerView, MLuaGuiState> STATES = new WeakHashMap<>();
+    private static final boolean PLAYER_TEST = Boolean.parseBoolean(System.getenv("MLUA_CI_PLAYER_TEST"));
+    private static final AtomicBoolean REPORTED_CHAT_LINE_BRIDGE = new AtomicBoolean();
     final MLuaService.Context context;
     final MLuaGuiState state;
     private final MLuaGuiScreenRegistry screenRegistry;
@@ -68,6 +71,9 @@ public final class MLuaGuiService implements MLuaService {
     }
 
     public static Component beforeChatLineAdded(Component message) {
+        if (PLAYER_TEST && REPORTED_CHAT_LINE_BRIDGE.compareAndSet(false, true)) {
+            MLuaLogger.LOGGER.info("MLUA_CI_CHAT_LINE_BRIDGE_ENTERED");
+        }
         MLuaGuiService service = getInstance();
         MLuaRuntime runtime = MLuaRuntime.get();
         if (service == null || runtime == null || runtime.session() == null || service.state.chatLineAdding.isEmpty()) return message;
