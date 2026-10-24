@@ -14,10 +14,6 @@ import net.minecraft.client.Minecraft;
 /** Tracks the thread used by the loader's client tick for APIs that touch live client state. */
 public final class MLuaClientThread {
     private static final AtomicReference<Thread> OWNER = new AtomicReference<>();
-    private static final InheritableThreadLocal<Integer> SYNCHRONOUS_CALLBACK_DEPTH =
-        new InheritableThreadLocal<>() {
-            @Override protected Integer initialValue() { return 0; }
-        };
     private static final AtomicBoolean REPORTED_THREAD_CHANGE = new AtomicBoolean();
     private static final AtomicBoolean REPORTED_THREAD_MISMATCH = new AtomicBoolean();
 
@@ -45,7 +41,8 @@ public final class MLuaClientThread {
         } catch (RuntimeException unavailable) {
             minecraftThread = false;
         }
-        if (owner != null && !minecraftThread && REPORTED_THREAD_MISMATCH.compareAndSet(false, true)) {
+        if (owner != null && !minecraftThread && !MLuaClientExecutionScope.isActive()
+                && REPORTED_THREAD_MISMATCH.compareAndSet(false, true)) {
             MLuaLogger.LOGGER.error("MLua client thread mismatch: tick='{}' ({}), caller='{}' ({}), Minecraft.isSameThread()={}",
                 owner.getName(), System.identityHashCode(owner), current.getName(),
                 System.identityHashCode(current), minecraftThread);
@@ -62,19 +59,14 @@ public final class MLuaClientThread {
         if (!isClientThread()) {
             throw new IllegalStateException("Client callback must be entered from Minecraft's client thread.");
         }
-        int previousDepth = SYNCHRONOUS_CALLBACK_DEPTH.get();
-        SYNCHRONOUS_CALLBACK_DEPTH.set(previousDepth + 1);
-        try {
+        try (MLuaClientExecutionScope ignored = MLuaClientExecutionScope.open()) {
             callback.run();
-        } finally {
-            if (previousDepth == 0) SYNCHRONOUS_CALLBACK_DEPTH.remove();
-            else SYNCHRONOUS_CALLBACK_DEPTH.set(previousDepth);
         }
     }
 
     /** True on Minecraft's client thread and on a child coroutine spawned by its synchronous callback. */
     public static boolean isClientExecutionContext() {
-        return isClientThread() || SYNCHRONOUS_CALLBACK_DEPTH.get() > 0;
+        return isClientThread() || MLuaClientExecutionScope.isActive();
     }
 
     /**
