@@ -206,6 +206,15 @@ final class MLuaClassRegistryTest {
             "string", "shared:Shared", "Current status.");
         assertEquals("ready", instance.get("Status").tojstring());
 
+        VarArgFunction childStatusGetter = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf("custom"); }
+        };
+        registry.registerProperty("CacheChild", "Status", childStatusGetter, LuaValue.NIL,
+            "string", "shared:Shared", "Child-specific status.");
+        assertEquals("custom", instance.get("Status").tojstring());
+        assertTrue(registry.unregisterProperty("CacheChild", "Status", childStatusGetter));
+        assertEquals("ready", instance.get("Status").tojstring());
+
         assertTrue(registry.unregisterProperty("CacheBase", "Status", statusGetter));
         assertTrue(instance.get("Status").isnil());
     }

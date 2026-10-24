@@ -76,6 +76,8 @@ if "private final Map<String, Map<String, LuaTable>> propertyLookups" not in met
     fail("inherited property reads must use a per-class lookup cache invalidated on property changes")
 if "for (String descendant : this.hierarchy.descendantsOf(className))" not in metadata:
     fail("property lookup invalidation must be limited to the changed class and its descendants")
+if "lookup.putIfAbsent(key.tojstring(), descriptor.checktable());" not in metadata:
+    fail("cached property lookup must keep the nearest class's descriptor when subclasses override a property")
 if "instanceClasses.entrySet()" in registry:
     fail("class-scoped instance refreshes must not rescan every live instance")
 dependents = registry.split("private boolean hasClassDependents(String name)", 1)[1].split(
