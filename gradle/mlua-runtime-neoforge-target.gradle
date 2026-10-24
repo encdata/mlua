@@ -121,7 +121,6 @@ if (is26Family) {
     // each class and does not compile against removed Minecraft callbacks.
     runtimeRootExcludes += 'dev/mlua/modules/combat/MLuaProjectileDefinition.java'
     runtimeRootExcludes += 'dev/mlua/modules/world/service/MLuaWorldService.java'
-    runtimeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java'
     // The 26.1 NeoForge project provides its Item.Properties.spawnEgg-based
     // replacement for the shared named spawn egg implementation.
     runtimeRootExcludes += 'dev/mlua/runtime/registry/MLuaNamedSpawnEggItem.java'

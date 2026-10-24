@@ -124,15 +124,12 @@ for relative, owner_script in delegated_projects.items():
 # 26.1 loader adapters and Minecraft helpers live in the common source roots.
 common_26_1_files = (
     ROOT / "mlua-loaders/common/26.1/impl/dev/mlua/runtime/client/MLuaProjectileRenderer.java",
-    ROOT / "mlua-loaders/common/26.1/project/src/main/java/dev/mlua/minecraft/MLuaResourceLocations.java",
     ROOT / "mlua-loaders/common/26.1/impl/dev/mlua/runtime/client/MLuaConfigClientHooks.java",
 )
 loader_duplicates = (
     ROOT / "mlua-loaders/fabric/26.1/impl/dev/mlua/runtime/client/MLuaProjectileRenderer.java",
     ROOT / "mlua-loaders/neoforge/26.1/impl/dev/mlua/runtime/client/MLuaProjectileRenderer.java",
     ROOT / "mlua-loaders/fabric/26.1/impl/dev/mlua/runtime/client/MLuaConfigClientHooks.java",
-    ROOT / "mlua-loaders/fabric/26.1/project/src/main/java/dev/mlua/minecraft/MLuaResourceLocations.java",
-    ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/minecraft/MLuaResourceLocations.java",
 )
 if any(not path.is_file() for path in common_26_1_files):
     raise SystemExit("26.1 common source ownership is missing a shared implementation")

@@ -264,9 +264,9 @@ if (isUnobfuscated) {
                     }
                     if (source.name == 'MLuaCommandContext.java') text = text.replace('current.displayClientMessage(Component.literal(args.checkjstring(2)), false);', 'current.sendSystemMessage(Component.literal(args.checkjstring(2)));')
                     if (source.name == 'MLuaCommandRegistry.java') text = text.replace('player.displayClientMessage(Component.literal("[MLua] Client command failed: " + e.getMessage()), false);', 'player.sendSystemMessage(Component.literal("[MLua] Client command failed: " + e.getMessage()));').replace('.dimension().location()', '.dimension().identifier()')
-                    if (source.name == 'MLuaBlockCallbackDispatcher.java') text = text.replace('.isClientSide', '.isClientSide()').replace('.dimension().location()', '.dimension().identifier()')
+                    if (source.name == 'MLuaBlockCallbackDispatcher.java') text = text.replaceAll('\\.isClientSide\\b(?!\\s*\\()', '.isClientSide()').replace('.dimension().location()', '.dimension().identifier()')
                     if (source.name == 'MLuaCommandRegistry.java') text = text.replace('source.hasPermission(definition.permission())', 'dev.mlua.mc.impl.command.MLuaPermissionAdapter.hasPermission(source, definition.permission())')
-                    if (source.name == 'MLuaEntityWrapper.java') text = text.replace('.kill();', '.discard();').replace('.isClientSide', '.isClientSide()').replace('getHolder(MLuaResourceLocations.parse(attrName)).orElse(null)', 'get(MLuaResourceLocations.parse(attrName)).orElse(null)')
+                    if (source.name == 'MLuaEntityWrapper.java') text = text.replace('.kill();', '.discard();').replaceAll('\\.isClientSide\\b(?!\\s*\\()', '.isClientSide()').replace('getHolder(MLuaResourceLocations.parse(attrName)).orElse(null)', 'get(MLuaResourceLocations.parse(attrName)).orElse(null)')
                     if (source.name == 'EventsModule.java') text = text.replace('level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getKey(source.type())', '(String) null')
                     if (source.name == 'MCServerBossEventImpl.java') text = text.replace('java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),', 'java.util.UUID.randomUUID(),').replace('Component.literal("Boss"), () -> {}, () -> {}', 'Component.literal("Boss"), () -> {}')
                     if (source.name == 'MLuaClientParticleManager.java') text = text
@@ -274,8 +274,8 @@ if (isUnobfuscated) {
                         .replace('new ItemStack(BuiltInRegistries.ITEM.get(itemId))', 'BuiltInRegistries.ITEM.getValue(itemId)')
                     if (source.name == 'MLuaBBModelAsset.java') text = text.replaceAll('(?<!getAsNumber\\(\\))\\.floatValue\\(\\)', '.getAsNumber().floatValue()').replaceAll('(?<!getAsNumber\\(\\))\\.intValue\\(\\)', '.getAsNumber().intValue()')
                     if (source.name == 'MLuaConfigRegistry.java') text = text.replace('primitive.doubleValue()', 'primitive.getAsDouble()')
-                    if (source.name == 'MLuaDataManager.java') text = text.replace('.isClientSide', '.isClientSide()').replace('player.getServer()', 'player.level().getServer()')
-                    text = text.replace('.isClientSide', '.isClientSide()')
+                    if (source.name == 'MLuaDataManager.java') text = text.replaceAll('\\.isClientSide\\b(?!\\s*\\()', '.isClientSide()').replace('player.getServer()', 'player.level().getServer()')
+                    text = text.replaceAll('\\.isClientSide\\b(?!\\s*\\()', '.isClientSide()')
                     if (source.name == 'MLuaDataManager.java') {
                         int wdStart = text.indexOf('private static MLuaWorldSavedData worldData(ServerLevel level)')
                         int wdEnd = text.indexOf('   private static void replace(', wdStart)

@@ -45,11 +45,10 @@ final class MLuaEntityPropertiesBindings {
             LuaValue filter = args.arg(3);
             java.util.function.Supplier<LuaTable> query = () -> {
                LuaTable nearby = new LuaTable();
-               int index = 1;
-               for (Entity other : MLuaEntityQuery.findWithinRadius(
-                     entity.level(), entity.getX(), entity.getY(), entity.getZ(), radius, entity, filter, registration)) {
-                  nearby.set(index++, MLuaEntityWrapper.entityTable(other, registration));
-               }
+               int[] nextIndex = {1};
+               MLuaEntityQuery.forEachWithinRadius(entity.level(), entity.getX(), entity.getY(), entity.getZ(),
+                  radius, entity, MLuaEntityQuery.compileFilter(filter, registration), other ->
+                     nearby.set(nextIndex[0]++, MLuaEntityWrapper.entityTable(other, registration)));
                return nearby;
             };
             return MLuaGameThreadAccess.callUnchecked(entity.level(), query::get);

@@ -143,7 +143,7 @@ final class MLuaSoundHandleFactory {
     }
 
 
-    private static VarArgFunction fn(String operation, Function<Varargs, LuaValue> body) {
+    private VarArgFunction fn(String operation, Function<Varargs, LuaValue> body) {
         return MLuaLuaErrors.operation("SoundHandle:" + operation, args -> {
             if (!usesClientState(operation)) return body.apply(args);
             return MLuaGameThreadAccess.callUnchecked(context, () -> body.apply(args));
