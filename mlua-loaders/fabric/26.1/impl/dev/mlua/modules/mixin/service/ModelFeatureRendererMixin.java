@@ -56,7 +56,7 @@ public abstract class ModelFeatureRendererMixin {
         if (entity instanceof LivingEntity) MLuaModelAdapterRegistry.apply(model, scope);
         if (mlua$callbackSubmission == submission) return;
         mlua$callbackSubmission = submission;
-        Object primaryModel = MLuaModelAdapterRegistry.findAdaptedModel(
+        Object primaryModel = MLuaModelAdapterRegistry.findRendererModel(
             Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(state));
         if (primaryModel != submission.model()) return;
         Float partialTick = MLuaRenderStateEntityResolver.findPartialTick(state);

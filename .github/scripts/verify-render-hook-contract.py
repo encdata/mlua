@@ -359,6 +359,13 @@ if not renderer_resolver_path.is_file():
 renderer_resolver = renderer_resolver_path.read_text(encoding="utf-8")
 if "MLuaRendererModelResolver.findModel(renderer, configuredPath" not in model_registry:
     fail("model adapter registry must delegate renderer model selection")
+if "findRendererModel(Object renderer)" not in model_registry \
+        or "findModelCandidate(renderer, configuredPath)" not in model_registry:
+    fail("render callbacks must resolve a native model before the first adapter is registered")
+for mixin_path in (ROOT / "mlua-loaders/fabric/26.1/impl/dev/mlua/modules/mixin/service/ModelFeatureRendererMixin.java",
+                   ROOT / "mlua-loaders/neoforge/26.1/impl/dev/mlua/mixin/ModelFeatureRendererMixin.java"):
+    if "MLuaModelAdapterRegistry.findRendererModel(" not in mixin_path.read_text(encoding="utf-8"):
+        fail(f"{mixin_path.relative_to(ROOT)} must dispatch its initial callback on the unadapted model")
 if "MLuaModelFieldAccess.rendererFields(renderer.getClass())" not in renderer_resolver:
     fail("renderer model resolver must delegate cached field discovery")
 if "MLuaModelFieldAccess.resolveFieldPath(renderer, configuredPath)" not in renderer_resolver:

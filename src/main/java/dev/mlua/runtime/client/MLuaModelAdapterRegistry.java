@@ -1010,6 +1010,13 @@ public final class MLuaModelAdapterRegistry {
             MLuaModelAdapterRegistry::isAdaptedModel);
     }
 
+    /** Resolves the primary native model so its first render callback can register an adapter. */
+    public static Object findRendererModel(Object renderer) {
+        if (renderer == null) return null;
+        String configuredPath = findRendererModelField(renderer.getClass());
+        return MLuaRendererModelResolver.findModelCandidate(renderer, configuredPath);
+    }
+
     private static String findRendererModelField(Class<?> rendererClass) {
         while (true) {
             long generation = MLuaModelAdapterCache.generation();

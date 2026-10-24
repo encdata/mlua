@@ -1,6 +1,7 @@
 package dev.mlua.runtime.client;
 
 import dev.mlua.core.MLuaLogger;
+import net.minecraft.client.model.Model;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +17,16 @@ final class MLuaRendererModelResolver {
     private MLuaRendererModelResolver() { }
 
     static Object findModel(Object renderer, String configuredPath, Predicate<Object> adaptedModel) {
+        return findModel(renderer, configuredPath, adaptedModel, "adapted model");
+    }
+
+    /** Finds the renderer's primary native model before an addon has registered an adapter for it. */
+    static Object findModelCandidate(Object renderer, String configuredPath) {
+        return findModel(renderer, configuredPath, Model.class::isInstance, "Minecraft model");
+    }
+
+    private static Object findModel(Object renderer, String configuredPath, Predicate<Object> selectedModel,
+                                    String selectedKind) {
         if (renderer == null) return null;
         if (configuredPath != null) {
             Object candidate = MLuaModelFieldAccess.resolveFieldPath(renderer, configuredPath);
@@ -23,9 +34,9 @@ final class MLuaRendererModelResolver {
                 reportMissingPath(renderer.getClass(), configuredPath, "the configured field path did not resolve");
                 return null;
             }
-            if (!adaptedModel.test(candidate)) {
+            if (!selectedModel.test(candidate)) {
                 reportMissingPath(renderer.getClass(), configuredPath,
-                    "the field's model class has no registered model adapter");
+                    "the field does not contain a " + selectedKind);
                 return null;
             }
             return candidate;
@@ -37,7 +48,7 @@ final class MLuaRendererModelResolver {
         for (Field field : MLuaModelFieldAccess.rendererFields(renderer.getClass())) {
             try {
                 Object candidate = field.get(renderer);
-                if (candidate == null || !adaptedModel.test(candidate)) continue;
+                if (candidate == null || !selectedModel.test(candidate)) continue;
                 if (selected == null) {
                     selected = candidate;
                     selectedField = field.getName();
