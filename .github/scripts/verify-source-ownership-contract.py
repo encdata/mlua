@@ -173,6 +173,18 @@ for version in ("1.21.1", "26.1"):
 if "MLuaNeoForgeBlockEntityTypeFactory.create(" not in neo_registry.read_text(encoding="utf-8"):
     raise SystemExit("Shared NeoForge registry must delegate its version-specific block entity type construction")
 
+definition_snapshot = ROOT / "src/main/java/dev/mlua/runtime/registry/MLuaRegistryDefinitionSnapshot.java"
+dynamic_registry = ROOT / "src/main/java/dev/mlua/runtime/registry/MLuaDynamicRegistryCatalog.java"
+if not definition_snapshot.is_file():
+    raise SystemExit("Dynamic registry definition snapshotting must have one focused owner")
+snapshot_source = definition_snapshot.read_text(encoding="utf-8")
+for required in ("active.containsKey(source)", "budget.remaining", "result.rawset(copiedKey, copiedValue)"):
+    if required not in snapshot_source:
+        raise SystemExit(f"Registry definition snapshot owner is missing {required}")
+dynamic_registry_source = dynamic_registry.read_text(encoding="utf-8")
+if "copyTableSnapshot(" in dynamic_registry_source or "private static LuaTable copyTable(" in dynamic_registry_source:
+    raise SystemExit("Dynamic registry catalog must delegate bounded Lua-table copying to its snapshot owner")
+
 # 26.1 loader adapters and Minecraft helpers live in the common source roots.
 common_26_1_files = (
     ROOT / "mlua-loaders/common/26.1/impl/dev/mlua/runtime/client/MLuaProjectileRenderer.java",

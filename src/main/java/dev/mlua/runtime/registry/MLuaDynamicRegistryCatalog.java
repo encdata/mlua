@@ -12,7 +12,6 @@ import java.util.Objects;
 import net.minecraft.resources.ResourceLocation;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 import org.luaj.vm2.LuaError;
 
 /**
@@ -107,7 +106,7 @@ public final class MLuaDynamicRegistryCatalog {
 
     /** Reserves an id until the callback either stores a definition or fails. */
     public synchronized DefinitionReservation beginDefinition(String category, String id, String owner) {
-        return beginDefinition(category, id, owner, (TableSnapshot) null);
+        return beginDefinition(category, id, owner, (MLuaRegistryDefinitionSnapshot.Snapshot) null);
     }
 
     /**
@@ -115,12 +114,14 @@ public final class MLuaDynamicRegistryCatalog {
      * both the id and its share of the bounded catalog storage.
      */
     public DefinitionReservation beginDefinition(String category, String id, String owner, LuaTable definition) {
-        TableSnapshot snapshot = definition == null ? null : copyTableSnapshot(definition);
+        MLuaRegistryDefinitionSnapshot.Snapshot snapshot = definition == null ? null
+            : MLuaRegistryDefinitionSnapshot.create(definition, MAX_TABLE_DEPTH,
+                MAX_TABLE_ENTRIES_PER_DEFINITION);
         return beginDefinition(category, id, owner, snapshot);
     }
 
     private synchronized DefinitionReservation beginDefinition(String category, String id, String owner,
-                                                                TableSnapshot snapshot) {
+                                                                MLuaRegistryDefinitionSnapshot.Snapshot snapshot) {
         String key = key(category);
         id = requireBoundedText(id, "definition id", MAX_DEFINITION_ID_LENGTH);
         owner = requireBoundedText(owner, "definition owner", MAX_CATEGORY_OWNER_LENGTH);
@@ -215,7 +216,8 @@ public final class MLuaDynamicRegistryCatalog {
         CategoryState state = this.categoryStates.get(reservation.category());
         if (state == null || state.pending.get(reservation.id()) != reservation
             || state.definitions.contains(reservation.id())) return null;
-        TableSnapshot snapshot = copyTableSnapshot(definition);
+        MLuaRegistryDefinitionSnapshot.Snapshot snapshot = MLuaRegistryDefinitionSnapshot.create(
+            definition, MAX_TABLE_DEPTH, MAX_TABLE_ENTRIES_PER_DEFINITION);
         if (this.definitionTableEntryCount + this.pendingDefinitionTableEntryCount + snapshot.entryCount()
                 > MAX_TOTAL_DEFINITION_TABLE_ENTRIES) {
             throw new LuaError("[MLua] Dynamic registry table-entry limit reached ("
@@ -454,51 +456,8 @@ public final class MLuaDynamicRegistryCatalog {
     }
 
     public static LuaTable copyTable(LuaTable source) {
-        return copyTableSnapshot(source).value();
-    }
-
-    private static TableSnapshot copyTableSnapshot(LuaTable source) {
-        CopyBudget budget = new CopyBudget(MAX_TABLE_ENTRIES_PER_DEFINITION);
-        LuaTable copy = copyTable(source, new java.util.IdentityHashMap<>(),
-            new java.util.IdentityHashMap<>(), 0, budget);
-        return new TableSnapshot(copy, MAX_TABLE_ENTRIES_PER_DEFINITION - budget.remaining);
-    }
-
-    private static LuaTable copyTable(LuaTable source, Map<LuaTable, LuaTable> copies,
-                                      java.util.IdentityHashMap<LuaTable, Boolean> active,
-                                      int depth, CopyBudget budget) {
-        if (depth >= MAX_TABLE_DEPTH) {
-            throw new LuaError("[MLua] Registry definitions cannot be nested more than "
-                + MAX_TABLE_DEPTH + " tables deep");
-        }
-        if (active.containsKey(source)) {
-            throw new LuaError("[MLua] Registry definitions cannot contain cyclic tables");
-        }
-        LuaTable existing = copies.get(source);
-        if (existing != null) return existing;
-        LuaTable copy = new LuaTable();
-        copies.put(source, copy);
-        active.put(source, Boolean.TRUE);
-        try {
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-                Varargs entry = source.next(key);
-                key = entry.arg1();
-                if (key.isnil()) return copy;
-                if (--budget.remaining < 0) {
-                    throw new LuaError("[MLua] Registry definition exceeds the table entry limit of "
-                        + MAX_TABLE_ENTRIES_PER_DEFINITION);
-                }
-                LuaValue value = entry.arg(2);
-                LuaValue copiedKey = key.istable()
-                    ? copyTable(key.checktable(), copies, active, depth + 1, budget) : key;
-                LuaValue copiedValue = value.istable()
-                    ? copyTable(value.checktable(), copies, active, depth + 1, budget) : value;
-                copy.rawset(copiedKey, copiedValue);
-            }
-        } finally {
-            active.remove(source);
-        }
+        return MLuaRegistryDefinitionSnapshot.copy(source, MAX_TABLE_DEPTH,
+            MAX_TABLE_ENTRIES_PER_DEFINITION);
     }
 
     private static String key(String value) {
@@ -558,24 +517,15 @@ public final class MLuaDynamicRegistryCatalog {
         private Object definitionGeneration() { return this.definitionGeneration; }
     }
 
-    private static final class CopyBudget {
-        private int remaining;
-
-        private CopyBudget(int remaining) {
-            this.remaining = remaining;
-        }
-    }
-
-    private record TableSnapshot(LuaTable value, int entryCount) { }
-
     /** Opaque ticket; only the catalog that created it can complete or cancel it. */
     public static final class DefinitionReservation {
         private final String category;
         private final String id;
         private final String owner;
-        private final TableSnapshot snapshot;
+        private final MLuaRegistryDefinitionSnapshot.Snapshot snapshot;
 
-        private DefinitionReservation(String category, String id, String owner, TableSnapshot snapshot) {
+        private DefinitionReservation(String category, String id, String owner,
+                                      MLuaRegistryDefinitionSnapshot.Snapshot snapshot) {
             this.category = category;
             this.id = id;
             this.owner = owner;
@@ -585,7 +535,7 @@ public final class MLuaDynamicRegistryCatalog {
         private String category() { return this.category; }
         private String id() { return this.id; }
         private String owner() { return this.owner; }
-        private TableSnapshot snapshot() { return this.snapshot; }
+        private MLuaRegistryDefinitionSnapshot.Snapshot snapshot() { return this.snapshot; }
         private int tableEntryCount() { return this.snapshot == null ? 0 : this.snapshot.entryCount(); }
     }
 
