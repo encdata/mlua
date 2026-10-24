@@ -1,35 +1,13 @@
 import groovy.json.JsonSlurper
 
-// These classes have one source owner in mlua-core. Runtime artifacts compile
-// this selected core surface into their own JAR rather than shadowing it with
-// another copy under src/main/java.
-ext.mluaCoreRuntimeSources = [
-    'dev/mlua/core/MLuaLogger.java',
-    'dev/mlua/core/MLuaPathRules.java',
-    'dev/mlua/core/MLuaTrustConfig.java',
-    'dev/mlua/agent/MLuaAgentAttacher.java',
-    'dev/mlua/agent/MLuaAgentBootstrap.java',
-    'dev/mlua/agent/MLuaMixinAgent.java',
-    'dev/mlua/core/engine/MLuaEnvironment.java',
-    'dev/mlua/core/engine/MLuaLuauTranspiler.java',
-    'dev/mlua/core/engine/MLuaLuauTypes.java',
-    'dev/mlua/core/engine/MLuaLuauStandardLibraries.java',
-    'dev/mlua/core/engine/MLuaMathLibrary.java',
-    'dev/mlua/core/engine/MLuaValue.java',
-    'dev/mlua/core/require/MLuaModuleCache.java',
-    'dev/mlua/core/MLuaThreadHandoff.java',
-    'dev/mlua/core/script/MLuaScript.java',
-    'dev/mlua/core/script/MLuaScriptLoader.java',
-    'dev/mlua/core/script/MLuaScriptRoot.java',
-    'dev/mlua/core/signal/MLuaConnection.java',
-    'dev/mlua/core/util/MLuaWeakIdentityMap.java',
-    'dev/mlua/math/MLuaCFrame.java',
-    'dev/mlua/math/MLuaMat3.java',
-    'dev/mlua/math/MLuaMat4.java',
-    'dev/mlua/math/MLuaNoise.java',
-    'dev/mlua/math/MLuaVector.java',
-    'dev/mlua/math/MLuaVec4.java'
-]
+// mlua-core owns these classes. Resolve its source file list from the source tree
+// so package additions cannot be silently omitted or cause shadow compilation.
+def mluaCoreSourceRoot = rootProject.file('mlua-core/src/main/java')
+ext.mluaCoreRuntimeSources = rootProject.fileTree(mluaCoreSourceRoot).matching {
+    include '**/*.java'
+}.files.collect { source ->
+    mluaCoreSourceRoot.toPath().relativize(source.toPath()).toString().replace(File.separator, '/')
+}.sort()
 
 ext.loadMluaTargetConfig = {
     if (!rootProject.ext.has('mluaTargetConfig')) {

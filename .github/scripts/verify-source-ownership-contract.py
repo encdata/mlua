@@ -13,19 +13,17 @@ OVERLAPS = sorted(
 )
 
 helper = (ROOT / "gradle/mlua-targets.gradle").read_text(encoding="utf-8")
-core_source_list = helper.split("ext.mluaCoreRuntimeSources = [", 1)[1].split("]", 1)[0]
-selected_core_sources = set(re.findall(r"'([^']+\.java)'", core_source_list))
 available_core_sources = {
     path.relative_to(ROOT / "mlua-core/src/main/java").as_posix()
     for path in (ROOT / "mlua-core/src/main/java").rglob("*.java")
 }
-if selected_core_sources != available_core_sources:
-    missing = sorted(available_core_sources - selected_core_sources)
-    stale = sorted(selected_core_sources - available_core_sources)
-    raise SystemExit(
-        "Runtime target core source selection must include every mlua-core Java source "
-        f"and no stale paths; missing={missing}, stale={stale}"
-    )
+if ("fileTree(mluaCoreSourceRoot).matching" not in helper
+        or "include '**/*.java'" not in helper
+        or "mluaCoreSourceRoot.toPath().relativize(source.toPath())" not in helper
+        or "}.sort()" not in helper):
+    raise SystemExit("Runtime source selection must discover mlua-core source ownership from the full source tree")
+if not available_core_sources:
+    raise SystemExit("mlua-core source root is empty")
 
 config_schema = (ROOT / "src/main/java/dev/mlua/runtime/config/MLuaConfigSchema.java").read_text(encoding="utf-8")
 if "MLuaConfigRegistry.isWithinRange(" not in config_schema or "MLuaConfigRegistry.rangeDescription(" not in config_schema:
