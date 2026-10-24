@@ -6,6 +6,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAYER = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerWrapper.java"
+SERVER_PLAYER_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerServerBindings.java"
 CLIENT_PLAYER = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java"
 LOCAL_PLAYER_BINDINGS = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaLocalPlayerBindings.java"
 INVENTORY = ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerInventoryBindings.java"
@@ -29,6 +30,7 @@ def fail(message: str) -> None:
 
 
 player_source = PLAYER.read_text(encoding="utf-8")
+server_player_source = SERVER_PLAYER_BINDINGS.read_text(encoding="utf-8")
 client_player_source = CLIENT_PLAYER.read_text(encoding="utf-8")
 local_player_source = LOCAL_PLAYER_BINDINGS.read_text(encoding="utf-8")
 client_bindings_source = client_player_source + local_player_source
@@ -51,12 +53,18 @@ if ("ClassValue<Member> PLAYER_ACCESSORS" not in client_access_source
     fail("client player and level access must cache their version-tolerant field resolution independently")
 if "method.trySetAccessible()" not in client_access_source or "getDeclaredField(fieldName)" not in client_access_source:
     fail("client player access must support non-public Minecraft mappings")
-if "MLuaPlayerInventoryBindings.attach(table, player, true, true, registration)" not in player_source:
-    fail("server Player instances must delegate inventory binding to its owner")
-if player_source.count("MLuaPlayerInventoryBindings.attach(") != 1 or client_bindings_source.count("MLuaPlayerInventoryBindings.attach(") != 2:
+if "MLuaPlayerServerBindings.bind(table, player, raw, registration)" not in player_source:
+    fail("server Player instances must delegate server-only methods to their binding owner")
+if "MLuaPlayerInventoryBindings.attach(table, player, true, true, registration)" not in server_player_source:
+    fail("server Player bindings must delegate inventory binding to its owner")
+if server_player_source.count("MLuaPlayerInventoryBindings.attach(") != 1 or client_bindings_source.count("MLuaPlayerInventoryBindings.attach(") != 2:
     fail("server, remote-client, and local-client Player tables must share the inventory binding owner")
-if "attachInventoryMethods(" in player_source:
+if "attachInventoryMethods(" in player_source + server_player_source:
     fail("Player wrapper still owns inventory and open-container binding")
+for method in ("SendMessage", "SendActionBar", "SendTitle", "GetExperienceLevel", "SetGameMode",
+               "GetSelectedSlot", "GiveItem", "GiveEffect", "PlaySound", "GetPersistentData"):
+    if f'"{method}"' not in server_player_source:
+        fail(f"server Player binding owner is missing {method}")
 food_source = FOOD_BINDINGS.read_text(encoding="utf-8")
 if "MLuaPlayerFoodBindings.bind(table, player)" not in player_source:
     fail("Player wrapper must delegate food methods to their binding owner")
@@ -86,6 +94,7 @@ class_methods_source = (ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassMet
 inventory_service_source = (ROOT / "src/main/java/dev/mlua/modules/inventory/service/MLuaInventoryService.java").read_text(encoding="utf-8")
 inventory_bindings_source = INVENTORY.read_text(encoding="utf-8")
 player_wrapper_source = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerWrapper.java").read_text(encoding="utf-8")
+player_server_bindings_source = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaPlayerServerBindings.java").read_text(encoding="utf-8")
 players_module_source = (ROOT / "src/main/java/dev/mlua/modules/players/PlayersModule.java").read_text(encoding="utf-8")
 player_join_dispatcher_source = (ROOT / "src/main/java/dev/mlua/modules/players/MLuaPlayerJoinDispatcher.java").read_text(encoding="utf-8")
 player_directory_source = (ROOT / "src/main/java/dev/mlua/modules/players/service/MLuaPlayerDirectory.java").read_text(encoding="utf-8")
@@ -119,7 +128,8 @@ if "MLuaPlayerJoinScope.current()" not in player_directory_source or "joining.ge
     fail("player directory must resolve the joining player before the loader adds it to the live list")
 if "public static LuaValue invokeInstanceMethod(" not in class_methods_source:
     fail("shared class method owner is missing live instance invocation")
-for source in (inventory_service_source, inventory_bindings_source, player_wrapper_source):
+player_bindings_sources = player_wrapper_source + player_server_bindings_source
+for source in (inventory_service_source, inventory_bindings_source, player_bindings_sources):
     if "MLuaClassMethods.invokeInstanceMethod(" not in source:
         fail("inventory services and player bindings must use the shared class invocation convention")
     if "private static LuaValue invokeInstanceMethod(" in source or "static LuaValue invokeInstance(" in source:
