@@ -7,13 +7,8 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.util.MLuaWeakIdentityMap;
-import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.signal.MLuaConnection;
-import org.luaj.vm2.LuaError;
-import org.luaj.vm2.LuaInstructionBudget;
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
@@ -101,7 +96,7 @@ public final class MLuaModelAdapterRegistry {
         private static final CustomAdapterResolution EMPTY = new CustomAdapterResolution(Map.of(), Map.of());
     }
 
-    private static final class AdapterResolver {
+    static final class AdapterResolver {
         private final String modelClass;
         private final LuaValue callback;
         private final MLuaContext context;
@@ -118,11 +113,12 @@ public final class MLuaModelAdapterRegistry {
             this.registrationOrder = registrationOrder;
         }
 
-        private String modelClass() { return modelClass; }
-        private LuaValue callback() { return callback; }
-        private MLuaContext context() { return context; }
-        private Owner owner() { return owner; }
-        private long registrationOrder() { return registrationOrder; }
+        String modelClass() { return modelClass; }
+        LuaValue callback() { return callback; }
+        MLuaContext context() { return context; }
+        Owner owner() { return owner; }
+        long registrationOrder() { return registrationOrder; }
+        boolean active() { return active; }
     }
     /** Lua-defined adapter for model hierarchies that do not use Minecraft ModelPart. */
     static final class CustomAdapter {
@@ -980,7 +976,7 @@ public final class MLuaModelAdapterRegistry {
             if (resolvers != null && !resolvers.isEmpty()) {
                 List<AdapterResolver> ordered = orderedResolvers(type.getName(), resolvers);
                 for (AdapterResolver resolver : ordered) {
-                    Map<String, String> resolved = invokeResolver(model, resolver);
+                    Map<String, String> resolved = MLuaModelAdapterResolverInvoker.invoke(model, resolver);
                     if (resolved == null || resolved.isEmpty()) continue;
                     boolean conflict = resolved.entrySet().stream().anyMatch(entry ->
                         classMappings.containsKey(entry.getKey())
@@ -1032,67 +1028,7 @@ public final class MLuaModelAdapterRegistry {
             : findMapping(model.getClass());
     }
 
-    private static Map<String, String> invokeResolver(Object model, AdapterResolver resolver) {
-        if (!resolver.active) return Map.of();
-        MLuaRenderFrameScope scope = new MLuaRenderFrameScope();
-        MLuaContext context = resolver.context();
-        try {
-            LuaValue modelValue = LuaValue.userdataOf(scope.view().scopedReference(model));
-            final LuaValue[] result = {LuaValue.NIL};
-            try (MLuaRenderFrameScope.ScopeBinding ignored = scope.view().enter()) {
-                MLuaLuaBindings.withContext(context, () -> {
-                    if (!resolver.active) return null;
-                    if (context.globals() == null) {
-                        result[0] = resolver.callback().call(modelValue);
-                    } else {
-                        try (LuaInstructionBudget.Scope instructionBudget = context.globals()
-                                .beginInstructionBudget(MAX_RESOLVER_LUA_INSTRUCTIONS)) {
-                            result[0] = resolver.callback().call(modelValue);
-                        }
-                    }
-                    return null;
-                });
-            }
-            if (!resolver.active) return Map.of();
-            if (!result[0].istable()) {
-                throw new LuaError("[MLua] Model adapter resolver for " + model.getClass().getName()
-                    + " must return a table of bone names to model-part paths.");
-            }
-            LuaTable table = result[0].checktable();
-            if (table.keyCount() > MAX_PARTS_PER_MODEL) {
-                throw new LuaError("[MLua] Model adapter resolver returned more than "
-                    + MAX_PARTS_PER_MODEL + " bone mappings.");
-            }
-            LinkedHashMap<String, String> mappings = new LinkedHashMap<>();
-            LuaValue key = LuaValue.NIL;
-            while (true) {
-                Varargs next = table.next(key);
-                key = next.arg1();
-                if (key.isnil()) break;
-                LuaValue value = next.arg(2);
-                if (!key.isstring() || !value.isstring()) {
-                    throw new LuaError("[MLua] Model adapter resolver must return string bone names and paths.");
-                }
-                String bone = key.tojstring().trim();
-                String path = value.tojstring().trim();
-                if (bone.isEmpty() || path.isEmpty()) {
-                    throw new LuaError("[MLua] Model adapter resolver returned an empty bone name or path.");
-                }
-                validatePartPath(bone, path);
-                mappings.put(bone, path);
-            }
-            return orderedMap(mappings);
-        } catch (VirtualMachineError | ThreadDeath fatal) {
-            throw fatal;
-        } catch (Throwable failure) {
-            disableResolver(resolver, failure);
-            return Map.of();
-        } finally {
-            scope.close();
-        }
-    }
-
-    private static void disableResolver(AdapterResolver resolver, Throwable failure) {
+    static void disableResolver(AdapterResolver resolver, Throwable failure) {
         unregisterResolver(resolver);
         MLuaLogger.LOGGER.error("[MLua] Disabled model adapter resolver for addon '{}' on {} after an error",
             resolver.owner().modId(), resolver.modelClass(), failure);
@@ -1206,11 +1142,11 @@ public final class MLuaModelAdapterRegistry {
         return className;
     }
 
-    private static <K, V> Map<K, V> orderedMap(Map<K, V> values) {
+    static <K, V> Map<K, V> orderedMap(Map<K, V> values) {
         return Collections.unmodifiableMap(new LinkedHashMap<>(values));
     }
 
-    private static void validatePartPath(String boneName, String path) {
+    static void validatePartPath(String boneName, String path) {
         MLuaModelPartResolver.validatePartPath(boneName, path);
     }
 }

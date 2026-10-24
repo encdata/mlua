@@ -32,6 +32,7 @@ RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service
 OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectCreation.java"
 MODEL_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterRegistry.java"
 CUSTOM_ADAPTER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaCustomModelAdapterInvoker.java"
+MODEL_ADAPTER_RESOLVER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterResolverInvoker.java"
 RENDERER_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRendererAdapterRegistry.java"
 MODEL_FIELD_ACCESS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelFieldAccess.java"
 
@@ -379,6 +380,16 @@ for operation in ("static boolean apply(", "static boolean applyPose(", "new MLu
         fail(f"custom model adapter invoker is missing {operation}")
 if "invokeCustomCallback(" in model_registry or "customBoneStates(" in model_registry:
     fail("model adapter registry still owns custom Lua render callback execution")
+if not MODEL_ADAPTER_RESOLVER_INVOKER.is_file():
+    fail("model resolver callback execution must have a dedicated render-frame owner")
+model_resolver_invoker = MODEL_ADAPTER_RESOLVER_INVOKER.read_text(encoding="utf-8")
+for operation in ("static Map<String, String> invoke(", "new MLuaRenderFrameScope()",
+                  "beginInstructionBudget(MLuaModelAdapterRegistry.MAX_RESOLVER_LUA_INSTRUCTIONS)",
+                  "MLuaModelAdapterRegistry.disableResolver(resolver, failure)"):
+    if operation not in model_resolver_invoker:
+        fail(f"model resolver invoker is missing {operation}")
+if "private static Map<String, String> invokeResolver(" in model_registry:
+    fail("model adapter registry still owns Lua resolver callback execution")
 if "WeakReference<T> reference = new WeakReference<>(resource)" not in connection_source:
     fail("owned Connection handles must not strongly retain render/model callback resources")
 if "this.disconnect = null;" not in connection_source or "this.active = null;" not in connection_source:
