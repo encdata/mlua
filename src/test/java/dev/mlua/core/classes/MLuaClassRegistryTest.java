@@ -156,6 +156,41 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
+    void instanceLookupResolvesInheritedPropertiesAndEnforcesReadOnlyWrites() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        LuaTable parent = registry.register("BaseWidget", (String) null);
+        registry.register("Widget", "BaseWidget");
+        VarArgFunction healthGetter = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return args.arg1().get("health"); }
+        };
+        VarArgFunction healthSetter = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                args.arg1().set("health", args.arg(2));
+                return LuaValue.NONE;
+            }
+        };
+        registry.registerProperty("BaseWidget", "Health", healthGetter, healthSetter,
+            "number", "shared:Shared", "Current health.");
+        registry.registerProperty("BaseWidget", "Name", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return args.arg1().get("name"); }
+        }, LuaValue.NIL, "string", "shared:Shared", "Widget name.");
+
+        LuaTable instance = new LuaTable();
+        instance.set("health", LuaValue.valueOf(20));
+        instance.set("name", LuaValue.valueOf("door"));
+        registry.attachInstance(instance, "Widget", null);
+
+        assertEquals(20, instance.get("Health").toint());
+        instance.set("Health", LuaValue.valueOf(12));
+        assertEquals(12, instance.get("health").toint());
+        assertEquals("door", instance.get("Name").tojstring());
+        LuaError failure = assertThrows(LuaError.class,
+            () -> instance.set("Name", LuaValue.valueOf("gate")));
+        assertTrue(failure.getMessage().contains("read-only"));
+        assertTrue(parent.rawget("__mlua_properties").get("Health").istable());
+    }
+
+    @Test
     void refreshingAClassSkipsFrozenInstancesAndStillUpdatesMutableInstances() {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         LuaTable classTable = registry.register("Widget", (String) null, "A widget.");

@@ -10,6 +10,7 @@ INSTANCES = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassLiveInstances.j
 METADATA = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassMetadata.java"
 MIXINS = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassMixinApplications.java"
 REGISTRY = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassRegistry.java"
+INSTANCE_LOOKUP = ROOT / "src/main/java/dev/mlua/core/classes/MLuaClassInstanceLookup.java"
 
 
 def fail(message: str) -> None:
@@ -21,6 +22,7 @@ instances = INSTANCES.read_text(encoding="utf-8")
 metadata = METADATA.read_text(encoding="utf-8")
 mixins = MIXINS.read_text(encoding="utf-8")
 registry = REGISTRY.read_text(encoding="utf-8")
+instance_lookup = INSTANCE_LOOKUP.read_text(encoding="utf-8")
 for owner_field in ("Map<String, String> parents", "Map<String, Set<String>> children"):
     if owner_field not in hierarchy:
         fail(f"MLuaClassHierarchy must own {owner_field}")
@@ -49,6 +51,18 @@ if "appliedMixins" in registry or "appliedMixins" in metadata:
 if "private final Object registryLock" not in metadata \
         or "new MLuaClassMetadata(this, this.classes" not in registry:
     fail("metadata lookups must share the registry lock used for class and property mutations")
+if "private final MLuaClassInstanceLookup instanceLookup" not in registry \
+        or "this.instanceLookup.compose(meta, classTable);" not in registry:
+    fail("MLuaClassRegistry must delegate Lua instance metatable composition to its dedicated owner")
+if "void compose(LuaTable meta, LuaTable classTable)" not in instance_lookup \
+        or "__mlua_instance_fallback" not in instance_lookup \
+        or "__mlua_instance_newindex_fallback" not in instance_lookup \
+        or "findPropertyDescriptor" not in instance_lookup \
+        or "MLuaClassThreadDispatcher.bind" not in instance_lookup:
+    fail("MLuaClassInstanceLookup must own property, method, and fallback lookup semantics")
+if "new VarArgFunction()" in registry.split("private void composeInstanceLookup", 1)[1].split(
+        "private void refreshParentLookup", 1)[0]:
+    fail("MLuaClassRegistry must not retain inline instance metatable dispatch")
 for method in ("refreshInheritedMethodDescriptionsFrom", "findPropertyDescriptor",
                "hasPropertyDefinition", "collectMethodDescriptions", "collectPropertyDescriptions"):
     if re.search(r"^\s*private\s+(?:synchronized\s+)?[^\n]+\b" + re.escape(method)
