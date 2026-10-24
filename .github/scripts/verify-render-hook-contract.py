@@ -358,17 +358,31 @@ for operation in ("optional(Object target, String... names)", "cameraLook(Object
     if operation not in context_access:
         fail(f"render-context access owner is missing {operation}")
 render_manager = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
+world_render_pipeline = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaWorldRenderPipeline.java").read_text(encoding="utf-8")
+render_paths = render_manager + "\n" + world_render_pipeline
+if "//--version 1.20.1,1.21.1" not in world_render_pipeline:
+    fail("shared world pipeline must be excluded where 26.1 uses loader-specific render managers")
+if "package dev.mlua.runtime.client;" in filter_versioned_source(world_render_pipeline, "26.1"):
+    fail("26.1 root sources must not compile the legacy ResourceLocation world pipeline")
 render_object = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderObject.java").read_text(encoding="utf-8")
 if "public static final class RenderObject extends MLuaRenderObject" not in render_manager:
     fail("render manager must keep its public RenderObject compatibility type")
+if "MLuaWorldRenderPipeline.renderWorldContext(stage, context);" not in render_manager:
+    fail("render manager must delegate world-stage work to the dedicated pipeline")
+if "static void renderWorldContext(String stage, Object context)" not in world_render_pipeline \
+        or "submitCustomGeometry(" not in world_render_pipeline:
+    fail("world render pipeline must own context routing and deferred geometry submission")
+if "private static void renderWorldModels(" in render_manager \
+        or "private static boolean submitWorldMesh(" in render_manager:
+    fail("world render implementation is duplicated in the render manager")
 for contract in ("class MLuaRenderObject", "executionLock()", "setFollowEntityScope(",
                  "setFollowOffsetCallback(", "copy()"):
     if contract not in render_object:
         fail(f"dedicated render object state owner is missing {contract}")
 if "MLuaRenderContextAccess.cameraLook(camera)" not in render_manager:
     fail("render manager must preserve its camera look call while delegating accessor resolution")
-if "MLuaRenderContextAccess.cameraPosition(rawCamera)" not in render_manager:
-    fail("world rendering must resolve loader camera positions through the context owner")
+if "MLuaRenderContextAccess.cameraPosition(rawCamera)" not in world_render_pipeline:
+    fail("world render pipeline must resolve loader camera positions through the context owner")
 if "invokeOptional(" in render_manager:
     fail("render manager still owns loader-specific reflective context lookup")
 
@@ -465,9 +479,9 @@ for operation in ("record TextureBatch(", "static MLuaBBModelRenderPlan prepare(
         fail(f"BBModel render plan is missing immutable prepared batches: {operation}")
 for operation in ("MLuaBBModelRenderPlan.prepare(asset, object.modelTextures)",
                   "object.bbModelRenderPlan.textureBatches()", "batch.cubes()"):
-    if operation not in render_manager:
-        fail(f"render manager does not reuse prepared BBModel material batches: {operation}")
-if "cubesByTexture" in render_manager:
+    if operation not in render_paths:
+        fail(f"render pipeline does not reuse prepared BBModel material batches: {operation}")
+if "cubesByTexture" in render_paths:
     fail("deferred BBModel rendering must not rebuild material groups every frame")
 animation_scratch_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaAnimationScratch.java"
 if not animation_scratch_path.is_file():
@@ -482,7 +496,7 @@ core_cframe = core_cframe_path.read_text(encoding="utf-8")
 if "void toEulerAnglesXYZ(double[] output)" not in core_cframe:
     fail("CFrame must expose allocation-free XYZ Euler output for render loops")
 for operation in ("MLuaAnimationScratch.current()", "scratch.position", "scratch.rotation", "scratch.scale"):
-    if operation not in render_manager:
+    if operation not in render_paths:
         fail(f"BBModel render loops must reuse thread-local animation vectors: {operation}")
 
 camera_path = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaCameraController.java"
@@ -508,7 +522,7 @@ for path in (
         fail(f"{path.relative_to(ROOT)} must reuse one Euler output array per animation sync")
     if "entry.getValue().toEulerAnglesXYZ()" in scripted_entity:
         fail(f"{path.relative_to(ROOT)} must not allocate Euler arrays per synced bone")
-if "new float[3]" in render_manager:
+if "new float[3]" in render_paths:
     fail("BBModel render loops must not allocate animation scratch vectors per draw")
 
 if not OBJECT_CREATION.is_file():

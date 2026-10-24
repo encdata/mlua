@@ -68,6 +68,7 @@ runtime_marker_source = prepare_text + "\n" + gui_service_text
 render_service_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java").read_text(encoding="utf-8")
 render_object_operations_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java").read_text(encoding="utf-8")
 render_manager_text = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
+render_manager_text += "\n" + (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaWorldRenderPipeline.java").read_text(encoding="utf-8")
 process_helper_text = (ROOT / ".github/scripts/smoke-process.ps1").read_text(encoding="utf-8")
 client_player_wrapper_text = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java").read_text(encoding="utf-8")
 input_module_text = (ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java").read_text(encoding="utf-8")
