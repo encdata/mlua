@@ -17,10 +17,10 @@ available_core_sources = {
     path.relative_to(ROOT / "mlua-core/src/main/java").as_posix()
     for path in (ROOT / "mlua-core/src/main/java").rglob("*.java")
 }
-if ("fileTree(mluaCoreSourceRoot).matching" not in helper
-        or "include '**/*.java'" not in helper
+if ("mluaCoreSourceRoot.eachFileRecurse" not in helper
+        or "source.name.endsWith('.java')" not in helper
         or "mluaCoreSourceRoot.toPath().relativize(source.toPath())" not in helper
-        or "}.sort()" not in helper):
+        or "ext.mluaCoreRuntimeSources = mluaCoreRuntimeSources.sort()" not in helper):
     raise SystemExit("Runtime source selection must discover mlua-core source ownership from the full source tree")
 if not available_core_sources:
     raise SystemExit("mlua-core source root is empty")

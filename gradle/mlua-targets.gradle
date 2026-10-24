@@ -3,11 +3,16 @@ import groovy.json.JsonSlurper
 // mlua-core owns these classes. Resolve its source file list from the source tree
 // so package additions cannot be silently omitted or cause shadow compilation.
 def mluaCoreSourceRoot = rootProject.file('mlua-core/src/main/java')
-ext.mluaCoreRuntimeSources = rootProject.fileTree(mluaCoreSourceRoot).matching {
-    include '**/*.java'
-}.files.collect { source ->
-    mluaCoreSourceRoot.toPath().relativize(source.toPath()).toString().replace(File.separator, '/')
-}.sort()
+def mluaCoreRuntimeSources = []
+if (mluaCoreSourceRoot.isDirectory()) {
+    mluaCoreSourceRoot.eachFileRecurse { source ->
+        if (source.isFile() && source.name.endsWith('.java')) {
+            mluaCoreRuntimeSources.add(
+                mluaCoreSourceRoot.toPath().relativize(source.toPath()).toString().replace(File.separator, '/'))
+        }
+    }
+}
+ext.mluaCoreRuntimeSources = mluaCoreRuntimeSources.sort()
 
 ext.loadMluaTargetConfig = {
     if (!rootProject.ext.has('mluaTargetConfig')) {
