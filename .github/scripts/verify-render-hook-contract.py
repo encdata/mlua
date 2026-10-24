@@ -25,6 +25,7 @@ NEOFORGE_RUNTIME_TARGET = ROOT / "gradle/mlua-runtime-neoforge-target.gradle"
 TARGETS = ROOT / "gradle/mlua-targets.json"
 CALLBACKS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderCallbacks.java"
 HOOK_REGISTRY = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderHookRegistry.java"
+CALLBACK_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderCallbackInvoker.java"
 RENDER_SERVICE = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java"
 RENDER_OBJECT_API = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectApi.java"
 RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java"
@@ -42,6 +43,7 @@ def fail(message: str) -> None:
 
 hook_registry = HOOK_REGISTRY.read_text(encoding="utf-8")
 callback_facade = CALLBACKS.read_text(encoding="utf-8")
+callback_invoker = CALLBACK_INVOKER.read_text(encoding="utf-8")
 for token in ("ConcurrentMap<HookTarget, HookBucket> HOOKS", "registerTargetConnection(",
               "void clearOwned(Object session, String modId)", "void clearRuntime(Object session)",
               "registeredCallbackCount(MLuaContext context)", "class HookBucket", "record Owner("):
@@ -54,6 +56,13 @@ for operation in ("MLuaRenderHookRegistry.clearOwned(session, modId)",
                   "MLuaRenderHookRegistry.clearRuntime(session)"):
     if operation not in callback_facade:
         fail(f"render callback facade does not delegate lifecycle to the registry: {operation}")
+for token in ("static void invokeSafely(", "private static void invoke(",
+              "MLuaCallbackBudget.run(context", "MLuaRenderPoseScope.open(",
+              "MLuaRenderFrameContextFactory.create("):
+    if token not in callback_invoker:
+        fail(f"render callback invoker does not own {token}")
+if "private static void invoke(" in callback_facade or "private static void invokeSafely(" in callback_facade:
+    fail("render callback facade still owns bounded hook execution")
 
 
 for loader, path in HOOKS.items():
@@ -252,18 +261,17 @@ frame_context_owner = frame_context_owner_path.read_text(encoding="utf-8")
 if "WeakHashMap<LuaTable, MLuaRenderFrameScope> CONTEXTS" not in frame_context_owner \
         or "MLuaRenderFrameContexts.register(instance.checktable(), frameScope)" not in frame_context_factory:
     fail("render frame-context construction must delegate weak scope ownership and cleanup to its component")
-if "MLuaRenderFrameContextFactory.create(" not in callback_source \
+if "MLuaRenderFrameContextFactory.create(" not in callback_invoker \
         or "MLuaRenderFrameContextFactory.drawObject(" not in callback_source \
         or "MLuaRenderFrameContextFactory.withPose(" not in callback_source:
     fail("render callback dispatch must delegate context construction and draw operations to its component")
 if "FRAME_SCOPES" in callback_source:
     fail("render callback dispatch must not own the frame-scope identity map")
-safe_dispatch = callback_source.split("private static void invokeSafely(Hook hook", 1)
+safe_dispatch = callback_invoker.split("static void invokeSafely(Hook hook", 1)
 if len(safe_dispatch) != 2:
     fail("render callback setup has no per-hook exception boundary")
-dispatch_methods = safe_dispatch[0]
 safe_boundary = safe_dispatch[1].split("private static void invoke(Hook hook", 1)[0]
-if "invoke(hook," in dispatch_methods:
+if "invoke(hook," in callback_source:
     fail("a render pass bypasses protected argument/context construction")
 if callback_source.count("invokeSafely(hook,") != 8:
     fail("a render target is missing from the protected callback dispatch path")

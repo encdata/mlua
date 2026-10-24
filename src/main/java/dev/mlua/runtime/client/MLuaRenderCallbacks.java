@@ -1,17 +1,14 @@
 package dev.mlua.runtime.client;
 
 import static dev.mlua.runtime.client.MLuaRenderHookRegistry.*;
+import static dev.mlua.runtime.client.MLuaRenderCallbackInvoker.*;
 
-import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
-import dev.mlua.core.MLuaLogger;
+import dev.mlua.core.MLuaContext;
 import dev.mlua.core.signal.MLuaConnection;
-import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import java.util.List;
-import java.util.function.Supplier;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
@@ -511,104 +508,11 @@ public final class MLuaRenderCallbacks {
         MLuaRenderFrameClock.reset();
     }
 
-    /** Includes Lua wrapper and frame-context construction in the per-addon failure boundary. */
-    private static void invokeSafely(Hook hook, Supplier<Varargs> argumentFactory) {
-        if (hook == null || !hook.active || hook.failed) return;
-        if (!MLuaClientRenderThread.require("Lua render callback setup")) return;
-        try {
-            Varargs args = argumentFactory.get();
-            if (args == null) throw new IllegalStateException("Render callback argument factory returned null");
-            invoke(hook, args);
-        } catch (VirtualMachineError | ThreadDeath fatal) {
-            throw fatal;
-        } catch (Throwable failure) {
-            disableHook(hook, failure);
-        }
-    }
-
-    private static void invoke(Hook hook, Varargs invocationArgs) {
-        MLuaRenderFrameContexts.Binding frameBinding = findFrameScope(invocationArgs);
-        if (!hook.active || hook.failed) {
-            closeFrameScope(frameBinding);
-            return;
-        }
-        if (!MLuaClientRenderThread.require("Lua render callback")) {
-            closeFrameScope(frameBinding);
-            return;
-        }
-        MLuaContext context = hook.context;
-        MLuaRenderFrameScope.ScopeBinding activeFrame = null;
-        MLuaRenderPoseScope callbackPoseBoundary = null;
-        try {
-            if (frameBinding != null) {
-                activeFrame = frameBinding.scope().view().enter();
-                PoseStack callbackPose = framePoseStack(frameBinding);
-                callbackPoseBoundary = MLuaRenderPoseScope.open(callbackPose);
-            }
-            MLuaLuaBindings.withContext(context, () -> {
-                if (!hook.active || hook.failed) return null;
-                return MLuaCallbackBudget.run(context, () -> {
-                    hook.callback.invoke(invocationArgs);
-                    return null;
-                });
-            });
-        } catch (VirtualMachineError | ThreadDeath fatal) {
-            throw fatal;
-        } catch (Throwable failure) {
-            disableHook(hook, failure);
-        } finally {
-            try {
-                if (callbackPoseBoundary != null) callbackPoseBoundary.close();
-            } finally {
-                try {
-                    if (activeFrame != null) activeFrame.close();
-                } finally {
-                    closeFrameScope(frameBinding);
-                }
-            }
-        }
-    }
-
-    private static PoseStack framePoseStack(MLuaRenderFrameContexts.Binding binding) {
-        if (binding == null) return null;
-        LuaValue value = binding.context().get("PoseStack");
-        if (value == null || !value.isuserdata(MLuaRenderFrameScope.MLuaScopedRenderObject.class)) return null;
-        Object nativePose = ((MLuaRenderFrameScope.MLuaScopedRenderObject) value.touserdata(
-            MLuaRenderFrameScope.MLuaScopedRenderObject.class)).unwrap();
-        return nativePose instanceof PoseStack pose ? pose : null;
-    }
-
-    /** Disables a failing hook and releases its closure from the target registry. */
-    private static void disableHook(Hook hook, Throwable failure) {
-        hook.failed = true;
-        MLuaRenderHookRegistry.removeFailed(hook);
-        MLuaLogger.LOGGER.error("[MLua] Disabled render callback '{}' for addon '{}' at {} after an error",
-            hook.id, hook.key.owner().modId(), hook.target, failure);
-    }
-
-    private static MLuaRenderFrameContexts.Binding findFrameScope(Varargs args) {
-        return MLuaRenderFrameContexts.find(args);
-    }
-
-    private static void closeFrameScope(MLuaRenderFrameContexts.Binding binding) {
-        if (binding == null) return;
-        MLuaRenderFrameContexts.remove(binding);
-        binding.scope().close();
-    }
-
     /** Returns true only while this exact Lua RenderContext is inside its creating callback. */
     public static boolean isRenderContextActive(LuaValue contextValue) {
         if (contextValue == null || !contextValue.istable()) return false;
         MLuaRenderFrameScope scope = MLuaRenderFrameContexts.get(contextValue.checktable());
         return scope != null && scope.view().isActive();
-    }
-
-    private static LuaValue renderContext(Hook hook, String target, Object poseStack, Object bufferSource,
-            Object model, float partialTick, boolean hasPartialTick, int packedLight, int packedOverlay,
-            Object nativeContext, Object... additionalFields) {
-        return MLuaRenderFrameContextFactory.create(hook.context, hook.id,
-            failure -> disableHook(hook, failure), target, poseStack, bufferSource, model, partialTick,
-            hasPartialTick, packedLight, packedOverlay, nativeContext, additionalFields);
     }
 
     /** Called by the registered RenderContext:DrawObject class method. */
@@ -620,10 +524,6 @@ public final class MLuaRenderCallbacks {
     /** Runs a Lua draw operation inside a native pose-stack scope restored to its entry depth. */
     public static Varargs withPose(LuaValue contextValue, LuaValue callback) {
         return MLuaRenderFrameContextFactory.withPose(contextValue, callback);
-    }
-
-    private static LuaValue userdata(Object value) {
-        return value == null ? LuaValue.NIL : LuaValue.userdataOf(value);
     }
 
     public static int registeredCallbackCount() {
