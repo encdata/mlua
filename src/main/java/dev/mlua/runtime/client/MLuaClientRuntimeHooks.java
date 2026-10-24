@@ -43,7 +43,7 @@ public final class MLuaClientRuntimeHooks {
                 MLuaClientModels.registerEntityRenderers();
             }
             MLuaGuiRenderer.registerOverlay();
-            MLuaClientRenderManager.registerOverlay();
+            MLuaClientRenderRegistration.register();
             MLuaInputHandler.registerHandlers();
         });
     }

@@ -411,8 +411,9 @@ for operation in ("optional(Object target, String... names)", "cameraLook(Object
     if operation not in context_access:
         fail(f"render-context access owner is missing {operation}")
 render_manager = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
-if 'MLuaRenderContextAccess.optional(context, "renderSource"' not in render_manager:
-    fail("shared render manager must forward the loader context's native render source for world Mesh draws")
+render_registration = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderRegistration.java").read_text(encoding="utf-8")
+if 'MLuaRenderContextAccess.optional(context, "renderSource"' not in render_registration:
+    fail("render registration must forward the loader context's native render source for world Mesh draws")
 world_render_pipeline = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaWorldRenderPipeline.java").read_text(encoding="utf-8")
 render_paths = render_manager + "\n" + world_render_pipeline
 if "//--version 1.20.1,1.21.1" not in world_render_pipeline:
