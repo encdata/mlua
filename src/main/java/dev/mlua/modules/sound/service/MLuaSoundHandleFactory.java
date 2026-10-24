@@ -7,6 +7,7 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.modules.entity.MLuaEntityScopeResolver;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import dev.mlua.runtime.client.MLuaClientSoundManager;
 import dev.mlua.runtime.client.MLuaSoundOwnershipRegistry;
 import dev.mlua.math.MLuaVector;
@@ -143,12 +144,24 @@ final class MLuaSoundHandleFactory {
 
 
     private static VarArgFunction fn(String operation, Function<Varargs, LuaValue> body) {
-        return MLuaLuaErrors.operation("SoundHandle:" + operation, body, failure -> {
+        return MLuaLuaErrors.operation("SoundHandle:" + operation, args -> {
+            if (!usesClientState(operation)) return body.apply(args);
+            return MLuaGameThreadAccess.callUnchecked(context, () -> body.apply(args));
+        }, failure -> {
             MLuaLogger.LOGGER.error("SoundHandle:{} failed", operation, failure);
             return new LuaError("[MLua] SoundHandle:" + operation + " failed: "
                 + failure.getClass().getSimpleName() + ": "
                 + (failure.getMessage() == null ? "no details" : failure.getMessage()));
         });
+    }
+
+    private static boolean usesClientState(String operation) {
+        return switch (operation) {
+            case "Stop", "Destroy", "GetIsPlaying", "GetIsDestroyed", "GetLooped", "SetLooped",
+                "GetVolume", "SetVolume", "GetPitch", "SetPitch", "GetPosition", "SetPosition",
+                "GetFollowEntity", "FollowEntity", "ClearFollowEntity", "GetFollowOffset", "SetFollowOffset" -> true;
+            default -> false;
+        };
     }
 
     static double[] vector3(LuaValue value, String name) {

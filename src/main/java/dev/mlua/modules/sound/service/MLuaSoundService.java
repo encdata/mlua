@@ -9,8 +9,10 @@ import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.modules.entity.MLuaEntityScopeResolver;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import dev.mlua.runtime.client.MLuaClientSoundManager;
 import dev.mlua.runtime.client.MLuaSoundOwnershipRegistry;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.sounds.SoundSource;
 import org.luaj.vm2.LuaError;
@@ -36,6 +38,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
 
     @Override
     public LuaTable toLua() {
+        this.requireClientSide(this.name());
         LuaTable table = super.toLua();
         table.set("__side", "Client");
         return table;
@@ -48,8 +51,9 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             volume.orElse(1.0), "SoundService:PlayLocal", "volume");
         float checkedPitch = MLuaLuaArguments.finiteNonNegativeFloat(
             pitch.orElse(1.0), "SoundService:PlayLocal", "pitch");
-        int id = MLuaClientSoundManager.playLocalId(soundId, checkedVolume, checkedPitch, owner());
-        return soundHandle(id, owner());
+        MLuaSoundOwnershipRegistry.Owner owner = owner();
+        int id = onClientThread(() -> MLuaClientSoundManager.playLocalId(soundId, checkedVolume, checkedPitch, owner));
+        return soundHandle(id, owner);
     }
 
     @MLuaDescription("Plays a sound at the local player's position and returns its live SoundHandle. Volume and pitch default to one and must be finite and non-negative. The client supports " + MLuaClientSoundManager.MAX_ACTIVE_SOUNDS_PER_OWNER + " active sounds per addon runtime and " + MLuaClientSoundManager.MAX_ACTIVE_SOUNDS + " total.")
@@ -59,8 +63,9 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             volume.orElse(1.0), "SoundService:PlayAtPlayer", "volume");
         float checkedPitch = MLuaLuaArguments.finiteNonNegativeFloat(
             pitch.orElse(1.0), "SoundService:PlayAtPlayer", "pitch");
-        int id = MLuaClientSoundManager.playAtPlayerId(soundId, checkedVolume, checkedPitch, owner());
-        return soundHandle(id, owner());
+        MLuaSoundOwnershipRegistry.Owner owner = owner();
+        int id = onClientThread(() -> MLuaClientSoundManager.playAtPlayerId(soundId, checkedVolume, checkedPitch, owner));
+        return soundHandle(id, owner);
     }
 
     @MLuaDescription("Plays a sound with optional position, loop, and entity-follow settings. Volume and pitch default to one and must be finite and non-negative. The client supports " + MLuaClientSoundManager.MAX_ACTIVE_SOUNDS_PER_OWNER + " active sounds per addon runtime and " + MLuaClientSoundManager.MAX_ACTIVE_SOUNDS + " total.")
@@ -86,8 +91,7 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             throw new LuaError("[MLua] SoundService:Play " + loopProperty + " must be a boolean.");
         }
         boolean loop = loopValue.optboolean(false);
-        MLuaEntityScope followEntity = resolveOptionalEntityScope(
-            option(props, "FollowEntity"));
+        LuaValue followEntityValue = option(props, "FollowEntity");
         LuaValue categoryValue = option(props, "Category");
         SoundSource category = parseSoundSource(categoryValue, "SoundService:Play");
         Double x = null;
@@ -111,15 +115,25 @@ public final class MLuaSoundService extends MLuaReflectiveService {
             followOffsetZ = offset[2];
         }
         MLuaSoundOwnershipRegistry.Owner owner = owner();
-        int id = MLuaClientSoundManager.play(soundId, volume, pitch, loop, x, y, z, followEntity,
-            category, followOffsetX, followOffsetY, followOffsetZ, owner);
+        Double playX = x;
+        Double playY = y;
+        Double playZ = z;
+        double checkedFollowOffsetX = followOffsetX;
+        double checkedFollowOffsetY = followOffsetY;
+        double checkedFollowOffsetZ = followOffsetZ;
+        int id = onClientThread(() -> {
+            MLuaEntityScope followEntity = resolveOptionalEntityScope(followEntityValue);
+            return MLuaClientSoundManager.play(soundId, volume, pitch, loop, playX, playY, playZ, followEntity,
+                category, checkedFollowOffsetX, checkedFollowOffsetY, checkedFollowOffsetZ, owner);
+        });
         return soundHandle(id, owner);
     }
 
     @MLuaDescription("Stops sounds owned by the calling mod.")
     public void Clear() {
         this.requireClientSide(this.name());
-        MLuaClientSoundManager.clearOwned(owner());
+        MLuaSoundOwnershipRegistry.Owner owner = owner();
+        onClientThread(() -> { MLuaClientSoundManager.clearOwned(owner); return null; });
     }
 
     @MLuaDescription("Returns live SoundHandle instances for sounds owned by the calling addon that are still playing, ordered by handle id.")
@@ -128,7 +142,8 @@ public final class MLuaSoundService extends MLuaReflectiveService {
         MLuaSoundOwnershipRegistry.Owner owner = owner();
         LuaTable result = new LuaTable();
         int index = 1;
-        for (int id : MLuaClientSoundManager.activeIds(owner)) {
+        List<Integer> activeIds = onClientThread(() -> MLuaClientSoundManager.activeIds(owner));
+        for (int id : activeIds) {
             result.set(index++, handleFactory.create(id, owner));
         }
         return result;
@@ -137,11 +152,13 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     @MLuaDescription("Returns the number of sounds owned by the calling addon that are still playing.")
     public int GetCount() {
         this.requireClientSide(this.name());
-        return MLuaClientSoundManager.activeIds(owner()).size();
+        MLuaSoundOwnershipRegistry.Owner owner = owner();
+        return onClientThread(() -> MLuaClientSoundManager.activeIds(owner).size());
     }
 
     @MLuaDescription("Returns the sound categories supported by this Minecraft version as lowercase names.")
     public LuaTable GetCategories() {
+        this.requireClientSide(this.name());
         LuaTable result = new LuaTable();
         SoundSource[] categories = SoundSource.values();
         java.util.Arrays.sort(categories, java.util.Comparator.comparing(source -> source.name().toLowerCase(java.util.Locale.ROOT)));
@@ -163,6 +180,10 @@ public final class MLuaSoundService extends MLuaReflectiveService {
     private MLuaSoundOwnershipRegistry.Owner owner() {
         Object runtimeOwner = context.mlua().registration() instanceof MLuaRuntime runtime ? runtime.session() : null;
         return new MLuaSoundOwnershipRegistry.Owner(runtimeOwner, context.mlua().ownerModId());
+    }
+
+    private <T> T onClientThread(java.util.function.Supplier<T> action) {
+        return MLuaGameThreadAccess.callUnchecked(this.context, action);
     }
 
     private static LuaValue option(LuaTable options, String name) {
