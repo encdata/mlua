@@ -1,7 +1,6 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
-mixinConfig="mlua.forge.mixins.json"
 
 [[mods]]
 modId="${mod_id}"

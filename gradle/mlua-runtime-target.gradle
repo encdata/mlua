@@ -176,6 +176,7 @@ tasks.named('jar', Jar).configure {
                 'Agent-Class': 'dev.mlua.agent.MLuaMixinAgent',
                 'Premain-Class': 'dev.mlua.agent.MLuaMixinAgent',
                 'Can-Retransform-Classes': 'true',
+                'MixinConfigs': 'mlua.forge.mixins.json',
                 'Specification-Title': mod_id,
                 'Specification-Vendor': mod_authors,
                 'Specification-Version': '1',

@@ -156,20 +156,12 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
                         def config = entry instanceof Map ? entry.config : entry
                         if (config instanceof String && !config.isBlank()) registered.add(config)
                     }
-                } else if (loaderProject.loader == 'forge' && loaderProject.target == '1.20.1') {
+                } else if (loaderProject.loader == 'forge') {
                     def metadata = zip.getEntry('META-INF/mods.toml')
                     if (metadata == null) throw new GradleException("${artifact.name} is missing META-INF/mods.toml")
-                    def metadataText = zip.getInputStream(metadata).getText('UTF-8')
-                    def legacyConfig = metadataText =~ /(?m)^mixinConfig\s*=\s*"([^"]+)"\s*$/
-                    if (legacyConfig.find()) registered.add(legacyConfig.group(1))
-                    def manifestEntry = zip.getEntry('META-INF/MANIFEST.MF')
-                    def forge1201Manifest = manifestEntry == null ? null
-                        : new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
-                    def manifestConfigs = forge1201Manifest?.mainAttributes?.getValue('MixinConfigs')
-                    if (manifestConfigs != null) {
-                        manifestConfigs.split(',').each { config -> registered.add(config.trim()) }
+                    if (zip.getInputStream(metadata).getText('UTF-8').contains('mixinConfig=')) {
+                        throw new GradleException("${artifact.name} must register service mixins through the embedded runtime manifest")
                     }
-                } else if (loaderProject.loader == 'forge') {
                     def manifestEntry = zip.getEntry('META-INF/MANIFEST.MF')
                     def forgeManifest = manifestEntry == null ? null
                         : new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
@@ -177,14 +169,30 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
                     if (manifestConfigs != null) {
                         manifestConfigs.split(',').each { config -> registered.add(config.trim()) }
                     }
+                    def runtimeEntry = zip.getEntry('embedded/mlua/mlua-runtime.jar')
+                    if (runtimeEntry == null) throw new GradleException("${artifact.name} is missing its embedded runtime JAR")
+                    def runtimeManifest = new java.util.zip.ZipInputStream(zip.getInputStream(runtimeEntry)).withCloseable { runtimeZip ->
+                        java.util.zip.ZipEntry runtimeFile
+                        while ((runtimeFile = runtimeZip.nextEntry) != null) {
+                            if (runtimeFile.name == 'META-INF/MANIFEST.MF') {
+                                return new java.util.jar.Manifest(
+                                    new java.io.ByteArrayInputStream(runtimeZip.readAllBytes()))
+                            }
+                        }
+                        null
+                    }
+                    def runtimeConfigs = runtimeManifest?.mainAttributes?.getValue('MixinConfigs')
+                    if (runtimeConfigs != null) {
+                        runtimeConfigs.split(',').each { config -> registered.add(config.trim()) }
+                    }
                 } else if (loaderProject.loader == 'neoforge') {
                     def metadata = zip.getEntry('META-INF/neoforge.mods.toml')
                     if (metadata == null) throw new GradleException("${artifact.name} is missing META-INF/neoforge.mods.toml")
                     def text = zip.getInputStream(metadata).getText('UTF-8')
                     def modsHeader = text.indexOf('[[mods]]')
-                    def finalMixinHeader = text.lastIndexOf('[[mixins]]')
-                    if (modsHeader < 0 || finalMixinHeader < 0 || finalMixinHeader > modsHeader) {
-                        throw new GradleException("${artifact.name} must declare NeoForge mixin tables before [[mods]]")
+                    def firstMixinHeader = text.indexOf('[[mixins]]')
+                    if (modsHeader < 0 || firstMixinHeader < 0 || firstMixinHeader < modsHeader) {
+                        throw new GradleException("${artifact.name} must declare NeoForge mixin tables after [[mods]]")
                     }
                     def matcher = text =~ /(?m)^config\s*=\s*"([^"]+)"\s*$/
                     while (matcher.find()) registered.add(matcher.group(1))

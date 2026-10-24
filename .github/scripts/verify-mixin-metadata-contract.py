@@ -17,22 +17,31 @@ def fail(message: str) -> None:
 
 forge_120 = (ROOT / "mlua-loaders/forge/1.20.1/project/src/main/resources/META-INF/mods.toml").read_text(encoding="utf-8")
 forge_120_build = (ROOT / "mlua-loaders/forge/1.20.1/project/build.gradle").read_text(encoding="utf-8")
-if 'mixinConfig="mlua.forge.mixins.json"' not in forge_120 \
-        or "'MixinConfigs': 'mlua.forge.mixins.json,mlua.firstperson.mixins.json'" not in forge_120_build:
-    fail("Forge 1.20.1 must retain its loader-supported mixin declarations")
+if 'mixinConfig=' in forge_120 or "'MixinConfigs': 'mlua.firstperson.mixins.json'" not in forge_120_build \
+        or "config 'mlua.firstperson.mixins.json'" not in forge_120_build \
+        or "exclude 'mlua.forge.mixins.json'" not in forge_120_build:
+    fail("Forge 1.20.1 must keep first-person mixins in the loader JAR and service mixins in the runtime JAR")
 
 forge_121_build = (ROOT / "mlua-loaders/forge/1.21.1/project/build.gradle").read_text(encoding="utf-8")
-for required in ("MixinConfigs", "mlua.forge.mixins.json,mlua.firstperson.mixins.json",
-                 "prepareForgeProjectResources/META-INF/mods.toml", "'MixinConfigs':"):
+for required in ("MixinConfigs", "'MixinConfigs': 'mlua.firstperson.mixins.json'",
+                 "prepareForgeProjectResources/META-INF/mods.toml", "config 'mlua.firstperson.mixins.json'",
+                 "exclude 'mlua.forge.mixins.json'"):
     if required not in forge_121_build:
         fail(f"Forge 1.21.1 mixin metadata generation is missing {required}")
-if "prepareForgeMixinMetadata" in forge_121_build or "[[mixins]]" in forge_121_build:
-    fail("Forge 1.21.1 must register mixin configs through the manifest")
+if "'MixinConfigs': 'mlua.forge.mixins.json,mlua.firstperson.mixins.json'" in forge_121_build:
+    fail("Forge 1.21.1 service mixin config must be registered by its embedded runtime JAR")
+runtime_forge_build = (ROOT / "gradle/mlua-runtime-target.gradle").read_text(encoding="utf-8")
+if "'MixinConfigs': 'mlua.forge.mixins.json'" not in runtime_forge_build:
+    fail("Forge runtime JAR must register its service mixin config in its own manifest")
+for metadata_path in (ROOT / "src/main/resources/META-INF/mods.toml",
+                      ROOT / "mlua-loaders/forge/1.20.1/project/src/main/resources/META-INF/mods.toml"):
+    if "mixinConfig=" in metadata_path.read_text(encoding="utf-8"):
+        fail(f"{metadata_path.relative_to(ROOT)} must leave mixin ownership with the JAR manifests")
 
 neo_build = (ROOT / "gradle/mlua-neoforge-project.gradle").read_text(encoding="utf-8")
 for required in ("prepareNeoForgeMixinMetadata", "[[mixins]]", "mlua.service.mixins.json",
                  "neoForgeServiceMixinNames", "'ChatLineMixin'", "from(prepareNeoForgeMixinMetadata)",
-                 "metadata.indexOf('[[mods]]')", "metadata.substring(0, modsHeader)"):
+                 "metadata.indexOf('[[mods]]')", "metadata.indexOf('[[', modsHeader"):
     if required not in neo_build:
         fail(f"NeoForge mixin metadata generation is missing {required}")
 if "'MixinConfigs': 'mlua.firstperson.mixins.json,mlua.service.mixins.json'" in neo_build:

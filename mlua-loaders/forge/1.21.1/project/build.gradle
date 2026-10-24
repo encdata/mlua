@@ -176,7 +176,7 @@ dependencies {
 
 mixin {
     add sourceSets.main, 'mlua.refmap.json'
-    config 'mlua.forge.mixins.json'
+    config 'mlua.firstperson.mixins.json'
 }
 
 jarJar.enable()
@@ -255,6 +255,7 @@ tasks.named('jar', Jar).configure {
         exclude 'module-info.class'
     }
     exclude 'META-INF/services/dev.mlua.module.MLuaModule'
+    exclude 'mlua.forge.mixins.json'
     manifest {
         attributes([
                 'Automatic-Module-Name': 'mlua_loader',
@@ -264,7 +265,7 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Title': project.name,
                 'Implementation-Version': project.jar.archiveVersion,
                 'Implementation-Vendor': mod_authors,
-                'MixinConfigs': 'mlua.forge.mixins.json,mlua.firstperson.mixins.json'
+                'MixinConfigs': 'mlua.firstperson.mixins.json'
         ])
     }
     exclude 'dev/mlua/api/**'
