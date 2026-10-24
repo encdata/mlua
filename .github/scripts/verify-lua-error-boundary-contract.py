@@ -26,13 +26,23 @@ for relative, expected in delegates.items():
     if expected not in read(relative):
         raise SystemExit(f"{relative} must delegate callback wrapping to MLuaLuaErrors")
 
-for relative, owner in (
-    ("src/main/java/dev/mlua/modules/particles/service/MLuaParticleService.java", "ParticleEmitter:"),
-    ("src/main/java/dev/mlua/modules/sound/service/MLuaSoundHandleFactory.java", "SoundHandle:"),
+particle_service = read("src/main/java/dev/mlua/modules/particles/service/MLuaParticleService.java")
+if 'MLuaLuaErrors.operation("ParticleEmitter:" + operation, body,' not in particle_service:
+    raise SystemExit("ParticleEmitter operations must use the shared wrapper and specialized error mapping")
+
+sound_handles = read("src/main/java/dev/mlua/modules/sound/service/MLuaSoundHandleFactory.java")
+for token in (
+    'MLuaLuaErrors.operation("SoundHandle:" + operation, args ->',
+    'if (!usesClientState(operation)) return body.apply(args);',
+    'MLuaGameThreadAccess.callUnchecked(context, () -> body.apply(args))',
+    'failure -> {',
+    'MLuaLogger.LOGGER.error("SoundHandle:{} failed", operation, failure);',
+    'new LuaError("[MLua] SoundHandle:" + operation + " failed: "',
 ):
-    source = read(relative)
-    if f'MLuaLuaErrors.operation("{owner}" + operation, body,' not in source:
-        raise SystemExit(f"{relative} must use the shared wrapper and retain its specialized error mapping")
+    if token not in sound_handles:
+        raise SystemExit(
+            "SoundHandle callbacks must share error mapping and dispatch only live client state access"
+        )
 
 object_ops = read("src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java")
 if 'MLuaLuaErrors.operation("Render service call"' not in object_ops:
