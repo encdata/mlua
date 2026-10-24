@@ -84,6 +84,8 @@ jobs:
         run: python .github/scripts/verify-scripted-entity-state-contract.py
       - name: Validate scripted entity AI definition ownership
         run: python .github/scripts/verify-entity-ai-definition-ownership.py
+      - name: Validate scripted container registry ownership
+        run: python .github/scripts/verify-scripted-container-registry-contract.py
 
       - name: Validate Java input conversion ownership
         run: python .github/scripts/verify-java-conversion-ownership-contract.py

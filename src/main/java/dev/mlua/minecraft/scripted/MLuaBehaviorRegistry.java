@@ -99,10 +99,8 @@ public final class MLuaBehaviorRegistry {
    }
    private static final ConcurrentMap<String, ConcurrentMap<String, BehaviorSet>> SCRIPTED_BEHAVIORS = new ConcurrentHashMap<>();
    private static final ConcurrentMap<String, ConcurrentMap<String, ContentClassDefinition>> CONTENT_CLASSES = new ConcurrentHashMap<>();
-   private static final ConcurrentMap<String, ContainerDefinition> BLOCK_CONTAINERS = new ConcurrentHashMap<>();
-   private static final ConcurrentMap<String, ContainerDefinition> CONTAINER_TYPES = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, Integer> ENTITY_AI_INTERVAL = new ConcurrentHashMap();
-   private static final Object REGISTRATION_LOCK = new Object();
+   static final Object REGISTRATION_LOCK = new Object();
 
    private MLuaBehaviorRegistry() {
    }
@@ -127,7 +125,7 @@ public final class MLuaBehaviorRegistry {
       synchronized (REGISTRATION_LOCK) {
          clearBehaviors("block", key);
          clearBehaviors("block_entity", key);
-         BLOCK_CONTAINERS.remove(key);
+         MLuaScriptedContainerRegistry.clearBlock(key);
       }
    }
 
@@ -431,14 +429,7 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static ContainerDefinition registerBlockContainer(String key, ContainerDefinition definition) {
-      if (key == null || key.isBlank()) throw new IllegalArgumentException("Scripted container block key must be non-empty");
-      validateBehaviorKey(key);
-      ContainerDefinition registered = validateContainerDefinition(definition);
-      synchronized (REGISTRATION_LOCK) {
-         ensureContainerCapacity(BLOCK_CONTAINERS, key, MAX_BLOCK_CONTAINERS);
-         BLOCK_CONTAINERS.put(key, registered);
-      }
-      return registered;
+      return MLuaScriptedContainerRegistry.registerBlock(key, definition);
    }
 
    public static void registerContainerType(String key, int rows, String title) {
@@ -446,22 +437,13 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static ContainerDefinition registerContainerType(String key, ContainerDefinition definition) {
-      if (key == null || key.isBlank()) throw new IllegalArgumentException("Scripted container type key must be non-empty");
-      validateBehaviorKey(key);
-      ContainerDefinition registered = validateContainerDefinition(definition);
-      synchronized (REGISTRATION_LOCK) {
-         ensureContainerCapacity(CONTAINER_TYPES, key, MAX_CONTAINER_TYPES);
-         if (CONTAINER_TYPES.putIfAbsent(key, registered) != null) {
-            throw new IllegalStateException("Scripted container type is already registered: " + key);
-         }
-      }
-      return registered;
+      return MLuaScriptedContainerRegistry.registerType(key, definition);
    }
 
-   public static ContainerDefinition getContainerType(String key) { return CONTAINER_TYPES.get(key); }
+   public static ContainerDefinition getContainerType(String key) { return MLuaScriptedContainerRegistry.getType(key); }
 
    public static Map<String, ContainerDefinition> getContainerTypes() {
-      return Map.copyOf(CONTAINER_TYPES);
+      return MLuaScriptedContainerRegistry.getTypes();
    }
 
    public static ScriptLimits scriptLimits(String ownerModId) {
@@ -483,10 +465,10 @@ public final class MLuaBehaviorRegistry {
                if (owner.equals(ownerFor(definition.getValue().context(), definition.getKey()))) ownedClassCount++;
             }
          }
-         int blockContainers = BLOCK_CONTAINERS.size();
-         int ownedBlockContainers = countOwnerKeys(BLOCK_CONTAINERS, owner);
-         int containerTypes = CONTAINER_TYPES.size();
-         int ownedContainerTypes = countOwnerKeys(CONTAINER_TYPES, owner);
+         int blockContainers = MLuaScriptedContainerRegistry.blockCount();
+         int ownedBlockContainers = MLuaScriptedContainerRegistry.blockCountForOwner(owner);
+         int containerTypes = MLuaScriptedContainerRegistry.typeCount();
+         int ownedContainerTypes = MLuaScriptedContainerRegistry.typeCountForOwner(owner);
          int aiConfigs = ENTITY_AI_INTERVAL.size();
          int ownedAIConfigs = countOwnerKeys(ENTITY_AI_INTERVAL, owner);
          return new ScriptLimits(behaviorCount, ownedBehaviorCount, classCount, ownedClassCount,
@@ -495,76 +477,24 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static boolean unregisterContainerType(String key, ContainerDefinition expected) {
-      synchronized (REGISTRATION_LOCK) { return removeContainer(CONTAINER_TYPES, key, expected); }
+      return MLuaScriptedContainerRegistry.unregisterType(key, expected);
    }
 
    public static boolean unregisterBlockContainer(String key, ContainerDefinition expected) {
-      synchronized (REGISTRATION_LOCK) { return removeContainer(BLOCK_CONTAINERS, key, expected); }
+      return MLuaScriptedContainerRegistry.unregisterBlock(key, expected);
    }
 
    /** Restores a block container only while the current value is still the registration being rolled back. */
    public static boolean restoreBlockContainer(String key, ContainerDefinition expected,
                                                ContainerDefinition previous) {
-      if (key == null || key.isBlank()) return false;
-      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
-      synchronized (REGISTRATION_LOCK) {
-         BLOCK_CONTAINERS.compute(key, (ignored, current) -> {
-            if (current != expected) return current;
-            restored.set(true);
-            return previous;
-         });
-      }
-      return restored.get();
-   }
-
-   private static boolean removeContainer(ConcurrentMap<String, ContainerDefinition> containers,
-                                          String key, ContainerDefinition expected) {
-      if (key == null || expected == null) return false;
-      java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
-      containers.computeIfPresent(key, (ignored, current) -> {
-         if (current != expected) return current;
-         removed.set(true);
-         return null;
-      });
-      return removed.get();
+      return MLuaScriptedContainerRegistry.restoreBlock(key, expected, previous);
    }
 
    public static ContainerDefinition validateContainerDefinition(ContainerDefinition definition) {
-      if (definition == null) throw new IllegalArgumentException("Scripted container definition is required");
-      if (definition.rows() < 1 || definition.rows() > 6) throw new IllegalArgumentException("Scripted container rows must be from 1 to 6");
-      if (definition.title() == null || definition.title().isBlank()) throw new IllegalArgumentException("Scripted container title must be non-empty");
-      if (definition.title().length() > MAX_CONTAINER_TITLE_LENGTH) {
-         throw new IllegalArgumentException("Scripted container titles cannot exceed " + MAX_CONTAINER_TITLE_LENGTH + " characters");
-      }
-      int itemReferences = definition.allowedItems().size();
-      if (definition.allowedItems().size() > MAX_ALLOWED_ITEMS_PER_RULE) {
-         throw new IllegalArgumentException("Scripted container item rule limit reached (" + MAX_ALLOWED_ITEMS_PER_RULE + ")");
-      }
-      if (definition.slotAllowedItems().size() > definition.rows() * 9) {
-         throw new IllegalArgumentException("Scripted container slot rule count cannot exceed its slot count");
-      }
-      if (definition.allowedItems().stream().anyMatch(item -> item.isBlank() || !item.contains(":"))) {
-         throw new IllegalArgumentException("Scripted container allowed item ids must be non-empty and namespaced");
-      }
-      for (Map.Entry<Integer, java.util.Set<String>> slot : definition.slotAllowedItems().entrySet()) {
-         itemReferences += slot.getValue().size();
-         if (slot.getValue().size() > MAX_ALLOWED_ITEMS_PER_RULE) {
-            throw new IllegalArgumentException("Scripted container slot item rule limit reached (" + MAX_ALLOWED_ITEMS_PER_RULE + ")");
-         }
-         if (slot.getKey() == null || slot.getKey() < 1 || slot.getKey() > definition.rows() * 9) {
-            throw new IllegalArgumentException("Scripted container slot rules must use one-based slots within the registered row count");
-         }
-         if (slot.getValue().stream().anyMatch(item -> item.isBlank() || !item.contains(":"))) {
-            throw new IllegalArgumentException("Scripted container slot item ids must be non-empty and namespaced");
-         }
-      }
-      if (itemReferences > MAX_ALLOWED_ITEM_REFERENCES_PER_CONTAINER) {
-         throw new IllegalArgumentException("Scripted container item rule limit reached (" + MAX_ALLOWED_ITEM_REFERENCES_PER_CONTAINER + " item references per container)");
-      }
-      return definition;
+      return MLuaScriptedContainerRegistry.validate(definition);
    }
 
-   public static ContainerDefinition getBlockContainer(String key) { return BLOCK_CONTAINERS.get(key); }
+   public static ContainerDefinition getBlockContainer(String key) { return MLuaScriptedContainerRegistry.getBlock(key); }
 
    public record ContainerDefinition(int rows, String title, java.util.Set<String> allowedItems,
                                      Map<Integer, java.util.Set<String>> slotAllowedItems) {
@@ -638,8 +568,7 @@ public final class MLuaBehaviorRegistry {
             definitions.keySet().removeIf(key -> key.startsWith(prefix));
             return definitions.isEmpty() ? null : definitions;
          }));
-         BLOCK_CONTAINERS.keySet().removeIf(key -> key.startsWith(prefix));
-         CONTAINER_TYPES.keySet().removeIf(key -> key.startsWith(prefix));
+         MLuaScriptedContainerRegistry.clearOwnerPrefix(prefix);
          ENTITY_AI_INTERVAL.keySet().removeIf(key -> key.startsWith(prefix));
       }
    }
@@ -744,20 +673,6 @@ public final class MLuaBehaviorRegistry {
    private static int countOwnerKeys(Map<String, ?> values, String owner) {
       String prefix = owner + ":";
       return (int) values.keySet().stream().filter(key -> key.startsWith(prefix)).count();
-   }
-
-   private static void ensureContainerCapacity(ConcurrentMap<String, ContainerDefinition> values,
-                                               String key, int maxTotal) {
-      if (values.containsKey(key)) return;
-      if (values.size() >= maxTotal) {
-         throw new IllegalStateException("Scripted container definition limit reached (" + maxTotal + " total)");
-      }
-      int separator = key.indexOf(':');
-      String ownerPrefix = separator > 0 ? key.substring(0, separator + 1) : "";
-      if (!ownerPrefix.isEmpty() && values.keySet().stream().filter(id -> id.startsWith(ownerPrefix)).count()
-          >= MAX_CONTAINERS_PER_ADDON) {
-         throw new IllegalStateException("Addon scripted container definition limit reached (" + MAX_CONTAINERS_PER_ADDON + ")");
-      }
    }
 
    private static void ensureKeyCapacity(ConcurrentMap<String, ?> values, String key, int maxTotal) {
