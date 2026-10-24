@@ -216,113 +216,7 @@ public final class MLuaBlockWrapper {
    }
 
    private static LuaTable createClass(MLuaRegistration registration) {
-      LuaTable blockEntityClass = registration.registerClass("BlockEntity", registration.requireInstanceBaseClassName(),
-         "A live block entity attached to a block position, with persistent state and optional inventory.");
-      if (!blockEntityClass.rawget("__initialized").toboolean()) {
-         registration.registerClassFunction("BlockEntity", "GetPosition", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               BlockEntity entity = blockEntity(args.arg1());
-               return MLuaVector.vector3(entity.getBlockPos().getX(), entity.getBlockPos().getY(), entity.getBlockPos().getZ());
-            }
-         }, "Returns this block entity's world position.");
-         registration.registerClassFunction("BlockEntity", "OnLoad", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
-         }, "Runs when Minecraft attaches this block entity to a level.");
-         registration.registerClassFunction("BlockEntity", "OnUnload", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
-         }, "Runs when Minecraft removes this block entity from a level.");
-         registration.registerClassFunction("BlockEntity", "OnContainerChanged", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) { return LuaValue.NONE; }
-         }, "Runs on the server after this block entity's container contents change.");
-         registration.registerClassFunction("BlockEntity", "GetLevel", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               LuaTable self = args.arg1().checktable();
-               return MLuaLevelWrapper.levelTable(((MCLevelImpl)level(self)).inner(), registration);
-            }
-         }, "Returns the live dimension containing this block entity.");
-         registration.registerClassFunction("BlockEntity", "GetWorld", blockEntityClass.rawget("GetLevel"),
-            "Returns the live dimension containing this block entity as a Level instance.");
-         registration.registerClassFunction("BlockEntity", "GetDimension", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               Level level = ((MCLevelImpl)level(args.arg1().checktable())).inner();
-               return LuaValue.valueOf(level.dimension().location().toString());
-            }
-         }, "Returns the dimension identifier containing this block entity.");
-         registration.registerClassFunction("BlockEntity", "GetBlock", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               LuaTable self = args.arg1().checktable();
-               return blockTable((Level)self.rawget("__level").touserdata(Level.class),
-                  (BlockPos)self.rawget("__block_pos").touserdata(BlockPos.class), registration);
-            }
-         }, "Returns the live block that owns this block entity.");
-         registration.registerClassFunction("BlockEntity", "GetBlockEntityType", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               return LuaValue.valueOf(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity(args.arg1()).getType()).toString());
-            }
-         }, "Returns this block entity type's registry identifier.");
-         registration.registerClassFunction("BlockEntity", "GetIsRemoved", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               return LuaValue.valueOf(blockEntity(args.arg1()).isRemoved());
-            }
-         }, "Returns whether Minecraft has removed this block entity from its dimension.");
-         registration.registerClassFunction("BlockEntity", "GetNbt", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               return nbtTable(blockEntity(args.arg1()), registration);
-            }
-         }, "Returns this block entity's live NBT data.");
-         registration.registerClassFunction("BlockEntity", "SetNbt", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               LuaTable self = args.arg1().checktable();
-               requireServerBlockEntity(self, "SetNbt");
-               BlockEntity entity = blockEntity(self);
-               if (args.narg() == 2 && args.arg(2).istable()) {
-                  return LuaValue.valueOf(replaceBlockEntityNbt(entity, args.arg(2)));
-               }
-               return LuaValue.valueOf(setBlockEntityNbt(entity, args.checkjstring(2), args.arg(3)));
-            }
-         }, "Sets one block entity NBT value or replaces its data on the server.");
-         registration.registerClassFunction("BlockEntity", "GetContainer", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               return getContainer(args.arg1().checktable(), registration);
-            }
-         }, "Returns the live Container owned by this block entity, when available.");
-         registration.registerClassFunction("BlockEntity", "GetInventory",
-            blockEntityClass.rawget("GetContainer"), "Alias for GetContainer.");
-         registration.registerClassFunction("BlockEntity", "HasContainer", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               return LuaValue.valueOf(container(blockEntity(args.arg1())) != null);
-            }
-         }, "Whether this block entity owns a live Container.");
-         registration.registerClassFunction("BlockEntity", "SetChanged", new VarArgFunction() {
-            @Override public Varargs invoke(Varargs args) {
-               LuaTable self = args.arg1().checktable();
-               requireServerBlockEntity(self, "SetChanged");
-               blockEntity(self).setChanged();
-               return LuaValue.NONE;
-            }
-         }, "Marks this block entity's saved state as changed. Server-side only.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Position", "GetPosition", null,
-            "Vector3", "shared:Shared", "This block entity's world position.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Level", "GetLevel", null,
-            "Level", "shared:Shared", "The live dimension containing this block entity.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "World", "GetWorld", null,
-            "Level", "shared:Shared", "The live dimension containing this block entity.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Dimension", "GetDimension", null,
-            "string", "shared:Shared", "The dimension identifier containing this block entity.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Block", "GetBlock", null,
-            "Block", "shared:Shared", "The live block that owns this block entity.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Type", "GetBlockEntityType", null,
-            "string", "shared:Shared", "This block entity type's registry identifier.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "IsRemoved", "GetIsRemoved", null,
-            "boolean", "shared:Shared", "Whether Minecraft has removed this block entity from its dimension.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Nbt", "GetNbt", "SetNbt",
-            "Nbt|table", "shared:Shared", "This block entity's live NBT view; reads are available on both sides, while writes are server-side only.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Container", "GetContainer", null,
-            "Container|nil", "shared:Shared", "The live container owned by this block entity, when available.");
-         MLuaClassMethods.registerInstanceProperty(registration, "BlockEntity", "Inventory", "GetInventory", null,
-            "Container|nil", "shared:Shared", "Alias for Container.");
-         blockEntityClass.set("__initialized", LuaValue.TRUE);
-      }
+      MLuaBlockEntityClass.register(registration);
       LuaTable classTable = registration.registerClass("Block", registration.requireInstanceBaseClassName(), "A live block instance at a position in a Minecraft world.");
       if (!classTable.rawget("__initialized").toboolean()) {
          MLuaClassMethods.registerClassMethod(registration, "Block", classTable, "GetBlockEntity", selfBlock((self, ignored) -> {
@@ -548,12 +442,12 @@ public final class MLuaBlockWrapper {
       return key != null ? key.toString() : "unknown";
    }
 
-   private static LuaTable nbtTable(MCLevel level, MCBlockPos pos, MLuaRegistration registration) {
+   static LuaTable nbtTable(MCLevel level, MCBlockPos pos, MLuaRegistration registration) {
       return MLuaNbtWrapper.table(() -> ((dev.mlua.mc.impl.nbt.MCCompoundTagImpl)blockEntityTag(level, pos)).inner(),
          tag -> applyBlockEntityTag(level, pos, dev.mlua.mc.impl.nbt.MCCompoundTagImpl.fromReal(tag)), registration);
    }
 
-   private static LuaTable nbtTable(BlockEntity entity, MLuaRegistration registration) {
+   static LuaTable nbtTable(BlockEntity entity, MLuaRegistration registration) {
       MCBlockEntity wrapped = MCBlockEntityImpl.fromReal(entity);
       return MLuaNbtWrapper.table(
          () -> ((dev.mlua.mc.impl.nbt.MCCompoundTagImpl)wrapped.saveWithFullMetadata()).inner(),
@@ -565,7 +459,7 @@ public final class MLuaBlockWrapper {
       return blockEntity == null ? dev.mlua.mc.impl.nbt.MCCompoundTagImpl.fromReal(new CompoundTag()) : blockEntity.saveWithFullMetadata();
    }
 
-   private static MCContainer container(MCLevel level, MCBlockPos pos) {
+   static MCContainer container(MCLevel level, MCBlockPos pos) {
       MCBlockEntity blockEntity = level.getBlockEntity(pos);
       Object raw = blockEntity == null ? null : ((MCBlockEntityImpl)blockEntity).inner();
       if (raw instanceof Container c
@@ -575,7 +469,7 @@ public final class MLuaBlockWrapper {
       return null;
    }
 
-   private static MCContainer container(BlockEntity entity) {
+   static MCContainer container(BlockEntity entity) {
       if (entity instanceof Container container
          && (!(entity instanceof dev.mlua.runtime.client.MLuaVisualBlockEntity scripted)
             || scripted.hasContainer())) {
@@ -584,7 +478,7 @@ public final class MLuaBlockWrapper {
       return null;
    }
 
-   private static LuaValue getContainer(LuaTable self, MLuaRegistration registration) {
+   static LuaValue getContainer(LuaTable self, MLuaRegistration registration) {
       BlockEntity entity = blockEntity(self);
       MCContainer inventory = container(entity);
       Level level = entity.getLevel();
@@ -592,14 +486,14 @@ public final class MLuaBlockWrapper {
       return inventory == null ? LuaValue.NIL : MLuaContainer.containerTable(inventory, writable, registration);
    }
 
-   private static boolean setBlockEntityNbt(BlockEntity entity, String key, LuaValue value) {
+   static boolean setBlockEntityNbt(BlockEntity entity, String key, LuaValue value) {
       MCBlockEntity wrapped = MCBlockEntityImpl.fromReal(entity);
       MCCompoundTag tag = wrapped.saveWithFullMetadata();
       MLuaNbtWrapper.set(((dev.mlua.mc.impl.nbt.MCCompoundTagImpl)tag).inner(), key, value);
       return applyBlockEntityTag(entity, tag);
    }
 
-   private static boolean replaceBlockEntityNbt(BlockEntity entity, LuaValue replacement) {
+   static boolean replaceBlockEntityNbt(BlockEntity entity, LuaValue replacement) {
       return applyBlockEntityTag(entity,
          dev.mlua.mc.impl.nbt.MCCompoundTagImpl.fromReal(MLuaNbtWrapper.toCompound(replacement)));
    }
@@ -618,7 +512,7 @@ public final class MLuaBlockWrapper {
       return true;
    }
 
-   private static boolean setBlockEntityNbt(MCLevel level, MCBlockPos pos, String key, LuaValue value) {
+   static boolean setBlockEntityNbt(MCLevel level, MCBlockPos pos, String key, LuaValue value) {
       MCBlockEntity blockEntity = level.getBlockEntity(pos);
       if (blockEntity == null) {
          return false;
@@ -629,7 +523,7 @@ public final class MLuaBlockWrapper {
       return true;
    }
 
-   private static boolean replaceBlockEntityNbt(MCLevel level, MCBlockPos pos, LuaValue replacement) {
+   static boolean replaceBlockEntityNbt(MCLevel level, MCBlockPos pos, LuaValue replacement) {
       MCBlockEntity blockEntity = level.getBlockEntity(pos);
       if (blockEntity == null) {
          return false;
@@ -662,7 +556,7 @@ public final class MLuaBlockWrapper {
       return LuaValue.NIL;
    }
 
-   private static MCLevel level(LuaValue self) {
+   static MCLevel level(LuaValue self) {
       LuaValue value = self.checktable().rawget("__level");
       Level level = value.isuserdata(Level.class) ? (Level)value.touserdata(Level.class) : null;
       if (level == null) {
@@ -679,7 +573,7 @@ public final class MLuaBlockWrapper {
       return server;
    }
 
-   private static ServerLevel requireServerBlockEntity(LuaTable self, String method) {
+   static ServerLevel requireServerBlockEntity(LuaTable self, String method) {
       LuaValue value = self.rawget("__level");
       if (!value.isuserdata(Level.class)) {
          throw new LuaError("[MLua] BlockEntity has no live dimension.");
@@ -701,7 +595,7 @@ public final class MLuaBlockWrapper {
       return dev.mlua.mc.impl.core.MCBlockPosImpl.fromReal(pos);
    }
 
-   private static BlockEntity blockEntity(LuaValue self) {
+   static BlockEntity blockEntity(LuaValue self) {
       LuaValue value = self.checktable().rawget("__block_entity");
       if (!value.isuserdata(BlockEntity.class)) {
          throw new LuaError("[MLua] BlockEntity instance lost its block entity reference");

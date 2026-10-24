@@ -7,9 +7,11 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 block_wrapper_path = ROOT / "src/main/java/dev/mlua/minecraft/binding/MLuaBlockWrapper.java"
+block_entity_class_path = ROOT / "src/main/java/dev/mlua/minecraft/binding/MLuaBlockEntityClass.java"
 block_entity_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaVisualBlockEntity.java"
 workflow_path = ROOT / ".github/workflows/compile-java.yml"
 block_wrapper = block_wrapper_path.read_text(encoding="utf-8")
+block_entity_class = block_entity_class_path.read_text(encoding="utf-8")
 block_entity = block_entity_path.read_text(encoding="utf-8")
 workflow = workflow_path.read_text(encoding="utf-8")
 
@@ -25,6 +27,11 @@ if "level.getBlockState(pos), registration" not in block_wrapper:
     fail("ordinary block lookups must still resolve the live state before delegating")
 if "MLuaBlockWrapper.blockTable(level, this.worldPosition, this.getBlockState(), registration)" not in block_entity:
     fail("block entity lifecycle must use its cached state rather than querying its level")
+if "MLuaBlockEntityClass.register(registration);" not in block_wrapper:
+    fail("Block class setup must delegate BlockEntity API ownership to its class registrar")
+for method in ("GetPosition", "GetLevel", "GetBlock", "GetContainer", "SetNbt"):
+    if f'"BlockEntity", "{method}"' not in block_entity_class:
+        fail(f"BlockEntity class registrar is missing {method}")
 if "Lifecycle callbacks also run while chunks are being attached or removed" not in block_entity:
     fail("the chunk lifecycle safety constraint must stay documented beside the adapter")
 
