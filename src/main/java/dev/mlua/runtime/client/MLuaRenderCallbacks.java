@@ -1,30 +1,22 @@
 package dev.mlua.runtime.client;
 
+import static dev.mlua.runtime.client.MLuaRenderHookRegistry.*;
+
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.signal.MLuaConnection;
 import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.module.MLuaRegistration;
-import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.HumanoidArm;
@@ -32,7 +24,6 @@ import net.minecraft.world.item.ItemDisplayContext;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.LuaTable;
 
 /** Addon-owned Lua callbacks attached to Minecraft's client render points. */
 public final class MLuaRenderCallbacks {
@@ -40,23 +31,11 @@ public final class MLuaRenderCallbacks {
     private static final int DEFAULT_WORLD_RENDER_LIGHT = 15_728_880;
     private static final String DEFAULT_PASS_ID = "mlua:default";
     /** Bounds callback dispatch work even when many addons register render hooks. */
-    public static final int MAX_CALLBACKS = 4096;
+    public static final int MAX_CALLBACKS = MLuaRenderHookRegistry.MAX_CALLBACKS;
     /** Prevents one entity type, render stage, or item from monopolizing every frame. */
-    public static final int MAX_CALLBACKS_PER_TARGET = 256;
+    public static final int MAX_CALLBACKS_PER_TARGET = MLuaRenderHookRegistry.MAX_CALLBACKS_PER_TARGET;
     /** Keeps one addon runtime from consuming the callback capacity needed by other addons. */
-    public static final int MAX_CALLBACKS_PER_OWNER = 512;
-    private static final AtomicLong NEXT_REGISTRATION_ORDER = new AtomicLong();
-    private static final AtomicInteger REGISTERED_CALLBACKS = new AtomicInteger();
-    private static final Object CALLBACK_LIMIT_LOCK = new Object();
-    /** Serializes callback installation with runtime/addon teardown. */
-    private static final Object HOOK_LIFECYCLE_LOCK = new Object();
-    private static final Map<Owner, Integer> REGISTERED_CALLBACKS_BY_OWNER = new HashMap<>();
-    /** Frame lifetime is tracked outside the mutable Lua-facing context table. */
-    /** One registry owns every render hook; the target kind prevents unrelated hooks colliding. */
-    private static final ConcurrentMap<HookTarget, HookBucket> HOOKS = new ConcurrentHashMap<>();
-    private static final Object WORLD_REGISTRATION_LOCK = new Object();
-    private static final HookTarget HUD_TARGET = new HookTarget(HookKind.HUD, "");
-    private static final HookTarget WORLD_GEOMETRY_TARGET = new HookTarget(HookKind.WORLD_GEOMETRY, "");
+    public static final int MAX_CALLBACKS_PER_OWNER = MLuaRenderHookRegistry.MAX_CALLBACKS_PER_OWNER;
     private MLuaRenderCallbacks() { }
 
     /** Stores the latest client render-frame duration in seconds for render callbacks. */
@@ -366,47 +345,13 @@ public final class MLuaRenderCallbacks {
             throw new LuaError("[MLua] " + invalidStage.getMessage());
         }
         String key = normalizeId(id);
-        HookKey hookKey = new HookKey(owner(context), key);
-        HookTarget destination = new HookTarget(HookKind.WORLD, normalized);
-        synchronized (WORLD_REGISTRATION_LOCK) {
-            synchronized (HOOK_LIFECYCLE_LOCK) {
-                HookBucket targetBucket = HOOKS.get(destination);
-                boolean alreadyAtDestination = targetBucket != null && targetBucket.contains(hookKey);
-                if (!alreadyAtDestination && targetBucket != null
-                    && targetBucket.size() >= MAX_CALLBACKS_PER_TARGET) {
-                    throw new LuaError("[MLua] Render target 'world stage " + normalized + "' already has the maximum of "
-                        + MAX_CALLBACKS_PER_TARGET + " callbacks");
-                }
-
-                List<PreviousWorldHook> previous = HOOKS.entrySet().stream()
-                    .filter(entry -> entry.getKey().kind() == HookKind.WORLD
-                        && !entry.getKey().equals(destination))
-                    .map(entry -> new PreviousWorldHook(entry.getKey(), entry.getValue().get(hookKey)))
-                    .filter(entry -> entry.hook() != null)
-                    .toList();
-                previous.forEach(entry -> unregisterTarget(entry.target(), hookKey));
-                try {
-                    Hook hook = registerTarget(destination, hookKey, callback, context,
-                        "world pass '" + key + "' at " + normalized);
-                    return connection(destination, hook);
-                } catch (RuntimeException failure) {
-                    for (PreviousWorldHook entry : previous) {
-                        Hook old = entry.hook();
-                        registerTarget(entry.target(), hookKey, old.callback, old.context, old.target,
-                            old.registrationOrder);
-                    }
-                    throw failure;
-                }
-            }
-        }
+        return MLuaRenderHookRegistry.registerWorldPass(key, normalized, callback, context);
     }
 
     public static boolean unregisterWorld(String stage, MLuaContext context) {
         String normalized = dev.mlua.loaderapi.ClientBridge.normalizeWorldRenderStage(stage);
         HookKey key = new HookKey(owner(context), DEFAULT_PASS_ID);
-        synchronized (WORLD_REGISTRATION_LOCK) {
-            return unregisterTarget(new HookTarget(HookKind.WORLD, normalized), key);
-        }
+        return MLuaRenderHookRegistry.unregisterWorldStage(normalized, key);
     }
 
     public static boolean unregisterWorld(MLuaContext context) {
@@ -414,14 +359,7 @@ public final class MLuaRenderCallbacks {
     }
 
     public static boolean unregisterWorldPass(String id, MLuaContext context) {
-        HookKey key = new HookKey(owner(context), normalizeId(id));
-        synchronized (WORLD_REGISTRATION_LOCK) {
-            boolean removed = false;
-            for (HookTarget target : HOOKS.keySet()) {
-                if (target.kind() == HookKind.WORLD) removed |= unregisterTarget(target, key);
-            }
-            return removed;
-        }
+        return MLuaRenderHookRegistry.unregisterWorldPass(new HookKey(owner(context), normalizeId(id)));
     }
 
     /** Registers a callback at the loader's native custom-geometry submission point. */
@@ -557,23 +495,12 @@ public final class MLuaRenderCallbacks {
     }
 
     public static void clearOwned(Object session, String modId) {
-        if (session == null || modId == null || modId.isBlank()) return;
-        java.util.function.Predicate<Owner> matches = owner -> owner.session() == session && owner.modId().equals(modId);
-        synchronized (WORLD_REGISTRATION_LOCK) {
-            synchronized (HOOK_LIFECYCLE_LOCK) {
-                removeOwned(matches);
-            }
-        }
+        MLuaRenderHookRegistry.clearOwned(session, modId);
     }
 
     public static void clearRuntime(Object session) {
         if (session == null) return;
-        java.util.function.Predicate<Owner> matches = owner -> owner.session() == session;
-        synchronized (WORLD_REGISTRATION_LOCK) {
-            synchronized (HOOK_LIFECYCLE_LOCK) {
-                removeOwned(matches);
-            }
-        }
+        MLuaRenderHookRegistry.clearRuntime(session);
         // DeltaTime belongs to the active client runtime's render frames. Do not
         // let a freshly loaded runtime observe the previous session's last sample.
         resetFrameTime();
@@ -582,21 +509,6 @@ public final class MLuaRenderCallbacks {
     /** Resets per-frame timing when the client leaves a world without unregistering script hooks. */
     public static void resetFrameTime() {
         MLuaRenderFrameClock.reset();
-    }
-
-    private static void removeOwned(java.util.function.Predicate<Owner> predicate) {
-        HOOKS.forEach((target, ignored) -> HOOKS.computeIfPresent(target, (key, bucket) -> {
-            bucket.removeOwned(predicate);
-            return bucket.isEmpty() ? null : bucket;
-        }));
-    }
-
-    private static String normalizeId(String id) {
-        ResourceLocation location = MLuaResourceLocations.tryParseOrNull(id);
-        if (location == null) {
-            throw new LuaError("[MLua] Render registration id must be a valid resource location (namespace:path).");
-        }
-        return location.toString();
     }
 
     /** Includes Lua wrapper and frame-context construction in the per-addon failure boundary. */
@@ -666,20 +578,10 @@ public final class MLuaRenderCallbacks {
         return nativePose instanceof PoseStack pose ? pose : null;
     }
 
-    /**
-     * Takes a stable render-hook snapshot only on Minecraft's client thread.
-     * Loader hooks can originate on platform-specific executors; refusing them here
-     * avoids even constructing or caching Lua wrappers on the wrong thread.
-     */
-    private static List<Hook> renderHooks(HookBucket bucket) {
-        if (bucket == null || bucket.isEmpty()) return List.of();
-        if (!MLuaClientRenderThread.require("Lua render callback dispatch")) return List.of();
-        return bucket.snapshot();
-    }
-
+    /** Disables a failing hook and releases its closure from the target registry. */
     private static void disableHook(Hook hook, Throwable failure) {
         hook.failed = true;
-        removeFailedHook(hook);
+        MLuaRenderHookRegistry.removeFailed(hook);
         MLuaLogger.LOGGER.error("[MLua] Disabled render callback '{}' for addon '{}' at {} after an error",
             hook.id, hook.key.owner().modId(), hook.target, failure);
     }
@@ -701,72 +603,6 @@ public final class MLuaRenderCallbacks {
         return scope != null && scope.view().isActive();
     }
 
-    /** Remove a disabled callback from its exact bucket so the Lua closure and runtime context can be collected. */
-    private static void removeFailedHook(Hook hook) {
-        if (hook == null || hook.bucket == null) return;
-        hook.bucket.removeFailed(hook.key, hook);
-    }
-
-    private static MLuaConnection registerTargetConnection(HookTarget target, HookKey key, LuaValue callback,
-            MLuaContext context, String description) {
-        Hook hook = registerTarget(target, key, callback, context, description);
-        return connection(target, hook);
-    }
-
-    private static MLuaConnection connection(HookTarget target, Hook hook) {
-        return MLuaConnection.owned(hook,
-            expected -> unregisterTarget(target, expected.key, expected),
-            expected -> expected.active && !expected.failed);
-    }
-
-    private static Hook registerTarget(HookTarget target, HookKey key, LuaValue callback,
-            MLuaContext context, String description) {
-        return registerTarget(target, key, callback, context, description, null);
-    }
-
-    private static Hook registerTarget(HookTarget target, HookKey key, LuaValue callback,
-            MLuaContext context, String description, Long registrationOrder) {
-        java.util.concurrent.atomic.AtomicReference<Hook> registered = new java.util.concurrent.atomic.AtomicReference<>();
-        synchronized (HOOK_LIFECYCLE_LOCK) {
-            HOOKS.compute(target, (ignored, current) -> {
-                HookBucket selected = current == null ? registryBucket(target) : current;
-                registered.set(selected.put(key, requireCallback(callback), context, description, registrationOrder));
-                return selected;
-            });
-        }
-        return registered.get();
-    }
-
-    private static boolean unregisterTarget(HookTarget target, HookKey key) {
-        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
-        HOOKS.computeIfPresent(target, (ignored, bucket) -> {
-            removed.set(bucket.remove(key));
-            return bucket.isEmpty() ? null : bucket;
-        });
-        return removed.get();
-    }
-
-    private static boolean unregisterTarget(HookTarget target, HookKey key, Hook expected) {
-        java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
-        HOOKS.computeIfPresent(target, (ignored, bucket) -> {
-            removed.set(bucket.remove(key, expected));
-            return bucket.isEmpty() ? null : bucket;
-        });
-        return removed.get();
-    }
-
-    private static HookBucket bucket(HookKind kind, String key) {
-        return HOOKS.get(new HookTarget(kind, key));
-    }
-
-    private static HookBucket registryBucket(HookTarget endpoint) {
-        return new HookBucket((bucket, key, expected) -> HOOKS.computeIfPresent(endpoint, (ignored, current) -> {
-            if (current != bucket) return current;
-            bucket.remove(key, expected);
-            return bucket.isEmpty() ? null : bucket;
-        }));
-    }
-
     private static LuaValue renderContext(Hook hook, String target, Object poseStack, Object bufferSource,
             Object model, float partialTick, boolean hasPartialTick, int packedLight, int packedOverlay,
             Object nativeContext, Object... additionalFields) {
@@ -786,207 +622,16 @@ public final class MLuaRenderCallbacks {
         return MLuaRenderFrameContextFactory.withPose(contextValue, callback);
     }
 
-    private static LuaValue requireCallback(LuaValue callback) {
-        if (callback == null || !callback.isfunction()) {
-            throw new LuaError("[MLua] Render callback must be a function.");
-        }
-        return callback;
-    }
-
-    private static Owner owner(MLuaContext context) {
-        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
-        return new Owner(context.session(), context.ownerModId());
-    }
-
     private static LuaValue userdata(Object value) {
         return value == null ? LuaValue.NIL : LuaValue.userdataOf(value);
     }
 
-    private enum HookKind {
-        ENTITY_MODEL, ENTITY_DRAW, ENTITY_DRAW_POST, FIRST_PERSON_ITEM, THIRD_PERSON_ITEM, WORLD,
-        WORLD_GEOMETRY, HUD
-    }
-
-    private record HookTarget(HookKind kind, String key) { }
-    private record Owner(Object session, String modId) {
-        private Owner { if (modId == null) modId = ""; }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof Owner owner
-                && session == owner.session()
-                && modId.equals(owner.modId());
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * System.identityHashCode(session) + modId.hashCode();
-        }
-    }
-    private record HookKey(Owner owner, String id) { }
-    private record PreviousWorldHook(HookTarget target, Hook hook) { }
-
-    /** Keeps an immutable registration-ordered dispatch list so render frames do not allocate or sort snapshots. */
-    private static final class HookBucket {
-        private final Map<HookKey, Hook> hooks = new HashMap<>();
-        private final HookRemoval removal;
-        private volatile List<Hook> snapshot = List.of();
-
-        private HookBucket(HookRemoval removal) {
-            this.removal = removal;
-        }
-
-        private synchronized Hook put(HookKey key, LuaValue callback, MLuaContext context, String target,
-                                      Long registrationOrder) {
-            Hook previous = hooks.get(key);
-            if (previous == null) {
-                if (hooks.size() >= MAX_CALLBACKS_PER_TARGET) {
-                    throw new LuaError("[MLua] Render target '" + target + "' already has the maximum of "
-                        + MAX_CALLBACKS_PER_TARGET + " callbacks");
-                }
-                reserveCallback(key.owner());
-            } else {
-                previous.active = false;
-            }
-            long order = registrationOrder == null ? NEXT_REGISTRATION_ORDER.getAndIncrement() : registrationOrder;
-            Hook hook = new Hook(callback, context, target, key, this, order);
-            hooks.put(key, hook);
-            rebuildSnapshot();
-            return hook;
-        }
-
-        private synchronized boolean remove(HookKey key) {
-            Hook removed = hooks.remove(key);
-            if (removed == null) return false;
-            removed.active = false;
-            releaseCallback(key.owner());
-            rebuildSnapshot();
-            return true;
-        }
-
-        private synchronized boolean remove(HookKey key, Hook expected) {
-            if (!hooks.remove(key, expected)) return false;
-            expected.active = false;
-            releaseCallback(key.owner());
-            rebuildSnapshot();
-            return true;
-        }
-
-        private void removeFailed(HookKey key, Hook expected) {
-            if (removal == null) remove(key, expected);
-            else removal.remove(this, key, expected);
-        }
-
-        private synchronized void removeOwned(java.util.function.Predicate<Owner> predicate) {
-            int removed = 0;
-            var iterator = hooks.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<HookKey, Hook> entry = iterator.next();
-                if (!predicate.test(entry.getKey().owner())) continue;
-                entry.getValue().active = false;
-                iterator.remove();
-                releaseCallback(entry.getKey().owner());
-                removed++;
-            }
-            if (removed > 0) {
-                rebuildSnapshot();
-            }
-        }
-
-        private boolean isEmpty() {
-            return snapshot.isEmpty();
-        }
-
-        private synchronized boolean contains(HookKey key) {
-            return hooks.containsKey(key);
-        }
-
-        private synchronized int size() {
-            return hooks.size();
-        }
-
-        private synchronized Hook get(HookKey key) {
-            return hooks.get(key);
-        }
-
-        private List<Hook> snapshot() {
-            return snapshot;
-        }
-
-        private void rebuildSnapshot() {
-            List<Map.Entry<HookKey, Hook>> ordered = new ArrayList<>(hooks.size());
-            hooks.forEach((key, hook) -> ordered.add(Map.entry(key, hook)));
-            ordered.sort(Comparator.comparingLong(entry -> entry.getValue().registrationOrder));
-            snapshot = ordered.stream().map(Map.Entry::getValue).toList();
-        }
-    }
-
-    private static void reserveCallback(Owner owner) {
-        synchronized (CALLBACK_LIMIT_LOCK) {
-            int current = REGISTERED_CALLBACKS.get();
-            if (current >= MAX_CALLBACKS) {
-                throw new LuaError("[MLua] MLua already has the maximum of " + MAX_CALLBACKS
-                    + " active render callbacks; unregister unused passes or unload their addon");
-            }
-            int owned = REGISTERED_CALLBACKS_BY_OWNER.getOrDefault(owner, 0);
-            if (owned >= MAX_CALLBACKS_PER_OWNER) {
-                throw new LuaError("[MLua] Addon '" + owner.modId() + "' already has the maximum of "
-                    + MAX_CALLBACKS_PER_OWNER + " active render callbacks");
-            }
-            REGISTERED_CALLBACKS.set(current + 1);
-            REGISTERED_CALLBACKS_BY_OWNER.put(owner, owned + 1);
-        }
-    }
-
     public static int registeredCallbackCount() {
-        return REGISTERED_CALLBACKS.get();
+        return MLuaRenderHookRegistry.registeredCallbackCount();
     }
 
     public static int registeredCallbackCount(MLuaContext context) {
-        if (context == null) return 0;
-        synchronized (CALLBACK_LIMIT_LOCK) {
-            return REGISTERED_CALLBACKS_BY_OWNER.getOrDefault(owner(context), 0);
-        }
+        return MLuaRenderHookRegistry.registeredCallbackCount(context);
     }
 
-    private static void releaseCallback(Owner owner) {
-        synchronized (CALLBACK_LIMIT_LOCK) {
-            int current = REGISTERED_CALLBACKS.get();
-            Integer owned = REGISTERED_CALLBACKS_BY_OWNER.get(owner);
-            if (current <= 0 || owned == null || owned <= 0) {
-                throw new IllegalStateException("Render callback accounting underflow");
-            }
-            REGISTERED_CALLBACKS.set(current - 1);
-            if (owned == 1) REGISTERED_CALLBACKS_BY_OWNER.remove(owner);
-            else REGISTERED_CALLBACKS_BY_OWNER.put(owner, owned - 1);
-        }
-    }
-
-    @FunctionalInterface
-    private interface HookRemoval {
-        void remove(HookBucket bucket, HookKey key, Hook expected);
-    }
-
-    private static final class Hook {
-        private final LuaValue callback;
-        private final MLuaContext context;
-        private final String target;
-        private final String id;
-        private final HookKey key;
-        private final HookBucket bucket;
-        private final long registrationOrder;
-        private volatile boolean active = true;
-        private volatile boolean failed;
-
-        private Hook(LuaValue callback, MLuaContext context, String target, HookKey key,
-                     HookBucket bucket, long registrationOrder) {
-            this.callback = callback;
-            this.context = context;
-            this.target = target;
-            this.id = key.id();
-            this.key = key;
-            this.bucket = bucket;
-            this.registrationOrder = registrationOrder;
-        }
-    }
 }

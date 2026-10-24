@@ -24,6 +24,7 @@ NEOFORGE_CONFIG_GENERATOR = ROOT / "gradle/mlua-neoforge-project.gradle"
 NEOFORGE_RUNTIME_TARGET = ROOT / "gradle/mlua-runtime-neoforge-target.gradle"
 TARGETS = ROOT / "gradle/mlua-targets.json"
 CALLBACKS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderCallbacks.java"
+HOOK_REGISTRY = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderHookRegistry.java"
 RENDER_SERVICE = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderService.java"
 RENDER_OBJECT_API = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectApi.java"
 RENDER_OBJECT_OPERATIONS = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java"
@@ -37,6 +38,22 @@ MODEL_FIELD_ACCESS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelFiel
 def fail(message: str) -> None:
     print(f"Render hook contract error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+hook_registry = HOOK_REGISTRY.read_text(encoding="utf-8")
+callback_facade = CALLBACKS.read_text(encoding="utf-8")
+for token in ("ConcurrentMap<HookTarget, HookBucket> HOOKS", "registerTargetConnection(",
+              "void clearOwned(Object session, String modId)", "void clearRuntime(Object session)",
+              "registeredCallbackCount(MLuaContext context)", "class HookBucket", "record Owner("):
+    if token not in hook_registry:
+        fail(f"render hook registry does not own {token}")
+if "private static final ConcurrentMap<HookTarget, HookBucket> HOOKS" in callback_facade \
+        or "private static final class HookBucket" in callback_facade:
+    fail("render callback facade still owns hook storage or bucket lifecycle")
+for operation in ("MLuaRenderHookRegistry.clearOwned(session, modId)",
+                  "MLuaRenderHookRegistry.clearRuntime(session)"):
+    if operation not in callback_facade:
+        fail(f"render callback facade does not delegate lifecycle to the registry: {operation}")
 
 
 for loader, path in HOOKS.items():
