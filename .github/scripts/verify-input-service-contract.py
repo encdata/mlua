@@ -9,12 +9,16 @@ SERVICE = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputService.
 DEFINITIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaKeybindDefinitions.java"
 ACTIONS = ROOT / "src/main/java/dev/mlua/modules/input/service/MLuaInputActions.java"
 CONTROLLER = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaKeybindController.java"
+MAPPING_ACCESS = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaKeyMappingAccess.java"
+SIMULATED_STATE = ROOT / "src/main/java/dev/mlua/minecraft/client/MLuaSimulatedKeyState.java"
 MODULE = ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java"
 KEYBOARD_MIXIN = ROOT / "src/main/java/dev/mlua/modules/mixin/service/KeyboardInputMixin.java"
 service = SERVICE.read_text(encoding="utf-8")
 definitions = DEFINITIONS.read_text(encoding="utf-8")
 actions = ACTIONS.read_text(encoding="utf-8")
 controller = CONTROLLER.read_text(encoding="utf-8")
+mapping_access = MAPPING_ACCESS.read_text(encoding="utf-8")
+simulated_state = SIMULATED_STATE.read_text(encoding="utf-8")
 module = MODULE.read_text(encoding="utf-8")
 keyboard_mixin = KEYBOARD_MIXIN.read_text(encoding="utf-8")
 
@@ -49,15 +53,23 @@ if "boolean slowDown, float slowDownFactor" not in keyboard_mixin \
     fail("keyboard input hook parameters must match each supported version family")
 if "onClientTickStart(dev.mlua.minecraft.client.MLuaKeybindController::refreshSimulatedPresses)" in module:
     fail("simulated key refresh must be owned by the keyboard input boundary, not a tick callback")
-if "public static synchronized void refreshSimulatedPresses()" not in controller:
+if "public static void refreshSimulatedPresses()" not in controller:
     fail("key controller must reassert addon-held mappings every client tick")
+for compatibility_operation in ("parseKeyName(", "keyMappings(", "setKeyMappings(", "findMethod(",
+                                "persist(", "resetMappings("):
+    if compatibility_operation not in mapping_access:
+        fail(f"Minecraft key mapping compatibility must own {compatibility_operation}")
+if "private static Method findMethod(" in controller or "private static Field findOptionsKeyMappingsField(" in controller:
+    fail("Minecraft reflection compatibility remains embedded in the keybind controller")
 if "MLuaClientThread.callOnClientThread(action)" not in actions:
     fail("Minecraft key state mutations must run on the actual client thread")
 if "MLuaClientThread.callOnClientThread(action)" not in service:
     fail("Minecraft keybinding registration and lookup must run on the actual client thread")
-effective_key_state = controller.split("public static synchronized boolean isDown(KeyMapping keyMapping)", 1)
-if len(effective_key_state) != 2 or "SIMULATED_PRESSES.get(keyMapping)" not in effective_key_state[1].split("\n   }", 1)[0]:
+if "Set<PressOwner> owners = PRESSES.get(mapping)" not in simulated_state \
+        or "return owners != null && !owners.isEmpty() || MLuaKeyMappingAccess.isDown(mapping)" not in simulated_state:
     fail("key state queries must include logical presses held through InputService")
+if "PRESSES.entrySet().removeIf" not in simulated_state or "BASELINE_DOWN" not in simulated_state:
+    fail("addon-owned key press state and physical baseline restoration need a dedicated owner")
 for method in ("RegisterKeybinds", "IsKeyDown", "SetKeybind", "GetKeybind", "GetKeybinds",
                "GetMinecraftKeybind", "GetMinecraftKeybinds"):
     match = re.search(rf"public\s+[^{{]+\b{method}\s*\(", service)
