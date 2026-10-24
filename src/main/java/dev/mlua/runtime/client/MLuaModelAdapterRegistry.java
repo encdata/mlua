@@ -6,7 +6,6 @@ import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaContext;
-import dev.mlua.core.util.MLuaWeakIdentityMap;
 import dev.mlua.core.signal.MLuaConnection;
 import org.luaj.vm2.LuaValue;
 import java.util.ArrayList;
@@ -81,13 +80,8 @@ public final class MLuaModelAdapterRegistry {
     private static final Set<String> REPORTED_RENDER_FAILURES =
         Collections.synchronizedSet(new LinkedHashSet<>());
     private static final ConcurrentMap<MLuaEntityScope, AppliedModel> APPLIED_MODELS = new ConcurrentHashMap<>();
-    private static final AtomicLong MAPPING_GENERATION = new AtomicLong();
-    private static final Map<Class<?>, Map<String, String>> RESOLVED_MAPPINGS =
-        Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<Class<?>, CustomAdapterResolution> RESOLVED_CUSTOM_ADAPTERS =
         Collections.synchronizedMap(new WeakHashMap<>());
-    private static final MLuaWeakIdentityMap<Object, Map<String, String>> RESOLVED_INSTANCE_MAPPINGS =
-        new MLuaWeakIdentityMap<>();
     private record AppliedModel(Class<?> modelClass, Map<String, String> mappings,
                                 java.util.Set<String> resolvedBones, java.util.Set<String> customBones) { }
     private record OrderedResolvers(long generation, List<AdapterResolver> values) { }
@@ -796,10 +790,8 @@ public final class MLuaModelAdapterRegistry {
     }
 
     private static void clearMappingCaches() {
-        MAPPING_GENERATION.incrementAndGet();
-        RESOLVED_MAPPINGS.clear();
+        MLuaModelAdapterCache.invalidate();
         RESOLVED_CUSTOM_ADAPTERS.clear();
-        RESOLVED_INSTANCE_MAPPINGS.clear();
         ORDERED_RESOLVERS.clear();
         APPLIED_MODELS.clear();
         MLuaModelFieldAccess.clearPathSegments();
@@ -927,24 +919,29 @@ public final class MLuaModelAdapterRegistry {
 
     public static Map<String, String> findMapping(Class<?> modelClass) {
         if (modelClass == null) return null;
-        synchronized (RESOLVED_MAPPINGS) {
-            Map<String, String> cached = RESOLVED_MAPPINGS.get(modelClass);
-            if (cached != null) return cached.isEmpty() ? null : cached;
+        return findMapping(modelClass, 0);
+    }
 
-            ArrayList<Class<?>> hierarchy = new ArrayList<>();
-            for (Class<?> type = modelClass; type != null; type = type.getSuperclass()) hierarchy.add(type);
-            Collections.reverse(hierarchy);
-            java.util.TreeMap<String, String> merged = new java.util.TreeMap<>();
-            for (Class<?> type : hierarchy) {
-                Map<Owner, Map<String, String>> adapters = ADAPTERS.get(type.getName());
-                if (adapters != null) {
-                    for (Map<String, String> parts : adapters.values()) merged.putAll(parts);
-                }
+    private static Map<String, String> findMapping(Class<?> modelClass, int invalidationRetries) {
+        long generation = MLuaModelAdapterCache.generation();
+        Map<String, String> cached = MLuaModelAdapterCache.classMapping(modelClass, generation);
+        if (cached != null) return cached.isEmpty() ? null : cached;
+
+        ArrayList<Class<?>> hierarchy = new ArrayList<>();
+        for (Class<?> type = modelClass; type != null; type = type.getSuperclass()) hierarchy.add(type);
+        Collections.reverse(hierarchy);
+        java.util.TreeMap<String, String> merged = new java.util.TreeMap<>();
+        for (Class<?> type : hierarchy) {
+            Map<Owner, Map<String, String>> adapters = ADAPTERS.get(type.getName());
+            if (adapters != null) {
+                for (Map<String, String> parts : adapters.values()) merged.putAll(parts);
             }
-            Map<String, String> resolved = merged.isEmpty() ? Map.of() : orderedMap(merged);
-            RESOLVED_MAPPINGS.put(modelClass, resolved);
-            return resolved.isEmpty() ? null : resolved;
         }
+        Map<String, String> resolved = merged.isEmpty() ? Map.of() : orderedMap(merged);
+        if (!MLuaModelAdapterCache.cacheClassMapping(modelClass, generation, resolved)) {
+            return invalidationRetries < 2 ? findMapping(modelClass, invalidationRetries + 1) : null;
+        }
+        return resolved.isEmpty() ? null : resolved;
     }
 
     /** Resolves static paths and Lua adapter paths for this model instance. */
@@ -957,11 +954,9 @@ public final class MLuaModelAdapterRegistry {
 
     private static Map<String, String> findMappingForModel(Object model, int invalidationRetries) {
         if (model == null) return null;
-        long generation = MAPPING_GENERATION.get();
-        synchronized (RESOLVED_INSTANCE_MAPPINGS) {
-            Map<String, String> cached = RESOLVED_INSTANCE_MAPPINGS.get(model);
-            if (cached != null && generation == MAPPING_GENERATION.get()) return cached.isEmpty() ? null : cached;
-        }
+        long generation = MLuaModelAdapterCache.generation();
+        Map<String, String> cached = MLuaModelAdapterCache.instanceMapping(model, generation);
+        if (cached != null) return cached.isEmpty() ? null : cached;
         ArrayList<Class<?>> hierarchy = new ArrayList<>();
         for (Class<?> type = model.getClass(); type != null; type = type.getSuperclass()) hierarchy.add(type);
         Collections.reverse(hierarchy);
@@ -993,27 +988,24 @@ public final class MLuaModelAdapterRegistry {
             }
             merged.putAll(classMappings);
         }
-        if (generation != MAPPING_GENERATION.get()) {
+        if (generation != MLuaModelAdapterCache.generation()) {
             return retryAfterInvalidation(model, invalidationRetries);
         }
         Map<String, String> result = merged.isEmpty() ? Map.of() : orderedMap(merged);
-        boolean stable;
-        synchronized (RESOLVED_INSTANCE_MAPPINGS) {
-            stable = generation == MAPPING_GENERATION.get();
-            if (stable) RESOLVED_INSTANCE_MAPPINGS.put(model, result);
+        if (!MLuaModelAdapterCache.cacheInstanceMapping(model, generation, result)) {
+            return retryAfterInvalidation(model, invalidationRetries);
         }
-        if (!stable) return retryAfterInvalidation(model, invalidationRetries);
         return result.isEmpty() ? null : result;
     }
 
     private static List<AdapterResolver> orderedResolvers(String modelClass,
                                                            Map<Owner, AdapterResolver> resolvers) {
-        long generation = MAPPING_GENERATION.get();
+        long generation = MLuaModelAdapterCache.generation();
         OrderedResolvers cached = ORDERED_RESOLVERS.get(modelClass);
         if (cached != null && cached.generation() == generation) return cached.values();
         List<AdapterResolver> ordered = resolvers.values().stream()
             .sorted(Comparator.comparingLong(AdapterResolver::registrationOrder)).toList();
-        if (generation == MAPPING_GENERATION.get()) {
+        if (generation == MLuaModelAdapterCache.generation()) {
             ORDERED_RESOLVERS.put(modelClass, new OrderedResolvers(generation, ordered));
         }
         return ordered;
@@ -1057,10 +1049,10 @@ public final class MLuaModelAdapterRegistry {
 
     private static String findRendererModelField(Class<?> rendererClass) {
         while (true) {
-            long generation = MAPPING_GENERATION.get();
+            long generation = MLuaModelAdapterCache.generation();
             String path = MLuaModelFieldAccess.rendererModelFieldPath(rendererClass, generation,
                 () -> findRendererModelFieldUncached(rendererClass));
-            if (generation == MAPPING_GENERATION.get()) return path;
+            if (generation == MLuaModelAdapterCache.generation()) return path;
         }
     }
 
@@ -1113,7 +1105,7 @@ public final class MLuaModelAdapterRegistry {
     }
 
     static Map<String, ModelPart> resolvedParts(Object model, Map<String, String> mappings) {
-        return MLuaModelPartResolver.resolvedParts(model, mappings, MAPPING_GENERATION);
+        return MLuaModelPartResolver.resolvedParts(model, mappings, MLuaModelAdapterCache.generationClock());
     }
 
     static void applyPose(ModelPart part, MLuaCFrame cframe) {

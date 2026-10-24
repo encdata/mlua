@@ -33,6 +33,7 @@ OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRend
 MODEL_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterRegistry.java"
 CUSTOM_ADAPTER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaCustomModelAdapterInvoker.java"
 MODEL_ADAPTER_RESOLVER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterResolverInvoker.java"
+MODEL_ADAPTER_CACHE = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterCache.java"
 RENDERER_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRendererAdapterRegistry.java"
 MODEL_FIELD_ACCESS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelFieldAccess.java"
 
@@ -390,6 +391,18 @@ for operation in ("static Map<String, String> invoke(", "new MLuaRenderFrameScop
         fail(f"model resolver invoker is missing {operation}")
 if "private static Map<String, String> invokeResolver(" in model_registry:
     fail("model adapter registry still owns Lua resolver callback execution")
+if not MODEL_ADAPTER_CACHE.is_file():
+    fail("model adapter mapping caches and invalidation need a dedicated owner")
+model_adapter_cache = MODEL_ADAPTER_CACHE.read_text(encoding="utf-8")
+for operation in ("static long generation()", "static Map<String, String> instanceMapping(",
+                  "static boolean cacheInstanceMapping(", "static long invalidate()",
+                  "MLuaWeakIdentityMap<Object, Map<String, String>>"):
+    if operation not in model_adapter_cache:
+        fail(f"model adapter cache is missing {operation}")
+if "MLuaModelAdapterCache.invalidate();" not in model_registry:
+    fail("model registration changes must invalidate model mapping caches")
+if "RESOLVED_INSTANCE_MAPPINGS" in model_registry:
+    fail("model adapter registry still owns the per-instance mapping cache")
 if "WeakReference<T> reference = new WeakReference<>(resource)" not in connection_source:
     fail("owned Connection handles must not strongly retain render/model callback resources")
 if "this.disconnect = null;" not in connection_source or "this.active = null;" not in connection_source:

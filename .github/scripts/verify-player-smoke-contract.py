@@ -71,7 +71,10 @@ prepare_text = prepare.read_text(encoding="utf-8")
 runner_text = runner.read_text(encoding="utf-8")
 workflow_text = workflow.read_text(encoding="utf-8")
 gui_service_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiService.java").read_text(encoding="utf-8")
-gui_api_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiApi.java").read_text(encoding="utf-8")
+gui_api_text = "\n".join(
+    (ROOT / f"src/main/java/dev/mlua/modules/coregui/service/{name}.java").read_text(encoding="utf-8")
+    for name in ("MLuaGuiApi", "MLuaGuiHudApi", "MLuaGuiScreenApi", "MLuaGuiNativeControlApi")
+)
 gui_screen_manager_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaNativeScreenManager.java").read_text(encoding="utf-8")
 gui_module_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/GuiModule.java").read_text(encoding="utf-8")
 runtime_marker_source = prepare_text + "\n" + gui_service_text
