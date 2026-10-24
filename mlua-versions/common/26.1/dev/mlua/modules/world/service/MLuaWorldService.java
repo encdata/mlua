@@ -5,12 +5,14 @@ import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaWorldChunkApi;
 import dev.mlua.runtime.MLuaGameThreadAccess;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import net.minecraft.core.Holder;
@@ -24,9 +26,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-public final class MLuaWorldService extends MLuaServiceBase {
-    private final MLuaWorldInstanceCache worldInstances = new MLuaWorldInstanceCache();
-
+public final class MLuaWorldService extends MLuaWorldServiceBase {
     public MLuaWorldService(MLuaService.Context context) {
         super(context);
     }
@@ -99,19 +99,24 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
     private LuaTable allWorlds() {
         LuaTable worlds = new LuaTable();
+        Set<Level> activeLevels = Collections.newSetFromMap(new IdentityHashMap<>());
         int index = 1;
         if (context.mlua().side() == Side.CLIENT) {
             Level level = currentLevel();
             if (level != null) {
+                activeLevels.add(level);
                 worlds.set(index, world(level));
             }
+            retainWorlds(activeLevels);
             return worlds;
         }
         if (context.mlua().server() != null) {
             for (ServerLevel level : context.mlua().server().getAllLevels()) {
+                activeLevels.add(level);
                 worlds.set(index++, world(level));
             }
         }
+        retainWorlds(activeLevels);
         return worlds;
     }
 
@@ -123,10 +128,12 @@ public final class MLuaWorldService extends MLuaServiceBase {
         return level != null && level.dimension().identifier().toString().equals(id);
     }
 
-    private synchronized LuaTable world(Level level) {
-        LuaTable cached = worldInstances.get(level);
-        if (cached != null) return cached;
+    private LuaTable world(Level level) {
+        return getOrCreateWorld(level);
+    }
 
+    @Override
+    protected LuaTable createWorld(Level level) {
         LuaTable fields = new LuaTable();
         fields.set("__world", LuaValue.userdataOf(level));
         fields.set("__level", LuaValue.userdataOf(level));
@@ -141,19 +148,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
         MLuaWorldDataApi26.bind(this, context, result, implementations, level);
         MLuaWorldEntityQueryApi26.bind(this, context, result, implementations, level);
         MLuaWorldChunkApi.bind(result, context.mlua().registration());
-        worldInstances.put(level, result);
         return result;
-    }
-
-    private static Level clientLevel() {
-        try {
-            Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
-            Object instance = minecraft.getMethod("getInstance").invoke(null);
-            Object level = minecraft.getField("level").get(instance);
-            return level instanceof Level clientLevel ? clientLevel : null;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
-            return null;
-        }
     }
 
     static ServerLevel requireServerWorld(Level level, String method) {

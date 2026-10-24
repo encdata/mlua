@@ -158,4 +158,27 @@ if any(not path.is_file() for path in common_26_1_files):
 if any(path.exists() for path in loader_duplicates):
     raise SystemExit("26.1 shared implementations must not be copied into loader source trees")
 
+world_service_base = SOURCE_ROOT / "dev/mlua/modules/world/service/MLuaWorldServiceBase.java"
+world_service_sources = (
+    SOURCE_ROOT / "dev/mlua/modules/world/service/MLuaWorldService.java",
+    ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldService.java",
+)
+if not world_service_base.is_file():
+    raise SystemExit("World wrapper identity must have one shared lifecycle owner")
+for source_path in world_service_sources:
+    source = source_path.read_text(encoding="utf-8")
+    if "extends MLuaWorldServiceBase" not in source or "getOrCreateWorld(" not in source:
+        raise SystemExit(f"{source_path.relative_to(ROOT)} must use shared World instance caching")
+    if "new MLuaWorldInstanceCache()" in source:
+        raise SystemExit(f"{source_path.relative_to(ROOT)} must not own a duplicate World instance cache")
+if "retainWorlds(activeLevels)" not in world_service_sources[0].read_text(encoding="utf-8") \
+        or "retainWorlds(activeLevels)" not in world_service_sources[1].read_text(encoding="utf-8"):
+    raise SystemExit("Legacy and 26.1 World services must evict wrappers for unloaded dimensions")
+world_service_base_source = world_service_base.read_text(encoding="utf-8")
+if "MLuaClientPlayerAccess.level()" not in world_service_base_source:
+    raise SystemExit("World services must share the cached client-level accessor")
+for source_path in world_service_sources:
+    if "Class.forName(\"net.minecraft.client.Minecraft\")" in source_path.read_text(encoding="utf-8"):
+        raise SystemExit(f"{source_path.relative_to(ROOT)} duplicates client-level reflection")
+
 print(f"Common source ownership contract passed ({len(OVERLAPS)} root/overlay collisions derived from source trees).")

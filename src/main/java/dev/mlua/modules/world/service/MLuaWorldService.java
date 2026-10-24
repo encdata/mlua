@@ -3,12 +3,10 @@ package dev.mlua.modules.world.service;
 import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.common.service.MLuaServiceMetadata;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaWorldChunkApi;
 import dev.mlua.minecraft.MLuaResourceLocations;
-import dev.mlua.modules.players.MLuaClientPlayerAccess;
 import dev.mlua.runtime.MLuaGameThreadAccess;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -23,9 +21,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-public final class MLuaWorldService extends MLuaServiceBase {
-   private final MLuaWorldInstanceCache worldInstances = new MLuaWorldInstanceCache();
-
+public final class MLuaWorldService extends MLuaWorldServiceBase {
    public MLuaWorldService(MLuaService.Context context) {
       super(context);
    }
@@ -52,7 +48,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
       return varArg(args -> {
          Level level = this.currentLevel();
          if (level == null) return LuaValue.NIL;
-         LuaTable instance = this.worldTable(() -> level);
+         LuaTable instance = this.worldTable(level);
          LuaValue method = instance.get(methodName);
          if (!method.isfunction()) {
             throw new LuaError("[MLua] World service class declares '" + methodName
@@ -70,14 +66,16 @@ public final class MLuaWorldService extends MLuaServiceBase {
    }
 
    private LuaValue worldValue(Level level) {
-      return level == null ? LuaValue.NIL : this.worldTable(() -> level);
+      return level == null ? LuaValue.NIL : this.worldTable(level);
    }
 
-   private synchronized LuaTable worldTable(Supplier<Level> supplier) {
-      Level initial = supplier.get();
-      if (initial == null) return new LuaTable();
-      LuaTable cached = worldInstances.get(initial);
-      if (cached != null) return cached;
+   private LuaTable worldTable(Level level) {
+      return level == null ? new LuaTable() : getOrCreateWorld(level);
+   }
+
+   @Override
+   protected LuaTable createWorld(Level initial) {
+      Supplier<Level> supplier = () -> initial;
       LuaTable fields = new LuaTable();
       fields.set("__side", LuaValue.valueOf(initial.isClientSide ? "CLIENT" : "SERVER"));
       fields.set("__world", LuaValue.userdataOf(initial));
@@ -95,7 +93,6 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
       MLuaWorldChunkApi.bind(table, this.context.mlua().registration());
       WorldModule.bindWorldInstanceMethods(this.context.mlua().registration(), table);
-      worldInstances.put(initial, table);
       return table;
    }
 
@@ -106,16 +103,16 @@ public final class MLuaWorldService extends MLuaServiceBase {
       if (this.context.mlua().side() == Side.SERVER && this.context.mlua().server() != null) {
          for (ServerLevel level : this.context.mlua().server().getAllLevels()) {
             activeLevels.add(level);
-            worlds.set(index++, this.worldTable(() -> level));
+            worlds.set(index++, this.worldTable(level));
          }
       } else if (this.context.mlua().side() == Side.CLIENT) {
          Level current = this.currentLevel();
          if (current != null) {
             activeLevels.add(current);
-            worlds.set(index, this.worldTable(() -> current));
+            worlds.set(index, this.worldTable(current));
          }
       }
-      worldInstances.retain(activeLevels);
+      retainWorlds(activeLevels);
       return worlds;
    }
 
@@ -148,15 +145,6 @@ public final class MLuaWorldService extends MLuaServiceBase {
          return clientLevel != null && clientLevel.dimension().location().equals(target) ? clientLevel : null;
       }
       return null;
-   }
-
-   private static Level clientLevel() {
-      try {
-         Object level = MLuaClientPlayerAccess.level();
-         return level instanceof Level clientLevel ? clientLevel : null;
-      } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
-         return null;
-      }
    }
 
    private LuaValue varArg(Function<Varargs, Varargs> fn) {
