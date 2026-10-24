@@ -1169,6 +1169,7 @@ local clientContainerOpened = false
 local clientContainerCloseRequested = false
 local clientContainerClosed = false
 local testSheepUuid
+local entityService = Minecraft:GetService("EntityService")
 local attackSubmitted = false
 local nearbyQueryDiagnosticLogged = false
 local nearbyQueryResultLogged = false
@@ -1401,6 +1402,16 @@ connection = RunService.Heartbeat:Connect(function()
             print("MLUA_CI_PLAYER_NEARBY_QUERY_BEGIN")
             print(string.format("MLUA_CI_PLAYER_NEARBY_QUERY_CENTER:%.3f,%.3f,%.3f",
                 player:GetPositionX(), player:GetPositionY(), player:GetPositionZ()))
+            local resolvedSheep = entityService:GetByUUID(testSheepUuid)
+            print("MLUA_CI_PLAYER_SHEEP_UUID_RESOLVED=" .. tostring(resolvedSheep ~= nil))
+            if resolvedSheep then
+                print(string.format("MLUA_CI_PLAYER_SHEEP_UUID_POSITION:%.3f,%.3f,%.3f",
+                    resolvedSheep:GetPositionX(), resolvedSheep:GetPositionY(), resolvedSheep:GetPositionZ()))
+            end
+            local firstLoadedSheep = entityService:GetFirst("minecraft:sheep")
+            print("MLUA_CI_PLAYER_LOADED_SHEEP_PRESENT=" .. tostring(firstLoadedSheep ~= nil))
+            local nearbySheep = entityService:GetNearby(player, 8, "minecraft:sheep")
+            print("MLUA_CI_PLAYER_ENTITY_SERVICE_NEARBY_SHEEP_COUNT=" .. tostring(#nearbySheep))
         end
         local nearbyEntityCount = 0
         for _, entity in ipairs(player:GetNearbyEntities(8)) do
