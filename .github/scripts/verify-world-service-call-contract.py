@@ -10,6 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = ROOT / "gradle/mlua-targets.json"
 SHARED = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldService.java"
+WORLD_SERVICE_BASE = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldServiceBase.java"
 FABRIC_LEGACY_OVERLAY = ROOT / "mlua-loaders/fabric/1.20.1/impl/dev/mlua/modules/world/service/MLuaWorldService.java"
 COMMON_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/service/MLuaWorldService.java"
 GAME_RULES_26 = ROOT / "mlua-versions/common/26.1/dev/mlua/modules/world/MLuaWorldGameRules26.java"
@@ -179,7 +180,7 @@ for path in (SHARED, COMMON_26):
 
 shared_world = SHARED.read_text(encoding="utf-8")
 query_api_source = query_api.read_text(encoding="utf-8")
-world_factory = method_body(shared_world, r"\bprivate\s+synchronized\s+LuaTable\s+worldTable\s*\(")
+world_factory = method_body(shared_world, r"\bprotected\s+LuaTable\s+createWorld\s*\(")
 environment_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldEnvironmentApi.java"
 block_query_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldBlockQueryApi.java"
 data_api = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldDataApi.java"
@@ -251,9 +252,12 @@ for method in ("GetPlayers", "GetEntities", "FindEntitiesInRadius", "GetEntities
 instance_cache = ROOT / "src/main/java/dev/mlua/modules/world/service/MLuaWorldInstanceCache.java"
 if not instance_cache.is_file():
     fail("shared world instance cache is missing")
+world_service_base = WORLD_SERVICE_BASE.read_text(encoding="utf-8")
+if "worldInstances.get(level)" not in world_service_base or "worldInstances.put(level, created)" not in world_service_base:
+    fail("shared World service base must own wrapper identity and cache creation")
 for path in (SHARED, COMMON_26):
     source = path.read_text(encoding="utf-8")
-    if "new MLuaWorldInstanceCache()" not in source:
+    if "extends MLuaWorldServiceBase" not in source or "getOrCreateWorld(level)" not in source:
         fail(f"{path} does not use shared world wrapper identity management")
     if "WeakHashMap<Level" in source or "WeakReference<LuaTable>" in source:
         fail(f"{path} duplicates world wrapper cache ownership")
@@ -294,7 +298,7 @@ for method in ("raycastBounds", "raycastEntity", "requireFinite"):
     if f"{method}(" not in raycast_26_source:
         fail(f"26.1 raycast owner is missing {method}")
 
-world_factory_26 = method_body(common26_source, r"\bprivate\s+synchronized\s+LuaTable\s+world\s*\(")
+world_factory_26 = method_body(common26_source, r"\bprotected\s+LuaTable\s+createWorld\s*\(")
 for binding in (
     "MLuaWorldEnvironmentApi26.bind(", "MLuaWorldBlockQueryApi26.bind(",
     "MLuaWorldRaycastApi26.bind(", "MLuaWorldBlockMutationApi26.bind(",

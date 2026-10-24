@@ -163,17 +163,17 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
                     def legacyConfig = metadataText =~ /(?m)^mixinConfig\s*=\s*"([^"]+)"\s*$/
                     if (legacyConfig.find()) registered.add(legacyConfig.group(1))
                     def manifestEntry = zip.getEntry('META-INF/MANIFEST.MF')
-                    def manifest = manifestEntry == null ? null
+                    def forge1201Manifest = manifestEntry == null ? null
                         : new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
-                    def manifestConfigs = manifest?.mainAttributes?.getValue('MixinConfigs')
+                    def manifestConfigs = forge1201Manifest?.mainAttributes?.getValue('MixinConfigs')
                     if (manifestConfigs != null) {
                         manifestConfigs.split(',').each { config -> registered.add(config.trim()) }
                     }
                 } else if (loaderProject.loader == 'forge') {
                     def manifestEntry = zip.getEntry('META-INF/MANIFEST.MF')
-                    def manifest = manifestEntry == null ? null
+                    def forgeManifest = manifestEntry == null ? null
                         : new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
-                    def manifestConfigs = manifest?.mainAttributes?.getValue('MixinConfigs')
+                    def manifestConfigs = forgeManifest?.mainAttributes?.getValue('MixinConfigs')
                     if (manifestConfigs != null) {
                         manifestConfigs.split(',').each { config -> registered.add(config.trim()) }
                     }
