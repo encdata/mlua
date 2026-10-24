@@ -27,6 +27,7 @@ import dev.mlua.mc.impl.entity.MCPlayerImpl;
 import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
@@ -52,6 +53,12 @@ public final class MLuaClientPlayerWrapper {
                && Component.class.isAssignableFrom(parameters[0])) return method;
          }
          throw new IllegalStateException("No compatible ChatComponent.addMessage overload is available");
+      }
+   };
+   private static final ClassValue<Optional<Method>> CHAT_SUBMISSION_METHOD = new ClassValue<>() {
+      @Override
+      protected Optional<Method> computeValue(Class<?> connectionType) {
+         return Optional.ofNullable(findClientChatSubmissionMethod(connectionType));
       }
    };
 
@@ -202,12 +209,12 @@ public final class MLuaClientPlayerWrapper {
       MLuaClassMethods.setInstanceMethod(table, "SendChatMessage", varArg(args -> {
          requireActiveLocalPlayer(raw, "Player:SendChatMessage");
          String message = args.checkjstring(2);
-         Method chatSubmission = ClientChatSubmission.METHOD;
+         Object connection = MLuaMinecraftClient.instance().getConnection();
+         if (connection == null) throw new LuaError("[MLua] Player:SendChatMessage requires an active client connection.");
+         Method chatSubmission = CHAT_SUBMISSION_METHOD.get(connection.getClass()).orElse(null);
          if (chatSubmission == null) {
             throw new LuaError("[MLua] This Minecraft version does not expose the local chat submission method.");
          }
-         Object connection = MLuaMinecraftClient.instance().getConnection();
-         if (connection == null) throw new LuaError("[MLua] Player:SendChatMessage requires an active client connection.");
          int submitted = 0;
          for (String line : message.split("\\R", -1)) {
             if (line.isEmpty()) continue;
@@ -476,13 +483,8 @@ public final class MLuaClientPlayerWrapper {
       return playerInfo == null ? null : playerInfo.getGameMode();
    }
 
-   private static final class ClientChatSubmission {
-      private static final Method METHOD = findClientChatSubmissionMethod();
-   }
-
-   private static Method findClientChatSubmissionMethod() {
+   private static Method findClientChatSubmissionMethod(Class<?> connectionType) {
       try {
-         Class<?> connectionType = Minecraft.class.getMethod("getConnection").getReturnType();
          LinkedHashSet<String> candidates = new LinkedHashSet<>();
          for (String name : List.of("sendChat", "sendChatMessage")) {
             try {
@@ -502,7 +504,7 @@ public final class MLuaClientPlayerWrapper {
                if (method.getReturnType() == Void.TYPE && method.trySetAccessible()) return method;
             } catch (ReflectiveOperationException | RuntimeException ignored) { }
          }
-      } catch (ReflectiveOperationException ignored) { }
+      } catch (RuntimeException ignored) { }
       return null;
    }
 

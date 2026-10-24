@@ -55,6 +55,7 @@ render_service_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLu
 render_object_operations_text = (ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRenderObjectOperations.java").read_text(encoding="utf-8")
 render_manager_text = (ROOT / "src/main/java/dev/mlua/runtime/client/MLuaClientRenderManager.java").read_text(encoding="utf-8")
 process_helper_text = (ROOT / ".github/scripts/smoke-process.ps1").read_text(encoding="utf-8")
+client_player_wrapper_text = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaClientPlayerWrapper.java").read_text(encoding="utf-8")
 
 starts = len(re.findall(r"(?m)^(?:.*=\s*)?@'\s*$", prepare_text))
 ends = len(re.findall(r"(?m)^'@(?:\s*\|.*)?$", prepare_text))
@@ -269,6 +270,10 @@ for operation in (
         fail(f"player simulation is missing real gameplay operation {operation}")
 if "inputPressState >= 5 and renderSimulationReady" in prepare_text:
     fail("native container interaction must not wait for unrelated input or render callbacks")
+if "CHAT_SUBMISSION_METHOD.get(connection.getClass())" not in client_player_wrapper_text:
+    fail("local chat submission must resolve the live loader-specific connection type")
+if 'Minecraft.class.getMethod("getConnection")' in client_player_wrapper_text:
+    fail("local chat submission must not reflect using an unmapped Minecraft getter name")
 for loader, project in loader_projects.items():
     project_text = project.read_text(encoding="utf-8")
     client_source = {
