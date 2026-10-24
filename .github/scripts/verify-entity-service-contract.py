@@ -57,8 +57,10 @@ for operation in (
         fail(f"entity query component is missing {operation}")
 if "MLuaEntityQuery.compileFilter(" in service or "MLuaEntityQuery.forEachWithinRadius(" in service:
     fail("filter compilation or spatial query logic remains in the EntityService facade")
-if "MLuaGameThreadAccess.callUnchecked(entity.level(), query::get)" not in instance_bindings:
-    fail("Entity:GetNearbyEntities must query the world on its owning client or server thread")
+if "LuaValue receiver = args.arg1()" not in instance_bindings or "queryCenter.level()" not in instance_bindings:
+    fail("Entity:GetNearbyEntities must resolve its live receiver and query on that entity's world thread")
+if "MLuaGameThreadAccess.callUnchecked(queryCenter.level(), query::get)" not in instance_bindings:
+    fail("Entity:GetNearbyEntities must dispatch queries to its live receiver's owning game thread")
 if "MLuaGameThreadAccess.callUnchecked(level," not in spawner or "spawnOnLevelThread(level," not in spawner:
     fail("entity creation must run on its owning server thread through shared game-thread access")
 if "MLuaServerThread.call" in spawner:

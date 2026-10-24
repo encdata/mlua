@@ -41,17 +41,25 @@ final class MLuaEntityPropertiesBindings {
       MLuaRegistration registration = MLuaRuntime.registrationForLevel(entity.level());
       MLuaClassMethods.setInstanceMethod(table, "GetNearbyEntities", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
+            LuaValue receiver = args.arg1();
+            LuaValue rawEntity = receiver.istable() ? receiver.rawget("__entity") : LuaValue.NIL;
+            if (!rawEntity.isuserdata(Entity.class)) {
+               throw new LuaError("[MLua] Entity:GetNearbyEntities requires a live Entity instance.");
+            }
+            Entity queryCenter = (Entity) rawEntity.touserdata(Entity.class);
             double radius = MLuaLuaArguments.finiteNonNegativeNumber(args, 2, "Entity:GetNearbyEntities", "radius");
             LuaValue filter = args.arg(3);
+            MLuaRegistration queryRegistration = MLuaRuntime.registrationForLevel(queryCenter.level());
             java.util.function.Supplier<LuaTable> query = () -> {
                LuaTable nearby = new LuaTable();
                int[] nextIndex = {1};
-               MLuaEntityQuery.forEachWithinRadius(entity.level(), entity.getX(), entity.getY(), entity.getZ(),
-                  radius, entity, MLuaEntityQuery.compileFilter(filter, registration), other ->
-                     nearby.set(nextIndex[0]++, MLuaEntityWrapper.entityTable(other, registration)));
+               MLuaEntityQuery.forEachWithinRadius(queryCenter.level(), queryCenter.getX(),
+                  queryCenter.getY(), queryCenter.getZ(), radius, queryCenter,
+                  MLuaEntityQuery.compileFilter(filter, queryRegistration), other ->
+                     nearby.set(nextIndex[0]++, MLuaEntityWrapper.entityTable(other, queryRegistration)));
                return nearby;
             };
-            return MLuaGameThreadAccess.callUnchecked(entity.level(), query::get);
+            return MLuaGameThreadAccess.callUnchecked(queryCenter.level(), query::get);
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetVehicle", new VarArgFunction() {
