@@ -180,6 +180,12 @@ final class MLuaGuiApi {
             }
         });
 
+        table.set("CloseCurrentScreen", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                return LuaValue.valueOf(MLuaNativeScreenManager.closeCurrentScreen());
+            }
+        });
+
         table.set("RemoveScreen", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 return LuaValue.valueOf(service.removeScreen(args.arg(2)));

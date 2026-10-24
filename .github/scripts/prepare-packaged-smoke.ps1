@@ -1164,6 +1164,8 @@ local containerUseState = 0
 local containerUseAttempts = 0
 local containerUseWaitTicks = 0
 local clientContainerOpened = false
+local clientContainerCloseRequested = false
+local clientContainerClosed = false
 local testSheepUuid
 local attackSubmitted = false
 local nearbyQueryDiagnosticLogged = false
@@ -1373,6 +1375,15 @@ connection = RunService.Heartbeat:Connect(function()
             end
         end
     end
+    if clientContainerOpened and not clientContainerCloseRequested then
+        assert(Gui:CloseCurrentScreen(), "Gui:CloseCurrentScreen did not close the opened container screen")
+        clientContainerCloseRequested = true
+        print("MLUA_CI_PLAYER_CONTAINER_CLOSE_REQUESTED")
+    elseif clientContainerCloseRequested and not clientContainerClosed
+            and player:GetOpenContainerSize() <= 46 then
+        clientContainerClosed = true
+        print("MLUA_CI_PLAYER_CONTAINER_CLOSED")
+    end
     if testSheepUuid and not attackSubmitted then
         if not nearbyQueryDiagnosticLogged then
             nearbyQueryDiagnosticLogged = true
@@ -1397,7 +1408,7 @@ connection = RunService.Heartbeat:Connect(function()
     -- Input and movement are independent of the item-pickup event. Keep pickup
     -- as its own asserted gameplay path so a pickup regression cannot hide
     -- whether simulated controls still work.
-    if playerSeen and inputPressState == 0 then
+    if playerSeen and clientContainerClosed and inputPressState == 0 then
         print("MLUA_CI_PLAYER_INPUT_PRESS_BEGIN")
         inputStartX = player:GetPositionX()
         inputStartZ = player:GetPositionZ()

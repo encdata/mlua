@@ -104,9 +104,14 @@ public final class MLuaNativeScreenManager {
             if (expectedScreen instanceof MLuaScriptScreen scriptScreen) scriptScreen.onClose();
             else minecraft.setScreen(null);
         };
-        if (MLuaClientThread.isClientThread()) close.run();
+        if (minecraft.isSameThread()) close.run();
         else minecraft.execute(close);
         return true;
+    }
+
+    /** Closes whichever Minecraft screen is active when this request is made. */
+    public static boolean closeCurrentScreen() {
+        return close(currentScreen());
     }
 
     public static void requireClientThread(String operation) {

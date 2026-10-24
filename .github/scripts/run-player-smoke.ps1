@@ -300,6 +300,7 @@ try {
         $serverContainerDataPassed = $serverLog.Contains('MLUA_CI_PLAYER_CONTAINER_DATA_OK')
         $serverContainerOpened = $serverLog.Contains('MLUA_CI_PLAYER_CONTAINER_OPENED')
         $clientContainerOpened = $clientLog.Contains('MLUA_CI_PLAYER_CLIENT_CONTAINER_OPENED')
+        $clientContainerClosed = $clientLog.Contains('MLUA_CI_PLAYER_CONTAINER_CLOSED')
         $scriptedEntitySpawnPassed = $serverLog.Contains('MLUA_CI_SCRIPTED_ENTITY_SPAWN_OK')
         $scriptedEntityTickPassed = $serverLog.Contains('MLUA_CI_SCRIPTED_ENTITY_TICK_OK')
         $scriptedEntityAIPassed = $serverLog.Contains('MLUA_CI_SCRIPTED_ENTITY_AI_TRANSITION_OK')
@@ -327,7 +328,7 @@ try {
             $clientAttackSubmitted -and $serverAttackConfirmed -and $clientAttackConfirmed -and
             $serverPickupCountPassed -and $playerPickupReceived -and $serverBlockEntityOnLoadPassed -and
             $serverContainerDataPassed -and
-            $serverContainerOpened -and $clientContainerOpened -and
+            $serverContainerOpened -and $clientContainerOpened -and $clientContainerClosed -and
             $scriptedEntitySpawnPassed -and $scriptedEntityTickPassed -and $scriptedEntityAIPassed -and
             $mobSpawnPassed -and
             $worldGeometryContextPassed -and
