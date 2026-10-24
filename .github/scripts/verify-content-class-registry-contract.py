@@ -18,7 +18,7 @@ require(REGISTRY, "MLuaScriptedContentClassRegistry.restore(domain, key, expecte
         "rollback delegation")
 require(CLASSES, "private static final ConcurrentMap<String, ConcurrentMap<String, ContentClassDefinition>> DEFINITIONS",
         "content class state ownership")
-require(CLASSES, "sameOwner(entry.getValue().context(), context, entry.getKey())",
+require(CLASSES, "MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), context, entry.getKey())",
         "addon registration limits")
 require(CLASSES, "java.util.Objects.equals(current, expected)", "conditional rollback semantics")
 require(TESTS, "restoresClassMappingForFailedRegistrationAndRetainsFacadeBehavior", "compatibility regression coverage")

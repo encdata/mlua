@@ -73,7 +73,7 @@ final class MLuaScriptedContentClassRegistry {
       int count = 0;
       for (Map<String, ContentClassDefinition> definitions : DEFINITIONS.values()) {
          for (Map.Entry<String, ContentClassDefinition> definition : definitions.entrySet()) {
-            if (owner.equals(ownerFor(definition.getValue(), definition.getKey()))) count++;
+            if (owner.equals(MLuaScriptedOwnerPolicy.ownerOf(definition.getValue().context(), definition.getKey()))) count++;
          }
       }
       return count;
@@ -96,7 +96,7 @@ final class MLuaScriptedContentClassRegistry {
          for (Map.Entry<String, ContentClassDefinition> entry : domainEntry.getValue().entrySet()) {
             if (domainEntry.getKey().equals(domain) && entry.getKey().equals(key)) continue;
             total++;
-            if (sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
+            if (MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
          }
       }
       if (total >= MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS) {
@@ -109,21 +109,4 @@ final class MLuaScriptedContentClassRegistry {
       }
    }
 
-   private static boolean sameOwner(MLuaContext left, MLuaContext right, String key) {
-      if (left != null && right != null) return left.ownerModId().equals(right.ownerModId());
-      int separator = key.indexOf(':');
-      String keyOwner = separator > 0 ? key.substring(0, separator) : "";
-      String leftOwner = left == null ? keyOwner : left.ownerModId();
-      String rightOwner = right == null ? keyOwner : right.ownerModId();
-      return leftOwner.equals(rightOwner);
-   }
-
-   private static String ownerFor(ContentClassDefinition definition, String key) {
-      MLuaContext context = definition.context();
-      if (context != null && context.ownerModId() != null && !context.ownerModId().isBlank()) {
-         return context.ownerModId();
-      }
-      int separator = key == null ? -1 : key.indexOf(':');
-      return separator > 0 ? key.substring(0, separator) : "";
-   }
 }

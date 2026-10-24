@@ -159,7 +159,7 @@ final class MLuaScriptedBehaviorDefinitions {
       int count = 0;
       for (Map<String, MLuaBehaviorRegistry.BehaviorSet> values : DEFINITIONS.values()) {
          for (Map.Entry<String, MLuaBehaviorRegistry.BehaviorSet> entry : values.entrySet()) {
-            if (owner.equals(ownerFor(entry.getValue().context(), entry.getKey()))) count++;
+            if (owner.equals(MLuaScriptedOwnerPolicy.ownerOf(entry.getValue().context(), entry.getKey()))) count++;
          }
       }
       return count;
@@ -187,7 +187,7 @@ final class MLuaScriptedBehaviorDefinitions {
          for (Map.Entry<String, MLuaBehaviorRegistry.BehaviorSet> entry : domainEntry.getValue().entrySet()) {
             if (domainEntry.getKey().equals(domain) && entry.getKey().equals(key)) continue;
             total++;
-            if (sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
+            if (MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
          }
       }
       if (total >= MLuaBehaviorRegistry.MAX_BEHAVIOR_DEFINITIONS) {
@@ -200,20 +200,4 @@ final class MLuaScriptedBehaviorDefinitions {
       }
    }
 
-   private static boolean sameOwner(MLuaContext left, MLuaContext right, String key) {
-      if (left != null && right != null) return left.ownerModId().equals(right.ownerModId());
-      int separator = key.indexOf(':');
-      String keyOwner = separator > 0 ? key.substring(0, separator) : "";
-      String leftOwner = left == null ? keyOwner : left.ownerModId();
-      String rightOwner = right == null ? keyOwner : right.ownerModId();
-      return leftOwner.equals(rightOwner);
-   }
-
-   private static String ownerFor(MLuaContext context, String key) {
-      if (context != null && context.ownerModId() != null && !context.ownerModId().isBlank()) {
-         return context.ownerModId();
-      }
-      int separator = key == null ? -1 : key.indexOf(':');
-      return separator > 0 ? key.substring(0, separator) : "";
-   }
 }

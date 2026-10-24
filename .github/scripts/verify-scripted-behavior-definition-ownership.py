@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = (ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaBehaviorRegistry.java").read_text()
 DEFINITIONS = (ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaScriptedBehaviorDefinitions.java").read_text()
+OWNER_POLICY = (ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaScriptedOwnerPolicy.java").read_text()
 TESTS = (ROOT / "src/test/java/dev/mlua/minecraft/scripted/MLuaScriptedBehaviorDefinitionsTest.java").read_text()
 
 
@@ -20,6 +21,8 @@ require(DEFINITIONS, "private static final ConcurrentMap<String, ConcurrentMap<S
         "definition state ownership")
 require(DEFINITIONS, "previous.callbacks().isEmpty()", "snapshot rollback support")
 require(DEFINITIONS, "right.get(entry.getKey()) != entry.getValue()", "callback identity comparison")
+require(DEFINITIONS, "MLuaScriptedOwnerPolicy.sameOwner(", "shared addon capacity ownership policy")
+require(OWNER_POLICY, "static String ownerOf(", "shared addon fallback ownership")
 require(TESTS, "rollbackRestoresPreviousCallbackSetOnlyWhileFailedDefinitionIsCurrent",
         "stale registration rollback regression coverage")
 require(TESTS, "individualCallbackUpdatesRetainOtherEventsAndNilRemovesOneEvent",
