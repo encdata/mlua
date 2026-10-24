@@ -169,14 +169,24 @@ if not container_definitions_path.is_file():
     fail("container slot validation must have a dedicated owner")
 container_definitions = container_definitions_path.read_text(encoding="utf-8")
 container_api = (API_ROOT / "MLuaRegistryContainerApi.java").read_text(encoding="utf-8")
-item_block_api = (API_ROOT / "MLuaRegistryItemBlockApi.java").read_text(encoding="utf-8")
+block_api = (API_ROOT / "MLuaRegistryBlockApi.java").read_text(encoding="utf-8")
 for operation in ("allowedItems(", "slotAllowedItems(", "slotsLength(", "property("):
     if operation not in container_definitions:
         fail(f"container definition owner is missing {operation}")
 if "MLuaRegistryContainerDefinitions.slotAllowedItems(" not in container_api or \
-        "MLuaRegistryContainerDefinitions.slotAllowedItems(" not in item_block_api:
+        "MLuaRegistryContainerDefinitions.slotAllowedItems(" not in block_api:
     fail("both container registration paths must use the shared container definition owner")
 if "containerSlotAllowedItems" in property_readers:
     fail("generic registry definitions still own container-specific slot parsing")
+
+registry_api = (API_ROOT / "MLuaRegistryApi.java").read_text(encoding="utf-8")
+item_api = (API_ROOT / "MLuaRegistryItemApi.java").read_text(encoding="utf-8")
+block_item_api = (API_ROOT / "MLuaRegistryBlockItemApi.java").read_text(encoding="utf-8")
+if any(owner not in registry_api for owner in (
+        "MLuaRegistryItemApi.install", "MLuaRegistryBlockApi.install", "MLuaRegistryBlockItemApi.install")):
+    fail("Registry must install item, block, and block-item endpoint owners separately")
+if 'items.set("Register"' not in item_api or 'blocks.set("Register"' not in block_api \
+        or 'blocks.set("RegisterItem"' not in block_item_api:
+    fail("item, block, and block-item registration must have separate endpoint owners")
 
 print("Registry lifecycle contract passed for script rollback and loader ownership.")

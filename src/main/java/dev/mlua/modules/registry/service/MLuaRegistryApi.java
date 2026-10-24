@@ -66,7 +66,9 @@ final class MLuaRegistryApi {
       MLuaRegistryVisualContentApi.install(service, particles, potions, effects);
       MLuaRegistryConfigApi.install(service, config);
       MLuaRegistryDamageSourceApi.install(service, damageSource);
-      MLuaRegistryItemBlockApi.install(service, items, blocks);
+      MLuaRegistryItemApi.install(service, items);
+      MLuaRegistryBlockApi.install(service, blocks);
+      MLuaRegistryBlockItemApi.install(service, blocks);
       MLuaRegistryEntityApi.install(service, entities);
       MLuaRegistryProjectileApi.install(service, projectiles);
       table.set("Register", new VarArgFunction() {
