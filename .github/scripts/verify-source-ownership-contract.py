@@ -58,6 +58,16 @@ for token in ("ResourceLocation", "Identifier", "readResourceLocation()", "readI
     if token not in packet:
         raise SystemExit(f"Animation sync packet is missing version-scoped codec support for {token}")
 
+block_dispatcher = ROOT / "src/main/java/dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java"
+block_dispatcher_overlay = ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java"
+if block_dispatcher_overlay.exists():
+    raise SystemExit("Block callback dispatch must have one owner shared by legacy and 26.1 loaders")
+block_dispatcher_source = block_dispatcher.read_text(encoding="utf-8")
+for token in ("//--version 26.1", "level.dimension().identifier()", "level.isClientSide()",
+              "//--version 1.20.1,1.21.1", "level.dimension().location()", "level.isClientSide;"):
+    if token not in block_dispatcher_source:
+        raise SystemExit(f"Shared block callback dispatcher is missing version-scoped API support for {token}")
+
 generated_asset_pack = ROOT / "src/main/java/dev/mlua/runtime/assets/MLuaGeneratedAssetPack.java"
 generated_asset_pack_overlay = ROOT / "mlua-loaders/common/26.1/project/src/main/java/dev/mlua/runtime/assets/MLuaGeneratedAssetPack.java"
 if not generated_asset_pack.is_file() or generated_asset_pack_overlay.exists():
