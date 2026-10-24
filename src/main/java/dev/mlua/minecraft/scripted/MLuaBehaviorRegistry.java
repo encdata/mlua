@@ -98,7 +98,6 @@ public final class MLuaBehaviorRegistry {
       }
    }
    private static final ConcurrentMap<String, ConcurrentMap<String, BehaviorSet>> SCRIPTED_BEHAVIORS = new ConcurrentHashMap<>();
-   private static final ConcurrentMap<String, ConcurrentMap<String, ContentClassDefinition>> CONTENT_CLASSES = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, Integer> ENTITY_AI_INTERVAL = new ConcurrentHashMap();
    static final Object REGISTRATION_LOCK = new Object();
 
@@ -348,28 +347,7 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static void registerContentClass(String domain, String key, String className, MLuaContext context) {
-      if (domain == null || domain.isBlank() || key == null || key.isBlank()) {
-         throw new IllegalArgumentException("Scripted content domain and key must be non-empty");
-      }
-      if (className == null || className.isBlank()) {
-         synchronized (REGISTRATION_LOCK) {
-            CONTENT_CLASSES.computeIfPresent(domain, (ignoredDomain, definitions) -> {
-               definitions.remove(key);
-               return definitions.isEmpty() ? null : definitions;
-            });
-         }
-         return;
-      }
-      validateBehaviorKey(key);
-      synchronized (REGISTRATION_LOCK) {
-         ensureContentClassCapacity(domain, key, context);
-         CONTENT_CLASSES.compute(domain, (ignoredDomain, definitions) -> {
-            ConcurrentMap<String, ContentClassDefinition> result = definitions == null
-               ? new ConcurrentHashMap<>() : definitions;
-            result.put(key, new ContentClassDefinition(className, context));
-            return result;
-         });
-      }
+      MLuaScriptedContentClassRegistry.register(domain, key, className, context);
    }
 
    public static String getContentClass(String domain, String key) {
@@ -383,8 +361,7 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static ContentClassDefinition getContentClassDefinition(String domain, String key) {
-      ConcurrentMap<String, ContentClassDefinition> definitions = CONTENT_CLASSES.get(domain);
-      return definitions == null ? null : definitions.get(key);
+      return MLuaScriptedContentClassRegistry.get(domain, key);
    }
 
    /** Restores a previous class mapping only while the mapping still belongs to the failed registration. */
@@ -398,21 +375,7 @@ public final class MLuaBehaviorRegistry {
    /** Restores the full class/context binding only while the current registration still owns it. */
    public static boolean restoreContentClass(String domain, String key, ContentClassDefinition expected,
                                              ContentClassDefinition previous) {
-      if (domain == null || key == null) return false;
-      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
-      synchronized (REGISTRATION_LOCK) {
-         CONTENT_CLASSES.compute(domain, (ignored, definitions) -> {
-            ConcurrentMap<String, ContentClassDefinition> values = definitions == null
-               ? new ConcurrentHashMap<>() : definitions;
-            values.compute(key, (ignoredKey, current) -> {
-               if (!java.util.Objects.equals(current, expected)) return current;
-               restored.set(true);
-               return previous;
-            });
-            return values.isEmpty() ? null : values;
-         });
-      }
-      return restored.get();
+      return MLuaScriptedContentClassRegistry.restore(domain, key, expected, previous);
    }
 
    private static void clearBehaviors(String domain, String key) {
@@ -457,14 +420,8 @@ public final class MLuaBehaviorRegistry {
                if (owner.equals(ownerFor(definition.getValue().context(), definition.getKey()))) ownedBehaviorCount++;
             }
          }
-         int classCount = 0;
-         int ownedClassCount = 0;
-         for (ConcurrentMap<String, ContentClassDefinition> domain : CONTENT_CLASSES.values()) {
-            for (Map.Entry<String, ContentClassDefinition> definition : domain.entrySet()) {
-               classCount++;
-               if (owner.equals(ownerFor(definition.getValue().context(), definition.getKey()))) ownedClassCount++;
-            }
-         }
+         int classCount = MLuaScriptedContentClassRegistry.count();
+         int ownedClassCount = MLuaScriptedContentClassRegistry.countForOwner(owner);
          int blockContainers = MLuaScriptedContainerRegistry.blockCount();
          int ownedBlockContainers = MLuaScriptedContainerRegistry.blockCountForOwner(owner);
          int containerTypes = MLuaScriptedContainerRegistry.typeCount();
@@ -564,10 +521,7 @@ public final class MLuaBehaviorRegistry {
             definitions.keySet().removeIf(behaviorKey -> behaviorKey.startsWith(prefix));
             return definitions.isEmpty() ? null : definitions;
          }));
-         CONTENT_CLASSES.forEach((domain, ignored) -> CONTENT_CLASSES.computeIfPresent(domain, (domainKey, definitions) -> {
-            definitions.keySet().removeIf(key -> key.startsWith(prefix));
-            return definitions.isEmpty() ? null : definitions;
-         }));
+         MLuaScriptedContentClassRegistry.clearOwnerPrefix(prefix);
          MLuaScriptedContainerRegistry.clearOwnerPrefix(prefix);
          ENTITY_AI_INTERVAL.keySet().removeIf(key -> key.startsWith(prefix));
       }
@@ -632,24 +586,6 @@ public final class MLuaBehaviorRegistry {
       }
       if (ownerCount >= MAX_BEHAVIOR_DEFINITIONS_PER_ADDON) {
          throw new IllegalStateException("Addon scripted behavior definition limit reached (" + MAX_BEHAVIOR_DEFINITIONS_PER_ADDON + ")");
-      }
-   }
-
-   private static void ensureContentClassCapacity(String domain, String key, MLuaContext context) {
-      int total = 0;
-      int ownerCount = 0;
-      for (Map.Entry<String, ConcurrentMap<String, ContentClassDefinition>> domainEntry : CONTENT_CLASSES.entrySet()) {
-         for (Map.Entry<String, ContentClassDefinition> entry : domainEntry.getValue().entrySet()) {
-            if (domainEntry.getKey().equals(domain) && entry.getKey().equals(key)) continue;
-            total++;
-            if (sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
-         }
-      }
-      if (total >= MAX_CONTENT_CLASS_MAPPINGS) {
-         throw new IllegalStateException("Scripted content class mapping limit reached (" + MAX_CONTENT_CLASS_MAPPINGS + " total)");
-      }
-      if (ownerCount >= MAX_CONTENT_CLASS_MAPPINGS_PER_ADDON) {
-         throw new IllegalStateException("Addon scripted content class mapping limit reached (" + MAX_CONTENT_CLASS_MAPPINGS_PER_ADDON + ")");
       }
    }
 
