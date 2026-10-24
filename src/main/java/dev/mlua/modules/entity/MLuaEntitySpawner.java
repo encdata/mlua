@@ -4,7 +4,7 @@ package dev.mlua.modules.entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 //--endversion
 
-import dev.mlua.runtime.server.MLuaServerThread;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -26,10 +26,15 @@ public final class MLuaEntitySpawner {
     public static Entity spawn(ServerLevel level, EntityType<?> type, double x, double y, double z,
                                float yaw, float pitch) {
         if (level == null || type == null) return null;
+        return MLuaGameThreadAccess.callUnchecked(level,
+            () -> spawnOnLevelThread(level, type, x, y, z, yaw, pitch));
+    }
+
+    private static Entity spawnOnLevelThread(ServerLevel level, EntityType<?> type, double x, double y, double z,
+                                             float yaw, float pitch) {
         BlockPos position = BlockPos.containing(x, y, z);
         if (!level.hasChunkAt(position)) {
-            MLuaServerThread.call(level.getServer(),
-                () -> level.getChunk(position.getX() >> 4, position.getZ() >> 4));
+            level.getChunk(position.getX() >> 4, position.getZ() >> 4);
         }
         if (!level.hasChunkAt(position)) return null;
         //--version 26.1

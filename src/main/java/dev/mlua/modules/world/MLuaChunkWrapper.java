@@ -242,7 +242,7 @@ public final class MLuaChunkWrapper {
             if (!ensureLoaded(world, args.arg1())) return new LuaTable();
             ChunkPos pos = chunkPosition(args.arg1());
             LevelChunk loaded = world instanceof ServerLevel server
-                ? MLuaServerThread.call(server.getServer(), () -> server.getChunk(chunkX(pos), chunkZ(pos)))
+                ? server.getChunk(chunkX(pos), chunkZ(pos))
                 : world.getChunk(chunkX(pos), chunkZ(pos));
             LuaTable entities = new LuaTable();
             int index = 1;
