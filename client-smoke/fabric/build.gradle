@@ -61,6 +61,10 @@ loom {
     runs {
         client {
             runDir providers.gradleProperty('mluaClientRunDir').getOrElse('run')
+            if (System.getenv('MLUA_CI_PLAYER_TEST') == 'true') {
+                // Keep software-rendered player simulations small enough for a hosted Windows runner.
+                programArgs '--width', '320', '--height', '240'
+            }
         }
         server {
             runDir providers.gradleProperty('mluaServerRunDir').getOrElse('run')

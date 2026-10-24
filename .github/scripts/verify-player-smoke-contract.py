@@ -78,6 +78,17 @@ client_player_wrapper_text += "\n" + (ROOT / "src/main/java/dev/mlua/modules/pla
 input_module_text = (ROOT / "src/main/java/dev/mlua/modules/input/InputModule.java").read_text(encoding="utf-8")
 keyboard_input_mixin = (ROOT / "src/main/java/dev/mlua/modules/mixin/service/KeyboardInputMixin.java").read_text(encoding="utf-8")
 
+for loader, path in loader_projects.items():
+    config = path.read_text(encoding="utf-8")
+    has_test_window = "'--width', '320', '--height', '240'" in config
+    if "System.getenv('MLUA_CI_PLAYER_TEST') == 'true'" not in config \
+            or (loader != "neoforge" and not has_test_window):
+        fail(f"{loader} player simulation must use a reduced client window for software rendering")
+    if loader == "neoforge" and all(token not in config for token in ("'--width'", "'--height'")):
+        fail("neoforge player simulation must use a reduced client window for software rendering")
+if "'clouds:off'" not in runner_text:
+    fail("software-rendered player simulation must disable the expensive cloud pass")
+
 starts = len(re.findall(r"(?m)^(?:.*=\s*)?@'\s*$", prepare_text))
 ends = len(re.findall(r"(?m)^'@(?:\s*\|.*)?$", prepare_text))
 if starts != ends:
@@ -145,6 +156,8 @@ if 'table.set("CloseCurrentScreen"' not in gui_api_text \
         or "closeCurrentScreen()" not in gui_screen_manager_text \
         or 'Registration.method("Gui", "Gui:CloseCurrentScreen()"' not in gui_module_text:
     fail("Gui screen closure must be implemented and documented on the public service")
+if "expectedScreen instanceof Screen screen) screen.onClose()" not in gui_screen_manager_text:
+    fail("native screen closure must invoke the screen lifecycle so container screens send their close packet")
 if "MLuaClientThread.runOnClientThread(operation::get)" not in gui_screen_manager_text \
         or "minecraft.screen != expectedScreen" not in gui_screen_manager_text:
     fail("Gui screen closure must inspect and change the active screen on Minecraft's client thread")

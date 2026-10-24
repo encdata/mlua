@@ -55,6 +55,7 @@ Add-Content (Join-Path $serverDir 'run/server.properties') @('view-distance=2', 
     'renderDistance:2'
     'simulationDistance:5'
     'graphicsMode:fast'
+    'clouds:off'
     'biomeBlendRadius:0'
     'mipmapLevels:0'
     'entityShadows:false'

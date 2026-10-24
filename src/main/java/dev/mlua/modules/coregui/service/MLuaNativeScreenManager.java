@@ -7,6 +7,7 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import org.luaj.vm2.LuaError;
 
 /** Owns the client-thread queue and open/close lifecycle for Lua-created Minecraft screens. */
@@ -122,7 +123,7 @@ public final class MLuaNativeScreenManager {
     private static boolean closeOnClientThread(Minecraft minecraft, Object expectedScreen) {
         if (!MLuaClientThread.isClientThread() || minecraft.screen != expectedScreen) return false;
         if (expectedScreen == null) return false;
-        if (expectedScreen instanceof MLuaScriptScreen scriptScreen) scriptScreen.onClose();
+        if (expectedScreen instanceof Screen screen) screen.onClose();
         else minecraft.setScreen(null);
         return true;
     }
