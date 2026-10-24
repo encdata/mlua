@@ -92,26 +92,39 @@ public final class MLuaNativeScreenManager {
     /** Closes only the expected active screen, scheduling the operation when Lua calls from a worker. */
     public static boolean close(Object expectedScreen) {
         if (expectedScreen == null) return false;
-        if (expectedScreen instanceof MLuaScriptScreen scriptScreen
-                && scriptScreen.isPendingOpen()) {
-            scriptScreen.dispose();
-            return true;
-        }
-        if (currentScreen() != expectedScreen) return false;
         Minecraft minecraft = Minecraft.getInstance();
-        Runnable close = () -> {
-            if (currentScreen() != expectedScreen) return;
-            if (expectedScreen instanceof MLuaScriptScreen scriptScreen) scriptScreen.onClose();
-            else minecraft.setScreen(null);
-        };
-        if (minecraft.isSameThread()) close.run();
-        else minecraft.execute(close);
-        return true;
+        if (minecraft == null) return false;
+        return onClientThread(() -> {
+            if (expectedScreen instanceof MLuaScriptScreen scriptScreen
+                    && scriptScreen.isPendingOpen() && minecraft.screen != expectedScreen) {
+                scriptScreen.dispose();
+                return true;
+            }
+            return closeOnClientThread(minecraft, expectedScreen);
+        });
     }
 
     /** Closes whichever Minecraft screen is active when this request is made. */
     public static boolean closeCurrentScreen() {
-        return close(currentScreen());
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null) return false;
+        return onClientThread(() -> closeCurrentOnClientThread(minecraft));
+    }
+
+    private static boolean onClientThread(java.util.function.Supplier<Boolean> operation) {
+        return MLuaClientThread.runOnClientThread(operation::get);
+    }
+
+    private static boolean closeCurrentOnClientThread(Minecraft minecraft) {
+        return closeOnClientThread(minecraft, minecraft.screen);
+    }
+
+    private static boolean closeOnClientThread(Minecraft minecraft, Object expectedScreen) {
+        if (!MLuaClientThread.isClientThread() || minecraft.screen != expectedScreen) return false;
+        if (expectedScreen == null) return false;
+        if (expectedScreen instanceof MLuaScriptScreen scriptScreen) scriptScreen.onClose();
+        else minecraft.setScreen(null);
+        return true;
     }
 
     public static void requireClientThread(String operation) {

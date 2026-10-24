@@ -59,8 +59,7 @@ def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcI
         'dev/mlua/modules/world/service/MLuaWorldService.java'
     ])
 def prepareRuntimeNeoForgeAdapterSources = registerMergedTree(project, 'prepareRuntimeNeoForgeAdapterSources',
-    targetPathChain('mlua-loaders/common/%s/impl', targetVersion) +
-    targetPathChain('mlua-loaders/neoforge/%s/impl', targetVersion), [
+    targetCommonLoaderPathChain('mlua-loaders/common/%s/impl', 'mlua-loaders/neoforge/%s/impl', targetVersion), [
         'dev/mlua/mixin/FirstPersonItemRendererMixin.java',
         'dev/mlua/mixin/LivingEntityRendererMixin.java',
         'dev/mlua/mixin/ModelPartMixin.java',

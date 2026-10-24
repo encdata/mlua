@@ -144,6 +144,9 @@ if 'table.set("CloseCurrentScreen"' not in gui_api_text \
         or "closeCurrentScreen()" not in gui_screen_manager_text \
         or 'Registration.method("Gui", "Gui:CloseCurrentScreen()"' not in gui_module_text:
     fail("Gui screen closure must be implemented and documented on the public service")
+if "MLuaClientThread.runOnClientThread(operation::get)" not in gui_screen_manager_text \
+        or "minecraft.screen != expectedScreen" not in gui_screen_manager_text:
+    fail("Gui screen closure must inspect and change the active screen on Minecraft's client thread")
 if re.search(r"(?s)if playerPickupReceived and inputPressState == 0 then", prepare_text):
     fail("input simulation is still blocked on the independent item-pickup event")
 if '@Inject(method = "tick", at = @At("HEAD"))' not in keyboard_input_mixin \

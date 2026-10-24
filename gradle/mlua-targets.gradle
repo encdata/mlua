@@ -141,6 +141,19 @@ ext.targetPathChain = { String pattern, String minecraftVersion ->
     paths as List
 }
 
+/** Merges common and loader overlays in target inheritance order, with each loader override beside its version. */
+ext.targetCommonLoaderPathChain = { String commonPattern, String loaderPattern, String minecraftVersion ->
+    def commonRoots = targetPathChain(commonPattern, minecraftVersion)
+    def loaderRoots = targetPathChain(loaderPattern, minecraftVersion)
+    def roots = []
+    int count = Math.max(commonRoots.size(), loaderRoots.size())
+    for (int index = 0; index < count; index++) {
+        if (index < commonRoots.size()) roots.add(commonRoots[index])
+        if (index < loaderRoots.size()) roots.add(loaderRoots[index])
+    }
+    roots
+}
+
 ext.commonVersionPathChain = { String minecraftVersion ->
     [rootProject.file('mlua-versions/common/shared')] + targetPathChain('mlua-versions/common/%s', minecraftVersion)
 }

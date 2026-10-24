@@ -113,6 +113,18 @@ public final class MLuaClientThread {
         return submitToClientThread(minecraft, action);
     }
 
+    /** Runs a client-owned operation on Minecraft's thread and waits for its result from any Lua worker. */
+    public static <T> T runOnClientThread(Callable<T> action) {
+        try {
+            return callForClientState(action);
+        } catch (LuaError failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new LuaError("[MLua] Client-thread operation failed: "
+                + (failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
+        }
+    }
+
     private static <T> T submitToClientThread(Minecraft minecraft, Callable<T> action) throws Exception {
         CompletableFuture<T> result = new CompletableFuture<>();
         minecraft.execute(() -> {

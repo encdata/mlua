@@ -65,8 +65,8 @@ if (is26Family) {
 }
 def prepareNeoForgeProjectResources = registerMergedTree(project, 'prepareNeoForgeProjectResources', targetPathChain('mlua-loaders/neoforge/%s/project/src/main/resources', targetVersion))
 def prepareNeoForgeAdapterSources = registerMergedTree(project, 'prepareNeoForgeAdapterSources',
-    targetPathChain('mlua-loaders/common/%s/impl', targetVersion) +
-        targetPathChain('mlua-loaders/neoforge/%s/impl', targetVersion), neoForgeImplExcludes)
+    targetCommonLoaderPathChain('mlua-loaders/common/%s/impl', 'mlua-loaders/neoforge/%s/impl', targetVersion),
+    neoForgeImplExcludes)
 def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 def neoForgeServiceMixinNames = [
     'CameraInvoker', 'CameraMixin', 'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin',
@@ -120,7 +120,6 @@ if (is26Family) {
     neoForgeRootExcludes += 'dev/mlua/loader/impl/forge/**'
     neoForgeRootExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
     neoForgeRootExcludes += 'dev/mlua/modules/combat/MLuaProjectileDefinition.java'
-    neoForgeRootExcludes += 'dev/mlua/minecraft/scripted/MLuaBlockCallbackDispatcher.java'
     neoForgeRootExcludes += 'dev/mlua/modules/world/service/MLuaWorldService.java'
     neoForgeRootExcludes += 'dev/mlua/runtime/client/MLuaClientRenderManager.java'
     neoForgeRootExcludes += 'dev/mlua/runtime/client/MLuaHudObjectRenderer.java'

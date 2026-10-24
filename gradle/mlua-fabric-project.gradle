@@ -24,11 +24,11 @@ if (is26Family) {
     fabricImplExcludes += 'dev/mlua/modules/mixin/service/BlockItemMixin.java'
 }
 def prepareFabricImplSources = registerMergedTree(project, 'prepareFabricImplSources',
-    targetPathChain('mlua-loaders/common/%s/impl', targetVersion) +
-        targetPathChain('mlua-loaders/fabric/%s/impl', targetVersion), fabricImplExcludes)
+    targetCommonLoaderPathChain('mlua-loaders/common/%s/impl', 'mlua-loaders/fabric/%s/impl', targetVersion),
+    fabricImplExcludes)
 def prepareFabricProjectSources = registerMergedTree(project, 'prepareFabricProjectSources',
-    targetPathChain('mlua-loaders/common/%s/project/src/main/java', targetVersion) +
-        targetPathChain('mlua-loaders/fabric/%s/project/src/main/java', targetVersion))
+    targetCommonLoaderPathChain('mlua-loaders/common/%s/project/src/main/java',
+        'mlua-loaders/fabric/%s/project/src/main/java', targetVersion))
 def prepareFabricProjectResources = registerMergedTree(project, 'prepareFabricProjectResources',
     targetPathChain('mlua-loaders/fabric/%s/project/src/main/resources', targetVersion))
 
