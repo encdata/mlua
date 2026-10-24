@@ -8,13 +8,12 @@ import dev.mlua.core.service.MLuaService;
 import dev.mlua.core.service.MLuaServiceBase;
 import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaWorldChunkApi;
-import dev.mlua.runtime.server.MLuaServerThread;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import net.minecraft.core.Holder;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.clock.ServerClockManager;
 import net.minecraft.world.clock.WorldClock;
@@ -70,11 +69,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
     private VarArgFunction serviceFunction(Function<Varargs, Varargs> action) {
         return MLuaLuaErrors.varargsOperation("World service call", args -> {
-            MinecraftServer server = context.mlua().server();
-            if (context.mlua().side() == Side.SERVER && server != null && !server.isSameThread()) {
-                return MLuaServerThread.call(server, () -> action.apply(args));
-            }
-            return action.apply(args);
+            return MLuaGameThreadAccess.call(context, () -> action.apply(args));
         });
     }
 
@@ -191,10 +186,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
     static VarArgFunction levelFunction(Level level, BiFunction<Level, Varargs, LuaValue> action) {
         return function(args -> {
-            if (level instanceof ServerLevel serverLevel) {
-                return MLuaServerThread.call(serverLevel.getServer(), () -> action.apply(serverLevel, args));
-            }
-            return action.apply(level, args);
+            return MLuaGameThreadAccess.call(level, () -> action.apply(level, args));
         });
     }
 

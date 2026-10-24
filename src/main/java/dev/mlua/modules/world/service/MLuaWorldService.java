@@ -9,14 +9,13 @@ import dev.mlua.modules.world.WorldModule;
 import dev.mlua.modules.world.MLuaWorldChunkApi;
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.modules.players.MLuaClientPlayerAccess;
-import dev.mlua.runtime.server.MLuaServerThread;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import org.luaj.vm2.LuaError;
@@ -162,11 +161,7 @@ public final class MLuaWorldService extends MLuaServiceBase {
 
    private LuaValue varArg(Function<Varargs, Varargs> fn) {
       return MLuaLuaErrors.varargsOperation("World service call", args -> {
-         MinecraftServer server = context.mlua().server();
-         if (context.mlua().side() == Side.SERVER && server != null && !server.isSameThread()) {
-            return MLuaServerThread.call(server, () -> fn.apply(args));
-         }
-         return fn.apply(args);
+         return MLuaGameThreadAccess.call(context, () -> fn.apply(args));
       });
    }
 

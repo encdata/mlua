@@ -4,7 +4,7 @@ import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.modules.world.MLuaChunkWrapper;
-import dev.mlua.runtime.server.MLuaServerThread;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
@@ -24,11 +24,8 @@ final class MLuaWorldApiSupport {
       return varArg(args -> {
          Level level = supplier.get();
          if (level == null) return LuaValue.NIL;
-         // Lua callbacks run on coroutine workers; Minecraft world access belongs to its server thread.
-         if (level instanceof ServerLevel serverLevel) {
-            return MLuaServerThread.call(serverLevel.getServer(), () -> function.apply(serverLevel, args));
-         }
-         return function.apply(level, args);
+         // Lua callbacks run on coroutine workers; live world access belongs to its game thread.
+         return MLuaGameThreadAccess.call(level, () -> function.apply(level, args));
       });
    }
 
@@ -42,7 +39,7 @@ final class MLuaWorldApiSupport {
          if (!(level instanceof ServerLevel serverLevel)) {
             throw new LuaError("[MLua] This world is not a server world");
          }
-         return MLuaServerThread.call(serverLevel.getServer(), () -> function.apply(serverLevel, args));
+         return MLuaGameThreadAccess.call(serverLevel, () -> function.apply(serverLevel, args));
       });
    }
 
