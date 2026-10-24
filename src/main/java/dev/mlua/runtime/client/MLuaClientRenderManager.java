@@ -2,7 +2,6 @@ package dev.mlua.runtime.client;
 
 import dev.mlua.minecraft.MLuaResourceLocations;
 import dev.mlua.math.MLuaCFrame;
-import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.engine.MLuaLuaBindings;
@@ -15,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -42,22 +39,15 @@ public final class MLuaClientRenderManager {
     private static final MLuaRenderTargetIndex RENDER_TARGET_INDEX = new MLuaRenderTargetIndex();
     private static final MLuaEmbeddedTextureRegistry EMBEDDED_TEXTURES = new MLuaEmbeddedTextureRegistry();
     private static final MLuaRenderOwnershipRegistry OWNERS = new MLuaRenderOwnershipRegistry();
-    private static final AtomicBoolean DEFERRED_CLEANUP_FAILURE_REPORTED = new AtomicBoolean();
-    /** Fallback release for collector submissions that Minecraft drops before invoking their renderer. */
-    private static final ConcurrentLinkedQueue<Runnable> DEFERRED_RENDER_CLEANUPS = new ConcurrentLinkedQueue<>();
     private static volatile RenderObject[] drawOrderSnapshot = new RenderObject[0];
     private static volatile boolean drawOrderDirty = true;
-    private static boolean animationClockRegistered;
     private static boolean worldRenderersRegistered;
 
     private MLuaClientRenderManager() {
     }
 
     public static synchronized void registerOverlay() {
-        if (!animationClockRegistered) {
-            animationClockRegistered = true;
-            dev.mlua.loaderapi.LoaderApi.lifecycle().onClientTickEnd(MLuaClientRenderManager::tickAnimations);
-        }
+        MLuaRenderFrameLifecycle.registerAnimationClock();
         dev.mlua.loaderapi.LoaderApi.client().registerOverlay("mlua_render_service", obj -> {
             if (!(obj instanceof GuiGraphics graphics)) {
                 return;
@@ -83,8 +73,7 @@ public final class MLuaClientRenderManager {
         }
     }
 
-    private static void tickAnimations() {
-        releaseDeferredRenderLeases();
+    static void tickAnimations() {
         for (RenderObject object : OBJECTS.values()) {
             synchronized (object.executionLock()) {
                 if (object.destroyed) continue;
@@ -93,20 +82,6 @@ public final class MLuaClientRenderManager {
             // A follow-offset function enters Lua and can itself destroy this object.
             // Never call into Lua while holding the render object's lifecycle lock.
             object.sampleFollowOffset();
-        }
-    }
-
-    /** Releases collector leases after the frame has drained, including leases for dropped submissions. */
-    private static void releaseDeferredRenderLeases() {
-        Runnable cleanup;
-        while ((cleanup = DEFERRED_RENDER_CLEANUPS.poll()) != null) {
-            try {
-                cleanup.run();
-            } catch (RuntimeException failure) {
-                if (DEFERRED_CLEANUP_FAILURE_REPORTED.compareAndSet(false, true)) {
-                    MLuaLogger.LOGGER.warn("[MLua] Deferred render resource cleanup failed", failure);
-                }
-            }
         }
     }
 
@@ -478,7 +453,7 @@ public final class MLuaClientRenderManager {
     }
 
     static void deferRenderCleanup(Runnable cleanup) {
-        DEFERRED_RENDER_CLEANUPS.add(cleanup);
+        MLuaRenderFrameLifecycle.deferCleanup(cleanup);
     }
 
     static Runnable acquireEmbeddedTextureLease(ResourceLocation texture) {
@@ -556,7 +531,7 @@ public final class MLuaClientRenderManager {
         ids.forEach(MLuaClientRenderManager::remove);
         // Clear pending per-submission leases before draining the registry. Otherwise
         // an old queued release could decrement a texture registered after this reset.
-        releaseDeferredRenderLeases();
+        MLuaRenderFrameLifecycle.drainDeferredCleanups();
         invalidateDrawOrder();
         RENDER_TARGET_INDEX.clear();
         OWNERS.clear();
