@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicLong;
 //--version 26.1
 //--endversion
@@ -263,35 +262,7 @@ public final class MLuaGuiService implements MLuaService {
     private void applyLayouts(Object screen) { this.nativeLayoutController.applyLayouts(screen); }
 
     public static void activateNativeReplacement(GuiButton button, double mouseX, double mouseY) {
-        Object nativeWidget;
-        synchronized (MLuaGuiState.REPLACEMENT_ACTIONS) { nativeWidget = MLuaGuiState.REPLACEMENT_ACTIONS.get(button); }
-        if (nativeWidget == null) return;
-        for (Class<?> type = nativeWidget.getClass(); type != null; type = type.getSuperclass()) {
-            try {
-                Method method = type.getDeclaredMethod("onPress");
-                invokeNativeActivation(method, nativeWidget);
-                return;
-            } catch (NoSuchMethodException ignored) {
-            }
-            try {
-                Method method = type.getDeclaredMethod("onClick", double.class, double.class);
-                invokeNativeActivation(method, nativeWidget, mouseX, mouseY);
-                return;
-            } catch (NoSuchMethodException ignored) {
-            }
-        }
-    }
-
-    private static void invokeNativeActivation(Method method, Object nativeWidget, Object... arguments) {
-        try {
-            method.setAccessible(true);
-            method.invoke(nativeWidget, arguments);
-        } catch (ReflectiveOperationException | RuntimeException failure) {
-            Throwable cause = failure instanceof java.lang.reflect.InvocationTargetException invocation
-                && invocation.getCause() != null ? invocation.getCause() : failure;
-            throw new LuaError(new RuntimeException("[MLua] Could not forward activation to native widget '"
-                + nativeWidget.getClass().getName() + "' through " + method.getName() + "()", cause));
-        }
+        MLuaNativeWidgetActivation.activate(button, mouseX, mouseY);
     }
 
     private boolean screenMatches(Object screen, String target) { return this.nativeLayoutController.screenMatches(screen, target); }

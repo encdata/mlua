@@ -71,6 +71,7 @@ prepare_text = prepare.read_text(encoding="utf-8")
 runner_text = runner.read_text(encoding="utf-8")
 workflow_text = workflow.read_text(encoding="utf-8")
 gui_service_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiService.java").read_text(encoding="utf-8")
+native_widget_activation_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaNativeWidgetActivation.java").read_text(encoding="utf-8")
 gui_api_text = "\n".join(
     (ROOT / f"src/main/java/dev/mlua/modules/coregui/service/{name}.java").read_text(encoding="utf-8")
     for name in ("MLuaGuiApi", "MLuaGuiHudApi", "MLuaGuiScreenApi", "MLuaGuiNativeControlApi")
@@ -80,6 +81,12 @@ gui_module_text = (ROOT / "src/main/java/dev/mlua/modules/coregui/GuiModule.java
 runtime_marker_source = prepare_text + "\n" + gui_service_text
 runtime_marker_source += "\n" + (ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiChatLineBridge.java").read_text(encoding="utf-8")
 runtime_marker_source += "\n" + (ROOT / "src/main/java/dev/mlua/runtime/MLuaBootstrap.java").read_text(encoding="utf-8")
+if "MLuaNativeWidgetActivation.activate(button, mouseX, mouseY)" not in gui_service_text:
+    fail("Gui service must preserve its native replacement activation entry point")
+if "ClassValue<Activation>" not in native_widget_activation_text \
+        or 'declaredMethod(current, "onPress")' not in native_widget_activation_text \
+        or 'declaredMethod(current, "onClick", double.class, double.class)' not in native_widget_activation_text:
+    fail("native button actions must resolve each widget class once and preserve both activation signatures")
 for project in loader_projects.values():
     for source_path in project.parent.glob("src/**/*.java"):
         runtime_marker_source += "\n" + source_path.read_text(encoding="utf-8")

@@ -79,7 +79,7 @@ final class RegistryEndpointCatalog {
             List.of("projectile", "projectiles"), definition("Register", 3));
         add(endpoints, "DataPack", "Register", "datapack", "DataPack", null, 3,
             List.of("data", "datapack", "data_pack"), definition("Register", 4));
-        add(endpoints, "Assets", "register", "assets", "Assets", null, 2,
+        add(endpoints, "Assets", "Register", "assets", "Assets", null, 2,
             List.of("asset", "assets"));
         add(endpoints, "WorldGeneration", "addFeature", "worldgen", "WorldGeneration", null, 2,
             List.of("worldgen", "worldgeneration", "world_generation", "biome_feature"),
