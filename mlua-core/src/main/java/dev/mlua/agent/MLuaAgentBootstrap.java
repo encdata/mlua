@@ -133,15 +133,27 @@ public final class MLuaAgentBootstrap {
 
    private static java.lang.instrument.Instrumentation resolveTransformerInstrumentation() {
       try {
-         ClassLoader loader;
-         try {
-            loader = ModuleLayer.boot().findLoader("mlua_loader");
-         } catch (IllegalArgumentException ignored) {
-            loader = MLuaAgentBootstrap.class.getClassLoader();
+         ClassLoader runtimeLoader = MLuaAgentBootstrap.class.getClassLoader();
+         Class<?> transformer = findCompatibleTransformerClass(runtimeLoader, runtimeLoader);
+         if (transformer == null) {
+            ClassLoader moduleLoader = ModuleLayer.boot().findLoader("mlua_loader");
+            transformer = findCompatibleTransformerClass(moduleLoader, runtimeLoader);
          }
-         Class<?> transformer = Class.forName("dev.mlua.transformer.MLuaMixinTransformer", false, loader);
+         if (transformer == null) return null;
          return (java.lang.instrument.Instrumentation) transformer.getMethod("resolveInstrumentation").invoke(null);
       } catch (Throwable ignored) {
+         return null;
+      }
+   }
+
+   private static Class<?> findCompatibleTransformerClass(ClassLoader candidate, ClassLoader runtimeLoader) {
+      try {
+         Class<?> transformer = Class.forName("dev.mlua.transformer.MLuaMixinTransformer", false, candidate);
+         Class<?> runtimeEngine = Class.forName("dev.mlua.common.mixin.MixinRuleEngine", false, runtimeLoader);
+         Class<?> transformerEngine = Class.forName("dev.mlua.common.mixin.MixinRuleEngine", false,
+            transformer.getClassLoader());
+         return runtimeEngine == transformerEngine ? transformer : null;
+      } catch (ClassNotFoundException | LinkageError unavailable) {
          return null;
       }
    }

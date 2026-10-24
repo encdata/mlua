@@ -42,6 +42,11 @@ public final class MLuaMixinAgent {
          }
 
          ClassLoader transformerLoader = transformerClassLoader(modLoader);
+         if (transformerLoader == null) {
+            LOGGER.log(System.Logger.Level.WARNING,
+               "[MLua] No transformer loader shares MixinRuleEngine with the mod runtime; runtime mixins were not installed");
+            return;
+         }
          Class<?> bridgeClass = Class.forName("dev.mlua.transformer.MLuaInstrumentationBridge", true, transformerLoader);
          bridgeClass.getMethod("setInstrumentation", Instrumentation.class).invoke(null, inst);
 
@@ -58,10 +63,31 @@ public final class MLuaMixinAgent {
    }
 
    private static ClassLoader transformerClassLoader(ClassLoader fallback) {
+      ClassLoader moduleLoader = null;
       try {
-         return ModuleLayer.boot().findLoader("mlua_loader");
+         moduleLoader = ModuleLayer.boot().findLoader("mlua_loader");
       } catch (IllegalArgumentException ignored) {
+      }
+
+      if (sharesRuntimeMixinEngine(fallback, fallback)) {
          return fallback;
+      }
+      if (moduleLoader != null && sharesRuntimeMixinEngine(moduleLoader, fallback)) {
+         return moduleLoader;
+      }
+
+      return null;
+   }
+
+   private static boolean sharesRuntimeMixinEngine(ClassLoader candidate, ClassLoader runtimeLoader) {
+      try {
+         Class<?> transformer = Class.forName("dev.mlua.transformer.MLuaMixinTransformer", false, candidate);
+         Class<?> runtimeEngine = Class.forName("dev.mlua.common.mixin.MixinRuleEngine", false, runtimeLoader);
+         Class<?> transformerEngine = Class.forName("dev.mlua.common.mixin.MixinRuleEngine", false,
+            transformer.getClassLoader());
+         return runtimeEngine == transformerEngine;
+      } catch (ClassNotFoundException | LinkageError unavailable) {
+         return false;
       }
    }
 

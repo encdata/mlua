@@ -82,6 +82,8 @@ jobs:
 
       - name: Validate scripted entity callback state ownership
         run: python .github/scripts/verify-scripted-entity-state-contract.py
+      - name: Validate scripted entity AI definition ownership
+        run: python .github/scripts/verify-entity-ai-definition-ownership.py
 
       - name: Validate Java input conversion ownership
         run: python .github/scripts/verify-java-conversion-ownership-contract.py
@@ -127,6 +129,8 @@ jobs:
 
       - name: Validate Java package proxy ownership
         run: python .github/scripts/verify-java-package-proxy-contract.py
+      - name: Validate mixin agent classloader identity
+        run: python .github/scripts/verify-mixin-agent-classloader-contract.py
 
       - uses: actions/setup-java@v4
         with:
