@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -80,9 +79,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private volatile long lifecycleEpoch;
    private final MLuaClientScriptWatcher clientScriptWatcher = new MLuaClientScriptWatcher();
    private final Map<Path, MLuaScriptRegistration> registryScriptRegistrations = new LinkedHashMap<>();
-   private final Set<Level> entrypointWorlds = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-   private final ConcurrentLinkedQueue<ClientWorldLifecycleTransition> pendingClientWorldTransitions =
-      new ConcurrentLinkedQueue<>();
+   private final MLuaRuntimeWorldLifecycle worldLifecycle = new MLuaRuntimeWorldLifecycle();
    private MLuaEngine engine;
    private boolean bootstrapped;
    private boolean registryScriptsRan;
@@ -627,13 +624,7 @@ public final class MLuaRuntime implements MLuaRegistration {
       if (side == Side.SERVER && (!this.serverRan || this.session.server() != level.getServer())) return;
       this.ensureScriptsCurrent();
       String name = loaded ? "run_world_load" : "run_world_unload";
-      synchronized (this.entrypointWorlds) {
-         if (loaded) {
-            if (!this.entrypointWorlds.add(level)) return;
-         } else {
-            if (!this.entrypointWorlds.remove(level)) return;
-         }
-      }
+      if (!this.worldLifecycle.markDispatched(level, loaded)) return;
       MinecraftServer server = side == Side.SERVER ? level.getServer() : this.session.server();
       for (MLuaScript script : this.scriptCatalog.withEntrypoint(name, side)) {
          try {
@@ -662,9 +653,7 @@ public final class MLuaRuntime implements MLuaRegistration {
       if (this.engine != null) this.engine.resetSide(Side.SERVER);
       MLuaModuleLoader.get().onReload(Side.SERVER);
       this.session.detachServer(server);
-      synchronized (this.entrypointWorlds) {
-         this.entrypointWorlds.removeIf(level -> !level.isClientSide() && level.getServer() == server);
-      }
+      this.worldLifecycle.removeServerWorlds(server);
       this.serverRan = false;
    }
 
@@ -930,9 +919,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    private void reloadWorldLoadEntrypoints(MinecraftServer server) {
       for (Level level : server.getAllLevels()) {
-         synchronized (this.entrypointWorlds) {
-            this.entrypointWorlds.remove(level);
-         }
+         this.worldLifecycle.forget(level);
          this.runWorldLifecycleEntrypoint(level, true);
       }
    }
@@ -944,9 +931,7 @@ public final class MLuaRuntime implements MLuaRegistration {
       catch (RuntimeException unavailable) { return; }
       if (level == null || !level.isClientSide()) return;
       if (forceReload) {
-         synchronized (this.entrypointWorlds) {
-            this.entrypointWorlds.remove(level);
-         }
+         this.worldLifecycle.forget(level);
       }
       this.runWorldLifecycleEntrypoint(level, true);
    }
@@ -1021,25 +1006,22 @@ public final class MLuaRuntime implements MLuaRegistration {
    /** Queues client-world callbacks so they run after client startup scripts on the next client tick. */
    public void queueClientWorldLifecycle(Level level, boolean loaded) {
       if (level == null || !level.isClientSide()) return;
-      this.pendingClientWorldTransitions.add(new ClientWorldLifecycleTransition(level, loaded));
+      this.worldLifecycle.queueClientTransition(level, loaded);
    }
 
    private void drainClientWorldLifecycleTransitions() {
       if (!LoaderApi.platform().isClient()) {
-         this.pendingClientWorldTransitions.clear();
+         this.worldLifecycle.clearPendingClientTransitions();
          return;
       }
-      ClientWorldLifecycleTransition transition;
-      while ((transition = this.pendingClientWorldTransitions.poll()) != null) {
+      this.worldLifecycle.drainClientTransitions(transition -> {
          try {
             this.runWorldLifecycleEntrypoint(transition.level(), transition.loaded());
          } catch (RuntimeException failure) {
             this.reportRuntimeFailure("Client world lifecycle entrypoint failed", failure);
          }
-      }
+      });
    }
-
-   private record ClientWorldLifecycleTransition(Level level, boolean loaded) { }
 
    public int clearOwnedScriptState(Side side, String ownerModId) {
       if (side == null || ownerModId == null || ownerModId.isBlank()) return 0;
