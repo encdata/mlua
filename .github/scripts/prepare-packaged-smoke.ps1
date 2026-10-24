@@ -624,7 +624,7 @@ Chat.OnMessage:Connect(function(event)
         print("MLUA_CI_PLAYER_CHAT_SENT")
         local world = Minecraft:GetService("World"):Get(event.Player:GetWorld():GetDimension())
         assert(world ~= nil, "World:Get could not resolve the chat sender's dimension")
-        local pickupPosition = event.Player:GetPosition() + event.Player:GetLookVector() * 0.75
+        local pickupPosition = event.Player:GetPosition()
         assert(world:DropItem(pickupPosition, "minecraft:diamond", 3) ~= nil,
             "server could not drop the item for the player-pickup simulation")
         print("MLUA_CI_PLAYER_PICKUP_DROPPED")
@@ -1461,12 +1461,12 @@ connection = RunService.Heartbeat:Connect(function()
                 .. ":" .. nearbyEntityCount)
         end
     end
-    -- Input and movement are independent of the item-pickup event. Keep pickup
-    -- as its own asserted gameplay path so a pickup regression cannot hide
-    -- whether simulated controls still work.
+    -- Keep the player at the dropped stack until the native pickup event has
+    -- completed; otherwise the later forward-input check can walk past an
+    -- item while its vanilla pickup delay is still active.
     local containerInteractionFinished = clientContainerClosed
         or (containerUseAttempts >= 3 and containerUseState == 0)
-    if playerSeen and containerInteractionFinished and inputPressState == 0 then
+    if playerSeen and playerPickupReceived and containerInteractionFinished and inputPressState == 0 then
         print("MLUA_CI_PLAYER_INPUT_PRESS_BEGIN")
         inputStartX = player:GetPositionX()
         inputStartZ = player:GetPositionZ()

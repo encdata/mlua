@@ -234,16 +234,16 @@ if "$missingClientRuntimeMarkers.Count -eq 0" not in runner_text:
     fail("isolated client service/UI runtime markers do not gate player simulation success")
 if "'graphicsMode:fast'" in runner_text:
     fail("player smoke options must not force the legacy graphics value on newer Minecraft versions")
-if not re.search(r"(?s)local containerInteractionFinished = clientContainerClosed\s+or \(containerUseAttempts >= 3 and containerUseState == 0\).*?if playerSeen and containerInteractionFinished and inputPressState == 0 then.*?MLUA_CI_PLAYER_INPUT_PRESS_BEGIN", prepare_text):
-    fail("input simulation must start after local-player readiness and completion of container interaction attempts")
+if not re.search(r"(?s)local containerInteractionFinished = clientContainerClosed\s+or \(containerUseAttempts >= 3 and containerUseState == 0\).*?if playerSeen and playerPickupReceived and containerInteractionFinished and inputPressState == 0 then.*?MLUA_CI_PLAYER_INPUT_PRESS_BEGIN", prepare_text):
+    fail("input simulation must start after local-player readiness, item pickup, and container interaction")
 if 'print("MLUA_CI_PLAYER_MOVEMENT_DELTA:"' not in prepare_text:
     fail("player movement failures must log the observed X/Z displacement")
 if not re.search(r"(?s)if firstPersonRendered and testSheepUuid and not sheepCameraReady then.*?Camera:SetViewMode\(\"third_person\"\)", prepare_text):
     fail("the player smoke must exercise first-person rendering before switching the camera for the sheep test")
 if 'Gui:CloseCurrentScreen()' not in prepare_text \
-        or "containerInteractionFinished and inputPressState == 0" not in prepare_text \
+        or "playerPickupReceived and containerInteractionFinished and inputPressState == 0" not in prepare_text \
         or 'MLUA_CI_PLAYER_CONTAINER_CLOSED' not in runner_text:
-    fail("player movement simulation must wait for the opened vanilla container screen to close or interaction retries to finish")
+    fail("movement simulation must wait for the pickup and container screen lifecycle checks")
 if 'table.set("CloseCurrentScreen"' not in gui_api_text \
         or "closeCurrentScreen()" not in gui_screen_manager_text \
         or 'Registration.method("Gui", "Gui:CloseCurrentScreen()"' not in gui_module_text:
@@ -253,8 +253,9 @@ if "expectedScreen instanceof Screen screen) screen.onClose()" not in gui_screen
 if "MLuaClientThread.runOnClientThread(operation::get)" not in gui_screen_manager_text \
         or "minecraft.screen != expectedScreen" not in gui_screen_manager_text:
     fail("Gui screen closure must inspect and change the active screen on Minecraft's client thread")
-if re.search(r"(?s)if playerPickupReceived and inputPressState == 0 then", prepare_text):
-    fail("input simulation is still blocked on the independent item-pickup event")
+if "local pickupPosition = event.Player:GetPosition()" not in prepare_text \
+        or "playerSeen and playerPickupReceived and containerInteractionFinished and inputPressState == 0" not in prepare_text:
+    fail("simulated movement must wait until the dropped test stack is actually picked up")
 if '@Inject(method = "tick", at = @At("HEAD"))' not in keyboard_input_mixin \
         or "MLuaKeybindController.refreshSimulatedPresses();" not in keyboard_input_mixin:
     fail("simulated mappings must be refreshed immediately before Minecraft samples keyboard movement input")
