@@ -55,7 +55,7 @@ final class MLuaBlockEntityClass {
          registration.registerClassFunction("BlockEntity", "GetBlock", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                LuaTable self = args.arg1().checktable();
-               return blockTable((Level)self.rawget("__level").touserdata(Level.class),
+               return MLuaBlockWrapper.blockTable((Level)self.rawget("__level").touserdata(Level.class),
                   (BlockPos)self.rawget("__block_pos").touserdata(BlockPos.class), registration);
             }
          }, "Returns the live block that owns this block entity.");

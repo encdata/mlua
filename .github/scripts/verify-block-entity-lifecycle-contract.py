@@ -29,6 +29,10 @@ if "MLuaBlockWrapper.blockTable(level, this.worldPosition, this.getBlockState(),
     fail("block entity lifecycle must use its cached state rather than querying its level")
 if "MLuaBlockEntityClass.register(registration);" not in block_wrapper:
     fail("Block class setup must delegate BlockEntity API ownership to its class registrar")
+if "MLuaBlockWrapper.blockTable((Level)" not in block_entity_class:
+    fail("BlockEntity:GetBlock must resolve the block through the wrapper-owned table constructor")
+if "return blockTable(" in block_entity_class:
+    fail("BlockEntity class registrar must not call an unowned blockTable helper")
 for method in ("GetPosition", "GetLevel", "GetBlock", "GetContainer", "SetNbt"):
     if f'"BlockEntity", "{method}"' not in block_entity_class:
         fail(f"BlockEntity class registrar is missing {method}")
