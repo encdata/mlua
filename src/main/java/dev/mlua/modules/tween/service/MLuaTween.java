@@ -26,7 +26,7 @@ final class MLuaTween {
     private MLuaContext context;
     private Globals globals;
     private Object executionLock;
-    private Object ownerSession;
+    private volatile Object ownerSession;
     private final String ownerModId;
     private final double duration;
     private final EasingStyle style;
@@ -110,6 +110,7 @@ final class MLuaTween {
     synchronized void dispose() {
         if (disposed) return;
         if (playbackState == PlaybackState.Playing) MLuaTweenService.deactivate(this);
+        MLuaTweenRegistry.untrack(this);
         disposed = true;
         playbackState = PlaybackState.Cancelled;
         starts = List.of();
@@ -151,7 +152,9 @@ final class MLuaTween {
         double alpha = Math.min(1.0, elapsed / (duration * 1_000_000_000.0));
         try {
             apply(ease(alpha));
-        } catch (RuntimeException | Error failure) {
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (RuntimeException failure) {
             error = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
             playbackState = PlaybackState.Cancelled;
             setPendingCompletion();

@@ -1,10 +1,12 @@
 package dev.mlua.modules.tween.service;
 
 import dev.mlua.common.enums.Side;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import org.luaj.vm2.LuaError;
 
@@ -14,10 +16,30 @@ final class MLuaTweenRegistry {
     static final int MAX_ACTIVE_TWEENS_PER_RUNTIME = 64;
 
     private static final Map<Object, ActiveTweens> ACTIVE = new ConcurrentHashMap<>();
+    /** Tracks created and paused handles too, without keeping abandoned Lua handles alive. */
+    private static final Map<Object, Set<MLuaTween>> OWNED = new WeakHashMap<>();
     private static final Object LOCK = new Object();
     private static int activeCount;
 
     private MLuaTweenRegistry() { }
+
+    static void track(MLuaTween tween) {
+        synchronized (LOCK) {
+            OWNED.computeIfAbsent(tween.ownerSession(), ignored ->
+                Collections.newSetFromMap(new WeakHashMap<>())).add(tween);
+        }
+    }
+
+    static void untrack(MLuaTween tween) {
+        synchronized (LOCK) {
+            Object session = tween.ownerSession();
+            Set<MLuaTween> owned = session == null ? null : OWNED.get(session);
+            if (owned != null) {
+                owned.remove(tween);
+                if (owned.isEmpty()) OWNED.remove(session);
+            }
+        }
+    }
 
     static void activate(MLuaTween tween) {
         synchronized (LOCK) {
@@ -69,21 +91,24 @@ final class MLuaTweenRegistry {
         if (runtimeSession == null || (side != Side.CLIENT && side != Side.BOTH)) return;
         MLuaTween[] removed;
         synchronized (LOCK) {
+            Set<MLuaTween> owned = OWNED.remove(runtimeSession);
+            removed = owned == null ? new MLuaTween[0] : owned.toArray(MLuaTween[]::new);
             ActiveTweens active = ACTIVE.remove(runtimeSession);
-            if (active == null) return;
-            removed = active.snapshot();
-            activeCount -= removed.length;
+            if (active != null) activeCount -= active.size();
         }
         for (MLuaTween tween : removed) tween.dispose();
     }
 
     static void clearOwned(Object runtimeSession, String ownerModId, Side side) {
-        if ((side != Side.CLIENT && side != Side.BOTH) || runtimeSession == null) return;
-        ActiveTweens active = ACTIVE.get(runtimeSession);
-        if (active == null) return;
-        for (MLuaTween tween : active.snapshot()) {
-            if (tween.ownerModId().equals(ownerModId)) tween.dispose();
+        if ((side != Side.CLIENT && side != Side.BOTH) || runtimeSession == null || ownerModId == null) return;
+        MLuaTween[] owned;
+        synchronized (LOCK) {
+            Set<MLuaTween> tracked = OWNED.get(runtimeSession);
+            if (tracked == null) return;
+            owned = tracked.stream().filter(tween -> ownerModId.equals(tween.ownerModId()))
+                .toArray(MLuaTween[]::new);
         }
+        for (MLuaTween tween : owned) tween.dispose();
     }
 
     /** Membership changes publish snapshots off the render path; sampling reads without allocation. */

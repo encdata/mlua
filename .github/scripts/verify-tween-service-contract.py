@@ -6,9 +6,13 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "src/main/java/dev/mlua/modules/tween/service/MLuaTweenService.java"
+TWEEN = ROOT / "src/main/java/dev/mlua/modules/tween/service/MLuaTween.java"
+REGISTRY = ROOT / "src/main/java/dev/mlua/modules/tween/service/MLuaTweenRegistry.java"
 PROPERTIES = ROOT / "src/main/java/dev/mlua/modules/tween/service/MLuaTweenProperties.java"
 MODULE = ROOT / "src/main/java/dev/mlua/modules/tween/TweenModule.java"
 service = SERVICE.read_text(encoding="utf-8")
+tween = TWEEN.read_text(encoding="utf-8")
+registry = REGISTRY.read_text(encoding="utf-8")
 properties = PROPERTIES.read_text(encoding="utf-8")
 module = MODULE.read_text(encoding="utf-8")
 
@@ -42,5 +46,17 @@ if 'handle.set("GetCompleted"' not in service or 'handle.rawset("__tween_complet
     fail("Tween instances do not expose their registered Completed property getter")
 if 'tween.dispose(); return LuaValue.NIL;' not in service:
     fail("Tween:Destroy does not release its runtime state")
+if "MLuaTweenRegistry.track(tween)" not in service:
+    fail("created Tween handles are not tracked for addon and runtime cleanup")
+if "MLuaTweenRegistry.untrack(this)" not in tween:
+    fail("destroyed Tween handles remain in the lifecycle tracker")
+if "private volatile Object ownerSession;" not in tween:
+    fail("tween runtime ownership must be visible to concurrent frame sampling and teardown")
+if "new WeakHashMap<>()" not in registry or "OWNED.remove(runtimeSession)" not in registry:
+    fail("runtime cleanup does not release inactive tween handles without retaining abandoned handles")
+if "tracked.stream().filter(tween -> ownerModId.equals(tween.ownerModId()))" not in registry:
+    fail("addon cleanup does not include created, paused, and completed tween handles")
+if "catch (VirtualMachineError | ThreadDeath fatal)" not in tween or "catch (RuntimeException failure)" not in tween:
+    fail("render-frame tween sampling must let fatal JVM errors propagate")
 
-print("Tween service contract passed (target and goal validation have a dedicated owner).")
+print("Tween service contract passed (property validation and lifecycle ownership are explicit).")

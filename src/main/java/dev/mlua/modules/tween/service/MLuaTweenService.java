@@ -45,6 +45,7 @@ public final class MLuaTweenService extends MLuaReflectiveService {
         if (owner == null) throw new LuaError("[MLua] TweenService:Create must be called while a Lua addon is executing.");
         MLuaTween tween = new MLuaTween(target, properties, owner, tweenInfo.duration(),
             tweenInfo.easingStyle(), tweenInfo.easingDirection());
+        MLuaTweenRegistry.track(tween);
         return tweenHandle(tween, registration);
     }
 
