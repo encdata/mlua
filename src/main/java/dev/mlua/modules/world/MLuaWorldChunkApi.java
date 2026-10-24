@@ -4,6 +4,7 @@ import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.module.MLuaRegistration;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import dev.mlua.runtime.server.MLuaServerThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -102,7 +103,8 @@ public final class MLuaWorldChunkApi {
         return new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
                 try {
-                    return body.apply(args);
+                    Level level = MLuaChunkWrapper.level(args.arg1());
+                    return MLuaGameThreadAccess.call(level, () -> body.apply(args));
                 } catch (LuaError error) {
                     throw error;
                 } catch (Exception error) {

@@ -87,6 +87,12 @@ if "MLuaGameThreadAccess.callUnchecked(serverLevel, () -> function.apply(serverL
 world26 = COMMON_26.read_text(encoding="utf-8")
 if "MLuaGameThreadAccess.callUnchecked(level, () -> action.apply(level, args))" not in world26:
     fail("26.1 World instance queries must dispatch on the owning client or server thread")
+chunk_api = WORLD_CHUNK_API.read_text(encoding="utf-8")
+if "MLuaGameThreadAccess.call(level, () -> body.apply(args))" not in chunk_api:
+    fail("World chunk operations must dispatch on the owning client or server thread")
+chunk_wrapper = CHUNK_WRAPPER.read_text(encoding="utf-8")
+if "MLuaGameThreadAccess.call(world, () -> body.apply(args))" not in chunk_wrapper:
+    fail("live Chunk instance methods must dispatch on their owning client or server thread")
 
 if FABRIC_LEGACY_OVERLAY.exists():
     fail("Fabric must use the shared legacy World service; its stale loader overlay still exists")

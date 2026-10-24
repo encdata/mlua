@@ -14,6 +14,7 @@ import dev.mlua.minecraft.binding.MLuaFluidStateWrapper;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import dev.mlua.modules.players.classes.MLuaPlayerWrapper;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import dev.mlua.runtime.server.MLuaServerThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -331,7 +332,8 @@ public final class MLuaChunkWrapper {
             @Override
             public Varargs invoke(Varargs args) {
                 try {
-                    return body.apply(args);
+                    Level world = level(args.arg1());
+                    return MLuaGameThreadAccess.call(world, () -> body.apply(args));
                 } catch (LuaError error) {
                     throw error;
                 } catch (Exception error) {
