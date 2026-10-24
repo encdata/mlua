@@ -232,6 +232,8 @@ if unemitted_server_markers:
          + ", ".join(unemitted_server_markers))
 if "$missingClientRuntimeMarkers.Count -eq 0" not in runner_text:
     fail("isolated client service/UI runtime markers do not gate player simulation success")
+if "'graphicsMode:fast'" in runner_text:
+    fail("player smoke options must not force the legacy graphics value on newer Minecraft versions")
 if not re.search(r"(?s)local containerInteractionFinished = clientContainerClosed\s+or \(containerUseAttempts >= 3 and containerUseState == 0\).*?if playerSeen and containerInteractionFinished and inputPressState == 0 then.*?MLUA_CI_PLAYER_INPUT_PRESS_BEGIN", prepare_text):
     fail("input simulation must start after local-player readiness and completion of container interaction attempts")
 if 'print("MLUA_CI_PLAYER_MOVEMENT_DELTA:"' not in prepare_text:
