@@ -6,8 +6,6 @@ import org.luaj.vm2.Varargs;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.engine.MLuaLuaBindings;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.Map;
 import net.minecraft.world.level.Level;
 import net.minecraft.core.BlockPos;
@@ -96,7 +94,6 @@ public final class MLuaBehaviorRegistry {
          return "Snapshot[callbacks=" + callbacks + ", context=" + context + "]";
       }
    }
-    private static final ConcurrentMap<String, Integer> ENTITY_AI_INTERVAL = new ConcurrentHashMap();
    static final Object REGISTRATION_LOCK = new Object();
 
    private MLuaBehaviorRegistry() {
@@ -308,8 +305,8 @@ public final class MLuaBehaviorRegistry {
          int ownedBlockContainers = MLuaScriptedContainerRegistry.blockCountForOwner(owner);
          int containerTypes = MLuaScriptedContainerRegistry.typeCount();
          int ownedContainerTypes = MLuaScriptedContainerRegistry.typeCountForOwner(owner);
-         int aiConfigs = ENTITY_AI_INTERVAL.size();
-         int ownedAIConfigs = countOwnerKeys(ENTITY_AI_INTERVAL, owner);
+         int aiConfigs = MLuaScriptedEntityAISettings.count();
+         int ownedAIConfigs = MLuaScriptedEntityAISettings.countForOwner(owner);
          return new ScriptLimits(behaviorCount, ownedBehaviorCount, classCount, ownedClassCount,
             blockContainers, ownedBlockContainers, containerTypes, ownedContainerTypes, aiConfigs, ownedAIConfigs);
       }
@@ -386,7 +383,7 @@ public final class MLuaBehaviorRegistry {
    public static void clearEntityCallbacks(String key) {
       synchronized (REGISTRATION_LOCK) {
          clearBehaviors("entity", key);
-         ENTITY_AI_INTERVAL.remove(key);
+         MLuaScriptedEntityAISettings.clear(key);
       }
    }
 
@@ -402,37 +399,24 @@ public final class MLuaBehaviorRegistry {
          MLuaScriptedBehaviorDefinitions.clearOwnerPrefix(prefix);
          MLuaScriptedContentClassRegistry.clearOwnerPrefix(prefix);
          MLuaScriptedContainerRegistry.clearOwnerPrefix(prefix);
-         ENTITY_AI_INTERVAL.keySet().removeIf(key -> key.startsWith(prefix));
+         MLuaScriptedEntityAISettings.clearOwnerPrefix(prefix);
       }
    }
 
     public static void registerEntityAIInterval(String key, int interval) {
-       synchronized (REGISTRATION_LOCK) {
-          validateBehaviorKey(key);
-          ensureKeyCapacity(ENTITY_AI_INTERVAL, key, MAX_ENTITY_AI_CONFIGS);
-          ENTITY_AI_INTERVAL.put(key, Math.max(1, Math.min(120, interval)));
-       }
+       MLuaScriptedEntityAISettings.registerInterval(key, interval);
     }
 
     public static int getEntityAIInterval(String key) {
-       return ENTITY_AI_INTERVAL.getOrDefault(key, 5);
+       return MLuaScriptedEntityAISettings.interval(key);
     }
 
     public static Integer getRegisteredEntityAIInterval(String key) {
-       return ENTITY_AI_INTERVAL.get(key);
+       return MLuaScriptedEntityAISettings.registeredInterval(key);
     }
 
     public static boolean restoreEntityAIInterval(String key, int expected, Integer previous) {
-       if (key == null) return false;
-       java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
-       synchronized (REGISTRATION_LOCK) {
-          ENTITY_AI_INTERVAL.compute(key, (ignored, current) -> {
-             if (current == null || current != expected) return current;
-             restored.set(true);
-             return previous;
-          });
-       }
-       return restored.get();
+       return MLuaScriptedEntityAISettings.restore(key, expected, previous);
     }
 
    static void validateBehaviorKey(String key) {
@@ -441,24 +425,6 @@ public final class MLuaBehaviorRegistry {
       }
       if (key.length() > MAX_BEHAVIOR_KEY_LENGTH) {
          throw new IllegalArgumentException("Scripted content identifiers cannot exceed " + MAX_BEHAVIOR_KEY_LENGTH + " characters");
-      }
-   }
-
-   private static int countOwnerKeys(Map<String, ?> values, String owner) {
-      String prefix = owner + ":";
-      return (int) values.keySet().stream().filter(key -> key.startsWith(prefix)).count();
-   }
-
-   private static void ensureKeyCapacity(ConcurrentMap<String, ?> values, String key, int maxTotal) {
-      if (values.containsKey(key)) return;
-      if (values.size() >= maxTotal) {
-         throw new IllegalStateException("Scripted definition limit reached (" + maxTotal + " total)");
-      }
-      int separator = key.indexOf(':');
-      String ownerPrefix = separator > 0 ? key.substring(0, separator + 1) : "";
-      if (!ownerPrefix.isEmpty() && values.keySet().stream().filter(id -> id.startsWith(ownerPrefix)).count()
-          >= MAX_BEHAVIOR_DEFINITIONS_PER_ADDON) {
-         throw new IllegalStateException("Addon scripted definition limit reached (" + MAX_BEHAVIOR_DEFINITIONS_PER_ADDON + ")");
       }
    }
 

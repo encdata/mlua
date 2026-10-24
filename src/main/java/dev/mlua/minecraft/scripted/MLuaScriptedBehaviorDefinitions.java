@@ -90,7 +90,6 @@ final class MLuaScriptedBehaviorDefinitions {
             + MLuaBehaviorRegistry.MAX_CALLBACKS_PER_DEFINITION + " per definition)");
       }
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         MLuaBehaviorRegistry.BehaviorSet current = definition(domain, key);
          if (!definition.isEmpty()) ensureCapacity(domain, key, context);
          DEFINITIONS.compute(domain, (ignoredDomain, values) -> {
             if (values == null && definition.isEmpty()) return null;
