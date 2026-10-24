@@ -57,6 +57,11 @@ for required in ("registeredMixinConfigs", "mixinFiles.findAll", "fabric.mod.jso
     if required not in PACKAGING:
         fail(f"Packaged artifact validation does not verify mixin registration: {required}")
 
+for mixin_path in (ROOT / "src/main/java/dev/mlua/modules/mixin/service/ScreenLayoutMixin.java",
+                   ROOT / "mlua-loaders/neoforge/1.21.1/impl/dev/mlua/mixin/ScreenLayoutMixin.java"):
+    if '@Inject(method = "init()V"' not in mixin_path.read_text(encoding="utf-8"):
+        fail(f"{mixin_path.relative_to(ROOT)} must target Screen.init() after widgets are built")
+
 for version in ("1.20.1", "1.21.1", "26.1"):
     path = ROOT / f"mlua-loaders/fabric/{version}/project/src/main/resources/mlua.fabric.mixins.json"
     if not path.is_file() or '"ChatLineMixin"' not in path.read_text(encoding="utf-8"):

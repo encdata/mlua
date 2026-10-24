@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Applies addon layout rules after a native screen has populated its widgets. */
 @Mixin(Screen.class)
 public abstract class ScreenLayoutMixin {
-    @Inject(method = "init", at = @At("TAIL"))
+    @Inject(method = "init()V", at = @At("TAIL"))
     private void mlua$applyNativeLayouts(CallbackInfo callback) {
         MLuaGuiService.applyNativeLayouts(this);
     }

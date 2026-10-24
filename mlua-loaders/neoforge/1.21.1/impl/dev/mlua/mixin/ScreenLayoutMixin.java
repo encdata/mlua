@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Applies and releases MLua native widget layouts on NeoForge screens. */
 @Mixin(value = Screen.class, remap = false)
 public abstract class ScreenLayoutMixin {
-    @Inject(method = "init", at = @At("TAIL"), remap = false)
+    @Inject(method = "init()V", at = @At("TAIL"), remap = false)
     private void mlua$applyNativeLayouts(CallbackInfo callback) {
         MLuaGuiService.applyNativeLayouts(this);
     }
