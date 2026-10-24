@@ -15,7 +15,6 @@ import dev.mlua.math.MLuaVector;
 import dev.mlua.modules.players.classes.MLuaEntityWrapper;
 import dev.mlua.modules.players.classes.MLuaPlayerWrapper;
 import dev.mlua.runtime.MLuaGameThreadAccess;
-import dev.mlua.runtime.server.MLuaServerThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -359,7 +358,7 @@ public final class MLuaChunkWrapper {
         Level world = level(self);
         if (!(world instanceof ServerLevel server)) throw new LuaError("[MLua] Chunk loading is server-side only.");
         ChunkPos pos = chunkPosition(self);
-        MLuaServerThread.call(server.getServer(), () -> server.getChunk(chunkX(pos), chunkZ(pos)));
+        server.getChunk(chunkX(pos), chunkZ(pos));
     }
 
     private static boolean ensureLoaded(Level world, LuaValue self) {
@@ -376,7 +375,7 @@ public final class MLuaChunkWrapper {
     private static boolean ensureLoaded(Level world, ChunkPos position, BlockPos probe) {
         if (world.hasChunkAt(probe)) return true;
         if (!(world instanceof ServerLevel server)) return false;
-        MLuaServerThread.call(server.getServer(), () -> server.getChunk(chunkX(position), chunkZ(position)));
+        server.getChunk(chunkX(position), chunkZ(position));
         return world.hasChunkAt(probe);
     }
 

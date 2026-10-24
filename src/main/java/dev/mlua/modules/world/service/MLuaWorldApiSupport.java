@@ -5,7 +5,6 @@ import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
 import dev.mlua.modules.world.MLuaChunkWrapper;
 import dev.mlua.runtime.MLuaGameThreadAccess;
-import dev.mlua.runtime.server.MLuaServerThread;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
@@ -58,8 +57,7 @@ final class MLuaWorldApiSupport {
       if (level.hasChunkAt(position)) return true;
       if (!load) return false;
       ChunkPos chunk = new ChunkPos(position.getX() >> 4, position.getZ() >> 4);
-      MLuaServerThread.call(level.getServer(),
-         () -> level.getChunk(MLuaChunkWrapper.chunkX(chunk), MLuaChunkWrapper.chunkZ(chunk)));
+      level.getChunk(MLuaChunkWrapper.chunkX(chunk), MLuaChunkWrapper.chunkZ(chunk));
       return level.hasChunkAt(position);
    }
 

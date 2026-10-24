@@ -5,7 +5,6 @@ import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.runtime.MLuaGameThreadAccess;
-import dev.mlua.runtime.server.MLuaServerThread;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -45,8 +44,7 @@ public final class MLuaWorldChunkApi {
             Level level = MLuaChunkWrapper.level(args.arg1());
             ServerLevel server = requireServerLevel(level, "World:LoadChunk");
             ChunkPos position = MLuaChunkWrapper.chunkPosition(args, 2);
-            MLuaServerThread.call(server.getServer(),
-                () -> server.getChunk(MLuaChunkWrapper.chunkX(position), MLuaChunkWrapper.chunkZ(position)));
+            server.getChunk(MLuaChunkWrapper.chunkX(position), MLuaChunkWrapper.chunkZ(position));
             return MLuaChunkWrapper.chunkTable(level, position, registration, args.arg1().checktable());
         });
         bindWorldMethod(world, registration, "UnloadChunk", args -> {
@@ -80,8 +78,7 @@ public final class MLuaWorldChunkApi {
                 args, 3, true, "World:GetEntitiesInChunk", "loadChunk");
             if (!level.hasChunkAt(origin)) {
                 if (!load || !(level instanceof ServerLevel server)) return new LuaTable();
-                MLuaServerThread.call(server.getServer(),
-                    () -> server.getChunk(MLuaChunkWrapper.chunkX(position), MLuaChunkWrapper.chunkZ(position)));
+                server.getChunk(MLuaChunkWrapper.chunkX(position), MLuaChunkWrapper.chunkZ(position));
             }
             LuaTable chunk = MLuaChunkWrapper.chunkTable(level, position, registration, world);
             return chunk.get("GetEntities").invoke(LuaValue.varargsOf(new LuaValue[]{chunk})).arg1();
