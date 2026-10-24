@@ -15,7 +15,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.function.Supplier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -55,7 +54,6 @@ public final class MLuaRenderCallbacks {
     private static final Object HOOK_LIFECYCLE_LOCK = new Object();
     private static final Map<Owner, Integer> REGISTERED_CALLBACKS_BY_OWNER = new HashMap<>();
     /** Frame lifetime is tracked outside the mutable Lua-facing context table. */
-    private static final Map<LuaTable, MLuaRenderFrameScope> FRAME_SCOPES = new WeakHashMap<>();
     /** One registry owns every render hook; the target kind prevents unrelated hooks colliding. */
     private static final ConcurrentMap<HookTarget, HookBucket> HOOKS = new ConcurrentHashMap<>();
     private static final Object WORLD_REGISTRATION_LOCK = new Object();
@@ -625,7 +623,7 @@ public final class MLuaRenderCallbacks {
     }
 
     private static void invoke(Hook hook, Varargs invocationArgs) {
-        FrameContextBinding frameBinding = findFrameScope(invocationArgs);
+        MLuaRenderFrameContexts.Binding frameBinding = findFrameScope(invocationArgs);
         if (!hook.active || hook.failed) {
             closeFrameScope(frameBinding);
             return;
@@ -667,7 +665,7 @@ public final class MLuaRenderCallbacks {
         }
     }
 
-    private static PoseStack framePoseStack(FrameContextBinding binding) {
+    private static PoseStack framePoseStack(MLuaRenderFrameContexts.Binding binding) {
         if (binding == null) return null;
         LuaValue value = binding.context().get("PoseStack");
         if (value == null || !value.isuserdata(MLuaRenderFrameScope.MLuaScopedRenderObject.class)) return null;
@@ -694,39 +692,22 @@ public final class MLuaRenderCallbacks {
             hook.id, hook.key.owner().modId(), hook.target, failure);
     }
 
-    private static FrameContextBinding findFrameScope(Varargs args) {
-        if (args == null) return null;
-        for (int index = 1; index <= args.narg(); index++) {
-            LuaValue argument = args.arg(index);
-            if (argument == null || !argument.istable()) continue;
-            LuaTable context = argument.checktable();
-            synchronized (FRAME_SCOPES) {
-                MLuaRenderFrameScope scope = FRAME_SCOPES.get(context);
-                if (scope != null) return new FrameContextBinding(context, scope);
-            }
-        }
-        return null;
+    private static MLuaRenderFrameContexts.Binding findFrameScope(Varargs args) {
+        return MLuaRenderFrameContexts.find(args);
     }
 
-    private static void closeFrameScope(FrameContextBinding binding) {
+    private static void closeFrameScope(MLuaRenderFrameContexts.Binding binding) {
         if (binding == null) return;
-        synchronized (FRAME_SCOPES) {
-            FRAME_SCOPES.remove(binding.context(), binding.scope());
-        }
+        MLuaRenderFrameContexts.remove(binding);
         binding.scope().close();
     }
 
     /** Returns true only while this exact Lua RenderContext is inside its creating callback. */
     public static boolean isRenderContextActive(LuaValue contextValue) {
         if (contextValue == null || !contextValue.istable()) return false;
-        MLuaRenderFrameScope scope;
-        synchronized (FRAME_SCOPES) {
-            scope = FRAME_SCOPES.get(contextValue.checktable());
-        }
+        MLuaRenderFrameScope scope = MLuaRenderFrameContexts.get(contextValue.checktable());
         return scope != null && scope.view().isActive();
     }
-
-    private record FrameContextBinding(LuaTable context, MLuaRenderFrameScope scope) { }
 
     /** Remove a disabled callback from its exact bucket so the Lua closure and runtime context can be collected. */
     private static void removeFailedHook(Hook hook) {
@@ -847,9 +828,7 @@ public final class MLuaRenderCallbacks {
                     : bufferSourceAvailable ? instance.get("BufferSource") : LuaValue.NIL,
                 new WeakReference<>(hook.context.session()), hook.context.ownerModId(),
                 target, packedLight, packedOverlay, partialTick)));
-            synchronized (FRAME_SCOPES) {
-                FRAME_SCOPES.put(instance.checktable(), frameScope);
-            }
+            MLuaRenderFrameContexts.register(instance.checktable(), frameScope);
             return instance;
         } catch (VirtualMachineError | ThreadDeath fatal) {
             frameScope.close();
@@ -869,10 +848,8 @@ public final class MLuaRenderCallbacks {
             throw new LuaError("[MLua] RenderContext:DrawObject requires a live render context.");
         }
         RenderDrawRequest request = (RenderDrawRequest)requestValue.touserdata(RenderDrawRequest.class);
-        synchronized (FRAME_SCOPES) {
-            if (FRAME_SCOPES.get(context.checktable()) != request.scope()) {
-                throw new LuaError("[MLua] RenderContext:DrawObject requires the original active RenderContext table.");
-            }
+        if (!MLuaRenderFrameContexts.owns(context.checktable(), request.scope())) {
+            throw new LuaError("[MLua] RenderContext:DrawObject requires the original active RenderContext table.");
         }
         if (!request.scope().view().isActive()) {
             throw new LuaError("[MLua] RenderContext:DrawObject can only run during its render callback.");
@@ -922,10 +899,7 @@ public final class MLuaRenderCallbacks {
         if (contextValue == null || !contextValue.istable()) {
             throw new LuaError("[MLua] RenderContext:WithPose requires a live render context.");
         }
-        MLuaRenderFrameScope scope;
-        synchronized (FRAME_SCOPES) {
-            scope = FRAME_SCOPES.get(contextValue.checktable());
-        }
+        MLuaRenderFrameScope scope = MLuaRenderFrameContexts.get(contextValue.checktable());
         if (scope == null || !scope.view().isActive()) {
             throw new LuaError("[MLua] RenderContext:WithPose can only run during its render callback.");
         }

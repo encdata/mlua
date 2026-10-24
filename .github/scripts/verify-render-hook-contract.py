@@ -223,6 +223,15 @@ if "'dev/mlua/mixin/FirstPersonItemRendererMixin.java'" not in runtime_target:
     fail("NeoForge nested runtime must exclude the outer loader's first-person mixin to avoid duplicate JPMS packages")
 
 callback_source = CALLBACKS.read_text(encoding="utf-8")
+frame_context_owner_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRenderFrameContexts.java"
+if not frame_context_owner_path.is_file():
+    fail("temporary RenderContext-to-frame-scope ownership must have a dedicated component")
+frame_context_owner = frame_context_owner_path.read_text(encoding="utf-8")
+if "WeakHashMap<LuaTable, MLuaRenderFrameScope> CONTEXTS" not in frame_context_owner \
+        or "MLuaRenderFrameContexts.register(instance.checktable(), frameScope)" not in callback_source:
+    fail("render callbacks must delegate weak frame-scope ownership and cleanup to its component")
+if "FRAME_SCOPES" in callback_source:
+    fail("render callback dispatch must not own the frame-scope identity map")
 safe_dispatch = callback_source.split("private static void invokeSafely(Hook hook", 1)
 if len(safe_dispatch) != 2:
     fail("render callback setup has no per-hook exception boundary")
