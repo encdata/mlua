@@ -236,6 +236,8 @@ if not re.search(r"(?s)local containerInteractionFinished = clientContainerClose
     fail("input simulation must start after local-player readiness and completion of container interaction attempts")
 if 'print("MLUA_CI_PLAYER_MOVEMENT_DELTA:"' not in prepare_text:
     fail("player movement failures must log the observed X/Z displacement")
+if not re.search(r"(?s)if firstPersonRendered and testSheepUuid and not sheepCameraReady then.*?Camera:SetViewMode\(\"third_person\"\)", prepare_text):
+    fail("the player smoke must exercise first-person rendering before switching the camera for the sheep test")
 if 'Gui:CloseCurrentScreen()' not in prepare_text \
         or "containerInteractionFinished and inputPressState == 0" not in prepare_text \
         or 'MLUA_CI_PLAYER_CONTAINER_CLOSED' not in runner_text:

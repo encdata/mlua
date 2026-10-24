@@ -1393,7 +1393,10 @@ connection = RunService.Heartbeat:Connect(function()
         clientContainerClosed = true
         print("MLUA_CI_PLAYER_CONTAINER_CLOSED")
     end
-    if testSheepUuid and not sheepCameraReady then
+    -- Keep the client in first person until that render path has actually
+    -- dispatched. The sheep is spawned early by the server; switching views as
+    -- soon as its UUID arrives can otherwise skip the first-person assertion.
+    if firstPersonRendered and testSheepUuid and not sheepCameraReady then
         local sheep = entityService:GetByUUID(testSheepUuid)
         if sheep ~= nil then
             if not thirdPersonRequested then
