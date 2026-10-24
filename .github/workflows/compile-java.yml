@@ -302,6 +302,11 @@ jobs:
           } else {
             $gradleArgs += "-PneoForgeVersion=${{ matrix.neoForgeVersion }}"
           }
+          # Forge and NeoForge currently boot without applying some packaged
+          # mixin configs. Keep Mixin's config and transformation diagnostics
+          # in the archived game logs so loader registration failures are
+          # distinguishable from target-method mismatches.
+          $env:JAVA_TOOL_OPTIONS = '-Dmixin.debug.verbose=true'
           & ../../.github/scripts/run-player-smoke.ps1 -GradleArgs $gradleArgs -TimeoutSeconds 360
           $playerSummary = @"
           ### Player simulation passed
