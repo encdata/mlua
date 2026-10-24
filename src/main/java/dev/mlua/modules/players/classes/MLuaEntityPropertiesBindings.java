@@ -6,14 +6,11 @@ import dev.mlua.core.service.MLuaServiceProperties;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.math.MLuaVector;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
-import dev.mlua.api.MLuaLuaErrors;
 import dev.mlua.modules.entity.MLuaEntityQuery;
-import dev.mlua.runtime.client.MLuaClientThread;
-import dev.mlua.runtime.server.MLuaServerThread;
+import dev.mlua.runtime.MLuaGameThreadAccess;
 import dev.mlua.runtime.data.MLuaDataManager;
 import java.util.Map;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -55,17 +52,7 @@ final class MLuaEntityPropertiesBindings {
                }
                return nearby;
             };
-            if (entity.level() instanceof ServerLevel serverLevel) {
-               return MLuaServerThread.call(serverLevel.getServer(), query);
-            }
-            if (!entity.level().isClientSide) return query.get();
-            try {
-               return MLuaClientThread.callForClientState(query::get);
-            } catch (org.luaj.vm2.LuaError failure) {
-               throw failure;
-            } catch (Exception failure) {
-               throw MLuaLuaErrors.javaFailure("Entity:GetNearbyEntities", failure);
-            }
+            return MLuaGameThreadAccess.callUnchecked(entity.level(), query::get);
          }
       });
       MLuaClassMethods.setInstanceMethod(table, "GetVehicle", new VarArgFunction() {
