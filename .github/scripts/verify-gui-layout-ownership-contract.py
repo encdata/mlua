@@ -17,6 +17,8 @@ builder_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScript
 callbacks_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenCallbacks.java"
 input_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenInput.java"
 renderer_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaScriptScreenRenderer.java"
+chat_mixin_path = ROOT / "src/main/java/dev/mlua/modules/mixin/service/ChatLineMixin.java"
+chat_bridge_path = ROOT / "src/main/java/dev/mlua/modules/coregui/service/MLuaGuiChatLineBridge.java"
 service = service_path.read_text(encoding="utf-8")
 controller = controller_path.read_text(encoding="utf-8")
 targets = targets_path.read_text(encoding="utf-8")
@@ -27,6 +29,8 @@ builder = builder_path.read_text(encoding="utf-8")
 callbacks = callbacks_path.read_text(encoding="utf-8")
 screen_input = input_path.read_text(encoding="utf-8")
 renderer = renderer_path.read_text(encoding="utf-8")
+chat_mixin = chat_mixin_path.read_text(encoding="utf-8")
+chat_bridge = chat_bridge_path.read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -99,6 +103,14 @@ for operation in ("register(String alias, String className)", "unregister(String
 
 if re.search(r"(?m)^\s*private static void applyLayoutToWidgets\s*\(", service):
     fail("native widget layout application remains implemented inside the GUI service")
+
+if "MLuaGuiChatLineBridge.beforeChatLineAdded(message)" not in chat_mixin:
+    fail("chat line mixin must delegate to its dedicated synchronous bridge")
+if "fireInlineOnSession(runtime.session(), Side.CLIENT" not in chat_bridge \
+        or "backing.expire()" not in chat_bridge:
+    fail("chat line bridge must invoke listeners synchronously and expire each short-lived wrapper")
+if "beforeChatLineAdded" in service or "MLuaChatLine" in service:
+    fail("chat line dispatch remains coupled to the GUI service facade")
 
 if "MLuaScriptScreenBuilder.create(this)" not in screen:
     fail("script screen must delegate its Lua initialization builder to MLuaScriptScreenBuilder")

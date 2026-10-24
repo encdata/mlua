@@ -485,10 +485,10 @@ if "ENTITY_MODELS" in render_manager or "HELD_ITEM_MODELS" in render_manager:
 
 forge_client_bridge_path = ROOT / "mlua-loaders/forge/1.21.1/project/src/main/java/dev/mlua/loader/impl/forge/ForgeClientBridge.java"
 forge_client_bridge = forge_client_bridge_path.read_text(encoding="utf-8")
-if "modBus.addListener((RegisterGuiOverlaysEvent event) ->" not in forge_client_bridge:
-    fail("Forge 1.21.1 overlays must register through its typed mod-bus event")
-if "AddGuiOverlayLayersEvent" in forge_client_bridge or "tryRegisterOverlayListener" in forge_client_bridge:
-    fail("Forge 1.21.1 overlay registration must not probe an incompatible event reflectively")
+if "modBus.addListener((AddGuiOverlayLayersEvent event) ->" not in forge_client_bridge:
+    fail("Forge 1.21.1 overlays must register through its typed AddGuiOverlayLayersEvent")
+if "tryRegisterOverlayListener" in forge_client_bridge:
+    fail("Forge 1.21.1 overlay registration must not probe event classes reflectively")
 
 model_render_plan_path = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaBBModelRenderPlan.java"
 if not model_render_plan_path.is_file():

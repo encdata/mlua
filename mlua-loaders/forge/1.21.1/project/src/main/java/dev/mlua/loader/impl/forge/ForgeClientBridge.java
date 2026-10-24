@@ -15,10 +15,11 @@ import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,11 +52,15 @@ public class ForgeClientBridge implements ClientBridge {
                 modelLayersRegistered = true;
             }
         });
-        modBus.addListener((RegisterGuiOverlaysEvent event) -> {
-            event.registerAboveAll("mlua_gui", (gui, graphics, partialTick, screenWidth, screenHeight) ->
-                MLuaGuiRenderer.renderAll(graphics, screenWidth, screenHeight));
-            event.registerAboveAll("mlua_overlays", (gui, graphics, partialTick, screenWidth, screenHeight) ->
-                overlays.render(graphics));
+        modBus.addListener((AddGuiOverlayLayersEvent event) -> {
+            event.getLayeredDraw().add(ResourceLocation.fromNamespaceAndPath("mlua", "gui"),
+                (graphics, deltaTracker) -> {
+                    Minecraft minecraft = Minecraft.getInstance();
+                    MLuaGuiRenderer.renderAll(graphics,
+                        minecraft.getWindow().getGuiScaledWidth(), minecraft.getWindow().getGuiScaledHeight());
+                });
+            event.getLayeredDraw().add(ResourceLocation.fromNamespaceAndPath("mlua", "overlays"),
+                (graphics, deltaTracker) -> overlays.render(graphics));
         });
     }
 

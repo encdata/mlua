@@ -1,6 +1,6 @@
 package dev.mlua.modules.mixin.service;
 
-import dev.mlua.modules.coregui.service.MLuaGuiService;
+import dev.mlua.modules.coregui.service.MLuaGuiChatLineBridge;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -20,7 +20,7 @@ public abstract class ChatLineMixin {
     )
     @Group(name = "mlua$chatLineAdded", min = 1, max = 3)
     private Component mlua$beforeLegacyChatLineAdded(Component message) {
-        return MLuaGuiService.beforeChatLineAdded(message);
+        return MLuaGuiChatLineBridge.beforeChatLineAdded(message);
     }
     //--endversion
 
@@ -34,7 +34,7 @@ public abstract class ChatLineMixin {
     )
     @Group(name = "mlua$chatLineAdded", min = 1)
     private Component mlua$beforeTaggedChatLineAdded(Component message) {
-        return MLuaGuiService.beforeChatLineAdded(message);
+        return MLuaGuiChatLineBridge.beforeChatLineAdded(message);
     }
     //--endversion
 
@@ -49,7 +49,7 @@ public abstract class ChatLineMixin {
     )
     @Group(name = "mlua$chatLineAdded", min = 1)
     private Component mlua$beforeSourcedChatLineAdded(Component message) {
-        return MLuaGuiService.beforeChatLineAdded(message);
+        return MLuaGuiChatLineBridge.beforeChatLineAdded(message);
     }
     //--endversion
 }

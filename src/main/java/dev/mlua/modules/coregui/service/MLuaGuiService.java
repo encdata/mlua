@@ -18,14 +18,12 @@ import dev.mlua.minecraft.ui.element.ScreenGui;
 import dev.mlua.minecraft.ui.element.GuiButton;
 import dev.mlua.minecraft.binding.MLuaNativeControl;
 import dev.mlua.minecraft.binding.MLuaNativeScreen;
-import dev.mlua.minecraft.binding.MLuaChatLine;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.lang.reflect.Method;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.network.chat.Component;
 //--version 26.1
@@ -35,8 +33,6 @@ import net.minecraft.network.chat.Component;
 
 public final class MLuaGuiService implements MLuaService {
     private static final Map<MLuaTaskSchedulerView, MLuaGuiState> STATES = new WeakHashMap<>();
-    private static final boolean PLAYER_TEST = Boolean.parseBoolean(System.getenv("MLUA_CI_PLAYER_TEST"));
-    private static final AtomicBoolean REPORTED_CHAT_LINE_BRIDGE = new AtomicBoolean();
     final MLuaService.Context context;
     final MLuaGuiState state;
     private final MLuaGuiScreenRegistry screenRegistry;
@@ -68,27 +64,6 @@ public final class MLuaGuiService implements MLuaService {
         MLuaRuntime runtime = MLuaRuntime.get();
         if (runtime == null || runtime.session() == null) return null;
         return getForScheduler(runtime.session().clientScheduler());
-    }
-
-    public static Component beforeChatLineAdded(Component message) {
-        if (PLAYER_TEST && REPORTED_CHAT_LINE_BRIDGE.compareAndSet(false, true)) {
-            MLuaLogger.LOGGER.info("MLUA_CI_CHAT_LINE_BRIDGE_ENTERED");
-        }
-        MLuaGuiService service = getInstance();
-        MLuaRuntime runtime = MLuaRuntime.get();
-        if (service == null || runtime == null || runtime.session() == null || service.state.chatLineAdding.isEmpty()) return message;
-        MLuaChatLine.Backing backing = new MLuaChatLine.Backing(message);
-        LuaTable instance = MLuaChatLine.instance(runtime, backing);
-        try {
-            // Chat line construction is synchronous and the backing expires as soon as this
-            // method returns. Run listeners on the caller's client thread so a coroutine cannot
-            // yield while Minecraft is waiting for the transformed Component.
-            service.state.chatLineAdding.fireInlineOnSession(runtime.session(), Side.CLIENT,
-                LuaValue.varargsOf(new LuaValue[]{instance}));
-            return backing.result();
-        } finally {
-            backing.expire();
-        }
     }
 
     public static MLuaGuiService getForScheduler(MLuaTaskSchedulerView scheduler) {
