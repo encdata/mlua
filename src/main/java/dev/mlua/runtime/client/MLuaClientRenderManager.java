@@ -279,10 +279,10 @@ public final class MLuaClientRenderManager {
                         };
                         boolean submitted;
                         if (object.type == RenderType.MESH && object.mesh != null) {
-                            submitted = submitMeshGeometry(renderSource, pose, object.mesh,
+                            submitted = MLuaWorldRenderPipeline.submitMeshGeometry(renderSource, pose, object.mesh,
                                 resolveMeshTexture(object), packedLight, 0, object, transform);
                         } else {
-                            submitted = submitBBModelGeometry(renderSource, pose, object,
+                            submitted = MLuaWorldRenderPipeline.submitBBModelGeometry(renderSource, pose, object,
                                 packedLight, 0, partialTick, transform);
                         }
                         if (!submitted) throw new IllegalStateException(
@@ -340,13 +340,13 @@ public final class MLuaClientRenderManager {
                 if (object.mesh != null) {
                     MLuaMeshDefinition mesh = object.mesh;
                     ResourceLocation texture = resolveMeshTexture(object);
-                    submitted = submitMeshGeometry(bufferValue, pose, mesh, texture, light, overlay, object, matrix -> {
+                    submitted = MLuaWorldRenderPipeline.submitMeshGeometry(bufferValue, pose, mesh, texture, light, overlay, object, matrix -> {
                         applyTransform(matrix, offset);
                         applyTransform(matrix, modelTransform);
                         matrix.scale(scale, scale, scale);
                     });
                 } else {
-                    submitted = submitBBModelGeometry(bufferValue, pose, object, light, overlay, partialTick, matrix -> {
+                    submitted = MLuaWorldRenderPipeline.submitBBModelGeometry(bufferValue, pose, object, light, overlay, partialTick, matrix -> {
                         applyTransform(matrix, offset);
                         applyTransform(matrix, modelTransform);
                         matrix.scale(scale, scale, scale);

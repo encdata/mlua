@@ -161,7 +161,7 @@ final class MLuaWorldRenderPipeline {
     }
 
     /** Snapshots Lua-mutable model state before queuing any deferred collector callbacks. */
-    private static boolean submitBBModelGeometry(Object renderSource, PoseStack pose, RenderObject object,
+    static boolean submitBBModelGeometry(Object renderSource, PoseStack pose, RenderObject object,
             int light, int overlay, float partialTick,
             java.util.function.Consumer<Matrix4f> objectTransform) {
         MLuaBBModelAsset asset = object.bbmodel;
@@ -239,7 +239,7 @@ final class MLuaWorldRenderPipeline {
         return submittedAny;
     }
 
-    private static boolean submitMeshGeometry(Object renderSource, PoseStack pose, MLuaMeshDefinition mesh,
+    static boolean submitMeshGeometry(Object renderSource, PoseStack pose, MLuaMeshDefinition mesh,
             ResourceLocation texture, int light, int overlay, RenderObject owner,
             java.util.function.Consumer<Matrix4f> transform) {
         if (mesh == null || texture == null) return false;

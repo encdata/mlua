@@ -372,6 +372,10 @@ if "MLuaWorldRenderPipeline.renderWorldContext(stage, context);" not in render_m
 if "static void renderWorldContext(String stage, Object context)" not in world_render_pipeline \
         or "submitCustomGeometry(" not in world_render_pipeline:
     fail("world render pipeline must own context routing and deferred geometry submission")
+for operation in ("MLuaWorldRenderPipeline.submitMeshGeometry(",
+                  "MLuaWorldRenderPipeline.submitBBModelGeometry("):
+    if operation not in render_manager:
+        fail(f"render manager must share deferred geometry submission across render targets: {operation}")
 if "private static void renderWorldModels(" in render_manager \
         or "private static boolean submitWorldMesh(" in render_manager:
     fail("world render implementation is duplicated in the render manager")
