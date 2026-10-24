@@ -5,7 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.service.MLuaService;
-import dev.mlua.core.service.MLuaServerThreadReflectiveService;
+import dev.mlua.core.service.MLuaGameThreadReflectiveService;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.minecraft.binding.MLuaLuaArguments;
 import dev.mlua.modules.entity.MLuaEntityQuery;
@@ -26,7 +26,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 @MLuaDescription("Query, spawn, move, damage, and remove Minecraft entities from Lua.")
-public final class MLuaEntityService extends MLuaServerThreadReflectiveService {
+public final class MLuaEntityService extends MLuaGameThreadReflectiveService {
     private final MLuaEntityQueryOperations queryOperations;
     public MLuaEntityService(MLuaService.Context context) {
         super(context);

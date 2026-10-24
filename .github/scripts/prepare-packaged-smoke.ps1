@@ -1392,7 +1392,10 @@ connection = RunService.Heartbeat:Connect(function()
             print("MLUA_CI_PLAYER_NEARBY_QUERY_DONE:" .. nearbyEntityCount)
         end
     end
-    if playerPickupReceived and inputPressState == 0 then
+    -- Input and movement are independent of the item-pickup event. Keep pickup
+    -- as its own asserted gameplay path so a pickup regression cannot hide
+    -- whether simulated controls still work.
+    if playerSeen and inputPressState == 0 then
         print("MLUA_CI_PLAYER_INPUT_PRESS_BEGIN")
         inputStartX = player:GetPositionX()
         inputStartZ = player:GetPositionZ()

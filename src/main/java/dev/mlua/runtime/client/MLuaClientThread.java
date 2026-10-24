@@ -5,6 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaThread;
@@ -95,10 +96,28 @@ public final class MLuaClientThread {
             throw new LuaError("[MLua] Client player actions must be called from a client Lua callback.");
         }
 
+        try {
+            return submitToClientThread(minecraft, action::get);
+        } catch (RuntimeException | Error failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new LuaError("[MLua] Client player action failed: " + failure.getMessage());
+        }
+    }
+
+    /** Reads client-owned Minecraft state on its owner thread, including from asynchronous Lua workers. */
+    public static <T> T callForClientState(Callable<T> action) throws Exception {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null) throw new LuaError("[MLua] Minecraft's client is not available.");
+        if (minecraft.isSameThread()) return action.call();
+        return submitToClientThread(minecraft, action);
+    }
+
+    private static <T> T submitToClientThread(Minecraft minecraft, Callable<T> action) throws Exception {
         CompletableFuture<T> result = new CompletableFuture<>();
         minecraft.execute(() -> {
             try {
-                result.complete(action.get());
+                result.complete(action.call());
             } catch (Throwable failure) {
                 result.completeExceptionally(failure);
             }
@@ -107,9 +126,9 @@ public final class MLuaClientThread {
             return result.join();
         } catch (CompletionException failure) {
             Throwable cause = failure.getCause() == null ? failure : failure.getCause();
-            if (cause instanceof RuntimeException runtime) throw runtime;
+            if (cause instanceof Exception exception) throw exception;
             if (cause instanceof Error error) throw error;
-            throw new LuaError("[MLua] Client player action failed: " + cause.getMessage());
+            throw new IllegalStateException(cause);
         }
     }
 

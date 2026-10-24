@@ -11,6 +11,7 @@ SERVICE = ROOT / "src/main/java/dev/mlua/modules/entity/service/MLuaEntityServic
 QUERIES = ROOT / "src/main/java/dev/mlua/modules/entity/service/MLuaEntityQueryOperations.java"
 service = SERVICE.read_text(encoding="utf-8")
 queries = QUERIES.read_text(encoding="utf-8")
+instance_bindings = (ROOT / "src/main/java/dev/mlua/modules/players/classes/MLuaEntityPropertiesBindings.java").read_text(encoding="utf-8")
 
 
 def fail(message: str) -> None:
@@ -34,6 +35,8 @@ delegates = {
 
 if "private final MLuaEntityQueryOperations queryOperations" not in service:
     fail("EntityService does not own its query component")
+if "extends MLuaGameThreadReflectiveService" not in service:
+    fail("EntityService live-world calls must run on the owning game thread")
 for public_name, operation in delegates.items():
     method = re.search(
         rf"@MLuaDescription\([^\n]*\)\s+public\s+[^{{]+\b{public_name}\s*\([^{{]*\)\s*\{{([^{{}}]*)\}}",
@@ -53,5 +56,9 @@ for operation in (
         fail(f"entity query component is missing {operation}")
 if "MLuaEntityQuery.compileFilter(" in service or "MLuaEntityQuery.forEachWithinRadius(" in service:
     fail("filter compilation or spatial query logic remains in the EntityService facade")
+if "MLuaClientThread.callForClientState(query::get)" not in instance_bindings:
+    fail("client Entity:GetNearbyEntities must query the client world on its owner thread")
+if "MLuaServerThread.call(serverLevel.getServer(), query)" not in instance_bindings:
+    fail("server Entity:GetNearbyEntities must query the server world on its owner thread")
 
-print("Entity service contract passed (query and lookup endpoints delegate to their component).")
+print("Entity service contract passed (query ownership and client/server thread dispatch are explicit).")
