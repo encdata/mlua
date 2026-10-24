@@ -26,7 +26,7 @@ abstract class MLuaWorldServiceBase extends MLuaServiceBase {
 
     protected abstract LuaTable createWorld(Level level);
 
-    protected final void retainWorlds(Set<Level> activeLevels) {
+    protected final synchronized void retainWorlds(Set<Level> activeLevels) {
         worldInstances.retain(activeLevels);
     }
 
