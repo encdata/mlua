@@ -23,7 +23,7 @@ final class MLuaRegistryOreVeinApi {
                     throw new LuaError("[MLua] WorldGeneration:RegisterOreVein requires a non-empty targets array.");
                 }
                 validateTargets(targets.checktable());
-                MLuaRegistryDefinitions.stringValues(biomes, "ore vein biomes");
+                MLuaRegistryPropertyReaders.stringValues(biomes, "ore vein biomes");
                 if (step.isnil() || (step.type() != LuaValue.TSTRING
                     && dev.mlua.modules.enums.MLuaEnumValue.toJava(
                         step, dev.mlua.loaderapi.GenerationDecorationStep.class) == null)) {

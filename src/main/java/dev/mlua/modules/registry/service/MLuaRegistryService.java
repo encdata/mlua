@@ -355,7 +355,7 @@ public final class MLuaRegistryService extends MLuaServiceBase {
       return this.tagOperations.register(kind, name, definition);
    }
 
-   void registerMiningProperties(String owner, String name, MLuaRegistryDefinitions.MiningProperties properties) {
+   void registerMiningProperties(String owner, String name, MLuaRegistryMiningProperties properties) {
       this.tagOperations.registerMiningProperties(owner, name, properties);
    }
 

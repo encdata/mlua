@@ -42,10 +42,10 @@ final class MLuaRegistryItemBlockApi {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = service.apiContext().mlua().ownerModId();
-            MLuaRegistryDefinitions.requireLocalRegistryName(owner, name, "Registry.Items:Register");
+            MLuaRegistryContentValidation.requireLocalRegistryName(owner, name, "Registry.Items:Register");
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "ItemProperties", "Registry.Items:Register");
-            List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
+            List<String> description = MLuaRegistryDescriptions.read(propsTable);
             Map<String, Object> props = MLuaRegistryLuaValues.registryPropertiesMap(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             try {
@@ -55,13 +55,13 @@ final class MLuaRegistryItemBlockApi {
             }
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
-            String className = MLuaRegistryDefinitions.requireContentClass(registration, propsTable, "Item");
+            String className = MLuaRegistryContentValidation.requireContentClass(registration, propsTable, "Item");
             Map<String, LuaValue> itemCallbacks = MLuaRegistryLuaValues.collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             boolean hasCallbacks = !itemCallbacks.isEmpty();
-            boolean copyModel = MLuaRegistryDefinitions.booleanProperty(propsTable, "copyModel", "CopyModel");
-            MLuaTextureDescriptor itemTexture = MLuaRegistryDefinitions.textureDescriptor(propsTable, "itemTexture", "texture", "textures", "ItemTexture", "Texture", "Textures").resolve(owner, "item");
-            String itemModel = MLuaRegistryDefinitions.resolvedModel(owner, "item", propsTable, "model", "Model", "itemModel", "ItemModel");
+            boolean copyModel = MLuaRegistryPropertyReaders.booleanProperty(propsTable, "copyModel", "CopyModel");
+            MLuaTextureDescriptor itemTexture = MLuaRegistryVisualDefinitions.textureDescriptor(propsTable, "itemTexture", "texture", "textures", "ItemTexture", "Texture", "Textures").resolve(owner, "item");
+            String itemModel = MLuaRegistryVisualDefinitions.resolvedModel(owner, "item", propsTable, "model", "Model", "itemModel", "ItemModel");
             if (hasCallbacks) {
                MLuaLoaderRegistry.register(RegistryKind.ITEM, owner, name, () -> {
                   return service.itemFactory.createScripted(props, key);
@@ -100,10 +100,10 @@ final class MLuaRegistryItemBlockApi {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = service.apiContext().mlua().ownerModId();
-            MLuaRegistryDefinitions.requireLocalRegistryName(owner, name, "Registry.Blocks:Register");
+            MLuaRegistryContentValidation.requireLocalRegistryName(owner, name, "Registry.Blocks:Register");
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "BlockProperties", "Registry.Blocks:Register");
-            List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
+            List<String> description = MLuaRegistryDescriptions.read(propsTable);
             Map<String, Object> props = new HashMap(MLuaRegistryLuaValues.registryPropertiesMap(propsTable,
                "onRightClick", "onPlace", "onBreak", "onStepOn", "onEntityInside",
                "onNeighborChanged", "onRemove", "onRandomTick", "onTick", "onFallOn", "onProjectileHit"));
@@ -114,12 +114,12 @@ final class MLuaRegistryItemBlockApi {
             }
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
-            String className = MLuaRegistryDefinitions.requireContentClass(registration, propsTable, "Block");
+            String className = MLuaRegistryContentValidation.requireContentClass(registration, propsTable, "Block");
             LuaValue blockEntityDefinition = propsTable == null ? LuaValue.NIL : propsTable.get("blockEntity");
             if (blockEntityDefinition.isnil() && propsTable != null) blockEntityDefinition = propsTable.get("BlockEntity");
             LuaTable blockEntityProperties = blockEntityDefinition.istable() ? blockEntityDefinition.checktable() : null;
             String blockEntityClass = blockEntityProperties != null
-               ? MLuaRegistryDefinitions.requireContentClass(registration, blockEntityProperties, "BlockEntity") : "BlockEntity";
+               ? MLuaRegistryContentValidation.requireContentClass(registration, blockEntityProperties, "BlockEntity") : "BlockEntity";
             if (propsTable != null && !propsTable.get("blockEntityClass").isnil()) {
                blockEntityClass = propsTable.get("blockEntityClass").checkjstring();
                if (registration.classTable(blockEntityClass) == null || !registration.isSubclassOf(blockEntityClass, "BlockEntity")) {
@@ -171,11 +171,11 @@ final class MLuaRegistryItemBlockApi {
                   }
                }
             }
-            boolean copyModel = MLuaRegistryDefinitions.booleanProperty(propsTable, "copyModel", "CopyModel");
-            MLuaTextureDescriptor texture = MLuaRegistryDefinitions.textureDescriptor(propsTable, "textures", "texture", "Textures", "Texture", "blockTexture", "BlockTexture").resolve(owner, "block");
-            String model = MLuaRegistryDefinitions.resolvedModel(owner, "block", propsTable, "model", "Model", "blockModel", "BlockModel");
-            JsonObject blockState = MLuaRegistryDefinitions.optionalJsonObject(propsTable, "blockState", "blockstate", "BlockState");
-            MLuaRegistryDefinitions.MiningProperties mining = MLuaRegistryDefinitions.prepareMiningProperties(propsTable, props);
+            boolean copyModel = MLuaRegistryPropertyReaders.booleanProperty(propsTable, "copyModel", "CopyModel");
+            MLuaTextureDescriptor texture = MLuaRegistryVisualDefinitions.textureDescriptor(propsTable, "textures", "texture", "Textures", "Texture", "blockTexture", "BlockTexture").resolve(owner, "block");
+            String model = MLuaRegistryVisualDefinitions.resolvedModel(owner, "block", propsTable, "model", "Model", "blockModel", "BlockModel");
+            JsonObject blockState = MLuaRegistryPropertyReaders.optionalJsonObject(propsTable, "blockState", "blockstate", "BlockState");
+            MLuaRegistryMiningProperties mining = MLuaRegistryMiningProperties.read(propsTable, props);
             if (blockState != null) {
                service.registerGeneratedAsset(GeneratedAssetKind.BLOCKSTATE, owner, name, blockState);
             }
@@ -209,10 +209,10 @@ final class MLuaRegistryItemBlockApi {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = service.apiContext().mlua().ownerModId();
-            MLuaRegistryDefinitions.requireLocalRegistryName(owner, name, "Registry.Blocks:RegisterItem");
+            MLuaRegistryContentValidation.requireLocalRegistryName(owner, name, "Registry.Blocks:RegisterItem");
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "ItemProperties", "Registry.Blocks:RegisterItem");
-            List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
+            List<String> description = MLuaRegistryDescriptions.read(propsTable);
             Map<String, Object> props = MLuaRegistryLuaValues.registryPropertiesMap(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             try {
@@ -222,7 +222,7 @@ final class MLuaRegistryItemBlockApi {
             }
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
-            String className = MLuaRegistryDefinitions.requireContentClass(registration, propsTable, "BlockItem");
+            String className = MLuaRegistryContentValidation.requireContentClass(registration, propsTable, "BlockItem");
             Map<String, LuaValue> itemCallbacks = MLuaRegistryLuaValues.collectCallbacks(propsTable,
                "onUse", "onUseOnBlock", "onInventoryTick", "onCrafted", "onConsume", "onAttackEntity");
             boolean hasCallbacks = !itemCallbacks.isEmpty();

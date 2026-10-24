@@ -160,7 +160,8 @@ for operation in ("attributeValue(", "additionalAttributes(", "addAttribute(",
                   "requirePositiveSize(", "mobCategory(", "colorProperty("):
     if operation not in entity_definitions or f"MLuaRegistryEntityDefinitions.{operation}" not in entity_api:
         fail(f"scripted entity registration does not delegate {operation} to its definition owner")
-if "ENTITY_ATTRIBUTE_ALIASES" in (API_ROOT / "MLuaRegistryDefinitions.java").read_text(encoding="utf-8"):
+property_readers = (API_ROOT / "MLuaRegistryPropertyReaders.java").read_text(encoding="utf-8")
+if "ENTITY_ATTRIBUTE_ALIASES" in property_readers:
     fail("generic registry definitions still own entity-specific attribute rules")
 
 container_definitions_path = API_ROOT / "MLuaRegistryContainerDefinitions.java"
@@ -175,7 +176,7 @@ for operation in ("allowedItems(", "slotAllowedItems(", "slotsLength(", "propert
 if "MLuaRegistryContainerDefinitions.slotAllowedItems(" not in container_api or \
         "MLuaRegistryContainerDefinitions.slotAllowedItems(" not in item_block_api:
     fail("both container registration paths must use the shared container definition owner")
-if "containerSlotAllowedItems" in (API_ROOT / "MLuaRegistryDefinitions.java").read_text(encoding="utf-8"):
+if "containerSlotAllowedItems" in property_readers:
     fail("generic registry definitions still own container-specific slot parsing")
 
 print("Registry lifecycle contract passed for script rollback and loader ownership.")

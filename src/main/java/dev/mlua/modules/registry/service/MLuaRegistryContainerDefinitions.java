@@ -20,7 +20,7 @@ final class MLuaRegistryContainerDefinitions {
         if (items.istable() && items.checktable().next(LuaValue.NIL).arg1().isnil()) return Set.of();
 
         Set<String> resolved = new LinkedHashSet<>();
-        for (String item : MLuaRegistryDefinitions.stringValues(items, "Container AllowedItems")) {
+        for (String item : MLuaRegistryPropertyReaders.stringValues(items, "Container AllowedItems")) {
             String candidate = item.trim();
             var parsed = MLuaResourceLocations.tryParseOrNull(
                 candidate.contains(":") ? candidate : owner + ":" + candidate);

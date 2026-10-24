@@ -83,8 +83,8 @@ final class MLuaRegistryGeneratedResourceApi {
             String owner = service.apiContext().mlua().ownerModId();
             String name = args.checkjstring(2);
             LuaTable definition = args.checktable(3);
-            String feature = MLuaRegistryDefinitions.stringProperty(definition, "feature", "Feature", "placedFeature", "PlacedFeature");
-            String step = MLuaRegistryDefinitions.worldGenerationStepProperty(definition);
+            String feature = MLuaRegistryPropertyReaders.stringProperty(definition, "feature", "Feature", "placedFeature", "PlacedFeature");
+            String step = MLuaRegistryWorldGenerationValues.decorationStep(definition);
             if (feature == null || feature.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a placed feature id");
             if (step == null || step.isBlank()) throw new LuaError("[MLua] WorldGeneration.addFeature requires a generation step");
             try {
@@ -94,9 +94,9 @@ final class MLuaRegistryGeneratedResourceApi {
             }
             LuaValue biomes = definition.get("biomes");
             if (biomes.isnil()) biomes = definition.get("Biomes");
-            String featureId = MLuaRegistryDefinitions.qualifiedDataId(owner, feature, false);
-            List<String> biomeIds = MLuaRegistryDefinitions.stringValues(biomes, "biomes").stream()
-               .map(value -> MLuaRegistryDefinitions.qualifiedDataId(owner,
+            String featureId = MLuaRegistryWorldGenerationValues.qualifiedId(owner, feature, false);
+            List<String> biomeIds = MLuaRegistryPropertyReaders.stringValues(biomes, "biomes").stream()
+               .map(value -> MLuaRegistryWorldGenerationValues.qualifiedId(owner,
                   value.startsWith("#") ? value.substring(1) : value, value.startsWith("#")))
                .toList();
             try {

@@ -10,7 +10,6 @@ import org.luaj.vm2.LuaValue;
 
 import dev.mlua.loaderapi.GeneratedAssetKind;
 import dev.mlua.loaderapi.RegistryKind;
-import dev.mlua.modules.registry.service.MLuaRegistryDefinitions.MiningProperties;
 import dev.mlua.runtime.registry.MLuaLoaderRegistry;
 
 /** Owns generated tag definitions and their registration rollback behavior. */
@@ -37,7 +36,7 @@ final class MLuaRegistryTagOperations {
          valuesElement.getAsJsonArray());
    }
 
-   void registerMiningProperties(String owner, String name, MiningProperties properties) {
+   void registerMiningProperties(String owner, String name, MLuaRegistryMiningProperties properties) {
       if (properties.mineableTag() != null) registerSingleBlock(owner, properties.mineableTag(), owner + ":" + name);
       if (properties.requiredTierTag() != null) registerSingleBlock(owner, properties.requiredTierTag(), owner + ":" + name);
    }

@@ -20,7 +20,7 @@ final class MLuaRegistryProjectileApi {
                 service.ensureRegistryPhase();
                 String name = args.checkjstring(2);
                 String ownerModId = service.apiContext().mlua().ownerModId();
-                MLuaRegistryDefinitions.requireLocalRegistryName(ownerModId, name,
+                MLuaRegistryContentValidation.requireLocalRegistryName(ownerModId, name,
                     "Registry.Projectiles:Register");
                 LuaTable properties = args.arg(3).opttable(null);
                 if (properties == null) {

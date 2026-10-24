@@ -24,7 +24,7 @@ final class MLuaRegistryContainerApi {
          @Override public Varargs invoke(Varargs args) {
             service.ensureRegistryPhase();
             String name = service.requiredLuaString(args, 2, "Registry.Containers:Register", "id");
-            MLuaRegistryDefinitions.requireLocalRegistryName(service.apiContext().mlua().ownerModId(),
+            MLuaRegistryContentValidation.requireLocalRegistryName(service.apiContext().mlua().ownerModId(),
                name, "Registry.Containers:Register");
             LuaTable definition = args.checktable(3);
             int rows = MLuaLuaArguments.optionalWholeInt(MLuaRegistryContainerDefinitions.property(definition, "rows", "Rows"), 3,

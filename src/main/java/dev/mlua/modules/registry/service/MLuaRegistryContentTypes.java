@@ -100,8 +100,8 @@ final class MLuaRegistryContentTypes {
     }
 
     void register(String domain, String name, LuaTable definition) {
-        String base = MLuaRegistryDefinitions.stringProperty(definition, "base", "Base");
-        String description = MLuaRegistryDefinitions.stringProperty(definition, "description", "Description");
+        String base = MLuaRegistryPropertyReaders.stringProperty(definition, "base", "Base");
+        String description = MLuaRegistryPropertyReaders.stringProperty(definition, "description", "Description");
         LuaValue defaultsValue = definition.get("defaults");
         if (defaultsValue.isnil()) defaultsValue = definition.get("Defaults");
         LuaTable defaults = MLuaRegistryProperties.optionalTable(

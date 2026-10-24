@@ -41,12 +41,12 @@ final class MLuaRegistryEntityApi {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = service.apiContext().mlua().ownerModId();
-            MLuaRegistryDefinitions.requireLocalRegistryName(owner, name, "Registry.Entities:Register");
+            MLuaRegistryContentValidation.requireLocalRegistryName(owner, name, "Registry.Entities:Register");
             LuaTable propsTable = MLuaRegistryProperties.table(service.apiContext().mlua().registration(),
                args.arg(3), "EntityProperties", "Registry.Entities:Register");
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
-            String className = MLuaRegistryDefinitions.requireContentClass(registration, propsTable, "ScriptedEntity");
+            String className = MLuaRegistryContentValidation.requireContentClass(registration, propsTable, "ScriptedEntity");
             int aiInterval = MLuaLuaArguments.optionalWholeInt(
                 propsTable == null ? LuaValue.NIL : propsTable.get("aiInterval"), 5,
                 "Registry.Entities:Register", "aiInterval");
@@ -71,13 +71,13 @@ final class MLuaRegistryEntityApi {
              LuaValue onTargetChanged = propsTable != null ? propsTable.get("onTargetChanged") : LuaValue.NIL;
              LuaValue onRemove = propsTable != null ? propsTable.get("onRemove") : LuaValue.NIL;
              MLuaBehaviorRegistry.validateEntityAI(onAI);
-             MLuaRegistryDefinitions.validateCallback("onTick", onTick);
-             MLuaRegistryDefinitions.validateCallback("onHurt", onHurt);
-             MLuaRegistryDefinitions.validateCallback("onDeath", onDeath);
-             MLuaRegistryDefinitions.validateCallback("onSpawn", onSpawn);
-             MLuaRegistryDefinitions.validateCallback("onInteract", onInteract);
-             MLuaRegistryDefinitions.validateCallback("onTargetChanged", onTargetChanged);
-             MLuaRegistryDefinitions.validateCallback("onRemove", onRemove);
+             MLuaRegistryContentValidation.validateCallback("onTick", onTick);
+             MLuaRegistryContentValidation.validateCallback("onHurt", onHurt);
+             MLuaRegistryContentValidation.validateCallback("onDeath", onDeath);
+             MLuaRegistryContentValidation.validateCallback("onSpawn", onSpawn);
+             MLuaRegistryContentValidation.validateCallback("onInteract", onInteract);
+             MLuaRegistryContentValidation.validateCallback("onTargetChanged", onTargetChanged);
+             MLuaRegistryContentValidation.validateCallback("onRemove", onRemove);
              LuaValue attributesValue = propsTable != null ? propsTable.get("attributes") : LuaValue.NIL;
              if (!attributesValue.isnil() && !attributesValue.istable()) {
                 throw new LuaError("[MLua] Registry.Entities:Register attributes must be a table.");
@@ -96,8 +96,8 @@ final class MLuaRegistryEntityApi {
              double height = propsTable != null ? propsTable.get("height").optdouble(1.8) : 1.8;
              MLuaRegistryEntityDefinitions.requirePositiveSize("width", width);
              MLuaRegistryEntityDefinitions.requirePositiveSize("height", height);
-             MLuaTextureDescriptor entityTexture = MLuaRegistryDefinitions.textureDescriptor(propsTable, "texture", "Texture", "entityTexture", "EntityTexture").resolve(owner, "entity");
-             String entityModel = MLuaRegistryDefinitions.stringProperty(propsTable, "model", "Model", "entityModel", "EntityModel");
+             MLuaTextureDescriptor entityTexture = MLuaRegistryVisualDefinitions.textureDescriptor(propsTable, "texture", "Texture", "entityTexture", "EntityTexture").resolve(owner, "entity");
+             String entityModel = MLuaRegistryPropertyReaders.stringProperty(propsTable, "model", "Model", "entityModel", "EntityModel");
              float shadowRadius = propsTable != null ? (float)propsTable.get("shadowRadius").optdouble(0.5) : 0.5F;
              if (!Float.isFinite(shadowRadius) || shadowRadius < 0.0F) {
                 throw new LuaError("[MLua] Registry.Entities:Register shadowRadius must be a finite non-negative number.");
@@ -153,9 +153,9 @@ final class MLuaRegistryEntityApi {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = service.apiContext().mlua().ownerModId();
-            MLuaRegistryDefinitions.requireLocalRegistryName(owner, name, "Registry.Entities:RegisterSpawnEgg");
+            MLuaRegistryContentValidation.requireLocalRegistryName(owner, name, "Registry.Entities:RegisterSpawnEgg");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
-            List<String> description = MLuaRegistryDefinitions.descriptionList(propsTable);
+            List<String> description = MLuaRegistryDescriptions.read(propsTable);
 
             String entityName = propsTable != null ? propsTable.get("entity").optjstring(name) : name;
             if (!entityName.contains(":")) entityName = owner + ":" + entityName;

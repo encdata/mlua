@@ -24,7 +24,7 @@ final class MLuaRegistryEntityDefinitions {
     private MLuaRegistryEntityDefinitions() { }
 
     static MobCategory mobCategory(LuaTable properties) {
-        String value = MLuaRegistryDefinitions.stringProperty(
+        String value = MLuaRegistryPropertyReaders.stringProperty(
             properties, "category", "Category", "mobCategory", "MobCategory");
         if (value == null || value.isBlank()) return MobCategory.CREATURE;
 

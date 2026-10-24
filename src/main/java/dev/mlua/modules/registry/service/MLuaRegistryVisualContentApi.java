@@ -27,7 +27,7 @@ final class MLuaRegistryVisualContentApi {
          public Varargs invoke(Varargs args) {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
-            MLuaRegistryDefinitions.requireLocalRegistryName(service.apiContext().mlua().ownerModId(),
+            MLuaRegistryContentValidation.requireLocalRegistryName(service.apiContext().mlua().ownerModId(),
                name, "Registry.Particles:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             boolean overrideLimiter = propsTable != null && propsTable.get("overrideLimiter").optboolean(false);
@@ -40,10 +40,10 @@ final class MLuaRegistryVisualContentApi {
          public Varargs invoke(Varargs args) {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
-            MLuaRegistryDefinitions.requireLocalRegistryName(service.apiContext().mlua().ownerModId(),
+            MLuaRegistryContentValidation.requireLocalRegistryName(service.apiContext().mlua().ownerModId(),
                name, "Registry.Potions:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
-            List<MobEffectInstance> effects = MLuaRegistryDefinitions.potionEffects(propsTable);
+            List<MobEffectInstance> effects = MLuaRegistryEffectDefinitions.potionEffects(propsTable);
             String owner = service.apiContext().mlua().ownerModId();
             MLuaLoaderRegistry.register(RegistryKind.POTION, owner, name, () -> {
                //--version 26.1
@@ -64,28 +64,28 @@ final class MLuaRegistryVisualContentApi {
             service.ensureRegistryPhase();
             String name = args.checkjstring(2);
             String owner = service.apiContext().mlua().ownerModId();
-            MLuaRegistryDefinitions.requireLocalRegistryName(owner, name, "Registry.Effects:Register");
+            MLuaRegistryContentValidation.requireLocalRegistryName(owner, name, "Registry.Effects:Register");
             LuaTable propsTable = args.arg(3).opttable((LuaTable)null);
             String key = owner + ":" + name;
-            LuaValue onTick = MLuaRegistryDefinitions.callbackProperty(propsTable, "onTick", "OnTick");
-            LuaValue onApplied = MLuaRegistryDefinitions.callbackProperty(propsTable, "onApplied", "OnApplied");
-            LuaValue onEnding = MLuaRegistryDefinitions.callbackProperty(propsTable, "onEnding", "OnEnding");
-            MLuaRegistryDefinitions.validateCallback("onTick", onTick);
-            MLuaRegistryDefinitions.validateCallback("onApplied", onApplied);
-            MLuaRegistryDefinitions.validateCallback("onEnding", onEnding);
-            MobEffectCategory category = MLuaRegistryDefinitions.effectCategory(propsTable);
-            int color = MLuaRegistryDefinitions.colorProperty(propsTable, 16777215, "color", "Color");
-            String descriptionId = MLuaRegistryDefinitions.stringProperty(propsTable, "translation", "Translation", "descriptionId", "DescriptionId", "name", "Name");
-            String iconValue = MLuaRegistryDefinitions.stringProperty(propsTable, "icon", "Icon");
-            boolean visibleInInventory = MLuaRegistryDefinitions.hasProperty(propsTable, "visibleInInventory", "VisibleInInventory") ? MLuaRegistryDefinitions.booleanProperty(propsTable, "visibleInInventory", "VisibleInInventory") : true;
-            boolean visibleInGui = MLuaRegistryDefinitions.hasProperty(propsTable, "visibleInGui", "VisibleInGui") ? MLuaRegistryDefinitions.booleanProperty(propsTable, "visibleInGui", "VisibleInGui") : true;
-            boolean instant = MLuaRegistryDefinitions.booleanProperty(propsTable, "instant", "Instant");
-            int tickInterval = MLuaRegistryDefinitions.wholeIntProperty(propsTable, 1, "tickInterval", "TickInterval");
+            LuaValue onTick = MLuaRegistryPropertyReaders.callbackProperty(propsTable, "onTick", "OnTick");
+            LuaValue onApplied = MLuaRegistryPropertyReaders.callbackProperty(propsTable, "onApplied", "OnApplied");
+            LuaValue onEnding = MLuaRegistryPropertyReaders.callbackProperty(propsTable, "onEnding", "OnEnding");
+            MLuaRegistryContentValidation.validateCallback("onTick", onTick);
+            MLuaRegistryContentValidation.validateCallback("onApplied", onApplied);
+            MLuaRegistryContentValidation.validateCallback("onEnding", onEnding);
+            MobEffectCategory category = MLuaRegistryEffectDefinitions.category(propsTable);
+            int color = MLuaRegistryPropertyReaders.colorProperty(propsTable, 16777215, "color", "Color");
+            String descriptionId = MLuaRegistryPropertyReaders.stringProperty(propsTable, "translation", "Translation", "descriptionId", "DescriptionId", "name", "Name");
+            String iconValue = MLuaRegistryPropertyReaders.stringProperty(propsTable, "icon", "Icon");
+            boolean visibleInInventory = MLuaRegistryPropertyReaders.hasProperty(propsTable, "visibleInInventory", "VisibleInInventory") ? MLuaRegistryPropertyReaders.booleanProperty(propsTable, "visibleInInventory", "VisibleInInventory") : true;
+            boolean visibleInGui = MLuaRegistryPropertyReaders.hasProperty(propsTable, "visibleInGui", "VisibleInGui") ? MLuaRegistryPropertyReaders.booleanProperty(propsTable, "visibleInGui", "VisibleInGui") : true;
+            boolean instant = MLuaRegistryPropertyReaders.booleanProperty(propsTable, "instant", "Instant");
+            int tickInterval = MLuaRegistryPropertyReaders.wholeIntProperty(propsTable, 1, "tickInterval", "TickInterval");
             if (tickInterval < 1) {
                throw new LuaError("[MLua] Registry.Effects:Register tickInterval must be at least 1 tick");
             }
             MLuaLoaderRegistry.register(RegistryKind.MOB_EFFECT, owner, name, () -> {
-               return new MLuaScriptedMobEffect(category, color, key, MLuaRegistryDefinitions.effectDescriptionId(owner, name, descriptionId), iconValue != null && !iconValue.isBlank() ? MLuaAssetResolver.resolveTexture(owner, iconValue, "mob_effect") : null, visibleInInventory, visibleInGui, instant, tickInterval);
+               return new MLuaScriptedMobEffect(category, color, key, MLuaRegistryEffectDefinitions.descriptionId(owner, name, descriptionId), iconValue != null && !iconValue.isBlank() ? MLuaAssetResolver.resolveTexture(owner, iconValue, "mob_effect") : null, visibleInInventory, visibleInGui, instant, tickInterval);
             });
             service.replaceBehaviors("effect", key, Map.of(
                "onTick", onTick, "onApplied", onApplied, "onEnding", onEnding));
