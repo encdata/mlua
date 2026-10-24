@@ -85,8 +85,8 @@ public final class MLuaModelAdapterRegistry {
     private record AppliedModel(Class<?> modelClass, Map<String, String> mappings,
                                 java.util.Set<String> resolvedBones, java.util.Set<String> customBones) { }
     private record OrderedResolvers(long generation, List<AdapterResolver> values) { }
-    private record CustomAdapterResolution(Map<CustomAdapter, List<String>> adapters,
-                                           Map<String, CustomAdapter> byBone) {
+    static record CustomAdapterResolution(Map<CustomAdapter, List<String>> adapters,
+                                          Map<String, CustomAdapter> byBone) {
         private static final CustomAdapterResolution EMPTY = new CustomAdapterResolution(Map.of(), Map.of());
     }
 
@@ -819,7 +819,7 @@ public final class MLuaModelAdapterRegistry {
             || !customAdaptersForModel(model.getClass()).adapters().isEmpty());
     }
 
-    private static CustomAdapterResolution customAdaptersForModel(Class<?> modelClass) {
+    static CustomAdapterResolution customAdaptersForModel(Class<?> modelClass) {
         if (modelClass == null) return CustomAdapterResolution.EMPTY;
         synchronized (RESOLVED_CUSTOM_ADAPTERS) {
             CustomAdapterResolution cached = RESOLVED_CUSTOM_ADAPTERS.get(modelClass);
@@ -853,7 +853,7 @@ public final class MLuaModelAdapterRegistry {
         }
     }
 
-    private static CustomAdapter customAdapterForBone(Class<?> modelClass, String boneName) {
+    static CustomAdapter customAdapterForBone(Class<?> modelClass, String boneName) {
         return customAdaptersForModel(modelClass).byBone().get(boneName);
     }
 
@@ -877,44 +877,7 @@ public final class MLuaModelAdapterRegistry {
 
     /** Called by loader render hooks on the client render thread. Lua resolvers run once per live model instance. */
     public static java.util.Set<String> apply(Object model, MLuaEntityScope scope) {
-        if (model == null || scope == null) return java.util.Set.of();
-        if (!MLuaClientRenderThread.require("model adapter")) return java.util.Set.of();
-        Map<String, String> mapping = findMappingForModel(model);
-        Map<CustomAdapter, List<String>> customAdapters = customAdaptersForModel(model.getClass()).adapters();
-        if (mapping == null && customAdapters.isEmpty()) {
-            APPLIED_MODELS.remove(scope);
-            return java.util.Set.of();
-        }
-        if (mapping == null) mapping = Map.of();
-        Map<String, MLuaCFrame> animation = MLuaBonePose.getRenderPose(scope);
-        java.util.LinkedHashSet<String> applied = new java.util.LinkedHashSet<>();
-        Map<String, ModelPart> resolvedParts = resolvedParts(model, mapping);
-        Map<String, MLuaClientModelManager.PartState> partStates =
-            MLuaClientModelManager.getMergedPartStates(scope, mapping.keySet());
-        for (Map.Entry<String, String> entry : mapping.entrySet()) {
-            ModelPart part = resolvedParts.get(entry.getKey());
-            if (part == null) {
-                reportMissingPath(model.getClass(), entry.getKey(), entry.getValue());
-                continue;
-            }
-            applied.add(entry.getKey());
-            MLuaCFrame pose = animation == null ? null : animation.get(entry.getKey());
-            if (pose != null) {
-                MLuaClientModelManager.rememberOverridePose(model, part);
-                applyPose(part, pose);
-            }
-            MLuaClientModelManager.applyState(model, part,
-                partStates.get(MLuaClientModelManager.normalizePartName(entry.getKey())));
-        }
-        java.util.LinkedHashSet<String> customBones = new java.util.LinkedHashSet<>();
-        customAdapters.forEach((adapter, bones) -> {
-            if (MLuaCustomModelAdapterInvoker.apply(adapter, model, scope, bones)) customBones.addAll(bones);
-        });
-        applied.addAll(customBones);
-        java.util.Set<String> resolved = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(applied));
-        APPLIED_MODELS.put(scope, new AppliedModel(model.getClass(), mapping, resolved,
-            Collections.unmodifiableSet(customBones)));
-        return resolved;
+        return MLuaModelAdapterApplication.apply(model, scope);
     }
 
     public static Map<String, String> findMapping(Class<?> modelClass) {
@@ -1062,42 +1025,32 @@ public final class MLuaModelAdapterRegistry {
 
     /** Applies the registered model-part hierarchy to a pose stack for attachments. */
     public static boolean applyPartTransform(Object model, String boneName, PoseStack poseStack) {
-        return applyPartTransform(model, boneName, poseStack, null);
+        return MLuaModelAdapterApplication.applyPartTransform(model, boneName, poseStack, null);
     }
 
     /** Applies the live entity's mapped animation and part state while resolving an attachment bone. */
     public static boolean applyPartTransform(Object model, String boneName, PoseStack poseStack,
                                              MLuaEntityScope scope) {
-        if (model == null || boneName == null || boneName.isBlank() || poseStack == null) return false;
-        Map<String, String> mapping = findMappingForModel(model);
-        String path = mapping == null ? null : mapping.get(boneName);
-        if (path == null) {
-            CustomAdapter custom = customAdapterForBone(model.getClass(), boneName);
-            if (custom != null) return MLuaCustomModelAdapterInvoker.applyPose(custom, model, boneName, poseStack, scope);
-            reportMissingPath(model.getClass(), boneName, null);
-            return false;
-        }
-        return MLuaModelPartTransforms.applyMapped(model, boneName, path, poseStack, scope,
-            mapping == null ? Map.of() : mapping);
+        return MLuaModelAdapterApplication.applyPartTransform(model, boneName, poseStack, scope);
     }
 
     /** Applies the transform already present on a rendered model part without adding MLua poses again. */
     public static boolean applyCurrentPartTransform(Object model, String boneName, PoseStack poseStack,
                                                      MLuaEntityScope scope) {
-        if (model == null || boneName == null || boneName.isBlank() || poseStack == null) return false;
-        Map<String, String> mapping = findMappingForModel(model);
-        String path = mapping == null ? null : mapping.get(boneName);
-        if (path == null) {
-            CustomAdapter custom = customAdapterForBone(model.getClass(), boneName);
-            if (custom != null) return MLuaCustomModelAdapterInvoker.applyPose(custom, model, boneName, poseStack, scope);
-            reportMissingPath(model.getClass(), boneName, path);
-            return false;
-        }
-        return MLuaModelPartTransforms.applyCurrent(model, boneName, path, poseStack);
+        return MLuaModelAdapterApplication.applyCurrentPartTransform(model, boneName, poseStack, scope);
     }
 
-    private static void reportMissingPath(Class<?> modelClass, String boneName, String path) {
+    static void reportMissingPath(Class<?> modelClass, String boneName, String path) {
         MLuaModelPartResolver.reportMissingPath(modelClass, boneName, path);
+    }
+
+    static void recordAppliedModel(Object model, MLuaEntityScope scope, Map<String, String> mappings,
+                                   java.util.Set<String> resolvedBones, java.util.Set<String> customBones) {
+        APPLIED_MODELS.put(scope, new AppliedModel(model.getClass(), mappings, resolvedBones, customBones));
+    }
+
+    static void clearAppliedModel(MLuaEntityScope scope) {
+        APPLIED_MODELS.remove(scope);
     }
 
     private static ModelPart resolvePath(Object root, String path) {

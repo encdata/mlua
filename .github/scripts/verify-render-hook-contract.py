@@ -33,6 +33,7 @@ OBJECT_CREATION = ROOT / "src/main/java/dev/mlua/modules/render/service/MLuaRend
 MODEL_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterRegistry.java"
 CUSTOM_ADAPTER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaCustomModelAdapterInvoker.java"
 MODEL_ADAPTER_RESOLVER_INVOKER = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterResolverInvoker.java"
+MODEL_ADAPTER_APPLICATION = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterApplication.java"
 MODEL_ADAPTER_CACHE = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelAdapterCache.java"
 RENDERER_ADAPTERS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaRendererAdapterRegistry.java"
 MODEL_FIELD_ACCESS = ROOT / "src/main/java/dev/mlua/runtime/client/MLuaModelFieldAccess.java"
@@ -387,6 +388,19 @@ for operation in ("static boolean apply(", "static boolean applyPose(", "new MLu
         fail(f"custom model adapter invoker is missing {operation}")
 if "invokeCustomCallback(" in model_registry or "customBoneStates(" in model_registry:
     fail("model adapter registry still owns custom Lua render callback execution")
+if not MODEL_ADAPTER_APPLICATION.is_file():
+    fail("model pose and attachment application must have a dedicated render component")
+model_adapter_application = MODEL_ADAPTER_APPLICATION.read_text(encoding="utf-8")
+for operation in ("static Set<String> apply(", "static boolean applyPartTransform(",
+                  "static boolean applyCurrentPartTransform(",
+                  "MLuaModelAdapterRegistry.recordAppliedModel("):
+    if operation not in model_adapter_application:
+        fail(f"model render application component is missing {operation}")
+for operation in ("return MLuaModelAdapterApplication.apply(model, scope)",
+                  "return MLuaModelAdapterApplication.applyPartTransform(",
+                  "return MLuaModelAdapterApplication.applyCurrentPartTransform("):
+    if operation not in model_registry:
+        fail(f"model adapter registry must delegate render application through its facade: {operation}")
 if not MODEL_ADAPTER_RESOLVER_INVOKER.is_file():
     fail("model resolver callback execution must have a dedicated render-frame owner")
 model_resolver_invoker = MODEL_ADAPTER_RESOLVER_INVOKER.read_text(encoding="utf-8")
