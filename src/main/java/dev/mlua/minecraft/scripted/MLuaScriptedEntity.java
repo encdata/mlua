@@ -739,7 +739,6 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (tag.contains("MLuaAIState")) {
          this.scriptedAI.restore(tag.getString("MLuaAIState"), tag.getInt("MLuaAIStateTicks"));
       }
-      }
    }
 
    private void tickScriptedAI(MLuaBehaviorRegistry.Snapshot behaviors, LuaValue definition) {
