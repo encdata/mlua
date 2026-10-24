@@ -1,6 +1,5 @@
 package dev.mlua.core.classes;
 
-import java.util.HashSet;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -34,8 +33,7 @@ final class MLuaClassInstanceLookup {
                     return LuaValue.valueOf(className);
                 }
                 LuaTable property = key.isstring()
-                    ? MLuaClassInstanceLookup.this.metadata.findPropertyDescriptor(
-                        className, key.tojstring(), new HashSet<>()) : null;
+                    ? MLuaClassInstanceLookup.this.metadata.findPropertyDescriptor(className, key.tojstring()) : null;
                 if (property != null) {
                     return property.rawget("get").call(args.arg1());
                 }
@@ -95,7 +93,7 @@ final class MLuaClassInstanceLookup {
                             + "' on a live instance; register the method on its class with a description.");
                     }
                     LuaTable property = MLuaClassInstanceLookup.this.metadata.findPropertyDescriptor(
-                        classTable.rawget("__type").optjstring(""), name, new HashSet<>());
+                        classTable.rawget("__type").optjstring(""), name);
                     if (property != null) {
                         LuaValue setter = property.rawget("set");
                         if (!setter.isfunction()) throw new LuaError("[MLua] Property '" + name + "' is read-only.");

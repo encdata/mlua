@@ -2,6 +2,7 @@ package dev.mlua.core.classes;
 
 import dev.mlua.module.MLuaRegistration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ final class MLuaClassMetadata {
     private final MLuaClassMixinApplications mixinApplications;
     private final MLuaClassLiveInstances liveInstances;
     private final Map<LuaTable, InstanceDescription> instanceDescriptions = new WeakHashMap<>();
+    private final Map<String, Map<String, LuaTable>> propertyLookups = new HashMap<>();
 
     MLuaClassMetadata(Object registryLock, Map<String, LuaTable> classes, MLuaClassHierarchy hierarchy,
                       MLuaClassMixinRegistry mixinRegistry, MLuaClassMixinApplications mixinApplications,
@@ -72,6 +74,7 @@ final class MLuaClassMetadata {
     }
 
     void refreshAttachedPropertyDescriptionsFrom(String changedClass) {
+      this.invalidatePropertyLookupsFrom(changedClass);
       for (LuaTable instance : this.liveInstances.ofClassAndDescendants(
             changedClass, this.hierarchy.descendantsOf(changedClass))) {
          String instanceClassName = instance.rawget("__type").optjstring("");
@@ -81,21 +84,50 @@ final class MLuaClassMetadata {
       }
    }
 
-    LuaTable findPropertyDescriptor(String className, String propertyName, Set<String> visited) {
+    LuaTable findPropertyDescriptor(String className, String propertyName) {
       synchronized (this.registryLock) {
-         if (!visited.add(className)) return null;
-         LuaTable owner = this.classes.get(className);
+         Map<String, LuaTable> lookup = this.propertyLookups.get(className);
+         if (lookup == null) {
+            lookup = this.buildPropertyLookup(className);
+            if (lookup == null) return null;
+            this.propertyLookups.put(className, lookup);
+         }
+         return lookup.get(propertyName);
+      }
+   }
+
+    void invalidatePropertyLookupsFrom(String className) {
+      synchronized (this.registryLock) {
+         this.propertyLookups.remove(className);
+         for (String descendant : this.hierarchy.descendantsOf(className)) {
+            this.propertyLookups.remove(descendant);
+         }
+      }
+   }
+
+    private Map<String, LuaTable> buildPropertyLookup(String className) {
+      Map<String, LuaTable> lookup = new HashMap<>();
+      Set<String> visited = new HashSet<>();
+      String currentName = className;
+      while (currentName != null && visited.add(currentName)) {
+         LuaTable owner = this.classes.get(currentName);
          if (owner == null) return null;
          LuaValue descriptors = owner.rawget("__mlua_properties");
-         LuaValue descriptor = descriptors.istable() ? descriptors.checktable().rawget(propertyName) : LuaValue.NIL;
-         if (descriptor.istable()) return descriptor.checktable();
-         String parentName = this.hierarchy.parentOf(className);
-         if (parentName != null) {
-            LuaTable inherited = this.findPropertyDescriptor(parentName, propertyName, visited);
-            if (inherited != null) return inherited;
+         if (descriptors.istable()) {
+            LuaValue key = LuaValue.NIL;
+            while (true) {
+               Varargs next = descriptors.checktable().next(key);
+               key = next.arg1();
+               if (key.isnil()) break;
+               LuaValue descriptor = next.arg(2);
+               if (key.isstring() && descriptor.istable()) {
+                  lookup.putIfAbsent(key.tojstring(), descriptor.checktable());
+               }
+            }
          }
-         return null;
+         currentName = this.hierarchy.parentOf(currentName);
       }
+      return lookup;
    }
 
     boolean hasPropertyDefinition(String className, String propertyName, Set<String> visited) {

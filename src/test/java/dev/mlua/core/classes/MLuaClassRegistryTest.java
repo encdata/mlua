@@ -191,6 +191,26 @@ final class MLuaClassRegistryTest {
     }
 
     @Test
+    void inheritedPropertyLookupCacheRefreshesOnRegistrationAndRemoval() {
+        MLuaClassRegistry registry = new MLuaClassRegistry();
+        registry.register("CacheBase", (String) null);
+        registry.register("CacheChild", "CacheBase");
+        LuaTable instance = new LuaTable();
+        registry.attachInstance(instance, "CacheChild", null);
+
+        assertTrue(instance.get("Status").isnil());
+        VarArgFunction statusGetter = new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) { return LuaValue.valueOf("ready"); }
+        };
+        registry.registerProperty("CacheBase", "Status", statusGetter, LuaValue.NIL,
+            "string", "shared:Shared", "Current status.");
+        assertEquals("ready", instance.get("Status").tojstring());
+
+        assertTrue(registry.unregisterProperty("CacheBase", "Status", statusGetter));
+        assertTrue(instance.get("Status").isnil());
+    }
+
+    @Test
     void refreshingAClassSkipsFrozenInstancesAndStillUpdatesMutableInstances() {
         MLuaClassRegistry registry = new MLuaClassRegistry();
         LuaTable classTable = registry.register("Widget", (String) null, "A widget.");

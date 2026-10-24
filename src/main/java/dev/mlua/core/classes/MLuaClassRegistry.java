@@ -101,6 +101,7 @@ public final class MLuaClassRegistry {
       classTable.rawset("__type", LuaValue.valueOf(name));
       classTable.rawset("ClassName", LuaValue.valueOf(name));
       classTable.rawset("__class", LuaValue.TRUE);
+      this.metadata.invalidatePropertyLookupsFrom(name);
       this.classes.put(name, classTable);
       this.registeredClassTables.add(classTable);
       if (parentName != null) this.recordParent(name, parentName);
@@ -161,6 +162,7 @@ public final class MLuaClassRegistry {
       classTable.rawset("__type", LuaValue.valueOf(name));
       if (classTable.rawget("ClassName").isnil()) classTable.rawset("ClassName", LuaValue.valueOf(name));
       classTable.rawset("__class", LuaValue.TRUE);
+      this.metadata.invalidatePropertyLookupsFrom(name);
       this.classes.put(name, classTable);
       this.registeredClassTables.add(classTable);
       if (parentName != null) this.recordParent(name, parentName);
@@ -325,6 +327,7 @@ public final class MLuaClassRegistry {
       this.pendingClassRemovals.remove(name);
       this.registeredClassTables.remove(removedClass);
       this.liveInstances.removeClass(name);
+      this.metadata.invalidatePropertyLookupsFrom(name);
       String affectedParent = this.hierarchy.removeClass(name);
       this.mixinApplications.removeClass(name);
       if (affectedParent != null) this.removePendingClassIfUnused(affectedParent);

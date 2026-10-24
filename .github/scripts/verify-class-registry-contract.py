@@ -70,6 +70,12 @@ for method in ("refreshInheritedMethodDescriptionsFrom", "findPropertyDescriptor
         fail(f"MLuaClassRegistry still owns metadata operation {method}")
 if "this.liveInstances.ofClassAndDescendants(" not in metadata:
     fail("class field validation and metadata refresh must query only instances of the affected class subtree")
+if "private final Map<String, Map<String, LuaTable>> propertyLookups" not in metadata \
+        or "this.buildPropertyLookup(className)" not in metadata \
+        or "this.invalidatePropertyLookupsFrom(changedClass);" not in metadata:
+    fail("inherited property reads must use a per-class lookup cache invalidated on property changes")
+if "for (String descendant : this.hierarchy.descendantsOf(className))" not in metadata:
+    fail("property lookup invalidation must be limited to the changed class and its descendants")
 if "instanceClasses.entrySet()" in registry:
     fail("class-scoped instance refreshes must not rescan every live instance")
 dependents = registry.split("private boolean hasClassDependents(String name)", 1)[1].split(
