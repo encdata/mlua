@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Consumer;
 import org.luaj.vm2.Globals;
 
 public final class MLuaModuleLoader {
@@ -350,71 +351,61 @@ public final class MLuaModuleLoader {
 
     /** Dispatches runtime cleanup to loaded feature modules. */
     public void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, "runtime state cleanup", () -> module.clearRuntimeState(runtime, runtimeSession, side));
-        }
+        this.dispatchLifecycle(side, "runtime state cleanup",
+            module -> module.clearRuntimeState(runtime, runtimeSession, side));
     }
 
     /** Dispatches addon-owned cleanup to loaded feature modules. */
     public void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, String ownerModId) {
         if (ownerModId == null || ownerModId.isBlank()) return;
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, "owned state cleanup", () -> module.clearOwnedState(runtime, runtimeSession, side, ownerModId));
-        }
+        this.dispatchLifecycle(side, "owned state cleanup",
+            module -> module.clearOwnedState(runtime, runtimeSession, side, ownerModId));
     }
 
     /** Dispatches side ticks to loaded feature modules. */
     public void onRuntimeTick(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, double deltaTime) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, "runtime tick", () -> module.onRuntimeTick(runtime, runtimeSession, side, deltaTime));
-        }
+        this.dispatchLifecycle(side, "runtime tick",
+            module -> module.onRuntimeTick(runtime, runtimeSession, side, deltaTime));
     }
 
     public void afterRuntimeTick(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, double deltaTime) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, "after runtime tick", () -> module.afterRuntimeTick(runtime, runtimeSession, side, deltaTime));
-        }
+        this.dispatchLifecycle(side, "after runtime tick",
+            module -> module.afterRuntimeTick(runtime, runtimeSession, side, deltaTime));
     }
 
     public void onRenderFrame(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, double deltaTime) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != Side.CLIENT) continue;
-            this.invoke(module, "render frame", () -> module.onRenderFrame(runtime, runtimeSession, deltaTime));
-        }
+        this.dispatchLifecycle(Side.CLIENT, "render frame",
+            module -> module.onRenderFrame(runtime, runtimeSession, deltaTime));
     }
 
     public void afterRenderFrame(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, double deltaTime) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != Side.CLIENT) continue;
-            this.invoke(module, "after render frame", () -> module.afterRenderFrame(runtime, runtimeSession, deltaTime));
-        }
+        this.dispatchLifecycle(Side.CLIENT, "after render frame",
+            module -> module.afterRenderFrame(runtime, runtimeSession, deltaTime));
     }
 
     public void onRenderFrameEnd(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession,
                                  double deltaTime) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != Side.CLIENT) continue;
-            this.invoke(module, "render frame end", () -> module.onRenderFrameEnd(runtime, runtimeSession, deltaTime));
-        }
+        this.dispatchLifecycle(Side.CLIENT, "render frame end",
+            module -> module.onRenderFrameEnd(runtime, runtimeSession, deltaTime));
     }
 
     public void beforeScriptPhase(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side,
                                   dev.mlua.common.enums.RegistrationPhase phase, Object phaseContext) {
-        for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, "before script phase", () -> module.beforeScriptPhase(runtime, runtimeSession, side, phase, phaseContext));
-        }
+        this.dispatchLifecycle(side, "before script phase",
+            module -> module.beforeScriptPhase(runtime, runtimeSession, side, phase, phaseContext));
     }
 
     public void afterScriptPhase(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side,
                                  dev.mlua.common.enums.RegistrationPhase phase, Object phaseContext) {
+        this.dispatchLifecycle(side, "after script phase",
+            module -> module.afterScriptPhase(runtime, runtimeSession, side, phase, phaseContext));
+    }
+
+    /** Keeps lifecycle dispatch side filtering and callback failure isolation consistent. */
+    private void dispatchLifecycle(Side side, String phase, Consumer<MLuaModule> callback) {
         for (MLuaModule module : this.moduleSnapshot()) {
-            if (module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, "after script phase", () -> module.afterScriptPhase(runtime, runtimeSession, side, phase, phaseContext));
+            if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
+            this.invoke(module, phase, () -> callback.accept(module));
         }
     }
 

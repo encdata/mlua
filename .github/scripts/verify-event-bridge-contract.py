@@ -13,9 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 BRIDGES = {
     ("1.20.1", "forge"): ROOT / "src/main/java/dev/mlua/loader/impl/forge/ForgeEventBridge.java",
     ("1.21.1", "forge"): ROOT / "src/main/java/dev/mlua/loader/impl/forge/ForgeEventBridge.java",
-    ("1.21.1", "neoforge"): ROOT / "mlua-loaders/neoforge/1.21.1/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
-    ("26.1", "neoforge"): ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
-    ("26.1.2", "neoforge"): ROOT / "mlua-loaders/neoforge/26.1/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
+    ("1.21.1", "neoforge"): ROOT / "mlua-loaders/neoforge/shared/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
+    ("26.1", "neoforge"): ROOT / "mlua-loaders/neoforge/shared/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
+    ("26.1.2", "neoforge"): ROOT / "mlua-loaders/neoforge/shared/project/src/main/java/dev/mlua/loader/impl/neoforge/NeoForgeEventBridge.java",
     ("1.20.1", "fabric"): ROOT / "mlua-loaders/fabric/1.20.1/project/src/main/java/dev/mlua/loader/impl/fabric/FabricEventBridge.java",
     ("1.21.1", "fabric"): ROOT / "mlua-loaders/fabric/1.20.1/project/src/main/java/dev/mlua/loader/impl/fabric/FabricEventBridge.java",
     ("26.1", "fabric"): ROOT / "mlua-loaders/fabric/26.1/project/src/main/java/dev/mlua/loader/impl/fabric/FabricEventBridge.java",
