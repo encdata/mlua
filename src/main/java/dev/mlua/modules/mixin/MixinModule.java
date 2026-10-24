@@ -3,7 +3,7 @@ package dev.mlua.modules.mixin;
 import dev.mlua.module.MLuaDocBuilder;
 
 import dev.mlua.common.mixin.MLuaMixinLuaApi;
-import dev.mlua.modules.mixin.service.MLuaMixinService;
+import dev.mlua.modules.mixin.api.MLuaMixinService;
 import dev.mlua.module.MLuaModule;
 import java.util.List;
 

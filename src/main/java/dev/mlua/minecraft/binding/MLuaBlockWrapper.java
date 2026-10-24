@@ -60,6 +60,11 @@ public final class MLuaBlockWrapper {
    }
 
    public static LuaTable blockTable(Level level, BlockPos pos, MLuaRegistration registration) {
+      return blockTable(level, pos, level.getBlockState(pos), registration);
+   }
+
+   /** Builds a block wrapper from an already available state without causing a chunk load. */
+   public static LuaTable blockTable(Level level, BlockPos pos, BlockState state, MLuaRegistration registration) {
       BlockPos immutablePosition = pos.immutable();
       synchronized (BLOCK_INSTANCES) {
          Map<Level, Map<BlockPos, WeakReference<LuaTable>>> worlds =
@@ -68,7 +73,6 @@ public final class MLuaBlockWrapper {
             worlds.computeIfAbsent(level, ignored -> new WeakHashMap<>());
          WeakReference<LuaTable> reference = positions.get(immutablePosition);
          LuaTable cached = reference != null ? reference.get() : null;
-         BlockState state = level.getBlockState(immutablePosition);
          String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
          String className = MLuaBehaviorRegistry.getContentClass("block", blockId);
          if (className == null) className = "Block";

@@ -110,7 +110,10 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       try {
          var registration = MLuaRuntime.registrationForLevel(level);
          if (registration == null) return true;
-         LuaTable block = MLuaBlockWrapper.blockTable(level, this.worldPosition, registration);
+         // Lifecycle callbacks also run while chunks are being attached or removed. Use
+         // the BlockEntity's already captured state instead of querying Level, which can
+         // synchronously wait for the very chunk currently executing this callback.
+         LuaTable block = MLuaBlockWrapper.blockTable(level, this.worldPosition, this.getBlockState(), registration);
          LuaTable blockEntity = MLuaBlockWrapper.blockEntityTable(this, level, className, registration);
          LuaTable context = new LuaTable();
          context.set("Block", block);

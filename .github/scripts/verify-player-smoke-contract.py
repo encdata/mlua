@@ -51,7 +51,12 @@ def discover_service_sources() -> dict[str, tuple[Path, Path]]:
             matches = list(module_sources.rglob(f"{implementation_name}.java"))
             if len(matches) != 1:
                 fail(f"service {service_name} resolves to {len(matches)} files for {implementation_name}")
-            if matches[0].parent.name != "service":
+            mixin_service_outside_transform_package = (
+                service_name == "Mixin"
+                and matches[0].parent == module_path.parent / "api"
+                and "package dev.mlua.modules.mixin.api;" in matches[0].read_text(encoding="utf-8")
+            )
+            if matches[0].parent.name != "service" and not mixin_service_outside_transform_package:
                 fail(f"service {service_name} implementation must live in its module's service package: {matches[0]}")
             if service_name in discovered:
                 fail(f"service name {service_name} is registered by multiple modules")

@@ -51,7 +51,7 @@ if (is26Family) {
 prepareRuntimeNeoForgeOverrideSources.configure {
     from(rootProject.file('src/main/java')) {
         include 'dev/mlua/modules/mixin/MixinModule.java'
-        include 'dev/mlua/modules/mixin/service/MLuaMixinService.java'
+        include 'dev/mlua/modules/mixin/api/MLuaMixinService.java'
     }
 }
 def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',

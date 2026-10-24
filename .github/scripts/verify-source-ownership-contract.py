@@ -127,10 +127,13 @@ for relative in root_compilers:
         raise SystemExit(f"{relative} does not exclude root files replaced by common version sources")
 
 neoforge_target_sources = (ROOT / "gradle/mlua-runtime-neoforge-target.gradle").read_text(encoding="utf-8")
-if "include 'dev/mlua/modules/mixin/service/MLuaMixinService.java'" not in neoforge_target_sources:
-    raise SystemExit("NeoForge source assembly must include MLuaMixinService from its service package")
-if "include 'dev/mlua/modules/mixin/runtime/MLuaMixinService.java'" in neoforge_target_sources:
-    raise SystemExit("NeoForge source assembly still points to the removed MLuaMixinService package")
+if "include 'dev/mlua/modules/mixin/api/MLuaMixinService.java'" not in neoforge_target_sources:
+    raise SystemExit("NeoForge source assembly must include MLuaMixinService from outside the Mixin package")
+if "include 'dev/mlua/modules/mixin/service/MLuaMixinService.java'" in neoforge_target_sources:
+    raise SystemExit("NeoForge source assembly still includes MLuaMixinService from the Mixin-owned package")
+mixin_service = (ROOT / "src/main/java/dev/mlua/modules/mixin/api/MLuaMixinService.java").read_text(encoding="utf-8")
+if "package dev.mlua.modules.mixin.service;" in mixin_service:
+    raise SystemExit("MLuaMixinService must live outside the package declared by Mixin configurations")
 
 delegated_projects = {
     "mlua-loaders/fabric/1.20.1/project/build.gradle": "gradle/mlua-fabric-project.gradle",

@@ -62,6 +62,9 @@ jobs:
       - name: Validate versioned source ownership
         run: python .github/scripts/verify-source-ownership-contract.py
 
+      - name: Validate block entity lifecycle safety
+        run: python .github/scripts/verify-block-entity-lifecycle-contract.py
+
       - name: Validate GUI layout ownership contract
         run: python .github/scripts/verify-gui-layout-ownership-contract.py
 
