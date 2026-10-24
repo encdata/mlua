@@ -21,7 +21,8 @@ require(DEFINITIONS, "private static final ConcurrentMap<String, ConcurrentMap<S
         "definition state ownership")
 require(DEFINITIONS, "previous.callbacks().isEmpty()", "snapshot rollback support")
 require(DEFINITIONS, "right.get(entry.getKey()) != entry.getValue()", "callback identity comparison")
-require(DEFINITIONS, "MLuaScriptedOwnerPolicy.sameOwner(", "shared addon capacity ownership policy")
+require(DEFINITIONS, "MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), entry.getKey(), context, key)",
+        "shared addon capacity ownership policy")
 require(OWNER_POLICY, "static String ownerOf(", "shared addon fallback ownership")
 require(TESTS, "rollbackRestoresPreviousCallbackSetOnlyWhileFailedDefinitionIsCurrent",
         "stale registration rollback regression coverage")

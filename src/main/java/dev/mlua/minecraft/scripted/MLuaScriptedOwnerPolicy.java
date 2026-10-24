@@ -6,12 +6,8 @@ import dev.mlua.core.MLuaContext;
 final class MLuaScriptedOwnerPolicy {
    private MLuaScriptedOwnerPolicy() { }
 
-   static boolean sameOwner(MLuaContext left, MLuaContext right, String key) {
-      if (left != null && right != null) return left.ownerModId().equals(right.ownerModId());
-      String keyOwner = ownerFromKey(key);
-      String leftOwner = left == null ? keyOwner : left.ownerModId();
-      String rightOwner = right == null ? keyOwner : right.ownerModId();
-      return leftOwner.equals(rightOwner);
+   static boolean sameOwner(MLuaContext left, String leftKey, MLuaContext right, String rightKey) {
+      return ownerOf(left, leftKey).equals(ownerOf(right, rightKey));
    }
 
    static String ownerOf(MLuaContext context, String key) {

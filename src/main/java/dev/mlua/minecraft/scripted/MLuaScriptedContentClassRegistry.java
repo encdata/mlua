@@ -96,7 +96,7 @@ final class MLuaScriptedContentClassRegistry {
          for (Map.Entry<String, ContentClassDefinition> entry : domainEntry.getValue().entrySet()) {
             if (domainEntry.getKey().equals(domain) && entry.getKey().equals(key)) continue;
             total++;
-            if (MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), context, entry.getKey())) ownerCount++;
+            if (MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), entry.getKey(), context, key)) ownerCount++;
          }
       }
       if (total >= MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS) {

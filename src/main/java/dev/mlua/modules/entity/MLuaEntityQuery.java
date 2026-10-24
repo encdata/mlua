@@ -278,13 +278,17 @@ public final class MLuaEntityQuery {
         public boolean matches(Entity entity) {
             return this.compiled.matches(entity);
         }
+
+        boolean matchesType(String entityType) {
+            return this.compiled.matchesType(entityType);
+        }
     }
 
     private record CompiledFilter(String type, Set<String> types, Set<String> excludedTypes,
             Boolean playersOnly, Boolean excludePlayers, Boolean alive, String name, String nameContains,
             String tag, Set<String> requiredTags, Set<String> excludedTags, Entity excludedEntity,
             Set<Entity> excludedEntities) {
-        private static final CompiledFilter EMPTY = new CompiledFilter(null, Set.of(), Set.of(),
+        private static final CompiledFilter EMPTY = new CompiledFilter(null, null, Set.of(),
             null, null, null, null, null, null, Set.of(), Set.of(), null, Set.of());
 
         private CompiledFilter {
@@ -297,12 +301,7 @@ public final class MLuaEntityQuery {
 
         private boolean matches(Entity entity) {
             if (entity == null) return false;
-            if (this.type != null || this.types != null || !this.excludedTypes.isEmpty()) {
-                String entityType = entityTypeId(entity);
-                if (this.type != null && !this.type.equals(entityType)) return false;
-                if (this.types != null && !this.types.contains(entityType)) return false;
-                if (this.excludedTypes.contains(entityType)) return false;
-            }
+            if (!matchesType(entityTypeId(entity))) return false;
             if (Boolean.TRUE.equals(this.playersOnly) && !(entity instanceof Player)) return false;
             if (Boolean.TRUE.equals(this.excludePlayers) && entity instanceof Player) return false;
             if (this.alive != null && this.alive != entity.isAlive()) return false;
@@ -320,6 +319,12 @@ public final class MLuaEntityQuery {
                 if (MLuaDataManager.hasEntityTag(entity, excludedTag)) return false;
             }
             return true;
+        }
+
+        private boolean matchesType(String entityType) {
+            if (this.type != null && !this.type.equals(entityType)) return false;
+            if (this.types != null && !this.types.contains(entityType)) return false;
+            return !this.excludedTypes.contains(entityType);
         }
     }
 

@@ -11,7 +11,7 @@ final class MLuaScriptedOwnerPolicyTest {
     void derivesFallbackOwnershipFromNamespacedDefinitionKeys() {
         assertEquals("myaddon", MLuaScriptedOwnerPolicy.ownerOf(null, "myaddon:stalker"));
         assertEquals("", MLuaScriptedOwnerPolicy.ownerOf(null, "unqualified"));
-        assertTrue(MLuaScriptedOwnerPolicy.sameOwner(null, null, "myaddon:item"));
-        assertFalse(MLuaScriptedOwnerPolicy.sameOwner(null, null, "another:item"));
+        assertTrue(MLuaScriptedOwnerPolicy.sameOwner(null, "myaddon:first", null, "myaddon:second"));
+        assertFalse(MLuaScriptedOwnerPolicy.sameOwner(null, "myaddon:item", null, "another:item"));
     }
 }
