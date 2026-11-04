@@ -46,7 +46,7 @@ final class MLuaItemBehaviorDispatcher {
                 ? MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration)
                 : MLuaEntityWrapper.entityTable(attacker, registration);
             LuaTable context = new LuaTable();
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+            context.set("Item", MLuaItemWrapper.itemTable(stack, registration, target.level()));
             context.set("Entity", targetTable);
             context.set("Target", targetTable);
             context.set("Attacker", attackerTable);
@@ -81,7 +81,7 @@ final class MLuaItemBehaviorDispatcher {
                 context.set("Player", MLuaPlayerWrapper.playerTable(MCServerPlayerImpl.fromReal(player), registration));
             }
             context.set("World", dev.mlua.minecraft.MLuaDimensionId.from(level));
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+            context.set("Item", MLuaItemWrapper.itemTable(stack, registration, level));
             context.set("ItemStack", behaviorKey);
             context.set("Entity", MLuaEntityWrapper.entityTable(livingEntity, registration));
             invoke(level, null, behaviorKey, "onConsume", behaviors, callback, context);
@@ -107,7 +107,7 @@ final class MLuaItemBehaviorDispatcher {
             context.set("Position", MLuaVector.vector3(
                 player.position().x, player.position().y, player.position().z));
             context.set("Hand", hand.name().toLowerCase());
-            context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), registration));
+            context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), registration, level));
             context.set("ItemStack", behaviorKey);
             Varargs result = invoke(level, null, behaviorKey, "onUse", behaviors, callback, context);
             if (result.arg1().isboolean() && result.arg1().toboolean()) {
@@ -140,7 +140,7 @@ final class MLuaItemBehaviorDispatcher {
             luaContext.set("Block", MLuaBlockWrapper.blockTable(level, position, registration));
             luaContext.set("Face", context.getClickedFace().getName());
             luaContext.set("Hand", context.getHand().name().toLowerCase());
-            luaContext.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), registration));
+            luaContext.set("Item", MLuaItemWrapper.itemTable(context.getItemInHand(), registration, level));
             luaContext.set("ItemStack", behaviorKey);
             Varargs result = invoke(level, position, behaviorKey, "onUseOnBlock", behaviors, callback, luaContext);
             if (result.arg1().isboolean() && result.arg1().toboolean()) {
@@ -173,7 +173,7 @@ final class MLuaItemBehaviorDispatcher {
             String equipmentSlot = equipmentSlot(entity, stack, selected);
             if (equipmentSlot != null) context.set("EquipmentSlot", equipmentSlot);
             context.set("Selected", LuaValue.valueOf(selected));
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+            context.set("Item", MLuaItemWrapper.itemTable(stack, registration, level));
             context.set("ItemStack", behaviorKey);
             invoke(level, null, behaviorKey, "onInventoryTick", behaviors, callback, context);
         } catch (Exception failure) {
@@ -199,7 +199,7 @@ final class MLuaItemBehaviorDispatcher {
             context.set("Hand", player.getUsedItemHand() == null ? "main_hand"
                 : player.getUsedItemHand().name().toLowerCase());
             context.set("ItemStack", behaviorKey);
-            context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+            context.set("Item", MLuaItemWrapper.itemTable(stack, registration, level));
             invoke(level, null, behaviorKey, "onCrafted", behaviors, callback, context);
         } catch (Exception failure) {
             MLuaLogger.LOGGER.error("MLua item onCrafted callback failed for '{}': {}",

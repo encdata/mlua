@@ -45,6 +45,8 @@ final class MLuaRegistryBlockApi {
             }
             String key = owner + ":" + name;
             dev.mlua.module.MLuaRegistration registration = service.apiContext().mlua().registration();
+            dev.mlua.core.MLuaContext callbackContext =
+               dev.mlua.core.engine.MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
             String className = MLuaRegistryContentValidation.requireContentClass(registration, propsTable, "Block");
             LuaValue blockEntityDefinition = propsTable == null ? LuaValue.NIL : propsTable.get("blockEntity");
             if (blockEntityDefinition.isnil() && propsTable != null) blockEntityDefinition = propsTable.get("BlockEntity");
@@ -67,7 +69,7 @@ final class MLuaRegistryBlockApi {
                if (!containerValue.isnil()) {
                   if (MLuaContainerType.isInstance(containerValue)) {
                      String typeId = MLuaContainerType.id(containerValue);
-                     requestedContainer = MLuaBehaviorRegistry.getContainerType(typeId);
+                     requestedContainer = MLuaBehaviorRegistry.getContainerType(typeId, callbackContext);
                      if (requestedContainer == null) {
                         throw new LuaError("[MLua] Registry.Blocks:Register references an unregistered ContainerType '" + typeId + "'.");
                      }
@@ -93,7 +95,7 @@ final class MLuaRegistryBlockApi {
                   } else if (containerValue.type() == LuaValue.TSTRING) {
                      String typeName = containerValue.checkjstring();
                      String typeKey = typeName.contains(":") ? typeName : owner + ":" + typeName;
-                     requestedContainer = MLuaBehaviorRegistry.getContainerType(typeKey);
+                     requestedContainer = MLuaBehaviorRegistry.getContainerType(typeKey, callbackContext);
                      if (requestedContainer == null) throw new LuaError("[MLua] Block Container references unregistered container type '" + typeName + "'");
                   } else {
                      throw new LuaError("[MLua] Block Container must be a registered ContainerType, its id, or an inline definition table.");

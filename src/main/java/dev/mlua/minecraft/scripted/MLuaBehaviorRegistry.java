@@ -54,6 +54,7 @@ public final class MLuaBehaviorRegistry {
 
       Map<String, LuaValue> callbacks() { return this.callbacks; }
       MLuaContext context() { return this.context; }
+      Snapshot snapshot() { return this.snapshot; }
    }
    public static final class Snapshot {
       private final Map<String, LuaValue> callbacks;
@@ -67,8 +68,8 @@ public final class MLuaBehaviorRegistry {
          this(callbacks == null ? Map.of() : Map.copyOf(callbacks), context, null, null, null);
       }
 
-      private Snapshot(Map<String, LuaValue> callbacks, MLuaContext context,
-                       String domain, String key, BehaviorSet definition) {
+      Snapshot(Map<String, LuaValue> callbacks, MLuaContext context,
+               String domain, String key, BehaviorSet definition) {
          // BehaviorSet callbacks are immutable snapshots created when the behavior is
          // registered or updated. Keep that map by reference on this hot path: scripted
          // item/entity hooks can request a snapshot every tick or interaction.
@@ -81,6 +82,7 @@ public final class MLuaBehaviorRegistry {
 
       public Map<String, LuaValue> callbacks() { return callbacks; }
       public MLuaContext context() { return context; }
+      BehaviorSet definition() { return definition; }
       /** Opaque definition token for runtime caches that must reset when a behavior is replaced. */
       public Object identity() { return definition; }
 
@@ -139,9 +141,19 @@ public final class MLuaBehaviorRegistry {
       return MLuaScriptedBehaviorDefinitions.registerBehaviors(domain, key, behaviors, context);
    }
 
+   public static Snapshot registerBehaviorsTracked(String domain, String key, Map<String, LuaValue> behaviors,
+                                                    MLuaContext context) {
+      return MLuaScriptedBehaviorDefinitions.registerBehaviorsSnapshot(domain, key, behaviors, context);
+   }
+
    public static LuaValue getBehavior(String domain, String key, String event) {
       BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       return definition == null ? LuaValue.NIL : definition.callbacks().getOrDefault(event, LuaValue.NIL);
+   }
+
+   public static LuaValue getBehavior(String domain, String key, String event, Level level) {
+      Snapshot snapshot = snapshotBehaviors(domain, key, level);
+      return snapshot.callbacks().getOrDefault(event, LuaValue.NIL);
    }
 
    public static Map<String, LuaValue> getBehaviors(String domain, String key) {
@@ -162,6 +174,15 @@ public final class MLuaBehaviorRegistry {
       return definition == null ? new Snapshot(Map.of(), null, domain, key, null) : definition.snapshot;
    }
 
+   public static Snapshot snapshotBehaviors(String domain, String key, MLuaContext context) {
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key, context);
+      return definition == null ? new Snapshot(Map.of(), context, domain, key, null) : definition.snapshot;
+   }
+
+   public static boolean hasBehavior(String domain, String key, String event) {
+      return MLuaScriptedBehaviorDefinitions.hasBehavior(domain, key, event);
+   }
+
    public static Varargs invokeBehavior(String domain, String key, String event, Varargs args) {
       BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(domain, key);
       if (definition == null) return LuaValue.NONE;
@@ -177,6 +198,16 @@ public final class MLuaBehaviorRegistry {
           || definition.callbacks().get(event) != callback) {
          return LuaValue.NONE;
       }
+      return invokeCallback(definition.context(), callback, args);
+   }
+
+   public static Varargs invokeCallback(Level level, String domain, String key, String event,
+                                        LuaValue callback, Varargs args) {
+      if (level == null || callback == null || callback.isnil() || event == null) return LuaValue.NONE;
+      Side side = level.isClientSide() ? Side.CLIENT : Side.SERVER;
+      BehaviorSet definition = MLuaScriptedBehaviorDefinitions.definition(
+         domain, key, MLuaRuntime.sessionForLevel(level), side);
+      if (definition == null || definition.callbacks().get(event) != callback) return LuaValue.NONE;
       return invokeCallback(definition.context(), callback, args);
    }
 
@@ -237,6 +268,11 @@ public final class MLuaBehaviorRegistry {
       return MLuaScriptedBehaviorDefinitions.restore(domain, key, expected, previous, expectedContext);
    }
 
+   public static boolean restoreBehaviorsTracked(String domain, String key, Snapshot expected,
+                                                 Snapshot previous, MLuaContext expectedContext) {
+      return MLuaScriptedBehaviorDefinitions.restoreExact(domain, key, expected, previous, expectedContext);
+   }
+
    /** Compatibility name used by scripted content dispatchers. */
    public static LuaValue getCallback(String domain, String key, String event) {
       return getBehavior(domain, key, event);
@@ -247,11 +283,26 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static void registerContentClass(String domain, String key, String className, MLuaContext context) {
-      MLuaScriptedContentClassRegistry.register(domain, key, className, context);
+      registerContentClassDefinition(domain, key, className, context);
+   }
+
+   public static ContentClassDefinition registerContentClassDefinition(String domain, String key,
+                                                                        String className, MLuaContext context) {
+      return MLuaScriptedContentClassRegistry.register(domain, key, className, context);
    }
 
    public static String getContentClass(String domain, String key) {
       ContentClassDefinition definition = getContentClassDefinition(domain, key);
+      return definition == null ? null : definition.className();
+   }
+
+   public static String getContentClass(String domain, String key, MLuaContext context) {
+      ContentClassDefinition definition = getContentClassDefinition(domain, key, context);
+      return definition == null ? null : definition.className();
+   }
+
+   public static String getContentClass(String domain, String key, Level level) {
+      ContentClassDefinition definition = getContentClassDefinition(domain, key, level);
       return definition == null ? null : definition.className();
    }
 
@@ -262,6 +313,16 @@ public final class MLuaBehaviorRegistry {
 
    public static ContentClassDefinition getContentClassDefinition(String domain, String key) {
       return MLuaScriptedContentClassRegistry.get(domain, key);
+   }
+
+   public static ContentClassDefinition getContentClassDefinition(String domain, String key, MLuaContext context) {
+      return MLuaScriptedContentClassRegistry.get(domain, key, context);
+   }
+
+   public static ContentClassDefinition getContentClassDefinition(String domain, String key, Level level) {
+      if (level == null) return getContentClassDefinition(domain, key);
+      return MLuaScriptedContentClassRegistry.get(domain, key, MLuaRuntime.sessionForLevel(level),
+         level.isClientSide() ? Side.CLIENT : Side.SERVER);
    }
 
    /** Restores a previous class mapping only while the mapping still belongs to the failed registration. */
@@ -275,7 +336,18 @@ public final class MLuaBehaviorRegistry {
    /** Restores the full class/context binding only while the current registration still owns it. */
    public static boolean restoreContentClass(String domain, String key, ContentClassDefinition expected,
                                              ContentClassDefinition previous) {
-      return MLuaScriptedContentClassRegistry.restore(domain, key, expected, previous);
+      MLuaContext context = expected != null ? expected.context() : previous == null ? null : previous.context();
+      return MLuaScriptedContentClassRegistry.restore(domain, key, expected, previous, context);
+   }
+
+   public static boolean restoreContentClass(String domain, String key, ContentClassDefinition expected,
+                                             ContentClassDefinition previous, MLuaContext context) {
+      return MLuaScriptedContentClassRegistry.restore(domain, key, expected, previous, context);
+   }
+
+   public static boolean restoreContentClassExact(String domain, String key, ContentClassDefinition expected,
+                                                  ContentClassDefinition previous, MLuaContext context) {
+      return MLuaScriptedContentClassRegistry.restoreExact(domain, key, expected, previous, context);
    }
 
    private static void clearBehaviors(String domain, String key) {
@@ -310,8 +382,16 @@ public final class MLuaBehaviorRegistry {
 
    public static ContainerDefinition getContainerType(String key) { return MLuaScriptedContainerRegistry.getType(key); }
 
+   public static ContainerDefinition getContainerType(String key, MLuaContext context) {
+      return MLuaScriptedContainerRegistry.getType(key, context);
+   }
+
    public static Map<String, ContainerDefinition> getContainerTypes() {
       return MLuaScriptedContainerRegistry.getTypes();
+   }
+
+   public static Map<String, ContainerDefinition> getContainerTypes(MLuaContext context) {
+      return MLuaScriptedContainerRegistry.getTypes(context);
    }
 
    public static ScriptLimits scriptLimits(String ownerModId) {
@@ -336,8 +416,16 @@ public final class MLuaBehaviorRegistry {
       return MLuaScriptedContainerRegistry.unregisterType(key, expected);
    }
 
+   public static boolean unregisterContainerType(String key, ContainerDefinition expected, MLuaContext context) {
+      return MLuaScriptedContainerRegistry.unregisterType(key, expected, context);
+   }
+
    public static boolean unregisterBlockContainer(String key, ContainerDefinition expected) {
       return MLuaScriptedContainerRegistry.unregisterBlock(key, expected);
+   }
+
+   public static boolean unregisterBlockContainer(String key, ContainerDefinition expected, MLuaContext context) {
+      return MLuaScriptedContainerRegistry.unregisterBlock(key, expected, context);
    }
 
    /** Restores a block container only while the current value is still the registration being rolled back. */
@@ -357,6 +445,14 @@ public final class MLuaBehaviorRegistry {
    }
 
    public static ContainerDefinition getBlockContainer(String key) { return MLuaScriptedContainerRegistry.getBlock(key); }
+
+   public static ContainerDefinition getBlockContainer(String key, MLuaContext context) {
+      return MLuaScriptedContainerRegistry.getBlock(key, context);
+   }
+
+   public static ContainerDefinition getBlockContainer(String key, Level level) {
+      return MLuaScriptedContainerRegistry.getBlock(key, level);
+   }
 
    public static MLuaContext getBlockContainerContext(String key) {
       return MLuaScriptedContainerRegistry.getBlockContext(key);
@@ -424,12 +520,12 @@ public final class MLuaBehaviorRegistry {
    /** Removes scripted definitions contributed by one addon during reload or unload. */
    public static void clearOwner(String owner) {
       if (owner == null || owner.isBlank()) return;
-      String prefix = owner.trim() + ":";
+      String normalizedOwner = owner.trim();
       synchronized (REGISTRATION_LOCK) {
-         MLuaScriptedBehaviorDefinitions.clearOwnerPrefix(prefix);
-         MLuaScriptedContentClassRegistry.clearOwnerPrefix(prefix);
-         MLuaScriptedContainerRegistry.clearOwnerPrefix(prefix);
-         MLuaScriptedEntityAISettings.clearOwnerPrefix(prefix);
+         MLuaScriptedBehaviorDefinitions.clearOwner(normalizedOwner);
+         MLuaScriptedContentClassRegistry.clearOwner(normalizedOwner);
+         MLuaScriptedContainerRegistry.clearOwner(normalizedOwner);
+         MLuaScriptedEntityAISettings.clearOwner(normalizedOwner);
       }
    }
 
@@ -452,16 +548,36 @@ public final class MLuaBehaviorRegistry {
        MLuaScriptedEntityAISettings.registerInterval(key, interval, context);
     }
 
+    public static Object registerEntityAIIntervalTracked(String key, int interval, MLuaContext context) {
+       return MLuaScriptedEntityAISettings.registerInterval(key, interval, context);
+    }
+
     public static int getEntityAIInterval(String key) {
        return MLuaScriptedEntityAISettings.interval(key);
+    }
+
+    public static int getEntityAIInterval(String key, Level level) {
+       return MLuaScriptedEntityAISettings.interval(key, level);
     }
 
     public static Integer getRegisteredEntityAIInterval(String key) {
        return MLuaScriptedEntityAISettings.registeredInterval(key);
     }
 
+    public static Integer getRegisteredEntityAIInterval(String key, MLuaContext context) {
+       return MLuaScriptedEntityAISettings.registeredInterval(key, context);
+    }
+
+    public static Object getEntityAIIntervalRegistration(String key, MLuaContext context) {
+       return MLuaScriptedEntityAISettings.registration(key, context);
+    }
+
     public static MLuaContext getEntityAIIntervalContext(String key) {
        return MLuaScriptedEntityAISettings.context(key);
+    }
+
+    public static MLuaContext getEntityAIIntervalContext(String key, MLuaContext context) {
+       return MLuaScriptedEntityAISettings.context(key, context);
     }
 
     public static boolean restoreEntityAIInterval(String key, int expected, Integer previous) {
@@ -471,6 +587,12 @@ public final class MLuaBehaviorRegistry {
     public static boolean restoreEntityAIInterval(String key, int expected, Integer previous,
                                                     MLuaContext expectedContext, MLuaContext previousContext) {
        return MLuaScriptedEntityAISettings.restore(key, expected, previous, expectedContext, previousContext);
+    }
+
+    public static boolean restoreEntityAIIntervalTracked(String key, Object expectedRegistration,
+                                                    Object previousRegistration, MLuaContext expectedContext) {
+       return MLuaScriptedEntityAISettings.restore(
+          key, expectedRegistration, previousRegistration, expectedContext);
     }
 
    static void validateBehaviorKey(String key) {

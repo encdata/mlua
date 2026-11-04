@@ -45,8 +45,9 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
     protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
                                            Player player, net.minecraft.world.InteractionHand hand,
                                            BlockHitResult hit) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRightClick");
-        MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
+        MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("block", this.behaviorKey, level);
+        LuaValue callback = behaviors.callbacks().getOrDefault("onRightClick", LuaValue.NIL);
+        MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey, level);
         if (callback.isnil() && container == null) {
             return super.useItemOn(stack, state, level, pos, player, hand, hit);
         }
@@ -65,9 +66,9 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
                 }
                 context.set("Face", hit.getDirection().getName());
                 context.set("Hand", hand.name().toLowerCase(java.util.Locale.ROOT));
-                context.set("HeldItem", dev.mlua.minecraft.binding.MLuaItemWrapper.itemTable(stack, registration));
-                Varargs result = MLuaBehaviorRegistry.invokeCallback("block", this.behaviorKey, "onRightClick",
-                    callback, LuaValue.varargsOf(new LuaValue[]{context}));
+                context.set("HeldItem", dev.mlua.minecraft.binding.MLuaItemWrapper.itemTable(stack, registration, level));
+                Varargs result = MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
+                    LuaValue.varargsOf(new LuaValue[]{context}));
                 if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.SUCCESS;
             }
         } catch (Exception exception) {
@@ -79,8 +80,9 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
     }
 
     @Override protected InteractionResult useWithoutItem(net.minecraft.world.level.block.state.BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        LuaValue callback = MLuaBehaviorRegistry.getBehavior("block", this.behaviorKey, "onRightClick");
-        MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
+        MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("block", this.behaviorKey, level);
+        LuaValue callback = behaviors.callbacks().getOrDefault("onRightClick", LuaValue.NIL);
+        MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey, level);
         if (!callback.isnil() || container != null) {
             if (MLuaGameThreadAccess.isClientSide(level)) return InteractionResult.SUCCESS;
             try {
@@ -96,8 +98,8 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
                             MCServerPlayerImpl.fromReal(serverPlayer), registration));
                     }
                     ctx.set("Face", hit.getDirection().getName());
-                    Varargs result = MLuaBehaviorRegistry.invokeCallback("block", this.behaviorKey, "onRightClick",
-                        callback, LuaValue.varargsOf(new LuaValue[]{ctx}));
+                    Varargs result = MLuaBehaviorRegistry.invokeCallback(behaviors, callback,
+                        LuaValue.varargsOf(new LuaValue[]{ctx}));
                     if (result.arg1().isboolean() && result.arg1().toboolean()) return InteractionResult.SUCCESS;
                 }
             } catch (Exception exception) {

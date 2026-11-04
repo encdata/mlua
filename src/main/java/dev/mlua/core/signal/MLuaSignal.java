@@ -506,8 +506,13 @@ public final class MLuaSignal {
       for (WaitEntry entry : waiting) {
          try {
             if (entry.scheduler() != null) {
-               entry.scheduler().scheduleThread(entry.globals(), 1L, entry.thread(), args,
-                  entry.ownerKey(), entry.side());
+               Runnable schedule = () -> entry.scheduler().scheduleThread(entry.globals(), 1L,
+                  entry.thread(), args, entry.ownerKey(), entry.side());
+               if (entry.context() == null) {
+                  MLuaLuaBindings.withoutContext(entry.globals(), () -> { schedule.run(); return null; });
+               } else {
+                  schedule.run();
+               }
                continue;
             }
             Runnable resume = () -> {
@@ -525,9 +530,8 @@ public final class MLuaSignal {
                MLuaLuaBindings.withContext(entry.context(), () -> MLuaCallbackBudget.run(
                   entry.context(), entry.globals(), () -> { resume.run(); return null; }));
             } else {
-               synchronized (entry.globals()) {
-                  MLuaCallbackBudget.run(null, entry.globals(), () -> { resume.run(); return null; });
-               }
+               MLuaLuaBindings.withoutContext(entry.globals(),
+                  () -> MLuaCallbackBudget.run(null, entry.globals(), () -> { resume.run(); return null; }));
             }
          } catch (Exception e) {
             MLuaLogger.LOGGER.error("Signal:Wait resume failed: {}", e.getMessage());
@@ -568,8 +572,11 @@ public final class MLuaSignal {
          return MLuaLuaBindings.withContext(entry.context(), () -> MLuaCallbackBudget.run(
             entry.context(), g, () -> invokeListenerLocked(entry, listener, g, scheduler, args, inline)));
       }
-      Object executionLock = g != null ? g : this;
-      synchronized (executionLock) {
+      if (g != null) {
+         return MLuaLuaBindings.withoutContext(g, () -> MLuaCallbackBudget.run(
+            null, g, () -> invokeListenerLocked(entry, listener, g, scheduler, args, inline)));
+      }
+      synchronized (this) {
          return MLuaCallbackBudget.run(entry.context(), g,
             () -> invokeListenerLocked(entry, listener, g, scheduler, args, inline));
       }

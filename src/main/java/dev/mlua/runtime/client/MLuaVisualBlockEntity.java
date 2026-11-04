@@ -53,14 +53,17 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       Block block = state.getBlock();
       var blockId = BuiltInRegistries.BLOCK.getKey(block);
       this.behaviorKey = blockId == null ? null : blockId.toString();
-      if (block instanceof MLuaScriptedBlock scripted) {
-         MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
-         if (definition != null) this.items = NonNullList.withSize(definition.rows() * 9, ItemStack.EMPTY);
-      }
    }
 
    @Override public void setLevel(Level level) {
       super.setLevel(level);
+      if (level != null && this.getBlockState().getBlock() instanceof MLuaScriptedBlock scripted) {
+         MLuaBehaviorRegistry.ContainerDefinition definition =
+            MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey(), level);
+         if (definition != null && this.items.isEmpty()) {
+            this.configureContainer(definition.rows() * 9);
+         }
+      }
       if (level == null || MLuaGameThreadAccess.isClientSide(level) || this.loadCallbackLevel == level) return;
       // Minecraft can clear and reattach a removed block entity in the same Level. A
       // Level-only guard would then suppress the next load callback, and the unload flag
@@ -95,9 +98,9 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
    private boolean invokeLifecycle(String callbackName, String methodName, Level level, int changedSlot,
                                   Entity actor) {
       if (level == null || MLuaGameThreadAccess.isClientSide(level) || this.behaviorKey == null) return true;
-      MLuaBehaviorRegistry.Snapshot owner = MLuaBehaviorRegistry.snapshotBehaviors("block_entity", this.behaviorKey);
+      MLuaBehaviorRegistry.Snapshot owner = MLuaBehaviorRegistry.snapshotBehaviors("block_entity", this.behaviorKey, level);
       MLuaBehaviorRegistry.ContentClassDefinition classDefinition =
-         MLuaBehaviorRegistry.getContentClassDefinition("block_entity", this.behaviorKey);
+         MLuaBehaviorRegistry.getContentClassDefinition("block_entity", this.behaviorKey, level);
       return this.invokeLifecycle(owner, classDefinition, callbackName, methodName, level, changedSlot, actor);
    }
 
@@ -131,7 +134,7 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
          LuaValue classMethod = findLifecycleMethod(registration, className, methodName);
          LuaValue[] invocationArgs = new LuaValue[]{blockEntity, context};
          if (classMethod.isfunction()) {
-            if (MLuaBehaviorRegistry.getContentClassDefinition("block_entity", this.behaviorKey)
+            if (MLuaBehaviorRegistry.getContentClassDefinition("block_entity", this.behaviorKey, level)
                   != classDefinition) return true;
             MLuaContext methodContext = classDefinition == null ? null : classDefinition.context();
             if (methodContext == null) methodContext = owner.context();
@@ -168,10 +171,10 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
    private void dispatchLifecycleCallback(String callbackName, String methodName, Level level,
          int changedSlot, Entity actor, LifecycleCallbackState state) {
       if (level == null || MLuaGameThreadAccess.isClientSide(level) || this.behaviorKey == null) return;
-      MLuaBehaviorRegistry.Snapshot owner = MLuaBehaviorRegistry.snapshotBehaviors("block_entity", this.behaviorKey);
+      MLuaBehaviorRegistry.Snapshot owner = MLuaBehaviorRegistry.snapshotBehaviors("block_entity", this.behaviorKey, level);
       LuaValue callback = owner.callbacks().getOrDefault(callbackName, LuaValue.NIL);
       MLuaBehaviorRegistry.ContentClassDefinition classDefinition =
-         MLuaBehaviorRegistry.getContentClassDefinition("block_entity", this.behaviorKey);
+         MLuaBehaviorRegistry.getContentClassDefinition("block_entity", this.behaviorKey, level);
       String className = classDefinition == null ? "BlockEntity" : classDefinition.className();
       var registration = MLuaRuntime.registrationForLevel(level);
       LuaValue classMethod = registration == null ? LuaValue.NIL
@@ -289,7 +292,7 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
    private int registeredContainerSlots() {
       Block block = this.getBlockState().getBlock();
       if (!(block instanceof MLuaScriptedBlock scripted)) return 0;
-      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
+      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey(), this.level);
       return definition == null ? 0 : definition.rows() * 9;
    }
 
@@ -335,7 +338,7 @@ public final class MLuaVisualBlockEntity extends BlockEntity implements Containe
       if (slot < 0 || slot >= this.items.size()) return false;
       Block block = this.getBlockState().getBlock();
       if (!(block instanceof MLuaScriptedBlock scripted)) return true;
-      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey());
+      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getBlockContainer(scripted.behaviorKey(), this.level);
       return definition == null || definition.allows(slot, stack);
    }
 

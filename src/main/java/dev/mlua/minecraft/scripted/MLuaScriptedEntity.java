@@ -112,7 +112,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
             this.scriptedAI.resetTransitionLimit();
             this.clearAIEventFailures(null);
          }
-         int aiInterval = MLuaBehaviorRegistry.getEntityAIInterval(this.behaviorKey);
+         int aiInterval = MLuaBehaviorRegistry.getEntityAIInterval(this.behaviorKey, this.level());
          if (!onAI.isnil() && !this.aiDisabled && this.tickCount % aiInterval == 0) {
             try {
                this.tickScriptedAI(behaviors, onAI);

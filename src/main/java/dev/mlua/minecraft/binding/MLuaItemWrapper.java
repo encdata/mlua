@@ -1,6 +1,8 @@
 package dev.mlua.minecraft.binding;
 
 import dev.mlua.core.MLuaRuntime;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
 import dev.mlua.core.classes.MLuaClassMethods;
 import dev.mlua.module.MLuaRegistration;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry;
@@ -32,6 +34,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -49,13 +52,21 @@ public final class MLuaItemWrapper {
    }
 
    public static LuaTable itemTable(ItemStack stack, MLuaRegistration registration) {
+      return itemTable(stack, registration, null);
+   }
+
+   public static LuaTable itemTable(ItemStack stack, MLuaRegistration registration, Level level) {
       if (stack == null || stack == ItemStack.EMPTY) {
          // EMPTY is a shared Minecraft sentinel, but Lua Item instances expose mutators.
          // Give each wrapped empty value its own harmless zero-count backing stack.
          stack = new ItemStack(Items.AIR, 0);
       }
       String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-      String className = MLuaBehaviorRegistry.getContentClass("item", itemId);
+      MLuaContext context = level == null ? MLuaLuaBindings.activeContext(registration) : null;
+      String className = level != null
+         ? MLuaBehaviorRegistry.getContentClass("item", itemId, level)
+         : context == null ? MLuaBehaviorRegistry.getContentClass("item", itemId)
+            : MLuaBehaviorRegistry.getContentClass("item", itemId, context);
       if (className == null && stack.getItem() instanceof BlockItem) {
          className = "BlockItem";
       }

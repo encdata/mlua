@@ -32,7 +32,7 @@ public final class MLuaItemBehaviorDispatcher {
         context.set("World", level.dimension().identifier().toString());
         context.set("Position", MLuaVector.vector3(player.getX(), player.getY(), player.getZ()));
         context.set("Hand", hand.name().toLowerCase(java.util.Locale.ROOT));
-        context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), registration(level)));
+        context.set("Item", MLuaItemWrapper.itemTable(player.getItemInHand(hand), registration(level), level));
         context.set("ItemStack", key);
         addPlayer(context, player, registration(level));
         Varargs result = invoke(level, key, "onUse", context);
@@ -50,7 +50,7 @@ public final class MLuaItemBehaviorDispatcher {
         context.set("Face", use.getClickedFace().getName());
         context.set("Hand", use.getHand().name().toLowerCase(java.util.Locale.ROOT));
         context.set("Block", MLuaBlockWrapper.blockTable(level, use.getClickedPos(), registration));
-        context.set("Item", MLuaItemWrapper.itemTable(use.getItemInHand(), registration));
+        context.set("Item", MLuaItemWrapper.itemTable(use.getItemInHand(), registration, level));
         context.set("ItemStack", key);
         addPlayer(context, use.getPlayer(), registration);
         Varargs result = invoke(level, key, "onUseOnBlock", context);
@@ -62,7 +62,7 @@ public final class MLuaItemBehaviorDispatcher {
         var registration = registration(level);
         LuaTable context = new LuaTable();
         context.set("World", level.dimension().identifier().toString());
-        context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+        context.set("Item", MLuaItemWrapper.itemTable(stack, registration, level));
         context.set("ItemStack", key);
         context.set("Entity", MLuaEntityWrapper.entityTable(entity, registration));
         addPlayer(context, entity instanceof Player player ? player : null, registration);
@@ -71,11 +71,11 @@ public final class MLuaItemBehaviorDispatcher {
 
     public static void onInventoryTick(String key, ItemStack stack, ServerLevel level,
                                        Entity entity, EquipmentSlot slot) {
-        if (MLuaBehaviorRegistry.getBehavior("item", key, "onInventoryTick").isnil()) return;
+        if (MLuaBehaviorRegistry.getBehavior("item", key, "onInventoryTick", level).isnil()) return;
         var registration = registration(level);
         LuaTable context = new LuaTable();
         context.set("World", level.dimension().identifier().toString());
-        context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+        context.set("Item", MLuaItemWrapper.itemTable(stack, registration, level));
         context.set("ItemStack", key);
         if (slot != null) {
             context.set("Slot", slot.ordinal());
@@ -93,7 +93,7 @@ public final class MLuaItemBehaviorDispatcher {
         var registration = registration(target.level());
         LuaTable targetTable = entity(target, registration);
         LuaTable context = new LuaTable();
-        context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+        context.set("Item", MLuaItemWrapper.itemTable(stack, registration, target.level()));
         context.set("ItemStack", key);
         context.set("Entity", targetTable);
         context.set("Target", targetTable);
@@ -108,7 +108,7 @@ public final class MLuaItemBehaviorDispatcher {
         var registration = registration(level);
         LuaTable context = new LuaTable();
         context.set("World", level.dimension().identifier().toString());
-        context.set("Item", MLuaItemWrapper.itemTable(stack, registration));
+        context.set("Item", MLuaItemWrapper.itemTable(stack, registration, level));
         context.set("ItemStack", key);
         context.set("Position", MLuaVector.vector3(player.getX(), player.getY(), player.getZ()));
         context.set("Hand", player.getUsedItemHand() == null ? "main_hand"
@@ -118,7 +118,7 @@ public final class MLuaItemBehaviorDispatcher {
     }
 
     private static Varargs invoke(Level level, String key, String event, LuaTable context) {
-        MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("item", key);
+        MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("item", key, level);
         LuaValue callback = behaviors.callbacks().getOrDefault(event, LuaValue.NIL);
         return MLuaBehaviorRegistry.invokeGameplayCallback(level, null, "item", key, event,
             behaviors, callback, LuaValue.varargsOf(new LuaValue[]{context}));

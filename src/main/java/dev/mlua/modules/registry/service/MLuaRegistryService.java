@@ -192,7 +192,9 @@ public final class MLuaRegistryService extends MLuaServiceBase {
    }
 
    LuaValue containerType(String id) {
-      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getContainerType(id);
+      dev.mlua.core.MLuaContext callbackContext =
+         dev.mlua.core.engine.MLuaLuaBindings.boundContext(this.context.mlua().globals());
+      MLuaBehaviorRegistry.ContainerDefinition definition = MLuaBehaviorRegistry.getContainerType(id, callbackContext);
       if (definition == null) return LuaValue.NIL;
       return MLuaContainerType.create(this.context.mlua().registration(), id, definition);
    }

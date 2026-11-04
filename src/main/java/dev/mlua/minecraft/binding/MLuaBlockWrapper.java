@@ -74,7 +74,7 @@ public final class MLuaBlockWrapper {
          WeakReference<LuaTable> reference = positions.get(immutablePosition);
          LuaTable cached = reference != null ? reference.get() : null;
          String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-         String className = MLuaBehaviorRegistry.getContentClass("block", blockId);
+         String className = MLuaBehaviorRegistry.getContentClass("block", blockId, level);
          if (className == null) className = "Block";
          if (cached != null && className.equals(registration.classNameOf(cached))) return cached;
          LuaTable fields = new LuaTable();
@@ -93,7 +93,7 @@ public final class MLuaBlockWrapper {
       BlockEntity entity = level.getBlockEntity(pos);
       if (entity == null) return LuaValue.NIL;
       String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
-      String entityClass = MLuaBehaviorRegistry.getContentClass("block_entity", id);
+      String entityClass = MLuaBehaviorRegistry.getContentClass("block_entity", id, level);
       return blockEntityTable(entity, level, pos, entityClass, registration);
    }
 

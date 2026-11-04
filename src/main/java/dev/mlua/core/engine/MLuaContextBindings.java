@@ -112,7 +112,15 @@ final class MLuaContextBindings {
    /** Runs Java-dispatched Lua work with its owner context and lock, restoring the caller context afterward. */
    static <T> T withContext(MLuaContext context, java.util.function.Supplier<T> callback) {
       java.util.Objects.requireNonNull(callback, "callback");
-      if (context == null) return callback.get();
+      if (context == null) {
+         MLuaContext previous = currentContext();
+         setActiveContext(null);
+         try {
+            return callback.get();
+         } finally {
+            setActiveContext(previous);
+         }
+      }
       Globals globals = context.globals();
       return withExecutionLock(context, () -> {
          MLuaContext previous = currentContext();
@@ -124,9 +132,40 @@ final class MLuaContextBindings {
          try {
             return callback.get();
          } finally {
-            configureContextGlobals(globals, restore);
+            try {
+               configureContextGlobals(globals, restore);
+            } finally {
+               setActiveContext(previous);
+            }
          }
       });
+   }
+
+   static <T> T withoutContext(Globals globals, java.util.function.Supplier<T> callback) {
+      java.util.Objects.requireNonNull(callback, "callback");
+      if (globals == null) return withContext(null, callback);
+      MLuaContext bound = boundContext(globals);
+      java.util.function.Supplier<T> run = () -> {
+         MLuaContext previous = currentContext();
+         MLuaContext previousBound = boundContext(globals);
+         configureContextGlobals(globals, null);
+         try {
+            return callback.get();
+         } finally {
+            try {
+               configureContextGlobals(globals, previousBound);
+            } finally {
+               setActiveContext(previous);
+            }
+         }
+      };
+      if (bound != null) return withExecutionLock(bound, run);
+      synchronized (globals) { return run.get(); }
+   }
+
+   private static void setActiveContext(MLuaContext context) {
+      if (context == null) ACTIVE_CONTEXT.remove();
+      else ACTIVE_CONTEXT.set(new WeakReference<>(context));
    }
 
    /** Runs a Java callback under the Lua environment's execution lock when that lock is required. */

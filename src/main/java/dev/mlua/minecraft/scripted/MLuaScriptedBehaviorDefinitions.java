@@ -14,6 +14,7 @@ import org.luaj.vm2.LuaValue;
 final class MLuaScriptedBehaviorDefinitions {
    private static final ConcurrentMap<ScopedKey, MLuaBehaviorRegistry.BehaviorSet> DEFINITIONS =
       new ConcurrentHashMap<>();
+   private static final ConcurrentMap<BehaviorEvent, Integer> EVENT_COUNTS = new ConcurrentHashMap<>();
    private static final Scope GLOBAL = new Scope(null, Side.BOTH);
 
    private MLuaScriptedBehaviorDefinitions() { }
@@ -38,6 +39,7 @@ final class MLuaScriptedBehaviorDefinitions {
             throw new IllegalStateException("Scripted behavior callback limit reached ("
                + MLuaBehaviorRegistry.MAX_CALLBACKS_PER_DEFINITION + " per definition)");
          }
+         updateEventCounts(domain, key, current == null ? Map.of() : current.callbacks(), updated);
          if (updated.isEmpty()) DEFINITIONS.remove(scopedKey);
          else DEFINITIONS.put(scopedKey, new MLuaBehaviorRegistry.BehaviorSet(updated,
             current == null ? null : current.context(), domain, key));
@@ -49,6 +51,11 @@ final class MLuaScriptedBehaviorDefinitions {
 
    /** Atomically replaces callbacks for one id within its runtime session and side. */
    static Map<String, LuaValue> registerBehaviors(String domain, String key,
+         Map<String, LuaValue> behaviors, MLuaContext context) {
+      return registerBehaviorsSnapshot(domain, key, behaviors, context).callbacks();
+   }
+
+   static MLuaBehaviorRegistry.Snapshot registerBehaviorsSnapshot(String domain, String key,
          Map<String, LuaValue> behaviors, MLuaContext context) {
       if (domain == null || domain.isBlank() || key == null || key.isBlank()) {
          throw new IllegalArgumentException("Scripted behavior domain and key must be non-empty");
@@ -79,22 +86,33 @@ final class MLuaScriptedBehaviorDefinitions {
       ScopedKey scopedKey = new ScopedKey(domain, key, scope);
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
          MLuaBehaviorRegistry.BehaviorSet current = DEFINITIONS.get(scopedKey);
+         if (definition.isEmpty() && current == null) {
+            return new MLuaBehaviorRegistry.Snapshot(Map.of(), context, domain, key, null);
+         }
          if (!definition.isEmpty()) ensureCapacity(scopedKey, context);
-         if (definition.isEmpty()) DEFINITIONS.remove(scopedKey);
-         else DEFINITIONS.put(scopedKey,
-            new MLuaBehaviorRegistry.BehaviorSet(definition, context, domain, key));
+         updateEventCounts(domain, key, current == null ? Map.of() : current.callbacks(), definition);
+         if (definition.isEmpty()) {
+            DEFINITIONS.remove(scopedKey);
+            return new MLuaBehaviorRegistry.Snapshot(Map.of(), context, domain, key, null);
+         }
+         MLuaBehaviorRegistry.BehaviorSet installed =
+            new MLuaBehaviorRegistry.BehaviorSet(definition, context, domain, key);
+         DEFINITIONS.put(scopedKey, installed);
+         return installed.snapshot();
       }
-      return Map.copyOf(definition);
    }
 
    static MLuaBehaviorRegistry.BehaviorSet definition(String domain, String key) {
       MLuaBehaviorRegistry.BehaviorSet global = DEFINITIONS.get(new ScopedKey(domain, key, GLOBAL));
       if (global != null) return global;
-      MLuaBehaviorRegistry.BehaviorSet latest = null;
+      MLuaBehaviorRegistry.BehaviorSet only = null;
       for (Map.Entry<ScopedKey, MLuaBehaviorRegistry.BehaviorSet> entry : DEFINITIONS.entrySet()) {
-         if (entry.getKey().domain().equals(domain) && entry.getKey().key().equals(key)) latest = entry.getValue();
+         if (entry.getKey().domain().equals(domain) && entry.getKey().key().equals(key)) {
+            if (only != null) return null;
+            only = entry.getValue();
+         }
       }
-      return latest;
+      return only;
    }
 
    static MLuaBehaviorRegistry.BehaviorSet definition(String domain, String key,
@@ -108,6 +126,10 @@ final class MLuaScriptedBehaviorDefinitions {
       return definition(domain, key, scope(context).session(), scope(context).side());
    }
 
+   static boolean hasBehavior(String domain, String key, String event) {
+      return EVENT_COUNTS.getOrDefault(new BehaviorEvent(domain, key, event), 0) > 0;
+   }
+
    static boolean restore(String domain, String key, Map<String, LuaValue> expected,
          MLuaBehaviorRegistry.Snapshot previous, MLuaContext expectedContext) {
       if (domain == null || key == null) return false;
@@ -119,25 +141,62 @@ final class MLuaScriptedBehaviorDefinitions {
             if (!sameBehaviors(actual, expected == null ? Map.of() : expected)
                   || current != null && current.context() != expectedContext) return current;
             restored.set(true);
-            return previous == null || previous.callbacks().isEmpty() ? null
-               : new MLuaBehaviorRegistry.BehaviorSet(previous.callbacks(), previous.context(), domain, key);
+            Map<String, LuaValue> restoredCallbacks = previous == null ? Map.of() : previous.callbacks();
+            updateEventCounts(domain, key, actual, restoredCallbacks);
+            return restoredCallbacks.isEmpty() ? null
+               : new MLuaBehaviorRegistry.BehaviorSet(restoredCallbacks, previous.context(), domain, key);
+         });
+      }
+      return restored.get();
+   }
+
+   static boolean restoreExact(String domain, String key, MLuaBehaviorRegistry.Snapshot expected,
+         MLuaBehaviorRegistry.Snapshot previous, MLuaContext expectedContext) {
+      if (domain == null || key == null || expected == null) return false;
+      ScopedKey scopedKey = new ScopedKey(domain, key, scope(expectedContext));
+      java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
+      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
+         DEFINITIONS.compute(scopedKey, (ignored, current) -> {
+            if (current != expected.definition()) return current;
+            restored.set(true);
+            MLuaBehaviorRegistry.BehaviorSet restoredDefinition = previous == null ? null : previous.definition();
+            updateEventCounts(domain, key, current == null ? Map.of() : current.callbacks(),
+               restoredDefinition == null ? Map.of() : restoredDefinition.callbacks());
+            return restoredDefinition;
          });
       }
       return restored.get();
    }
 
    static void clear(String domain, String key) {
-      DEFINITIONS.keySet().removeIf(scopedKey -> scopedKey.domain().equals(domain) && scopedKey.key().equals(key));
+      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
+         DEFINITIONS.entrySet().removeIf(entry -> {
+            if (!entry.getKey().domain().equals(domain) || !entry.getKey().key().equals(key)) return false;
+            updateEventCounts(domain, key, entry.getValue().callbacks(), Map.of());
+            return true;
+         });
+      }
    }
 
-   static void clearOwnerPrefix(String prefix) {
-      DEFINITIONS.keySet().removeIf(scopedKey -> scopedKey.key().startsWith(prefix));
+   static void clearOwner(String owner) {
+      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
+         DEFINITIONS.entrySet().removeIf(entry -> {
+            if (!owner.equals(MLuaScriptedOwnerPolicy.ownerOf(entry.getValue().context(), entry.getKey().key()))) return false;
+            updateEventCounts(entry.getKey().domain(), entry.getKey().key(), entry.getValue().callbacks(), Map.of());
+            return true;
+         });
+      }
    }
 
    static void clearOwner(String owner, MLuaRuntimeSession session, Side side) {
-      DEFINITIONS.entrySet().removeIf(entry -> owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
-         entry.getValue().context(), entry.getKey().key()))
-         && MLuaScriptedOwnerPolicy.inScope(entry.getValue().context(), session, side));
+      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
+         DEFINITIONS.entrySet().removeIf(entry -> {
+            if (!owner.equals(MLuaScriptedOwnerPolicy.ownerOf(entry.getValue().context(), entry.getKey().key()))
+                  || !MLuaScriptedOwnerPolicy.inScope(entry.getValue().context(), session, side)) return false;
+            updateEventCounts(entry.getKey().domain(), entry.getKey().key(), entry.getValue().callbacks(), Map.of());
+            return true;
+         });
+      }
    }
 
    static int count() { return DEFINITIONS.size(); }
@@ -160,6 +219,23 @@ final class MLuaScriptedBehaviorDefinitions {
          if (right.get(entry.getKey()) != entry.getValue()) return false;
       }
       return true;
+   }
+
+   private static void updateEventCounts(String domain, String key, Map<String, LuaValue> previous,
+                                        Map<String, LuaValue> next) {
+      java.util.Set<String> events = new java.util.HashSet<>(previous.keySet());
+      events.addAll(next.keySet());
+      for (String event : events) {
+         boolean wasRegistered = previous.containsKey(event);
+         boolean isRegistered = next.containsKey(event);
+         if (wasRegistered == isRegistered) continue;
+         BehaviorEvent behaviorEvent = new BehaviorEvent(domain, key, event);
+         if (isRegistered) {
+            EVENT_COUNTS.merge(behaviorEvent, 1, Integer::sum);
+         } else {
+            EVENT_COUNTS.computeIfPresent(behaviorEvent, (ignored, count) -> count <= 1 ? null : count - 1);
+         }
+      }
    }
 
    private static void validateName(String name) {
@@ -186,4 +262,5 @@ final class MLuaScriptedBehaviorDefinitions {
 
    private record Scope(MLuaRuntimeSession session, Side side) { }
    private record ScopedKey(String domain, String key, Scope scope) { }
+   private record BehaviorEvent(String domain, String key, String event) { }
 }

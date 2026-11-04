@@ -1,126 +1,129 @@
 package dev.mlua.minecraft.scripted;
 
+import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaRuntimeSession;
-import dev.mlua.common.enums.Side;
+import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry.ContentClassDefinition;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry.ContentClassDefinition;
 
 /** Owns Lua class bindings for scripted items, blocks, and block entities. */
 final class MLuaScriptedContentClassRegistry {
-   private static final ConcurrentMap<String, ConcurrentMap<String, ContentClassDefinition>> DEFINITIONS =
-      new ConcurrentHashMap<>();
+   private static final Scope GLOBAL = new Scope(null, Side.BOTH);
+   private static final ConcurrentMap<ScopedKey, ContentClassDefinition> DEFINITIONS = new ConcurrentHashMap<>();
 
    private MLuaScriptedContentClassRegistry() { }
 
-   static void register(String domain, String key, String className, MLuaContext context) {
+   static ContentClassDefinition register(String domain, String key, String className, MLuaContext context) {
       if (domain == null || domain.isBlank() || key == null || key.isBlank()) {
          throw new IllegalArgumentException("Scripted content domain and key must be non-empty");
       }
-      if (className == null || className.isBlank()) {
-         synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-            DEFINITIONS.computeIfPresent(domain, (ignoredDomain, definitions) -> {
-               definitions.remove(key);
-               return definitions.isEmpty() ? null : definitions;
-            });
-         }
-         return;
-      }
-
-      MLuaBehaviorRegistry.validateBehaviorKey(key);
+      Scope scope = scope(context);
+      ScopedKey scopedKey = new ScopedKey(domain, key, scope);
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         ensureCapacity(domain, key, context);
-         DEFINITIONS.compute(domain, (ignoredDomain, definitions) -> {
-            ConcurrentMap<String, ContentClassDefinition> result = definitions == null
-               ? new ConcurrentHashMap<>() : definitions;
-            result.put(key, new ContentClassDefinition(className, context));
-            return result;
-         });
+         if (className == null || className.isBlank()) {
+            DEFINITIONS.remove(scopedKey);
+            return null;
+         }
+         MLuaBehaviorRegistry.validateBehaviorKey(key);
+         ensureCapacity(scopedKey, context);
+         ContentClassDefinition definition = new ContentClassDefinition(className, context);
+         DEFINITIONS.put(scopedKey, definition);
+         return definition;
       }
    }
 
    static ContentClassDefinition get(String domain, String key) {
-      ConcurrentMap<String, ContentClassDefinition> definitions = DEFINITIONS.get(domain);
-      return definitions == null ? null : definitions.get(key);
+      ContentClassDefinition global = DEFINITIONS.get(new ScopedKey(domain, key, GLOBAL));
+      if (global != null) return global;
+      ContentClassDefinition only = null;
+      for (Map.Entry<ScopedKey, ContentClassDefinition> entry : DEFINITIONS.entrySet()) {
+         if (entry.getKey().domain().equals(domain) && entry.getKey().key().equals(key)) {
+            if (only != null) return null;
+            only = entry.getValue();
+         }
+      }
+      return only;
+   }
+
+   static ContentClassDefinition get(String domain, String key, MLuaRuntimeSession session, Side side) {
+      ContentClassDefinition scoped = DEFINITIONS.get(new ScopedKey(domain, key, new Scope(session, side)));
+      return scoped != null ? scoped : DEFINITIONS.get(new ScopedKey(domain, key, GLOBAL));
+   }
+
+   static ContentClassDefinition get(String domain, String key, MLuaContext context) {
+      Scope scope = scope(context);
+      return get(domain, key, scope.session(), scope.side());
    }
 
    static boolean restore(String domain, String key, ContentClassDefinition expected,
-         ContentClassDefinition previous) {
+                          ContentClassDefinition previous, MLuaContext context) {
+      return restore(domain, key, expected, previous, context, false);
+   }
+
+   static boolean restoreExact(String domain, String key, ContentClassDefinition expected,
+                               ContentClassDefinition previous, MLuaContext context) {
+      return restore(domain, key, expected, previous, context, true);
+   }
+
+   private static boolean restore(String domain, String key, ContentClassDefinition expected,
+                                  ContentClassDefinition previous, MLuaContext context, boolean exact) {
       if (domain == null || key == null) return false;
+      ScopedKey scopedKey = new ScopedKey(domain, key, scope(context));
       java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         DEFINITIONS.compute(domain, (ignored, definitions) -> {
-            ConcurrentMap<String, ContentClassDefinition> values = definitions == null
-               ? new ConcurrentHashMap<>() : definitions;
-            values.compute(key, (ignoredKey, current) -> {
-               if (!java.util.Objects.equals(current, expected)) return current;
-               restored.set(true);
-               return previous;
-            });
-            return values.isEmpty() ? null : values;
+         DEFINITIONS.compute(scopedKey, (ignored, current) -> {
+            if (exact ? current != expected : !java.util.Objects.equals(current, expected)) return current;
+            restored.set(true);
+            return previous;
          });
       }
       return restored.get();
    }
 
-   static int count() {
-      int count = 0;
-      for (Map<String, ContentClassDefinition> definitions : DEFINITIONS.values()) count += definitions.size();
-      return count;
-   }
+   static int count() { return DEFINITIONS.size(); }
 
    static int countForOwner(String owner) {
       int count = 0;
-      for (Map<String, ContentClassDefinition> definitions : DEFINITIONS.values()) {
-         for (Map.Entry<String, ContentClassDefinition> definition : definitions.entrySet()) {
-            if (owner.equals(MLuaScriptedOwnerPolicy.ownerOf(definition.getValue().context(), definition.getKey()))) count++;
-         }
+      for (Map.Entry<ScopedKey, ContentClassDefinition> entry : DEFINITIONS.entrySet()) {
+         if (owner.equals(MLuaScriptedOwnerPolicy.ownerOf(entry.getValue().context(), entry.getKey().key()))) count++;
       }
       return count;
    }
 
-   static void clearOwnerPrefix(String prefix) {
+   static void clearOwner(String owner) {
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         DEFINITIONS.forEach((domain, ignored) -> DEFINITIONS.computeIfPresent(domain,
-            (domainKey, definitions) -> {
-               definitions.keySet().removeIf(key -> key.startsWith(prefix));
-               return definitions.isEmpty() ? null : definitions;
-            }));
+         DEFINITIONS.entrySet().removeIf(entry -> owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
+            entry.getValue().context(), entry.getKey().key())));
       }
    }
 
    static void clearOwner(String owner, MLuaRuntimeSession session, Side side) {
-      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         DEFINITIONS.forEach((domain, ignored) -> DEFINITIONS.computeIfPresent(domain,
-            (domainKey, definitions) -> {
-               definitions.entrySet().removeIf(entry -> owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
-                  entry.getValue().context(), entry.getKey()))
-                  && MLuaScriptedOwnerPolicy.inScope(entry.getValue().context(), session, side));
-               return definitions.isEmpty() ? null : definitions;
-            }));
-      }
+      DEFINITIONS.entrySet().removeIf(entry -> owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
+         entry.getValue().context(), entry.getKey().key()))
+         && MLuaScriptedOwnerPolicy.inScope(entry.getValue().context(), session, side));
    }
 
-   private static void ensureCapacity(String domain, String key, MLuaContext context) {
-      int total = 0;
-      int ownerCount = 0;
-      for (Map.Entry<String, ConcurrentMap<String, ContentClassDefinition>> domainEntry : DEFINITIONS.entrySet()) {
-         for (Map.Entry<String, ContentClassDefinition> entry : domainEntry.getValue().entrySet()) {
-            if (domainEntry.getKey().equals(domain) && entry.getKey().equals(key)) continue;
-            total++;
-            if (MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), entry.getKey(), context, key)) ownerCount++;
-         }
-      }
-      if (total >= MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS) {
+   private static Scope scope(MLuaContext context) {
+      return context == null ? GLOBAL : new Scope(context.session(), context.side());
+   }
+
+   private static void ensureCapacity(ScopedKey key, MLuaContext context) {
+      if (DEFINITIONS.containsKey(key)) return;
+      if (DEFINITIONS.size() >= MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS) {
          throw new IllegalStateException("Scripted content class mapping limit reached ("
             + MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS + " total)");
       }
+      long ownerCount = DEFINITIONS.entrySet().stream()
+         .filter(entry -> MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(),
+            entry.getKey().key(), context, key.key())).count();
       if (ownerCount >= MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS_PER_ADDON) {
          throw new IllegalStateException("Addon scripted content class mapping limit reached ("
             + MLuaBehaviorRegistry.MAX_CONTENT_CLASS_MAPPINGS_PER_ADDON + ")");
       }
    }
 
+   private record Scope(MLuaRuntimeSession session, Side side) { }
+   private record ScopedKey(String domain, String key, Scope scope) { }
 }

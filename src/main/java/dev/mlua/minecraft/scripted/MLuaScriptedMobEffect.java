@@ -56,7 +56,7 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 //--version 1.20.1
    public void applyEffectTick(LivingEntity entity, int amplifier) {
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          this.invoke(entity, "onTick", behaviors, behaviors.callbacks().getOrDefault("onTick", LuaValue.NIL), effectContext(entity, amplifier));
       }
    }
@@ -64,7 +64,7 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 //--version 1.21.1
    public boolean applyEffectTick(LivingEntity entity, int amplifier) {
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          this.invoke(entity, "onTick", behaviors, behaviors.callbacks().getOrDefault("onTick", LuaValue.NIL), effectContext(entity, amplifier));
       }
       return true;
@@ -73,7 +73,7 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 
    public void applyInstantenousEffect(Entity source, Entity indirectSource, LivingEntity entity, int amplifier, double health) {
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          LuaTable ctx = effectContext(entity, amplifier);
          ctx.set("Instant", LuaValue.TRUE);
          this.invoke(entity, "onApplied", behaviors, behaviors.callbacks().getOrDefault("onApplied", LuaValue.NIL), ctx);
@@ -83,22 +83,21 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 
 //--version 1.20.1
    public boolean isDurationEffectTick(int duration, int amplifier) {
-      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
-      return !behaviors.callbacks().getOrDefault("onTick", LuaValue.NIL).isnil()
+      return MLuaBehaviorRegistry.hasBehavior("effect", this.behaviorKey, "onTick")
          && duration > 0 && duration % this.tickInterval == 0;
    }
 
    public void addAttributeModifiers(LivingEntity entity, AttributeMap attributes, int amplifier) {
       super.addAttributeModifiers(entity, attributes, amplifier);
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          this.invoke(entity, "onApplied", behaviors, behaviors.callbacks().getOrDefault("onApplied", LuaValue.NIL), effectContext(entity, amplifier));
       }
    }
 
    public void removeAttributeModifiers(LivingEntity entity, AttributeMap attributes, int amplifier) {
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          this.invokeEnding(entity, behaviors, behaviors.callbacks().getOrDefault("onEnding", LuaValue.NIL), effectContext(entity, amplifier));
       }
 
@@ -107,22 +106,21 @@ public final class MLuaScriptedMobEffect extends MobEffect {
 //--endversion
 //--version 1.21.1
    public boolean shouldApplyEffectTickThisTick(int duration, int amplifier) {
-      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
-      return !behaviors.callbacks().getOrDefault("onTick", LuaValue.NIL).isnil()
+      return MLuaBehaviorRegistry.hasBehavior("effect", this.behaviorKey, "onTick")
          && duration > 0 && duration % this.tickInterval == 0;
    }
 
    public void onEffectAdded(LivingEntity entity, int amplifier) {
       super.onEffectAdded(entity, amplifier);
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          this.invoke(entity, "onApplied", behaviors, behaviors.callbacks().getOrDefault("onApplied", LuaValue.NIL), effectContext(entity, amplifier));
       }
    }
 
    public void onMobRemoved(LivingEntity entity, int amplifier, Entity.RemovalReason reason) {
       if (!MLuaGameThreadAccess.isClientSide(entity.level())) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("effect", this.behaviorKey, entity.level());
          this.invokeEnding(entity, behaviors, behaviors.callbacks().getOrDefault("onEnding", LuaValue.NIL), effectContext(entity, amplifier));
       }
       super.onMobRemoved(entity, amplifier, reason);

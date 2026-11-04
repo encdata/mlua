@@ -32,6 +32,7 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       .thenComparingLong(task -> task.sequence);
    private final PriorityQueue<MLuaScheduledTask> tasks = new PriorityQueue<>(TASK_ORDER);
    private final Map<TaskOwner, Integer> pendingByOwner = new HashMap<>();
+   private final Map<String, Integer> pendingByAddon = new HashMap<>();
    /** Due tasks are kept here until execution finishes so owner teardown can cancel them. */
    private final Set<MLuaScheduledTask> inFlight = new HashSet<>();
    private long currentTick;
@@ -146,12 +147,13 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       if (this.tasks.size() >= MAX_PENDING_TASKS) {
          throw new LuaError("[MLua] Pending task limit reached (" + MAX_PENDING_TASKS + ")");
       }
-      if (this.pendingByOwner.getOrDefault(owner, 0) >= MAX_PENDING_TASKS_PER_OWNER) {
+      if (this.pendingByAddon.getOrDefault(task.ownerModId, 0) >= MAX_PENDING_TASKS_PER_OWNER) {
          throw new LuaError("[MLua] Pending task limit reached for addon '"
             + (task.ownerModId == null ? "<unknown>" : task.ownerModId) + "' (" + MAX_PENDING_TASKS_PER_OWNER + ")");
       }
       this.tasks.add(task);
       this.pendingByOwner.merge(owner, 1, Integer::sum);
+      this.pendingByAddon.merge(task.ownerModId, 1, Integer::sum);
    }
 
    private void release(MLuaScheduledTask task) {
@@ -159,6 +161,9 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       int remaining = this.pendingByOwner.getOrDefault(owner, 0) - 1;
       if (remaining <= 0) this.pendingByOwner.remove(owner);
       else this.pendingByOwner.put(owner, remaining);
+      int addonRemaining = this.pendingByAddon.getOrDefault(task.ownerModId, 0) - 1;
+      if (addonRemaining <= 0) this.pendingByAddon.remove(task.ownerModId);
+      else this.pendingByAddon.put(task.ownerModId, addonRemaining);
    }
 
    private int removeTasks(Predicate<MLuaScheduledTask> predicate) {
@@ -186,6 +191,7 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       this.inFlight.clear();
       this.tasks.clear();
       this.pendingByOwner.clear();
+      this.pendingByAddon.clear();
     }
 
    public synchronized int removeOwned(String ownerModId) {
@@ -268,10 +274,7 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       if (task.context != null) {
          MLuaLuaBindings.withContext(task.context, () -> { runTaskLocked(task); return null; });
       } else {
-         synchronized (task.globals) {
-            MLuaLuaBindings.configureContextGlobals(task.globals, null);
-            runTaskLocked(task);
-         }
+         MLuaLuaBindings.withoutContext(task.globals, () -> { runTaskLocked(task); return null; });
       }
    }
 

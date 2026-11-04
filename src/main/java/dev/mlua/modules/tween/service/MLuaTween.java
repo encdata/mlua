@@ -40,6 +40,7 @@ final class MLuaTween {
     private boolean completionPending;
     private String pendingCompletionState;
     private boolean disposed;
+    private long playbackGeneration;
 
     MLuaTween(LuaTable target, List<Property> properties, MLuaContext context,
               double duration, EasingStyle style, EasingDirection direction) {
@@ -56,6 +57,7 @@ final class MLuaTween {
 
     synchronized void play() {
         requireNotDisposed();
+        long generation = ++this.playbackGeneration;
         error = null;
         List<Track> current = new ArrayList<>(properties.size());
         runBounded(() -> {
@@ -74,6 +76,7 @@ final class MLuaTween {
             }
             return null;
         });
+        if (this.disposed || this.playbackGeneration != generation) return;
         starts = List.copyOf(current);
         hasLerpTrack = false;
         for (Track track : current) {
@@ -85,7 +88,8 @@ final class MLuaTween {
         startedAtNanos = System.nanoTime();
         pausedElapsedNanos = 0L;
         if (duration == 0.0) {
-            apply(1.0);
+            if (!apply(1.0, generation)) return;
+            if (this.disposed || this.playbackGeneration != generation) return;
             playbackState = PlaybackState.Completed;
             fireCompleted(playbackState.name());
         } else {
@@ -96,6 +100,7 @@ final class MLuaTween {
 
     synchronized void pause() {
         if (playbackState != PlaybackState.Playing) return;
+        this.playbackGeneration++;
         pausedElapsedNanos = Math.max(0L, System.nanoTime() - startedAtNanos);
         playbackState = PlaybackState.Paused;
         MLuaTweenService.deactivate(this);
@@ -104,6 +109,7 @@ final class MLuaTween {
     synchronized void cancel() {
         if (disposed) return;
         if (playbackState == PlaybackState.Completed || playbackState == PlaybackState.Cancelled) return;
+        this.playbackGeneration++;
         boolean wasActive = playbackState == PlaybackState.Playing || playbackState == PlaybackState.Paused;
         boolean wasPlaying = playbackState == PlaybackState.Playing;
         playbackState = PlaybackState.Cancelled;
@@ -116,6 +122,7 @@ final class MLuaTween {
 
     synchronized void dispose() {
         if (disposed) return;
+        this.playbackGeneration++;
         if (playbackState == PlaybackState.Playing) MLuaTweenService.deactivate(this);
         MLuaTweenRegistry.untrack(this);
         disposed = true;
@@ -155,17 +162,26 @@ final class MLuaTween {
 
     synchronized boolean sample(long nowNanos) {
         if (playbackState != PlaybackState.Playing) return false;
+        long sampleGeneration = this.playbackGeneration;
         long elapsed = Math.max(0L, nowNanos - startedAtNanos);
         double alpha = Math.min(1.0, elapsed / (duration * 1_000_000_000.0));
         try {
-            apply(ease(alpha));
+            if (!apply(ease(alpha), sampleGeneration)) return this.playbackState == PlaybackState.Playing;
         } catch (Error fatal) {
             throw fatal;
         } catch (RuntimeException failure) {
+            if (this.disposed || this.playbackGeneration != sampleGeneration
+                    || this.playbackState != PlaybackState.Playing) {
+                return this.playbackState == PlaybackState.Playing;
+            }
             error = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
             playbackState = PlaybackState.Cancelled;
             setPendingCompletion();
             return false;
+        }
+        if (this.disposed || this.playbackGeneration != sampleGeneration
+                || this.playbackState != PlaybackState.Playing) {
+            return this.playbackState == PlaybackState.Playing;
         }
         if (alpha >= 1.0) {
             playbackState = PlaybackState.Completed;
@@ -186,6 +202,7 @@ final class MLuaTween {
             play();
             return;
         }
+        this.playbackGeneration++;
         MLuaTweenService.activate(this);
         startedAtNanos = System.nanoTime() - pausedElapsedNanos;
         playbackState = PlaybackState.Playing;
@@ -195,10 +212,11 @@ final class MLuaTween {
         if (disposed) throw new LuaError("[MLua] This Tween was disposed when its addon runtime unloaded.");
     }
 
-    private void apply(double alpha) {
+    private boolean apply(double alpha, long expectedGeneration) {
         LuaValue alphaValue = hasLerpTrack ? LuaValue.valueOf(alpha) : LuaValue.NIL;
         runBounded(() -> {
             for (int index = 0; index < properties.size(); index++) {
+                if (this.disposed || this.playbackGeneration != expectedGeneration) return null;
                 Track track = starts.get(index);
                 Property property = track.property();
                 LuaValue value = interpolate(track.start(), property.goal(), alpha, alphaValue, track.lerp());
@@ -206,6 +224,7 @@ final class MLuaTween {
             }
             return null;
         });
+        return !this.disposed && this.playbackGeneration == expectedGeneration;
     }
 
     private <T> T runBounded(java.util.function.Supplier<T> action) {

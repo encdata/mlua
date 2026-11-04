@@ -74,7 +74,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    public void aiStep() {
       if (!MLuaGameThreadAccess.isClientSide(this.level()) && this.behaviorKey != null && !this.spawnCallbackFired) {
-         this.ensureSpawnCallback(MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey));
+         this.ensureSpawnCallback(MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level()));
       }
       super.aiStep();
       if (!MLuaGameThreadAccess.isClientSide(this.level())) {
@@ -84,7 +84,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
          }
       }
       if (!MLuaGameThreadAccess.isClientSide(this.level()) && this.behaviorKey != null) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level());
          this.refreshBehaviorDefinition(behaviors);
          this.scriptedAI.tickState();
          if (this.meleeCooldown > 0) this.meleeCooldown--;
@@ -110,7 +110,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
             this.scriptedAI.resetTransitionLimit();
             this.clearAIEventFailures(null);
          }
-         int aiInterval = MLuaBehaviorRegistry.getEntityAIInterval(this.behaviorKey);
+         int aiInterval = MLuaBehaviorRegistry.getEntityAIInterval(this.behaviorKey, this.level());
          if (!onAI.isnil() && !this.aiDisabled && this.tickCount % aiInterval == 0) {
             try {
                this.tickScriptedAI(behaviors, onAI);
@@ -126,7 +126,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
       boolean result = super.hurtServer(level, source, amount);
       if (result && this.behaviorKey != null) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, level);
          LuaValue onHurt = behaviors.callbacks().getOrDefault("onHurt", LuaValue.NIL);
          if (this.shouldInvokeEventCallback(behaviors, "onHurt", onHurt)) {
             try {
@@ -142,7 +142,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    public void die(DamageSource source) {
       if (!MLuaGameThreadAccess.isClientSide(this.level()) && this.behaviorKey != null) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level());
          LuaValue onDeath = behaviors.callbacks().getOrDefault("onDeath", LuaValue.NIL);
          if (this.shouldInvokeEventCallback(behaviors, "onDeath", onDeath)) {
             try {
@@ -158,7 +158,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
    public void onAddedToWorld() {
       this.invokeLifecycleSuper("onAddedToWorld");
       if (!MLuaGameThreadAccess.isClientSide(this.level()) && this.behaviorKey != null) {
-         this.ensureSpawnCallback(MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey));
+         this.ensureSpawnCallback(MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level()));
       }
    }
 
@@ -176,7 +176,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
 
    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
       if (!MLuaGameThreadAccess.isClientSide(this.level()) && this.behaviorKey != null) {
-         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+         MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level());
          LuaValue onInteract = behaviors.callbacks().getOrDefault("onInteract", LuaValue.NIL);
          if (this.shouldInvokeEventCallback(behaviors, "onInteract", onInteract)) {
             try {
@@ -199,7 +199,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       super.setTarget(target);
       if (previousTarget == target || this.notifyingTargetChange || MLuaGameThreadAccess.isClientSide(this.level())
             || this.behaviorKey == null) return;
-      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level());
       LuaValue onTargetChanged = behaviors.callbacks().getOrDefault("onTargetChanged", LuaValue.NIL);
       if (!this.shouldInvokeEventCallback(behaviors, "onTargetChanged", onTargetChanged)) return;
       this.notifyingTargetChange = true;
@@ -257,7 +257,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       try {
          this.invokeLifecycleSuper("onRemovedFromWorld");
          if (!MLuaGameThreadAccess.isClientSide(this.level()) && this.behaviorKey != null) {
-            MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+            MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level());
             LuaValue onRemove = behaviors.callbacks().getOrDefault("onRemove", LuaValue.NIL);
             if (this.shouldInvokeEventCallback(behaviors, "onRemove", onRemove)) {
                try {
@@ -369,7 +369,7 @@ public class MLuaScriptedEntity extends PathfinderMob {
       if (this.behaviorKey == null) {
          throw new LuaError("[MLua] SetAIState requires AI to be a state table.");
       }
-      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey);
+      MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("entity", this.behaviorKey, this.level());
       this.refreshBehaviorDefinition(behaviors);
       LuaValue ai = behaviors.callbacks().getOrDefault("AI", LuaValue.NIL);
       if (!ai.istable()) throw new LuaError("[MLua] SetAIState requires AI to be a state table.");

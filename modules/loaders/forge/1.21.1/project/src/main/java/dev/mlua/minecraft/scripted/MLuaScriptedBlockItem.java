@@ -68,11 +68,11 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        LuaValue onUse = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUse");
+        LuaValue onUse = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUse", level);
         if (!onUse.isnil()) {
             try {
                 LuaTable ctx = this.createContext(player, hand);
-                Varargs result = this.invokeBehavior("onUse", onUse, ctx);
+                Varargs result = this.invokeBehavior(level, "onUse", onUse, ctx);
                 if (result.arg1().isboolean() && result.arg1().toboolean()) {
                     return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), MLuaGameThreadAccess.isClientSide(level));
                 }
@@ -84,11 +84,11 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public InteractionResult useOn(UseOnContext context) {
-        LuaValue onUseOnBlock = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUseOnBlock");
+        LuaValue onUseOnBlock = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onUseOnBlock", context.getLevel());
         if (!onUseOnBlock.isnil()) {
             try {
                 LuaTable ctx = this.createUseOnBlockContext(context);
-                Varargs result = this.invokeBehavior("onUseOnBlock", onUseOnBlock, ctx);
+                Varargs result = this.invokeBehavior(context.getLevel(), "onUseOnBlock", onUseOnBlock, ctx);
                 if (result.arg1().isboolean() && result.arg1().toboolean()) {
                     return InteractionResult.sidedSuccess(MLuaGameThreadAccess.isClientSide(context.getLevel()));
                 }
@@ -100,7 +100,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity livingEntity) {
-        LuaValue onConsume = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onConsume");
+        LuaValue onConsume = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onConsume", level);
         if (!onConsume.isnil()) {
             try {
                 LuaTable ctx = new LuaTable();
@@ -109,7 +109,7 @@ public class MLuaScriptedBlockItem extends BlockItem {
                 }
                 ctx.set("World", level.dimension().location().toString());
                 ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
-                this.invokeBehavior("onConsume", onConsume, ctx);
+                this.invokeBehavior(level, "onConsume", onConsume, ctx);
             } catch (Exception exception) {
                 MLuaLogger.LOGGER.error("MLua block item onConsume callback failed for '{}': {}", this.behaviorKey, exception);
             }
@@ -118,11 +118,11 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-        LuaValue onInventoryTick = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onInventoryTick");
+        LuaValue onInventoryTick = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onInventoryTick", level);
         if (!onInventoryTick.isnil()) {
             try {
                 LuaTable ctx = this.createInventoryContext(stack, level, entity, slot, selected);
-                this.invokeBehavior("onInventoryTick", onInventoryTick, ctx);
+                this.invokeBehavior(level, "onInventoryTick", onInventoryTick, ctx);
             } catch (Exception exception) {
                 MLuaLogger.LOGGER.error("MLua block item onInventoryTick callback failed for '{}': {}", this.behaviorKey, exception);
             }
@@ -131,12 +131,12 @@ public class MLuaScriptedBlockItem extends BlockItem {
     }
 
     public void onCraftedBy(ItemStack stack, Level level, Player player) {
-        LuaValue onCrafted = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onCrafted");
+        LuaValue onCrafted = MLuaBehaviorRegistry.getBehavior("item", this.behaviorKey, "onCrafted", level);
         if (!onCrafted.isnil()) {
             try {
                 LuaTable ctx = this.createContext(player, player.getUsedItemHand());
                 ctx.set("Item", MLuaItemWrapper.itemTable(stack, MLuaRuntime.registrationForLevel(level)));
-                this.invokeBehavior("onCrafted", onCrafted, ctx);
+                this.invokeBehavior(level, "onCrafted", onCrafted, ctx);
             } catch (Exception exception) {
                 MLuaLogger.LOGGER.error("MLua block item onCrafted callback failed for '{}': {}", this.behaviorKey, exception);
             }
@@ -157,8 +157,8 @@ public class MLuaScriptedBlockItem extends BlockItem {
         return ctx;
     }
 
-    private Varargs invokeBehavior(String event, LuaValue callback, LuaTable context) {
-        return MLuaBehaviorRegistry.invokeCallback("item", this.behaviorKey, event, callback,
+    private Varargs invokeBehavior(Level level, String event, LuaValue callback, LuaTable context) {
+        return MLuaBehaviorRegistry.invokeCallback(level, "item", this.behaviorKey, event, callback,
             LuaValue.varargsOf(new LuaValue[]{context}));
     }
 

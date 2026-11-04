@@ -69,11 +69,6 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    @Override
    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
       BlockEntity blockEntity = super.newBlockEntity(pos, state);
-      if (blockEntity instanceof MLuaVisualBlockEntity visual) {
-         MLuaBehaviorRegistry.ContainerDefinition container =
-            MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
-         if (container != null) visual.configureContainer(container.rows() * 9);
-      }
       return blockEntity;
    }
 
@@ -81,7 +76,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
       MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("block", this.behaviorKey, level);
       LuaValue onRightClick = behaviors.callbacks().getOrDefault("onRightClick", LuaValue.NIL);
-      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
+      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey, level);
       if (!onRightClick.isnil() || container != null) {
          if (MLuaGameThreadAccess.isClientSide(level)) {
             return InteractionResult.sidedSuccess(true);
@@ -111,7 +106,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
          Player player, InteractionHand hand, BlockHitResult hit) {
       MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("block", this.behaviorKey, level);
       LuaValue onRightClick = behaviors.callbacks().getOrDefault("onRightClick", LuaValue.NIL);
-      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
+      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey, level);
       if (onRightClick.isnil() && container == null) {
          return super.useItemOn(stack, state, level, pos, player, hand, hit);
       }
@@ -138,7 +133,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
       MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("block", this.behaviorKey, level);
       LuaValue onRightClick = behaviors.callbacks().getOrDefault("onRightClick", LuaValue.NIL);
-      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
+      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey, level);
       if (!onRightClick.isnil() || container != null) {
          if (MLuaGameThreadAccess.isClientSide(level)) {
             return InteractionResult.sidedSuccess(true);
@@ -166,7 +161,7 @@ public class MLuaScriptedBlock extends MLuaRenderableBlock {
    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
       MLuaBehaviorRegistry.Snapshot behaviors = MLuaBehaviorRegistry.snapshotBehaviors("block", this.behaviorKey, level);
       LuaValue onRightClick = behaviors.callbacks().getOrDefault("onRightClick", LuaValue.NIL);
-      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey);
+      MLuaBehaviorRegistry.ContainerDefinition container = MLuaBehaviorRegistry.getBlockContainer(this.behaviorKey, level);
       if (!onRightClick.isnil() || container != null) {
          if (MLuaGameThreadAccess.isClientSide(level)) return InteractionResult.sidedSuccess(true);
          try {

@@ -6,12 +6,15 @@ import java.util.concurrent.ConcurrentMap;
 import dev.mlua.minecraft.scripted.MLuaBehaviorRegistry.ContainerDefinition;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaRuntimeSession;
+import dev.mlua.core.MLuaRuntime;
 import dev.mlua.common.enums.Side;
+import net.minecraft.world.level.Level;
 
 /** Owns registered scripted block containers and reusable container types. */
 final class MLuaScriptedContainerRegistry {
-   private static final ConcurrentMap<String, OwnedContainer> BLOCK_CONTAINERS = new ConcurrentHashMap<>();
-   private static final ConcurrentMap<String, OwnedContainer> CONTAINER_TYPES = new ConcurrentHashMap<>();
+   private static final Scope GLOBAL = new Scope(null, Side.BOTH);
+   private static final ConcurrentMap<ScopedKey, OwnedContainer> BLOCK_CONTAINERS = new ConcurrentHashMap<>();
+   private static final ConcurrentMap<ScopedKey, OwnedContainer> CONTAINER_TYPES = new ConcurrentHashMap<>();
 
    private MLuaScriptedContainerRegistry() { }
 
@@ -24,8 +27,9 @@ final class MLuaScriptedContainerRegistry {
       MLuaBehaviorRegistry.validateBehaviorKey(key);
       ContainerDefinition registered = validate(definition);
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         ensureCapacity(BLOCK_CONTAINERS, key, MLuaBehaviorRegistry.MAX_BLOCK_CONTAINERS);
-         BLOCK_CONTAINERS.put(key, new OwnedContainer(registered, context));
+         ScopedKey scopedKey = scopedKey(key, context);
+         ensureCapacity(BLOCK_CONTAINERS, scopedKey, MLuaBehaviorRegistry.MAX_BLOCK_CONTAINERS, context);
+         BLOCK_CONTAINERS.put(scopedKey, new OwnedContainer(registered, context));
       }
       return registered;
    }
@@ -39,23 +43,48 @@ final class MLuaScriptedContainerRegistry {
       MLuaBehaviorRegistry.validateBehaviorKey(key);
       ContainerDefinition registered = validate(definition);
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         ensureCapacity(CONTAINER_TYPES, key, MLuaBehaviorRegistry.MAX_CONTAINER_TYPES);
-         if (CONTAINER_TYPES.putIfAbsent(key, new OwnedContainer(registered, context)) != null) {
+         ScopedKey scopedKey = scopedKey(key, context);
+         ensureCapacity(CONTAINER_TYPES, scopedKey, MLuaBehaviorRegistry.MAX_CONTAINER_TYPES, context);
+         if (CONTAINER_TYPES.putIfAbsent(scopedKey, new OwnedContainer(registered, context)) != null) {
             throw new IllegalStateException("Scripted container type is already registered: " + key);
          }
       }
       return registered;
    }
 
-   static ContainerDefinition getBlock(String key) { return definition(BLOCK_CONTAINERS.get(key)); }
+   static ContainerDefinition getBlock(String key) { return definition(lookup(BLOCK_CONTAINERS, key)); }
+   static ContainerDefinition getBlock(String key, Level level) {
+      return definition(level == null ? lookup(BLOCK_CONTAINERS, key)
+         : lookup(BLOCK_CONTAINERS, key, MLuaRuntime.sessionForLevel(level), level.isClientSide() ? Side.CLIENT : Side.SERVER));
+   }
+   static ContainerDefinition getBlock(String key, MLuaContext context) {
+      return definition(lookup(BLOCK_CONTAINERS, key, scope(context)));
+   }
    static MLuaContext getBlockContext(String key) {
-      OwnedContainer container = BLOCK_CONTAINERS.get(key);
+      OwnedContainer container = lookup(BLOCK_CONTAINERS, key);
       return container == null ? null : container.context();
    }
-   static ContainerDefinition getType(String key) { return definition(CONTAINER_TYPES.get(key)); }
+   static ContainerDefinition getType(String key) { return definition(lookup(CONTAINER_TYPES, key)); }
+   static ContainerDefinition getType(String key, MLuaContext context) {
+      return definition(lookup(CONTAINER_TYPES, key, scope(context)));
+   }
    static Map<String, ContainerDefinition> getTypes() {
       Map<String, ContainerDefinition> result = new java.util.HashMap<>();
-      CONTAINER_TYPES.forEach((key, value) -> result.put(key, value.definition()));
+      CONTAINER_TYPES.keySet().stream().map(ScopedKey::key).distinct().forEach(key -> {
+         OwnedContainer container = lookup(CONTAINER_TYPES, key);
+         if (container != null) result.put(key, container.definition());
+      });
+      return Map.copyOf(result);
+   }
+   static Map<String, ContainerDefinition> getTypes(MLuaContext context) {
+      Scope requested = scope(context);
+      Map<String, ContainerDefinition> result = new java.util.HashMap<>();
+      CONTAINER_TYPES.forEach((key, value) -> {
+         if (key.scope().equals(GLOBAL)) result.put(key.key(), value.definition());
+      });
+      if (!requested.equals(GLOBAL)) CONTAINER_TYPES.forEach((key, value) -> {
+         if (key.scope().equals(requested)) result.put(key.key(), value.definition());
+      });
       return Map.copyOf(result);
    }
    static int blockCount() { return BLOCK_CONTAINERS.size(); }
@@ -65,33 +94,46 @@ final class MLuaScriptedContainerRegistry {
 
    static void clearBlock(String key) {
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         BLOCK_CONTAINERS.remove(key);
+         BLOCK_CONTAINERS.keySet().removeIf(scopedKey -> scopedKey.key().equals(key));
       }
    }
 
    static boolean unregisterType(String key, ContainerDefinition expected) {
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         return remove(CONTAINER_TYPES, key, expected);
+         return remove(CONTAINER_TYPES, key, expected, null);
+      }
+   }
+
+   static boolean unregisterType(String key, ContainerDefinition expected, MLuaContext context) {
+      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
+         return remove(CONTAINER_TYPES, key, expected, scope(context));
       }
    }
 
    static boolean unregisterBlock(String key, ContainerDefinition expected) {
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         return remove(BLOCK_CONTAINERS, key, expected);
+         return remove(BLOCK_CONTAINERS, key, expected, null);
+      }
+   }
+
+   static boolean unregisterBlock(String key, ContainerDefinition expected, MLuaContext context) {
+      synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
+         return remove(BLOCK_CONTAINERS, key, expected, scope(context));
       }
    }
 
    static boolean restoreBlock(String key, ContainerDefinition expected, ContainerDefinition previous) {
-      OwnedContainer current = BLOCK_CONTAINERS.get(key);
+      OwnedContainer current = lookup(BLOCK_CONTAINERS, key);
       return restoreBlock(key, expected, current == null ? null : current.context(), previous, null);
    }
 
    static boolean restoreBlock(String key, ContainerDefinition expected, MLuaContext expectedContext,
                                ContainerDefinition previous, MLuaContext previousContext) {
       if (key == null || key.isBlank()) return false;
+      ScopedKey scopedKey = scopedKey(key, expectedContext);
       java.util.concurrent.atomic.AtomicBoolean restored = new java.util.concurrent.atomic.AtomicBoolean();
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         BLOCK_CONTAINERS.compute(key, (ignored, current) -> {
+         BLOCK_CONTAINERS.compute(scopedKey, (ignored, current) -> {
             if (definition(current) != expected || current != null && current.context() != expectedContext) return current;
             restored.set(true);
             return previous == null ? null : new OwnedContainer(previous, previousContext);
@@ -144,11 +186,16 @@ final class MLuaScriptedContainerRegistry {
       return definition;
    }
 
-   static void clearOwnerPrefix(String prefix) {
+   static void clearOwner(String owner) {
       synchronized (MLuaBehaviorRegistry.REGISTRATION_LOCK) {
-         BLOCK_CONTAINERS.keySet().removeIf(key -> key.startsWith(prefix));
-         CONTAINER_TYPES.keySet().removeIf(key -> key.startsWith(prefix));
+         clearOwner(BLOCK_CONTAINERS, owner);
+         clearOwner(CONTAINER_TYPES, owner);
       }
+   }
+
+   private static void clearOwner(ConcurrentMap<ScopedKey, OwnedContainer> values, String owner) {
+      values.entrySet().removeIf(entry -> owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
+         entry.getValue().context(), entry.getKey().key())));
    }
 
    static void clearOwner(String owner, MLuaRuntimeSession session, Side side) {
@@ -158,10 +205,10 @@ final class MLuaScriptedContainerRegistry {
       }
    }
 
-   private static void clearOwner(ConcurrentMap<String, OwnedContainer> values, String owner,
+   private static void clearOwner(ConcurrentMap<ScopedKey, OwnedContainer> values, String owner,
                                   MLuaRuntimeSession session, Side side) {
       values.entrySet().removeIf(entry -> owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
-         entry.getValue().context(), entry.getKey()))
+         entry.getValue().context(), entry.getKey().key()))
          && MLuaScriptedOwnerPolicy.inScope(entry.getValue().context(), session, side));
    }
 
@@ -169,39 +216,42 @@ final class MLuaScriptedContainerRegistry {
       if (key == null || key.isBlank()) throw new IllegalArgumentException(label + " must be non-empty");
    }
 
-   private static void ensureCapacity(ConcurrentMap<String, OwnedContainer> values,
-         String key, int maxTotal) {
+   private static void ensureCapacity(ConcurrentMap<ScopedKey, OwnedContainer> values,
+         ScopedKey key, int maxTotal, MLuaContext context) {
       if (values.containsKey(key)) return;
       if (values.size() >= maxTotal) {
          throw new IllegalStateException("Scripted container definition limit reached (" + maxTotal + " total)");
       }
-      String prefix = ownerPrefix(key);
-      if (!prefix.isEmpty()) {
-         int ownerCount = 0;
-         for (String existingKey : values.keySet()) if (existingKey.startsWith(prefix)) ownerCount++;
-         if (ownerCount >= MLuaBehaviorRegistry.MAX_CONTAINERS_PER_ADDON) {
-            throw new IllegalStateException("Addon scripted container definition limit reached ("
-               + MLuaBehaviorRegistry.MAX_CONTAINERS_PER_ADDON + ")");
-         }
+      long ownerCount = values.entrySet().stream().filter(entry ->
+         MLuaScriptedOwnerPolicy.sameOwner(entry.getValue().context(), entry.getKey().key(),
+            context, key.key())).count();
+      if (ownerCount >= MLuaBehaviorRegistry.MAX_CONTAINERS_PER_ADDON) {
+         throw new IllegalStateException("Addon scripted container definition limit reached ("
+            + MLuaBehaviorRegistry.MAX_CONTAINERS_PER_ADDON + ")");
       }
    }
 
-   private static boolean remove(ConcurrentMap<String, OwnedContainer> values,
-         String key, ContainerDefinition expected) {
+   private static boolean remove(ConcurrentMap<ScopedKey, OwnedContainer> values,
+         String key, ContainerDefinition expected, Scope scope) {
       if (key == null || expected == null) return false;
       java.util.concurrent.atomic.AtomicBoolean removed = new java.util.concurrent.atomic.AtomicBoolean();
-      values.computeIfPresent(key, (ignored, current) -> {
-         if (current.definition() != expected) return current;
-         removed.set(true);
-         return null;
-      });
+      for (ScopedKey scopedKey : values.keySet()) {
+         if (!scopedKey.key().equals(key) || scope != null && !scopedKey.scope().equals(scope)) continue;
+         values.computeIfPresent(scopedKey, (ignored, current) -> {
+            if (current.definition() != expected) return current;
+            removed.set(true);
+            return null;
+         });
+      }
       return removed.get();
    }
 
-   private static int countOwnerKeys(Map<String, OwnedContainer> values, String owner) {
-      String prefix = owner + ":";
+   private static int countOwnerKeys(Map<ScopedKey, OwnedContainer> values, String owner) {
       int count = 0;
-      for (String key : values.keySet()) if (key.startsWith(prefix)) count++;
+      for (Map.Entry<ScopedKey, OwnedContainer> entry : values.entrySet()) {
+         if (owner.equals(MLuaScriptedOwnerPolicy.ownerOf(
+               entry.getValue().context(), entry.getKey().key()))) count++;
+      }
       return count;
    }
 
@@ -209,11 +259,38 @@ final class MLuaScriptedContainerRegistry {
       return container == null ? null : container.definition();
    }
 
-   private record OwnedContainer(ContainerDefinition definition, MLuaContext context) { }
-
-   private static String ownerPrefix(String key) {
-      int separator = key.indexOf(':');
-      return separator > 0 ? key.substring(0, separator + 1) : "";
+   private static OwnedContainer lookup(ConcurrentMap<ScopedKey, OwnedContainer> values, String key) {
+      OwnedContainer global = values.get(new ScopedKey(key, GLOBAL));
+      if (global != null) return global;
+      OwnedContainer only = null;
+      for (Map.Entry<ScopedKey, OwnedContainer> entry : values.entrySet())
+         if (entry.getKey().key().equals(key)) {
+            if (only != null) return null;
+            only = entry.getValue();
+         }
+      return only;
    }
+
+   private static OwnedContainer lookup(ConcurrentMap<ScopedKey, OwnedContainer> values, String key, Scope scope) {
+      OwnedContainer scoped = values.get(new ScopedKey(key, scope));
+      return scoped != null ? scoped : values.get(new ScopedKey(key, GLOBAL));
+   }
+
+   private static OwnedContainer lookup(ConcurrentMap<ScopedKey, OwnedContainer> values, String key,
+                                        MLuaRuntimeSession session, Side side) {
+      return lookup(values, key, new Scope(session, side));
+   }
+
+   private static ScopedKey scopedKey(String key, MLuaContext context) {
+      return new ScopedKey(key, scope(context));
+   }
+
+   private static Scope scope(MLuaContext context) {
+      return context == null ? GLOBAL : new Scope(context.session(), context.side());
+   }
+
+   private record Scope(MLuaRuntimeSession session, Side side) { }
+   private record ScopedKey(String key, Scope scope) { }
+   private record OwnedContainer(ContainerDefinition definition, MLuaContext context) { }
 
 }

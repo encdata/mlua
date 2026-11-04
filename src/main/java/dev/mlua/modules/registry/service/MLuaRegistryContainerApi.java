@@ -36,18 +36,20 @@ final class MLuaRegistryContainerApi {
             String title = titleValue.optjstring(MLuaRegistryNameHelper.displayName(name));
             String owner = service.apiContext().mlua().ownerModId();
             String key = owner + ":" + name;
+            dev.mlua.core.MLuaContext context =
+               dev.mlua.core.engine.MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
             MLuaBehaviorRegistry.ContainerDefinition container;
             try {
                container = MLuaBehaviorRegistry.registerContainerType(key,
                   new MLuaBehaviorRegistry.ContainerDefinition(rows, title,
                      MLuaRegistryContainerDefinitions.allowedItems(owner, definition),
                      MLuaRegistryContainerDefinitions.slotAllowedItems(owner, definition, rows * 9)),
-                  dev.mlua.core.engine.MLuaLuaBindings.boundContext(service.apiContext().mlua().globals()));
+                  context);
             } catch (IllegalArgumentException | IllegalStateException invalid) {
                throw MLuaLuaErrors.javaFailure("Registry container registration", invalid);
             }
             service.apiContext().mlua().registration().trackRollback(() ->
-               MLuaBehaviorRegistry.unregisterContainerType(key, container));
+               MLuaBehaviorRegistry.unregisterContainerType(key, container, context));
             return MLuaContainerType.create(service.apiContext().mlua().registration(), key, container);
          }
       });
@@ -68,7 +70,9 @@ final class MLuaRegistryContainerApi {
          @Override public Varargs invoke(Varargs args) {
             LuaTable result = new LuaTable();
             String namespace = MLuaRegistryLuaValues.optionalNamespace(args.arg(2));
-            MLuaBehaviorRegistry.getContainerTypes().entrySet().stream()
+            dev.mlua.core.MLuaContext context =
+               dev.mlua.core.engine.MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
+            MLuaBehaviorRegistry.getContainerTypes(context).entrySet().stream()
                .filter(entry -> namespace == null || entry.getKey().startsWith(namespace + ":"))
                .sorted(Map.Entry.comparingByKey())
                .forEach(entry -> result.set(entry.getKey(), MLuaContainerType.create(
@@ -79,7 +83,9 @@ final class MLuaRegistryContainerApi {
       containers.set("GetIds", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             String namespace = MLuaRegistryLuaValues.optionalNamespace(args.arg(2));
-            List<String> ids = MLuaBehaviorRegistry.getContainerTypes().keySet().stream()
+            dev.mlua.core.MLuaContext context =
+               dev.mlua.core.engine.MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
+            List<String> ids = MLuaBehaviorRegistry.getContainerTypes(context).keySet().stream()
                .filter(id -> namespace == null || id.startsWith(namespace + ":"))
                .sorted().toList();
             return MLuaRegistryLuaValues.stringArray(ids);
@@ -88,7 +94,9 @@ final class MLuaRegistryContainerApi {
       containers.set("Exists", new VarArgFunction() {
          @Override public Varargs invoke(Varargs args) {
             String id = service.identifiers.registryId(args.checkjstring(2));
-            return LuaValue.valueOf(MLuaBehaviorRegistry.getContainerType(id) != null);
+            dev.mlua.core.MLuaContext context =
+               dev.mlua.core.engine.MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
+            return LuaValue.valueOf(MLuaBehaviorRegistry.getContainerType(id, context) != null);
          }
       });
    }

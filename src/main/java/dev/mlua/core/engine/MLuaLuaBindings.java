@@ -139,6 +139,10 @@ public final class MLuaLuaBindings {
       return MLuaContextBindings.withContext(context, callback);
    }
 
+   public static <T> T withoutContext(Globals globals, java.util.function.Supplier<T> callback) {
+      return MLuaContextBindings.withoutContext(globals, callback);
+   }
+
    public static <T> T withExecutionLock(MLuaContext context, java.util.function.Supplier<T> callback) {
       return MLuaContextBindings.withExecutionLock(context, callback);
    }

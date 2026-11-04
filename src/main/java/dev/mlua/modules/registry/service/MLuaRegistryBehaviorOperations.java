@@ -28,43 +28,42 @@ final class MLuaRegistryBehaviorOperations {
       dev.mlua.core.MLuaContext callbackContext = MLuaLuaBindings.activeContext(registration);
       if (callbackContext == null) callbackContext = MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
       final dev.mlua.core.MLuaContext ownerContext = callbackContext;
-      MLuaBehaviorRegistry.Snapshot previous = MLuaBehaviorRegistry.snapshotBehaviors(domain, key);
-      Map<String, LuaValue> installed = MLuaBehaviorRegistry.registerBehaviors(domain, key, callbacks, ownerContext);
+      MLuaBehaviorRegistry.Snapshot previous = MLuaBehaviorRegistry.snapshotBehaviors(domain, key, ownerContext);
+      MLuaBehaviorRegistry.Snapshot installed =
+         MLuaBehaviorRegistry.registerBehaviorsTracked(domain, key, callbacks, ownerContext);
       registration.trackRollback(() ->
-         MLuaBehaviorRegistry.restoreBehaviors(domain, key, installed, previous, ownerContext));
+         MLuaBehaviorRegistry.restoreBehaviorsTracked(domain, key, installed, previous, ownerContext));
    }
 
    void setEntityAIInterval(String key, int interval) {
-      Integer previous = MLuaBehaviorRegistry.getRegisteredEntityAIInterval(key);
-      dev.mlua.core.MLuaContext previousContext = MLuaBehaviorRegistry.getEntityAIIntervalContext(key);
       dev.mlua.core.MLuaContext context = MLuaLuaBindings.activeContext(service.apiContext().mlua().registration());
       if (context == null) context = MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
       dev.mlua.core.MLuaContext installedContext = context;
-      MLuaBehaviorRegistry.registerEntityAIInterval(key, interval, installedContext);
-      int expected = Math.max(1, Math.min(120, interval));
+      Object previousRegistration = MLuaBehaviorRegistry.getEntityAIIntervalRegistration(key, installedContext);
+      Object installedRegistration = MLuaBehaviorRegistry.registerEntityAIIntervalTracked(
+         key, interval, installedContext);
       service.apiContext().mlua().registration().trackRollback(
-         () -> MLuaBehaviorRegistry.restoreEntityAIInterval(
-            key, expected, previous, installedContext, previousContext));
+         () -> MLuaBehaviorRegistry.restoreEntityAIIntervalTracked(
+            key, installedRegistration, previousRegistration, installedContext));
    }
 
    void replaceBlockContainer(MLuaRegistration registration, String key,
                               MLuaBehaviorRegistry.ContainerDefinition requested) {
-      MLuaBehaviorRegistry.ContainerDefinition previous = MLuaBehaviorRegistry.getBlockContainer(key);
-      dev.mlua.core.MLuaContext previousContext = MLuaBehaviorRegistry.getBlockContainerContext(key);
+      dev.mlua.core.MLuaContext installedContext = MLuaLuaBindings.activeContext(registration);
+      if (installedContext == null) {
+         installedContext = MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
+      }
+      MLuaBehaviorRegistry.ContainerDefinition previous = MLuaBehaviorRegistry.getBlockContainer(key, installedContext);
+      dev.mlua.core.MLuaContext previousContext = installedContext;
       MLuaBehaviorRegistry.ContainerDefinition installed = null;
-      dev.mlua.core.MLuaContext installedContext = null;
       if (requested != null) {
          try {
-            installedContext = MLuaLuaBindings.activeContext(registration);
-            if (installedContext == null) {
-               installedContext = MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
-            }
             installed = MLuaBehaviorRegistry.registerBlockContainer(key, requested, installedContext);
          } catch (IllegalArgumentException | IllegalStateException invalid) {
             throw MLuaLuaErrors.javaFailure("Registry behavior registration", invalid);
          }
       } else if (previous != null) {
-         MLuaBehaviorRegistry.unregisterBlockContainer(key, previous);
+         MLuaBehaviorRegistry.unregisterBlockContainer(key, previous, installedContext);
       }
       MLuaBehaviorRegistry.ContainerDefinition expected = installed;
       dev.mlua.core.MLuaContext expectedContext = installedContext;
@@ -73,13 +72,13 @@ final class MLuaRegistryBehaviorOperations {
    }
 
    void registerContentClass(String domain, String key, String className) {
+      dev.mlua.core.MLuaContext callbackContext =
+         MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
       MLuaBehaviorRegistry.ContentClassDefinition previous =
-         MLuaBehaviorRegistry.getContentClassDefinition(domain, key);
-      dev.mlua.core.MLuaContext callbackContext = MLuaLuaBindings.boundContext(service.apiContext().mlua().globals());
-      MLuaBehaviorRegistry.ContentClassDefinition installed = className == null || className.isBlank()
-         ? null : new MLuaBehaviorRegistry.ContentClassDefinition(className, callbackContext);
-      MLuaBehaviorRegistry.registerContentClass(domain, key, className, callbackContext);
+         MLuaBehaviorRegistry.getContentClassDefinition(domain, key, callbackContext);
+      MLuaBehaviorRegistry.ContentClassDefinition installed =
+         MLuaBehaviorRegistry.registerContentClassDefinition(domain, key, className, callbackContext);
       service.apiContext().mlua().registration().trackRollback(
-         () -> MLuaBehaviorRegistry.restoreContentClass(domain, key, installed, previous));
+         () -> MLuaBehaviorRegistry.restoreContentClassExact(domain, key, installed, previous, callbackContext));
    }
 }
