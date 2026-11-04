@@ -1,0 +1,118 @@
+package dev.mlua.modules.ui;
+
+import dev.mlua.minecraft.binding.MLuaUIBindings;
+import dev.mlua.minecraft.binding.MLuaNativeControl;
+import dev.mlua.minecraft.binding.MLuaChatLine;
+import dev.mlua.minecraft.binding.MLuaNativeScreen;
+import dev.mlua.module.MLuaDocBuilder;
+import dev.mlua.module.MLuaModule;
+import dev.mlua.module.MLuaRegistration;
+import dev.mlua.core.MLuaContextView;
+import dev.mlua.common.enums.Side;
+import org.luaj.vm2.Globals;
+
+@dev.mlua.module.MLuaModuleSide(Side.CLIENT)
+public class UIModule implements MLuaModule {
+    @Override
+    public String id() { return "ui"; }
+
+    @Override
+    public Side side() { return Side.CLIENT; }
+
+    @Override
+    public int priority() { return -25; }
+
+    @Override
+    public void registerClasses(MLuaRegistration registration) {
+        MLuaUIBindings.registerClasses(registration);
+        MLuaNativeControl.registerClass(registration);
+        MLuaNativeScreen.registerClass(registration);
+        MLuaChatLine.registerClass(registration);
+        registration.registerInstantiableClass("Screen", registration.requireInstanceBaseClassName(),
+            "Base class for Lua-defined Minecraft screens opened through the Gui service.");
+    }
+
+    @Override
+    public void contributeGlobals(Globals globals, MLuaContextView context) {
+        globals.set("UIObject", MLuaUIBindings.uiObjectTable(context.registration(), context.scheduler(),
+            context.ownerModId(), context.side(), globals));
+        globals.set("NativeControl", context.registration().classTable("NativeControl"));
+        globals.set("NativeScreen", context.registration().classTable("NativeScreen"));
+        globals.set("ChatLine", context.registration().classTable("ChatLine"));
+    }
+
+    @Override
+    public void contributeDocs(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.method("GuiObject", "GuiObject:MoveTo(position: UDim2, duration: number, easingStyle?: EasingStyle, easingDirection?: EasingDirection, replace?: boolean)", "Animates Position with a native UDim2 target. Defaults to Linear and Out; an existing animation is replaced by default.", "UDim2 target position, seconds, optional native easing enums, and whether to replace an active animation", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("GuiObject", "GuiObject:ResizeTo(size: UDim2, duration: number, easingStyle?: EasingStyle, easingDirection?: EasingDirection, replace?: boolean)", "Animates Size with a native UDim2 target. Defaults to Linear and Out; an existing animation is replaced by default.", "UDim2 target size, seconds, optional native easing enums, and whether to replace an active animation", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("GuiObject", "GuiObject:MoveAndResizeTo(position: UDim2, size: UDim2, duration: number, easingStyle?: EasingStyle, easingDirection?: EasingDirection, replace?: boolean)", "Animates Position and Size together using their current values as the starting state.", "UDim2 target position, UDim2 target size, seconds, optional native easing enums, and whether to replace an active animation", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("GuiObject", "GuiObject:AnimateTo(goals: table, duration: number, easingStyle?: EasingStyle, easingDirection?: EasingDirection, replace?: boolean)", "Animates supported properties together: Position, Size, Rotation, BackgroundTransparency, BackgroundColor3, BorderColor3, BorderSizePixel, TextColor3, TextTransparency, ImageColor3, and ImageTransparency. Color targets accept native Color3 values; text and image targets require compatible UI classes.", "Goal properties, seconds, optional native easing enums, and whether to replace an active animation", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("GuiObject", "GuiObject:CancelAnimation()", "Stops the active animation at its current property values and returns whether an animation was stopped.", "No arguments", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("GuiObject", "GuiObject:IsAnimating()", "Returns whether this object has a running property animation.", "No arguments", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.event("GuiObject", "GuiObject.AnimationCompleted", "()", "Fires after the current property animation reaches its target. Cancellation or replacement by itself does not fire the signal.", "client:Client"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("GuiObject", "Animate a HUD element",
+            "GuiObject animation methods run on client ticks and accept Enum.EasingStyle and Enum.EasingDirection. AnimateTo can transition Position and Size with native UDim2 values, plus Rotation, transparency, border size, background and border colors, and compatible text or image color/transparency values in one animation. Supply color targets as native Color3 values. TextLabel and TextButton also provide TextShadow for Minecraft's native shadowed glyph rendering. Text color/transparency targets require a text class; image targets require ImageLabel or ImageButton. Each object runs one animation at a time; the default replace flag starts the new animation from the current visual values. AnimationCompleted fires after the active animation reaches its goal, so scripts can sequence transitions. Cancellation does not fire it.",
+            "local Gui = Minecraft:GetService(\"Gui\")\nlocal screen = Gui:CreateScreen(\"HorrorHUD\")\nlocal panel = UIObject.new(\"Frame\", \"WarningPanel\")\npanel.Size = UDim2.fromOffset(220, 90)\npanel.Position = UDim2.fromScale(-0.4, 0.7)\npanel.Parent = screen\npanel.AnimationCompleted:Connect(function()\n    print(\"Panel entrance finished\")\nend)\n\nlocal label = UIObject.new(\"TextLabel\", \"WarningText\")\nlabel.Text = \"Signal lost\"\nlabel.TextColor3 = Color3.fromRGB(128, 128, 128)\nlabel.Parent = panel\n\npanel:MoveTo(UDim2.fromScale(0.04, 0.7), 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)\n\nif panel:IsAnimating() then\n    print(\"Panel is entering\")\nend\n\npanel:AnimateTo({\n    Position = UDim2.fromScale(0.04, 0.68),\n    Size = UDim2.fromOffset(260, 100),\n    Rotation = 0,\n    BackgroundTransparency = 0.08,\n    BackgroundColor3 = Color3.fromRGB(32, 40, 48),\n    BorderColor3 = Color3.fromRGB(160, 30, 40),\n}, 0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)"));
+        docs.register(MLuaDocBuilder.Registration.clazz("NativeControl", "MLuaNativeControl", "A live handle to a native Minecraft screen widget. Properties update the original widget.", "classes.ui/native-control.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("NativeScreen", "MLuaNativeScreen", "A live handle to a native Minecraft screen and its native widget controls.", "classes.ui/native-screen.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.clazz("Screen", "MLuaScriptScreen", "Base class for Lua-defined native Minecraft screens. Init builds native widgets; Tick, Render, and OnClose follow Minecraft's screen lifecycle.", "classes.ui/screen.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.property("Screen", "Screen.NativeScreen", "NativeScreen", "The underlying live Minecraft screen handle.", "read:Read"));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:Init(fields)", "Runs when Minecraft initializes the native screen and should add its native widgets here. Gui:OpenScreen accepts a string or Java Component title. If initialization throws, MLua clears partially added widgets and pauses initialization for that screen instance.", "Optional fields passed to Gui:OpenScreen", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.guideStep("Screen", "Respond to Minecraft screen resizing",
+            "Minecraft calls Init again when its GUI dimensions change, rebuilding widgets through the normal screen lifecycle. OnResize runs afterward with the new pixel dimensions, so use it to update custom layout state or reposition controls that should not be recreated.",
+            "Minecraft:RegisterClassFunction(\"RadioScreen\", \"OnResize\", function(self, width, height)\n    print(\"Screen resized to\", width, height)\nend, \"Updates screen layout after the native resize lifecycle.\")"));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:Render(canvas, mouseX, mouseY, delta)", "Runs during Minecraft's native screen render lifecycle. Canvas provides Width, Height, Fill, and DrawText; DrawText accepts a string or Java Component.", "Canvas, pointer coordinates, and frame delta", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:AddText(text, position, color)", "Draws native screen text from the screen initialization callback. Text accepts a string or Java Component.", "Text or Java Component, UDim2 position, and optional RGB color integer", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:AddButton(text, position, size, callback)", "Adds a native Minecraft button and returns its live NativeControl. The label accepts a string or Java Component, and the click callback also receives the control. If it errors, MLua disables and releases that callback.", "Label or Java Component, UDim2 position, UDim2 size, and callback accepting NativeControl", "NativeControl", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:AddRenderableWidget(widget)", "Adds a Java-created Minecraft AbstractWidget through the native Screen lifecycle and returns its live NativeControl.", "A live AbstractWidget instance created by Java:New or returned from a Java method", "NativeControl", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:AddEditBox(position, size, initialValue, onChanged)", "Adds a native Minecraft EditBox and returns its live NativeControl. onChanged receives the current value and control. If it errors, MLua disables and releases that callback.", "UDim2 position, UDim2 size, initial value, and optional change callback", "NativeControl", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:SetOnClose(callback)", "Registers a callback that runs once when Minecraft closes this screen, unless its owner is being unloaded.", "Close callback", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:SetOnTick(callback)", "Registers a callback for Minecraft's client screen tick from the Gui:OpenNativeScreen initialization builder. Class-based Screen instances use their Tick method instead. A failing callback is disabled, released, and logged once.", "Tick callback; it receives no arguments", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:SetOnRender(callback)", "Registers a per-frame draw callback for screens opened with Gui:OpenNativeScreen. If it errors, MLua disables and releases it. Canvas DrawText accepts a string or Java Component.", "Callback receiving canvas, mouseX, mouseY, and delta", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:Tick()", "Runs once for each native Minecraft screen tick when defined on a Screen subclass. If it throws, MLua pauses that lifecycle method for the current screen and logs the failure once.", "No arguments", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:OnResize(width, height)", "Runs after Minecraft resizes and reinitializes this screen. Width and height are the new GUI dimensions; rebuild or reposition custom layout in this callback.", "New GUI width and height in pixels", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:IsPauseScreen()", "Controls whether this native screen pauses the world. Return false for in-world terminals or other live overlays; return true or nil to keep normal pause-screen behavior.", "No arguments", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:ShouldCloseOnEsc()", "Controls whether Escape closes this native screen. Return false to keep it open, true to close it, or nil to use Minecraft's normal behavior.", "No arguments", "boolean|nil", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:OnFilesDrop(paths)", "Runs when files are dropped onto this screen. paths is a one-based Lua array of local path strings. Minecraft's normal screen handler still runs after this callback.", "Array of dropped local paths", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:KeyPressed(keyCode, scanCode, modifiers)", "Runs before the native screen handles a key press. Return true to consume it; return false or nil to let Minecraft handle it normally.", "Minecraft key code, scan code, and modifier mask", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:KeyReleased(keyCode, scanCode, modifiers)", "Runs before the native screen handles a key release. Return true to consume it; return false or nil to let Minecraft handle it normally.", "Minecraft key code, scan code, and modifier mask", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:CharTyped(character, modifiers)", "Runs before the native screen handles typed text. Minecraft 26.1 does not provide a modifier mask for CharacterEvent, so modifiers is zero there. Return true to consume it; return false or nil to let Minecraft handle it normally.", "Typed character string and modifier mask", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:MouseClicked(mouseX, mouseY, button, doubleClick)", "Runs before the native screen handles a mouse click. doubleClick is false on Minecraft 1.20.1 and 1.21.1, which do not provide that flag. Return true to consume it; return false or nil to let Minecraft handle it normally.", "Pointer coordinates, mouse button index, and double-click flag", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:MouseReleased(mouseX, mouseY, button)", "Runs before the native screen handles a mouse release. Return true to consume it; return false or nil to let Minecraft handle it normally.", "Pointer coordinates and mouse button index", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:MouseDragged(mouseX, mouseY, button, dragX, dragY)", "Runs before the native screen handles a mouse drag. Return true to consume it; return false or nil to let Minecraft handle it normally.", "Pointer coordinates, pressed button, and drag deltas", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:MouseMoved(mouseX, mouseY)", "Runs when the pointer moves over the native screen, before Minecraft forwards the movement to widgets. Return values are ignored.", "Pointer coordinates", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:MouseScrolled(mouseX, mouseY, scrollX, scrollY)", "Runs before the native screen handles scrolling. On Minecraft 1.20.1, the single vertical delta is passed as scrollY and scrollX is zero. Return true to consume it; return false or nil to keep normal scrolling.", "Pointer coordinates and horizontal and vertical scroll amounts", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:OnClose()", "Runs once when Minecraft closes this screen, unless its owner is being unloaded.", "No arguments", "void", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("Screen", "Screen:Close()", "Closes this screen if it is active.", "No arguments", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.method("NativeScreen", "NativeScreen:Close()", "Closes this screen if it is the active Minecraft screen.", "No arguments", "boolean", "client:Client", null));
+        docs.register(MLuaDocBuilder.Registration.clazz("ChatLine", "MLuaChatLine", "A live chat message while Minecraft is adding it to the chat HUD.", "classes.ui/chat-line.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.contribution(MLuaDocBuilder.Contribution.builder(id(), "ui:extend-gui-classes")
+            .section("UI")
+            .title("Extend the GUI class tree")
+            .description("Register a UI class that inherits a built-in constructor, then create instances through the registered class tree.")
+            .order(10)
+            .step("Docs", "Register a subclass",
+                "Declare the class in a registry script. Guard it because Frame is registered on clients only; on a dedicated server the registry script should skip this client-only class.",
+                "if Minecraft.Classes.Frame then\n    Minecraft:RegisterClass(\"HorrorPanel\", \"Frame\", \"A panel used by the horror HUD.\")\n    Minecraft:RegisterClassFunction(\"HorrorPanel\", \"Pulse\", function(self)\n        self.PulseCount = (self.PulseCount or 0) + 1\n    end, \"Counts how many times this panel has pulsed.\")\nend")
+            .step("Docs", "Create and attach the live instance",
+                "In a client script, instantiate the registered class through UIObject, then parent it under a screen returned by the Gui service. The instance keeps the HorrorPanel class identity, inherits Frame behavior, and exposes the method registered on HorrorPanel.",
+                "local Gui = Minecraft:GetService(\"Gui\")\nlocal screen = Gui:CreateScreen(\"HorrorHUD\")\n\nlocal panel = UIObject.HorrorPanel.new(\"PulsePanel\")\npanel.Size = UDim2.new(0, 240, 0, 80)\npanel.Parent = screen\npanel:Pulse()\nprint(panel:IsA(\"HorrorPanel\"), panel:IsA(\"Frame\"), panel.PulseCount)")
+            .example("Add a child label", "Subclasses can use the same parenting and class lookup APIs as built-in UI instances.",
+                "local Gui = Minecraft:GetService(\"Gui\")\nlocal screen = Gui:CreateScreen(\"HorrorHUD\")\nlocal panel = UIObject.HorrorPanel.new(\"PulsePanel\")\npanel.Parent = screen\n\nlocal label = UIObject.TextLabel.new(\"Warning\")\nlabel.Text = \"Something is behind you\"\nlabel.Parent = panel\n\nprint(label:GetFullName())")
+            .build()));
+        docs.register(MLuaDocBuilder.Registration.contribution(MLuaDocBuilder.Contribution.builder(id(), "ui:inspect-native-controls")
+            .section("UI")
+            .title("Inspect and change native controls")
+            .description("Find Minecraft's own screen widgets and read or change their supported bean properties through live NativeControl instances.")
+            .order(20)
+            .step("Docs", "Select native widgets",
+                "Gui:GetNativeControls accepts a Java widget class, its superclass, or a readable property selector. Each result stays attached to the current widget.",
+                "local Gui = Minecraft:GetService(\"Gui\")\nlocal buttons = Gui:GetNativeControls({ Class = \"Button\" })\nprint(#buttons)")
+            .step("Docs", "Inspect and set supported properties",
+                "GetProperties reports which discovered Java bean properties support direct reads and writes. Property access preserves the native widget instance.",
+                "for _, control in ipairs(buttons) do\n    local properties = control:GetProperties()\n    if properties.Message and properties.Message.Writable then\n        control.Message = \"Start the story\"\n    end\nend")
+            .example("Inspect a native screen", "Use the generic property API for widget values that are not among NativeControl's built-in Position, Size, Visible, or Text properties.",
+                "local Gui = Minecraft:GetService(\"Gui\")\nlocal control = Gui:GetNativeControl({ Class = \"Button\", Index = 1 })\nif control then\n    for name, property in pairs(control:GetProperties()) do\n        print(name, property.Readable, property.Writable, property.Type)\n    end\nend")
+            .build()));
+    }
+}

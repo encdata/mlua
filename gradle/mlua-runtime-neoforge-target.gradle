@@ -1,0 +1,362 @@
+apply from: rootProject.file('gradle/mlua-targets.gradle')
+
+def sharedProjectDirectory = rootProject.allprojects.any { candidate ->
+    candidate != project && candidate.projectDir.canonicalFile == projectDir.canonicalFile
+}
+if (sharedProjectDirectory) {
+    layout.buildDirectory.set(layout.projectDirectory.dir("build-targets/${project.name}"))
+}
+
+version = mod_version
+group = mod_group_id
+
+def targetVersion = project.ext.get('mluaRuntimeTargetVersion')
+def target = findMluaTarget(targetVersion)
+def is26Family = target.minecraft.toString().startsWith('26.1')
+def minecraft_version = resolveMluaTargetValue(targetVersion, 'minecraftDependencyVersion', target.minecraft)
+def minecraft_version_range = resolveMluaTargetValue(targetVersion, 'minecraftVersionRange')
+def neo_forge_version = resolveMluaTargetValue(targetVersion, 'neoForgeVersion')
+def neo_forge_version_range = resolveMluaTargetValue(targetVersion, 'neoForgeVersionRange')
+def neo_loader_version_range = resolveMluaTargetValue(targetVersion, 'neoForgeLoaderVersionRange')
+def java_version = (resolveMluaTargetValue(targetVersion, 'javaVersion', 17) as Number).intValue()
+def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
+def runtimeNeoForgeOverrideExcludes = [
+        'dev/mlua/api/**',
+        'dev/mlua/modules/**',
+        (is26Family ? 'dev/mlua/minecraft/scripted/MLuaBehaviorRegistry.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/client/MLuaClientModels.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/client/MLuaConfigClientHooks.java' : '__mlua_26_1_only__'),
+        'dev/mlua/minecraft/MLuaResourceLocations.java',
+        (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/binding/**'),
+        (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/scripted/MLuaScriptedBlock.java'),
+        (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/scripted/MLuaScriptedBlockItem.java'),
+        (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/scripted/MLuaScriptedItem.java'),
+        (is26Family ? '__mlua_26_1_only__' : 'dev/mlua/minecraft/scripted/MLuaScriptedProjectile.java'),
+        'dev/mlua/transformer/**'
+    ]
+if (is26Family) runtimeNeoForgeOverrideExcludes += 'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java'
+if (is26Family) {
+    // The 26.1 runtime has its own NeoForge entrypoint. The inherited 1.21.1
+    // project sources also contain MLuaMod, which would initialize MLua a
+    // second time and register built-in content twice.
+    runtimeNeoForgeOverrideExcludes += 'dev/mlua/MLuaMod.java'
+}
+def prepareRuntimeNeoForgeOverrideSources = registerMergedTree(project, 'prepareRuntimeNeoForgeOverrideSources',
+    [rootProject.file('modules/loaders/neoforge/shared/project/src/main/java')] +
+        targetPathChain('modules/loaders/neoforge/%s/project/src/main/java', targetVersion), runtimeNeoForgeOverrideExcludes)
+if (is26Family) {
+    prepareRuntimeNeoForgeOverrideSources.configure {
+        targetPathChain('modules/loaders/common/%s/project/src/main/java', targetVersion).each { root ->
+            from(root) { exclude 'dev/mlua/modules/**' }
+        }
+        targetPathChain('modules/loaders/neoforge/%s/project/src/main/java', targetVersion).each { root ->
+            from(root) { include 'dev/mlua/modules/combat/MLuaProjectileDefinition.java' }
+        }
+        targetPathChain('modules/loaders/common/%s/project/src/main/java', targetVersion).each { root ->
+            from(root) { include 'dev/mlua/modules/combat/MLuaProjectileDefinition.java' }
+        }
+    }
+}
+prepareRuntimeNeoForgeOverrideSources.configure {
+    from(rootProject.file('src/main/java')) {
+        include 'dev/mlua/modules/mixin/MixinModule.java'
+        include 'dev/mlua/modules/mixin/api/MLuaMixinService.java'
+    }
+}
+def prepareRuntimeMcImplSources = registerMergedTree(project, 'prepareRuntimeMcImplSources',
+    commonVersionPathChain(targetVersion), is26Family ? [] : [
+        'dev/mlua/modules/world/service/MLuaWorldService.java'
+    ])
+def prepareRuntimeNeoForgeAdapterSources = registerMergedTree(project, 'prepareRuntimeNeoForgeAdapterSources',
+    targetCommonLoaderPathChain('modules/loaders/common/%s/impl', 'modules/loaders/neoforge/%s/impl', targetVersion), [
+        (is26Family ? 'dev/mlua/runtime/client/MLuaClientSoundManager.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/client/MLuaGeneratedAssetPack.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/client/MLuaGuiRenderer.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/client/MLuaInputHandler.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/client/MLuaRenderHelper.java' : '__mlua_26_1_only__'),
+        (is26Family ? 'dev/mlua/runtime/MLuaPalladiumIntegration.java' : '__mlua_26_1_only__')
+        ,(is26Family ? 'dev/mlua/mc/impl/forge/MLuaForgeNetworkAdapter.java' : '__mlua_26_1_only__')
+        ,(is26Family ? 'dev/mlua/mc/impl/forge/MLuaForgeNetworkTransportAdapter.java' : '__mlua_26_1_only__')
+    ])
+def prepareRuntimeNeoForgeResources = registerMergedTree(project, 'prepareRuntimeNeoForgeResources',
+    targetPathChain('modules/loaders/neoforge/%s/project/src/main/resources', targetVersion))
+def runtimeNeoForgeServiceMixinNames = [
+    'CameraInvoker', 'CameraMixin', 'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin',
+    'HumanoidModelMixin', 'KeyboardInputMixin', 'PlayerModelMixin',
+    'ScreenInitializationMixin', 'ScreenResizeMixin'
+]
+if (is26Family) {
+    runtimeNeoForgeServiceMixinNames += 'ExperienceBarRendererMixin'
+} else {
+    runtimeNeoForgeServiceMixinNames += 'MouseHandlerMixin'
+}
+def runtimeNeoForgeServiceSourceOverrides = runtimeNeoForgeServiceMixinNames.collectEntries { name ->
+    def sourcePath = "dev/mlua/modules/mixin/service/${name}.java"
+    def sourceRoot = rootProject.file("modules/loaders/neoforge/${targetVer}/project/src/main/java")
+    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = null
+    sourceRoot == null ? [:] : [(name): sourceRoot]
+}
+def missingRuntimeNeoForgeServiceMixins = runtimeNeoForgeServiceMixinNames.findAll {
+    !runtimeNeoForgeServiceSourceOverrides.containsKey(it)
+}
+if (!missingRuntimeNeoForgeServiceMixins.isEmpty()) {
+    throw new GradleException("NeoForge ${targetVer} runtime mixin sources are missing: ${missingRuntimeNeoForgeServiceMixins.join(', ')}")
+}
+def prepareRuntimeNeoForgeServiceMixinSources = tasks.register('prepareRuntimeNeoForgeServiceMixinSources', Sync) {
+    inputs.property('mluaMixinTarget', targetVer)
+    inputs.property('serviceMixinNames', runtimeNeoForgeServiceMixinNames)
+    runtimeNeoForgeServiceMixinNames.each { name ->
+        def sourcePath = "dev/mlua/modules/mixin/service/${name}.java"
+        from(runtimeNeoForgeServiceSourceOverrides[name]) { include sourcePath }
+    }
+    into layout.buildDirectory.dir('generated/runtime-neoforge-service-mixin-java')
+    doLast {
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
+    }
+}
+def runtimeNeoForgeLoaderMixinNames = [
+    'FirstPersonItemRendererMixin', 'EntityRenderDispatcherMixin', 'ThirdPersonItemRendererMixin',
+    'LivingEntityRendererMixin', 'ModelPartMixin', 'ScreenLayoutMixin'
+]
+if (is26Family) runtimeNeoForgeLoaderMixinNames += 'ModelFeatureRendererMixin'
+def generateRuntimeNeoForgeMixinConfigs = tasks.register('generateRuntimeNeoForgeMixinConfigs') {
+    def outputDirectory = layout.buildDirectory.dir('generated/runtime-neoforge-mixin-configs')
+    inputs.property('serviceMixinNames', runtimeNeoForgeServiceMixinNames)
+    inputs.property('loaderMixinNames', runtimeNeoForgeLoaderMixinNames)
+    outputs.dir(outputDirectory)
+    doLast {
+        def directory = outputDirectory.get().asFile
+        directory.mkdirs()
+        def configs = [
+            'mlua.service.mixins.json': [
+                required: true, minVersion: '0.8', package: 'dev.mlua.modules.mixin.service',
+                compatibilityLevel: is26Family ? 'JAVA_25' : 'JAVA_17',
+                client: runtimeNeoForgeServiceMixinNames, injectors: [defaultRequire: 1]
+            ],
+            'mlua.firstperson.mixins.json': [
+                required: true, minVersion: '0.8', package: 'dev.mlua.mixin',
+                compatibilityLevel: is26Family ? 'JAVA_25' : 'JAVA_17', client: runtimeNeoForgeLoaderMixinNames,
+                injectors: [defaultRequire: 1]
+            ]
+        ]
+        configs.each { name, config ->
+            new File(directory, name).setText(
+                groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(config)) + System.lineSeparator(),
+                'UTF-8')
+        }
+    }
+}
+def runtimeNeoForgeMetadataProperties = [
+    minecraft_version: minecraft_version,
+    minecraft_version_range: minecraft_version_range,
+    neo_forge_version: neo_forge_version,
+    neo_forge_version_range: neo_forge_version_range,
+    neo_loader_version_range: neo_loader_version_range,
+    mod_id: mod_id,
+    mod_name: mod_name,
+    mod_license: mod_license,
+    mod_version: mod_version,
+    mod_authors: mod_authors,
+    mod_description: mod_description
+]
+def prepareRuntimeMixinTransformerSources = null
+if (is26Family) {
+    prepareRuntimeMixinTransformerSources = tasks.register('prepareRuntimeMixinTransformerSources', Sync) {
+        from(rootProject.file('modules/transformer/src/main/java')) {
+            include 'dev/mlua/transformer/MLuaMixinTransformer.java'
+            include 'dev/mlua/transformer/MLuaMixinClassWriter.java'
+            include 'dev/mlua/transformer/MLuaInstrumentationBridge.java'
+        }
+        into file("${buildDir}/generated/runtime-mixin-transformer-java")
+    }
+}
+
+base {
+    archivesName = "${mod_id}-runtime-neoforge-${minecraft_version}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+def runtimeRootExcludes = [
+    'dev/mlua/common/mixin/**',
+    'dev/mlua/modules/mixin/**',
+    'dev/mlua/transformer/**',
+    'dev/mlua/MLuaMod.java',
+    'dev/mlua/runtime/config/MLuaConfigRegistry.java',
+    'dev/mlua/runtime/forge/**',
+    'dev/mlua/runtime/client/MLuaClientModels.java',
+    'dev/mlua/runtime/client/MLuaConfigClientHooks.java',
+    'dev/mlua/runtime/client/MLuaPackFinder.java',
+    'dev/mlua/runtime/registry/MLuaForgeRegistry.java',
+    'dev/mlua/runtime/registry/MLuaForgeDeferredRegisters.java',
+    'dev/mlua/runtime/registry/MLuaItemHooks.java',
+    'dev/mlua/loader/impl/forge/**',
+    'dev/mlua/minecraft/client/MLuaForgeCameraEvents.java',
+    'dev/mlua/minecraft/scripted/MLuaScriptedMobEffect.java',
+    'org/luaj/**',
+    'org/apache/bcel/**',
+]
+if (is26Family) {
+    // The 26.1 loader source tree supplies the scripted object implementations.
+    // Exclude the legacy common copies so the runtime contains one definition of
+    // each class and does not compile against removed Minecraft callbacks.
+    runtimeRootExcludes += 'dev/mlua/modules/combat/MLuaProjectileDefinition.java'
+    runtimeRootExcludes += 'dev/mlua/modules/world/service/MLuaWorldService.java'
+    // The 26.1 common project source owns the native spawn egg implementation;
+    // the embedded runtime uses a compile-only placeholder for that class.
+    runtimeRootExcludes += 'dev/mlua/runtime/registry/MLuaNamedSpawnEggItem.java'
+    runtimeRootExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaClientRenderManager.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaClientSoundManager.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaGuiRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaInputHandler.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaRenderHelper.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaGeneratedAssetPack.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaClientModels.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaHudObjectRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaWorldOverlayRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaConfigClientHooks.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/MLuaPalladiumIntegration.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaVisualItemRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaProjectileRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaScriptedEntityRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/client/MLuaVisualBlockEntityRenderer.java'
+    runtimeRootExcludes += 'dev/mlua/runtime/registry/MLuaBlockFactory.java'
+}
+runtimeRootExcludes += rootProject.ext.commonVersionRootExcludes(targetVersion)
+
+task prepareRuntimeRootSources(type: Sync) {
+    // mlua-core supplies these classes as a dependency; compile no shadow copies here.
+    from(fileTree(dir: rootProject.file('src/main/java'), excludes: runtimeRootExcludes + rootProject.ext.mluaCoreRuntimeSources))
+    into file("${buildDir}/generated/runtime-root-java")
+    doLast {
+        rootProject.ext.filterMluaVersionMarkers(project, destinationDir, targetVer)
+    }
+}
+
+sourceSets.main.java.setSrcDirs([
+    file("${buildDir}/generated/runtime-root-java"),
+    rootProject.file('modules/api/mlua-api/src/main/java'),
+    rootProject.file('modules/language/mlua-common/src/main/java'),
+    rootProject.file('modules/api/mlua-loader-api/src/main/java'),
+    rootProject.file('modules/language/mlua-luaj/src/main/java'),
+    rootProject.file('modules/api/mlua-mc-api/src/main/java'),
+    file("${buildDir}/generated/prepareRuntimeMcImplSources"),
+    file("${buildDir}/generated/prepareRuntimeNeoForgeOverrideSources"),
+    file("${buildDir}/generated/prepareRuntimeNeoForgeAdapterSources")
+])
+sourceSets.main.java.srcDir(file("${buildDir}/generated/runtime-neoforge-service-mixin-java"))
+if (is26Family) sourceSets.main.java.srcDir(file("${buildDir}/generated/runtime-mixin-transformer-java"))
+sourceSets.main.resources.setSrcDirs([
+    rootProject.file('src/main/resources'),
+    rootProject.file('src/generated/resources'),
+    file("${buildDir}/generated/prepareRuntimeNeoForgeResources")
+])
+sourceSets.main.resources.exclude('META-INF/mods.toml')
+sourceSets.main.resources.exclude('META-INF/neoforge.mods.toml')
+sourceSets.main.resources.exclude('mlua.firstperson.mixins.json')
+sourceSets.main.resources.exclude('META-INF/services/net.neoforged.neoforgespi.locating.IModFileCandidateLocator')
+
+tasks.named('compileJava').configure {
+    dependsOn tasks.prepareRuntimeRootSources, prepareRuntimeMcImplSources, prepareRuntimeNeoForgeOverrideSources,
+        prepareRuntimeNeoForgeAdapterSources, prepareRuntimeNeoForgeResources, prepareRuntimeNeoForgeServiceMixinSources
+    if (is26Family) dependsOn prepareRuntimeMixinTransformerSources
+}
+
+neoForge {
+    version = neo_forge_version
+    mods {
+        mlua {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neo_forge_version}"
+    implementation project(':mlua-core')
+    implementation('org.apache.bcel:bcel:6.7.0') {
+        transitive = false
+    }
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    dependsOn prepareRuntimeNeoForgeResources, generateRuntimeNeoForgeMixinConfigs
+    from(generateRuntimeNeoForgeMixinConfigs) { exclude 'META-INF/**' }
+    from(prepareRuntimeNeoForgeResources) {
+        include 'META-INF/neoforge.mods.toml'
+        expand(runtimeNeoForgeMetadataProperties + [project: project])
+    }
+    from(rootProject.file('src/main/resources/Icon.png')) {
+        into ''
+        rename { 'icon.png' }
+    }
+    var replaceProperties = [
+            minecraft_version: minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_forge_version: neo_forge_version,
+            neo_forge_version_range: neo_forge_version_range,
+            neo_loader_version_range: neo_loader_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching('pack.mcmeta') {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    dependsOn project(':mlua-core').tasks.named('classes')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // The loader embeds this runtime as its own mod candidate. Core-owned
+    // types therefore belong in this JAR, not only on the compile classpath.
+    from(project(':mlua-core').sourceSets.main.output.classesDirs)
+    manifest {
+        attributes([
+                'Automatic-Module-Name': 'mlua',
+                'Agent-Class': 'dev.mlua.agent.MLuaMixinAgent',
+                'Premain-Class': 'dev.mlua.agent.MLuaMixinAgent',
+                'Can-Retransform-Classes': 'true',
+                'Specification-Title': mod_id,
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1',
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor': mod_authors
+        ])
+    }
+    exclude 'dev/mlua/common/mixin/**'
+    // The loader artifact owns shared enum classes used by the early mixin bootstrap.
+    exclude 'dev/mlua/common/enums/**'
+    exclude 'dev/mlua/common/service/**'
+    if (!is26Family) exclude 'dev/mlua/transformer/**'
+    exclude 'org/luaj/**'
+    exclude 'org/apache/bcel/**'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

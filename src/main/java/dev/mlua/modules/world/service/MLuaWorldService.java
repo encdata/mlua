@@ -1,0 +1,146 @@
+package dev.mlua.modules.world.service;
+
+import dev.mlua.api.MLuaLuaErrors;
+import dev.mlua.common.enums.Side;
+import dev.mlua.core.service.MLuaService;
+import dev.mlua.common.service.MLuaServiceMetadata;
+import dev.mlua.modules.world.WorldModule;
+import dev.mlua.modules.world.MLuaWorldChunkApi;
+import dev.mlua.runtime.MLuaGameThreadAccess;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+
+public final class MLuaWorldService extends MLuaWorldServiceBase {
+   public MLuaWorldService(MLuaService.Context context) {
+      super(context);
+   }
+
+   @Override
+   public String name() {
+      return "World";
+   }
+
+   @Override
+   public LuaTable toLua() {
+      LuaTable table = new LuaTable();
+      table.set("__side", LuaValue.valueOf(this.context.mlua().side().name()));
+      table.set("Current", varArg((args) -> this.worldValue(this.currentLevel())));
+      table.set("Get", varArg((args) -> this.worldValue(this.resolveLevel(args.checkjstring(serviceArgumentIndex(args, table, 1))))));
+      table.set("GetAll", varArg((args) -> this.allWorlds()));
+      table.set("GetSide", varArg((args) -> LuaValue.valueOf(this.context.mlua().side().name())));
+      table.set("GetWeather", currentWorldMethod(table, "GetWeather"));
+      table.set("SetWeather", currentWorldMethod(table, "SetWeather"));
+      WorldModule.bindWorldServiceMethods(table, methodName -> this.currentWorldMethod(table, methodName));
+      MLuaServiceMetadata.attachMethodDescriptions(table, WorldModule.worldServiceMethods());
+      return supportColonAndDotCalls(table);
+   }
+
+   private LuaValue currentWorldMethod(LuaTable service, String methodName) {
+      return varArg(args -> {
+         Level level = this.currentLevel();
+         if (level == null) return LuaValue.NIL;
+         LuaTable instance = this.worldTable(level);
+         int firstArgument = serviceArgumentIndex(args, service, 1);
+         return MLuaWorldMethodCall.invoke(instance, methodName, args, firstArgument);
+      });
+   }
+
+   private LuaValue worldValue(Level level) {
+      return level == null ? LuaValue.NIL : this.worldTable(level);
+   }
+
+   private LuaTable worldTable(Level level) {
+      return level == null ? new LuaTable() : getOrCreateWorld(level);
+   }
+
+   @Override
+   protected LuaTable createWorld(Level initial) {
+      Supplier<Level> supplier = () -> initial;
+      LuaTable fields = new LuaTable();
+      fields.set("__side", LuaValue.valueOf(MLuaGameThreadAccess.isClientSide(initial) ? "CLIENT" : "SERVER"));
+      fields.set("__world", LuaValue.userdataOf(initial));
+      fields.set("__level", LuaValue.userdataOf(initial));
+      var registration = context.mlua().registration();
+      LuaTable table = registration.createClassInstance("World", fields);
+
+      MLuaWorldEnvironmentApi.bind(table, supplier, context);
+      MLuaWorldBlockQueryApi.bind(table, supplier, context);
+      MLuaWorldRaycastApi.bind(table, supplier, context.mlua().registration());
+      MLuaWorldEntityQueryApi.bind(table, supplier, context.mlua().registration());
+
+      MLuaWorldMutationApi.bind(table, supplier, context, context.mlua().registration(), context.mlua().ownerModId());
+      MLuaWorldDataApi.bind(table, supplier, context);
+
+      MLuaWorldChunkApi.bind(table, this.context.mlua().registration());
+      WorldModule.bindWorldInstanceMethods(this.context.mlua().registration(), table);
+      return table;
+   }
+
+   private synchronized LuaTable allWorlds() {
+      LuaTable worlds = new LuaTable();
+      Set<Level> activeLevels = Collections.newSetFromMap(new IdentityHashMap<>());
+      int index = 1;
+      if (this.context.mlua().side() == Side.SERVER && this.context.mlua().server() != null) {
+         for (ServerLevel level : this.context.mlua().server().getAllLevels()) {
+            activeLevels.add(level);
+            worlds.set(index++, this.worldTable(level));
+         }
+      } else if (this.context.mlua().side() == Side.CLIENT) {
+         Level current = this.currentLevel();
+         if (current != null) {
+            activeLevels.add(current);
+            worlds.set(index, this.worldTable(current));
+         }
+      }
+      retainWorlds(activeLevels);
+      return worlds;
+   }
+
+   private Level currentLevel() {
+      if (this.context.mlua().side() == Side.CLIENT) {
+         return clientLevel();
+      }
+      return this.context.mlua().server() == null ? null : this.context.mlua().server().overworld();
+   }
+
+   private Level resolveLevel(String id) {
+      if (id == null || id.isBlank()) {
+         return this.currentLevel();
+      }
+      String target = MLuaWorldDimensionId.canonicalize(id);
+      if (target == null) {
+         return null;
+      }
+
+      if (this.context.mlua().side() == Side.SERVER && this.context.mlua().server() != null) {
+         for (ServerLevel level : this.context.mlua().server().getAllLevels()) {
+            if (MLuaWorldDimensionId.matches(dev.mlua.minecraft.MLuaDimensionId.from(level), target)) {
+               return level;
+            }
+         }
+      }
+
+      if (this.context.mlua().side() == Side.CLIENT) {
+         Level clientLevel = clientLevel();
+         return clientLevel != null
+            && MLuaWorldDimensionId.matches(dev.mlua.minecraft.MLuaDimensionId.from(clientLevel), target)
+            ? clientLevel : null;
+      }
+      return null;
+   }
+
+   private LuaValue varArg(Function<Varargs, Varargs> fn) {
+      return MLuaLuaErrors.varargsOperation("World service call", args -> {
+         return MLuaGameThreadAccess.callUnchecked(context, () -> fn.apply(args));
+      });
+   }
+
+}

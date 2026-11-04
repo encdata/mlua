@@ -1,0 +1,377 @@
+package dev.mlua.runtime.client;
+
+import static dev.mlua.runtime.client.MLuaRenderHookRegistry.*;
+
+import dev.mlua.core.MLuaCallbackBudget;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.signal.MLuaConnection;
+import dev.mlua.module.MLuaRegistration;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.ItemDisplayContext;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+
+/** Addon-owned Lua callbacks attached to Minecraft's client render points. */
+public final class MLuaRenderCallbacks {
+    public static final long MAX_LUA_INSTRUCTIONS_PER_CALLBACK = MLuaCallbackBudget.MAX_INSTRUCTIONS;
+    private static final String DEFAULT_PASS_ID = "mlua:default";
+    /** Bounds callback dispatch work even when many addons register render hooks. */
+    public static final int MAX_CALLBACKS = MLuaRenderHookRegistry.MAX_CALLBACKS;
+    /** Prevents one entity type, render stage, or item from monopolizing every frame. */
+    public static final int MAX_CALLBACKS_PER_TARGET = MLuaRenderHookRegistry.MAX_CALLBACKS_PER_TARGET;
+    /** Keeps one addon runtime from consuming the callback capacity needed by other addons. */
+    public static final int MAX_CALLBACKS_PER_OWNER = MLuaRenderHookRegistry.MAX_CALLBACKS_PER_OWNER;
+    private MLuaRenderCallbacks() { }
+
+    /** Stores the latest client render-frame duration in seconds for render callbacks. */
+    public static void setFrameDeltaTime(double deltaTime) {
+        // Each frame replaces the previous sample, including an unavailable one.
+        MLuaRenderFrameClock.publish(deltaTime);
+    }
+
+    public static MLuaConnection register(String entityId, LuaValue callback, MLuaContext context) {
+        return register(entityId, DEFAULT_PASS_ID, callback, context);
+    }
+
+    public static MLuaConnection register(String entityId, String passId, LuaValue callback, MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        requireCallback(callback);
+        String id = normalizeId(entityId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return registerTargetConnection(new HookTarget(HookKind.ENTITY_MODEL, id), key, callback, context,
+            "entity pass '" + key.id() + "' for " + id);
+    }
+
+    public static boolean unregister(String entityId, MLuaContext context) {
+        return unregister(entityId, DEFAULT_PASS_ID, context);
+    }
+
+    public static boolean unregister(String entityId, String passId, MLuaContext context) {
+        if (context == null) return false;
+        String id = normalizeId(entityId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return unregisterTarget(new HookTarget(HookKind.ENTITY_MODEL, id), key);
+    }
+
+    public static MLuaConnection registerEntityDraw(String entityType, String passId, LuaValue callback, MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String id = normalizeId(entityType);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return registerTargetConnection(new HookTarget(HookKind.ENTITY_DRAW, id), key, callback, context,
+            "entity draw pass '" + key.id() + "' for " + id);
+    }
+
+    public static boolean unregisterEntityDraw(String entityType, String passId, MLuaContext context) {
+        if (context == null) return false;
+        String id = normalizeId(entityType);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return unregisterTarget(new HookTarget(HookKind.ENTITY_DRAW, id), key);
+    }
+
+    public static MLuaConnection registerEntityPostDraw(String entityType, String passId, LuaValue callback,
+                                               MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String id = normalizeId(entityType);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return registerTargetConnection(new HookTarget(HookKind.ENTITY_DRAW_POST, id), key, callback, context,
+            "post-entity render pass '" + key.id() + "' for " + id);
+    }
+
+    public static boolean unregisterEntityPostDraw(String entityType, String passId, MLuaContext context) {
+        if (context == null) return false;
+        String id = normalizeId(entityType);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return unregisterTarget(new HookTarget(HookKind.ENTITY_DRAW_POST, id), key);
+    }
+
+    public static void renderEntityDraw(Entity entity, Object renderer, Object poseStack, Object bufferSource,
+            Float partialTick, int packedLight) {
+        MLuaRenderEntityCallbackDispatcher.renderEntityDraw(
+            entity, renderer, poseStack, bufferSource, partialTick, packedLight);
+    }
+
+    public static void renderEntityDraw(Entity entity, Object renderer, Object poseStack, Object bufferSource,
+            Float partialTick, int packedLight, Object nativeContext) {
+        MLuaRenderEntityCallbackDispatcher.renderEntityDraw(
+            entity, renderer, poseStack, bufferSource, partialTick, packedLight, nativeContext);
+    }
+
+    public static boolean hasEntityDrawCallbacks(EntityType<?> entityType) {
+        return MLuaRenderEntityCallbackDispatcher.hasEntityDrawCallbacks(entityType);
+    }
+
+    public static boolean hasEntityPostDrawCallbacks(EntityType<?> entityType) {
+        return MLuaRenderEntityCallbackDispatcher.hasEntityPostDrawCallbacks(entityType);
+    }
+
+    /** Runs after Minecraft's native entity renderer returns and before MLua attachments are submitted. */
+    public static void renderEntityPostDraw(Entity entity, Object renderer, Object poseStack,
+            Object bufferSource, Float partialTick, int packedLight, Object nativeContext) {
+        MLuaRenderEntityCallbackDispatcher.renderEntityPostDraw(
+            entity, renderer, poseStack, bufferSource, partialTick, packedLight, nativeContext);
+    }
+
+    /** Runs after Minecraft's entity renderer with an addon-adapted native model when available. */
+    public static void renderEntityPostDraw(Entity entity, Object renderer, Object poseStack,
+            Object bufferSource, Float partialTick, int packedLight, Object nativeContext, Object model) {
+        MLuaRenderEntityCallbackDispatcher.renderEntityPostDraw(
+            entity, renderer, poseStack, bufferSource, partialTick, packedLight, nativeContext, model);
+    }
+
+    public static MLuaConnection registerFirstPersonItem(String itemId, LuaValue callback, MLuaContext context) {
+        return registerFirstPersonItem(itemId, DEFAULT_PASS_ID, callback, context);
+    }
+
+    public static MLuaConnection registerFirstPersonItem(String itemId, String passId, LuaValue callback, MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String item = normalizeId(itemId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return registerTargetConnection(new HookTarget(HookKind.FIRST_PERSON_ITEM, item), key, callback, context,
+            "first-person item pass '" + key.id() + "' for " + item);
+    }
+
+    public static boolean unregisterFirstPersonItem(String itemId, MLuaContext context) {
+        return unregisterFirstPersonItem(itemId, DEFAULT_PASS_ID, context);
+    }
+
+    public static boolean unregisterFirstPersonItem(String itemId, String passId, MLuaContext context) {
+        if (context == null) return false;
+        String item = normalizeId(itemId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return unregisterTarget(new HookTarget(HookKind.FIRST_PERSON_ITEM, item), key);
+    }
+
+    public static MLuaConnection registerThirdPersonItem(String itemId, LuaValue callback, MLuaContext context) {
+        return registerThirdPersonItem(itemId, DEFAULT_PASS_ID, callback, context);
+    }
+
+    public static MLuaConnection registerThirdPersonItem(String itemId, String passId, LuaValue callback, MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String item = normalizeId(itemId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return registerTargetConnection(new HookTarget(HookKind.THIRD_PERSON_ITEM, item), key, callback, context,
+            "third-person item pass '" + key.id() + "' for " + item);
+    }
+
+    public static boolean unregisterThirdPersonItem(String itemId, MLuaContext context) {
+        return unregisterThirdPersonItem(itemId, DEFAULT_PASS_ID, context);
+    }
+
+    public static boolean unregisterThirdPersonItem(String itemId, String passId, MLuaContext context) {
+        if (context == null) return false;
+        String item = normalizeId(itemId);
+        HookKey key = new HookKey(owner(context), normalizeId(passId));
+        return unregisterTarget(new HookTarget(HookKind.THIRD_PERSON_ITEM, item), key);
+    }
+
+    public static void renderThirdPersonItem(LivingEntity entity, ItemStack stack,
+            HumanoidArm arm, ItemDisplayContext displayContext,
+            Object poseStack, Object bufferSource, int packedLight) {
+        MLuaRenderItemCallbackDispatcher.renderThirdPerson(
+            entity, stack, arm, displayContext, poseStack, bufferSource, packedLight);
+    }
+
+    public static void renderThirdPersonItem(LivingEntity entity, ItemStack stack,
+            HumanoidArm arm, ItemDisplayContext displayContext,
+            Object poseStack, Object bufferSource, int packedLight, Float partialTick) {
+        MLuaRenderItemCallbackDispatcher.renderThirdPerson(
+            entity, stack, arm, displayContext, poseStack, bufferSource, packedLight, partialTick);
+    }
+
+    public static boolean hasThirdPersonItemCallbacks(ItemStack stack) {
+        return MLuaRenderItemCallbackDispatcher.hasThirdPersonCallbacks(stack);
+    }
+
+    /** True when either Lua passes or target-bound model objects need this held-item hook. */
+    public static boolean hasThirdPersonItemRenderers(ItemStack stack) {
+        return MLuaRenderItemCallbackDispatcher.hasThirdPersonRenderers(stack);
+    }
+
+
+
+    public static void renderFirstPersonItem(AbstractClientPlayer player,
+            InteractionHand hand, ItemStack stack, Object poseStack, Object bufferSource,
+            float partialTick, float pitch, float swingProgress, float equipProgress, int packedLight) {
+        MLuaRenderItemCallbackDispatcher.renderFirstPerson(player, hand, stack, poseStack, bufferSource,
+            partialTick, pitch, swingProgress, equipProgress, packedLight);
+    }
+
+    /** Preserves whether the render hook actually had an interpolation sample. */
+    public static void renderFirstPersonItem(AbstractClientPlayer player,
+            InteractionHand hand, ItemStack stack, Object poseStack, Object bufferSource,
+            Float partialTick, float pitch, float swingProgress, float equipProgress, int packedLight) {
+        MLuaRenderItemCallbackDispatcher.renderFirstPerson(player, hand, stack, poseStack, bufferSource,
+            partialTick, pitch, swingProgress, equipProgress, packedLight);
+    }
+
+    public static MLuaConnection registerWorld(LuaValue callback, MLuaContext context) {
+        return registerWorld("mlua:default", "AFTER_ENTITIES", callback, context);
+    }
+
+    public static MLuaConnection registerWorld(String stage, LuaValue callback, MLuaContext context) {
+        return registerWorld("mlua:default", stage, callback, context);
+    }
+
+    public static MLuaConnection registerWorld(String id, String stage, LuaValue callback, MLuaContext context) {
+        requireCallback(callback);
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String normalized = normalizeWorldStage(stage);
+        String key = normalizeId(id);
+        return MLuaRenderHookRegistry.registerWorldPass(key, normalized, callback, context);
+    }
+
+    public static boolean unregisterWorld(String stage, MLuaContext context) {
+        if (context == null) return false;
+        String normalized = normalizeWorldStage(stage);
+        HookKey key = new HookKey(owner(context), DEFAULT_PASS_ID);
+        return MLuaRenderHookRegistry.unregisterWorldStage(normalized, key);
+    }
+
+    public static boolean unregisterWorld(MLuaContext context) {
+        return unregisterWorld("AFTER_ENTITIES", context);
+    }
+
+    public static boolean unregisterWorldPass(String id, MLuaContext context) {
+        if (context == null) return false;
+        return MLuaRenderHookRegistry.unregisterWorldPass(new HookKey(owner(context), normalizeId(id)));
+    }
+
+    /** Registers a callback at the loader's native custom-geometry submission point. */
+    public static MLuaConnection registerWorldGeometry(String id, LuaValue callback, MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String key = normalizeId(id);
+        HookKey hookKey = new HookKey(owner(context), key);
+        return registerTargetConnection(WORLD_GEOMETRY_TARGET, hookKey, callback, context,
+            "world geometry pass '" + key + "'");
+    }
+
+    public static boolean unregisterWorldGeometry(String id, MLuaContext context) {
+        if (context == null) return false;
+        return unregisterTarget(WORLD_GEOMETRY_TARGET,
+            new HookKey(owner(context), normalizeId(id)));
+    }
+
+    public static MLuaConnection registerHud(LuaValue callback, MLuaContext context) {
+        return registerHud(DEFAULT_PASS_ID, callback, context);
+    }
+
+    public static MLuaConnection registerHud(String id, LuaValue callback, MLuaContext context) {
+        if (context == null) throw new LuaError("[MLua] Render callback registration needs its owning Lua context.");
+        String key = normalizeId(id);
+        HookKey hookKey = new HookKey(owner(context), key);
+        return registerTargetConnection(HUD_TARGET, hookKey, callback, context, "HUD pass '" + key + "'");
+    }
+
+    public static boolean unregisterHud(MLuaContext context) {
+        return unregisterHudPass(DEFAULT_PASS_ID, context);
+    }
+
+    public static boolean unregisterHudPass(String id, MLuaContext context) {
+        return context != null && unregisterTarget(HUD_TARGET, new HookKey(owner(context), normalizeId(id)));
+    }
+
+    public static void render(LivingEntity entity, Object model, Object poseStack, Object bufferSource,
+                              float partialTick, int packedLight, int packedOverlay) {
+        MLuaRenderEntityCallbackDispatcher.render(
+            entity, model, poseStack, bufferSource, partialTick, packedLight, packedOverlay);
+    }
+
+    public static void render(LivingEntity entity, Object model, Object poseStack, Object bufferSource,
+                              float partialTick, int packedLight, int packedOverlay, boolean hasPartialTick) {
+        MLuaRenderEntityCallbackDispatcher.render(
+            entity, model, poseStack, bufferSource, partialTick, packedLight, packedOverlay, hasPartialTick);
+    }
+
+    /** Supplies the native render-state object on versions that use state-based entity rendering. */
+    public static void render(LivingEntity entity, Object model, Object poseStack, Object bufferSource,
+                              float partialTick, int packedLight, int packedOverlay, boolean hasPartialTick,
+                              Object renderState) {
+        MLuaRenderEntityCallbackDispatcher.render(entity, model, poseStack, bufferSource,
+            partialTick, packedLight, packedOverlay, hasPartialTick, renderState);
+    }
+
+    public static void renderWorld(String stage, Object nativeContext, Object poseStack, Object bufferSource, Object camera) {
+        MLuaRenderSceneCallbackDispatcher.renderWorld(stage, nativeContext, poseStack, bufferSource, camera);
+    }
+
+    /** Runs callbacks while the loader accepts custom world geometry for the current frame. */
+    public static void renderWorldGeometry(Object nativeContext, Object poseStack, Object renderSource, Object camera) {
+        MLuaRenderSceneCallbackDispatcher.renderWorldGeometry(nativeContext, poseStack, renderSource, camera);
+    }
+
+    /** Reads the render fraction from loader-specific contexts and delta trackers. */
+    public static Float readPartialTick(Object context) {
+        return MLuaRenderPartialTickResolver.read(context);
+    }
+
+    public static Float currentClientPartialTick() {
+        return MLuaRenderPartialTickResolver.currentClient();
+    }
+
+
+
+
+
+    public static void renderHud(Object graphics, int width, int height) {
+        MLuaRenderSceneCallbackDispatcher.renderHud(graphics, width, height);
+    }
+
+    public static void clearOwned(Object session, String modId) {
+        MLuaRenderHookRegistry.clearOwned(session, modId);
+    }
+
+    public static void clearRuntime(Object session) {
+        if (session == null) return;
+        MLuaRenderHookRegistry.clearRuntime(session);
+        // DeltaTime belongs to the active client runtime's render frames. Do not
+        // let a freshly loaded runtime observe the previous session's last sample.
+        resetFrameTime();
+    }
+
+    /** Resets per-frame timing when the client leaves a world without unregistering script hooks. */
+    public static void resetFrameTime() {
+        MLuaRenderFrameClock.reset();
+    }
+
+    /** Returns true only while this exact Lua RenderContext is inside its creating callback. */
+    public static boolean isRenderContextActive(LuaValue contextValue) {
+        if (contextValue == null || !contextValue.istable()) return false;
+        MLuaRenderFrameScope scope = MLuaRenderFrameContexts.get(contextValue.checktable());
+        return scope != null && scope.view().isActive();
+    }
+
+    /** Called by the registered RenderContext:DrawObject class method. */
+    public static LuaValue drawObject(MLuaRegistration registration, LuaValue context,
+            LuaValue handle, LuaValue transformValue) {
+        return MLuaRenderFrameContextFactory.drawObject(registration, context, handle, transformValue);
+    }
+
+    /** Runs a Lua draw operation inside a native pose-stack scope restored to its entry depth. */
+    public static Varargs withPose(LuaValue contextValue, LuaValue callback) {
+        return MLuaRenderFrameContextFactory.withPose(contextValue, callback);
+    }
+
+    public static int registeredCallbackCount() {
+        return MLuaRenderHookRegistry.registeredCallbackCount();
+    }
+
+    public static int registeredCallbackCount(MLuaContext context) {
+        return MLuaRenderHookRegistry.registeredCallbackCount(context);
+    }
+
+    private static String normalizeWorldStage(String stage) {
+        try {
+            return dev.mlua.loaderapi.ClientBridge.normalizeWorldRenderStage(stage);
+        } catch (IllegalArgumentException invalidStage) {
+            throw new LuaError("[MLua] " + invalidStage.getMessage());
+        }
+    }
+
+}

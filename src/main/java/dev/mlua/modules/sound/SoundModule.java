@@ -1,0 +1,88 @@
+package dev.mlua.modules.sound;
+
+import dev.mlua.module.MLuaDocBuilder;
+import dev.mlua.module.MLuaModule;
+import dev.mlua.module.MLuaRegistration;
+import dev.mlua.modules.sound.service.MLuaSoundService;
+import dev.mlua.common.enums.Side;
+import java.util.List;
+
+@dev.mlua.module.MLuaModuleSide(Side.CLIENT)
+public final class SoundModule implements MLuaModule {
+    @Override
+    public String id() {
+        return "sound";
+    }
+
+    @Override
+    public void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
+        dev.mlua.runtime.client.MLuaClientSoundManager.clearRuntime(runtimeSession);
+    }
+
+    @Override
+    public void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, String ownerModId) {
+        dev.mlua.runtime.client.MLuaClientSoundManager.clearOwned(
+            new dev.mlua.runtime.client.MLuaSoundOwnershipRegistry.Owner(runtimeSession, ownerModId));
+    }
+
+    @Override
+    public Side side() { return Side.CLIENT; }
+
+    @Override
+    public void registerEvents(dev.mlua.loaderapi.EventBridge events) {
+        events.onClientWorldUnload(world ->
+            dev.mlua.runtime.client.MLuaClientSoundManager.clearWorldSounds());
+        events.onClientDisconnect(dev.mlua.runtime.client.MLuaClientSoundManager::clearAll);
+    }
+
+    @Override public List<String> dependencies() { return List.of("core-classes"); }
+
+    @Override public void registerClasses(MLuaRegistration registration) {
+        MLuaSoundService.registerSoundHandleClass(registration);
+    }
+
+    @Override
+    public List<ServiceEntry> services() {
+        return List.of(ServiceEntry.builder("SoundService", MLuaSoundService::new)
+            .reflective(MLuaSoundService.class)
+            .build());
+    }
+
+    @Override
+    public void contributeDocs(MLuaDocBuilder docs) {
+        docs.register(MLuaDocBuilder.Registration.service("SoundService", "MLuaSoundService",
+            "Client-side sound playback with loop, stop, and entity-follow handles.",
+            "services/sound.html"));
+        docs.register(MLuaDocBuilder.Registration.clazz("SoundHandle", "MLuaSoundService",
+            "A live client sound instance returned by SoundService playback functions. It exposes playback state, position, looping, volume, pitch, and entity-follow settings.",
+            "classes/sound-handle.html", "Instance"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:Play(soundId: string, properties: SoundPlayOptions?)", "SoundHandle?"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:PlayLocal(soundId: string, volume: number?, pitch: number?)", "SoundHandle?"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:PlayAtPlayer(soundId: string, volume: number?, pitch: number?)", "SoundHandle?"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:GetAll()", "SoundHandle[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:GetCount()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundService", "SoundService:GetCategories()", "string[]"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:GetId()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:Equals(other: SoundHandle)", "boolean"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:GetHashCode()", "number"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:ToString()", "string"));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:SetPosition(position: Vector3|CFrame)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:SetFollowOffset(offset: Vector3)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:AttachToEntity(entity: Entity | number)", null));
+        docs.register(MLuaDocBuilder.Registration.signature("SoundHandle", "SoundHandle:ClearFollowEntity()", null));
+        docs.register(MLuaDocBuilder.Registration.type("SoundPlayOptions", null, "Optional playback settings accepted by SoundService:Play."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Volume", "number", "Finite, non-negative playback volume. Defaults to 1."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Pitch", "number", "Finite, non-negative playback pitch. Defaults to 1."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Looped", "boolean", "Whether the sound should repeat."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Position", "Vector3|CFrame", "Optional world position with finite coordinates, used when FollowEntity is not set."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowEntity", "Entity | number", "Optional entity instance or entity id to follow."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "FollowOffset", "Vector3", "Finite offset from the followed entity; used with FollowEntity."));
+        docs.register(MLuaDocBuilder.Registration.field("SoundPlayOptions", "Category", "string", "A lowercase Minecraft category returned by SoundService:GetCategories(). Defaults to players."));
+        docs.register(MLuaDocBuilder.Registration.guideStep("SoundService", "Control a sound after starting it",
+            "Playback functions return a SoundHandle instance. Its positions accept Vector3 or CFrame; follow offsets use native Vector3 values. Coordinate tables are rejected. The client supports up to " + dev.mlua.runtime.client.MLuaClientSoundManager.MAX_ACTIVE_SOUNDS_PER_OWNER + " active sounds per addon runtime and " + dev.mlua.runtime.client.MLuaClientSoundManager.MAX_ACTIVE_SOUNDS + " total. Stop sounds when they are no longer needed. Setting Position clears an entity-follow target. Its properties read and update the live sound, and Destroy stops playback.",
+            "local SoundService = Minecraft:GetService(\"SoundService\")\nlocal sound = SoundService:Play(\"minecraft:ambient.cave\", {\n    Looped = true,\n    Volume = 0.6,\n    Position = CFrame.new(12, 65, -4),\n})\nif sound then\n    sound.Pitch = 0.9\n    sound.Position = CFrame.new(14, 65, -4)\n    print(sound:IsA(\"SoundHandle\"), sound.IsPlaying)\n    sound:Destroy()\nend"));
+        docs.register(MLuaDocBuilder.Registration.guideStep("SoundService", "Track active sounds owned by this addon",
+            "GetAll returns handles for sounds still playing in this addon's runtime, ordered by id. GetCount prunes completed sounds while counting, so both methods report active playback rather than every handle ever created.",
+            "local SoundService = Minecraft:GetService(\"SoundService\")\nfor _, sound in ipairs(SoundService:GetAll()) do\n    if sound.Looped then\n        sound:Stop()\n    end\nend\nprint(\"Active sounds:\", SoundService:GetCount())"));
+    }
+}

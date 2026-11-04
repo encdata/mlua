@@ -1,0 +1,96 @@
+package dev.mlua.modules.entity;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.function.Function;
+
+import dev.mlua.loaderapi.RegistryHandle;
+import dev.mlua.loaderapi.RegistryKind;
+import dev.mlua.mcapi.MCApiRuntime;
+import dev.mlua.minecraft.MLuaResourceLocations;
+import dev.mlua.runtime.registry.MLuaLoaderRegistry;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
+
+/** Resolves entity identifiers through the active world, vanilla, and loader-owned registries. */
+final class MLuaEntityTypeResolver {
+    // Entity-type registries are frozen before runtime lookups; weak keys avoid retaining reloadable registries.
+    private static final Map<Registry<EntityType<?>>, Map<String, EntityType<?>>> FALLBACK_INDEXES =
+        new WeakHashMap<>();
+
+    private MLuaEntityTypeResolver() { }
+
+    static EntityType<?> resolve(ServerLevel level, String owner, String requestedId) {
+        if (requestedId == null || requestedId.isBlank()) return null;
+        String id = requestedId.contains(":") ? requestedId
+            : (owner == null || owner.isBlank() ? "minecraft" : owner) + ":" + requestedId;
+        var location = MLuaResourceLocations.tryParseOrNull(id);
+        if (location == null) return null;
+        // Entity types registered by Minecraft and addons live in the built-in registry. Check
+        // that hot path first; only consult the active world's registry for keys it does not own.
+        EntityType<?> builtIn = findType(BuiltInRegistries.ENTITY_TYPE, location.toString());
+        if (builtIn != null) return builtIn;
+        // Loader registry views differ across game lines (some return Optional or Holder values).
+        // The version adapter normalizes those shapes and covers the built-in entity registry.
+        Object adapted = MCApiRuntime.lookupRegistry("entity_type", location.toString());
+        if (adapted instanceof EntityType<?> entityType) return entityType;
+        if (level != null) {
+            //--version 26.1
+            EntityType<?> worldType = level.registryAccess()
+                .lookupOrThrow(Registries.ENTITY_TYPE).getOptional(location).orElse(null);
+            //--endversion
+            //--version 1.20.1,1.21.1
+            Registry<EntityType<?>> entityTypes = level.registryAccess().registryOrThrow(Registries.ENTITY_TYPE);
+            EntityType<?> worldType = findType(entityTypes, location.toString());
+            //--endversion
+            if (worldType != null) return worldType;
+        }
+        RegistryHandle<?> handle = MLuaLoaderRegistry.get(RegistryKind.ENTITY,
+            MLuaResourceLocations.namespace(location), MLuaResourceLocations.path(location));
+        Object registered = handle == null ? null : handle.get();
+        return registered instanceof EntityType<?> entityType ? entityType : null;
+    }
+
+    /** A few loader registry views expose values through iteration before their key index is ready. */
+    private static EntityType<?> findType(Registry<EntityType<?>> registry, String id) {
+        var location = MLuaResourceLocations.parse(id);
+        EntityType<?> direct = registry.getOptional(location).orElse(null);
+        if (direct != null) return direct;
+        // Some 1.20/1.21 loader registry wrappers expose an empty Optional from getOptional even
+        // when Registry#get can resolve the key. Newer registries return holders from get(), so
+        // retain that lookup only where the registry still maps ids directly to entity types.
+        //--version 1.20.1,1.21.1
+        direct = registry.get(location);
+        if (direct != null) return direct;
+        //--endversion
+        return fallbackIndex(registry).get(id);
+    }
+
+    private static Map<String, EntityType<?>> fallbackIndex(Registry<EntityType<?>> registry) {
+        synchronized (FALLBACK_INDEXES) {
+            Map<String, EntityType<?>> cached = FALLBACK_INDEXES.get(registry);
+            if (cached != null) return cached;
+        }
+        Map<String, EntityType<?>> immutable = indexByKey(registry,
+            entityType -> {
+                var key = registry.getKey(entityType);
+                return key == null ? null : key.toString();
+            });
+        synchronized (FALLBACK_INDEXES) {
+            return FALLBACK_INDEXES.computeIfAbsent(registry, ignored -> immutable);
+        }
+    }
+
+    static <T, K> Map<K, T> indexByKey(Iterable<T> values, Function<T, K> keyOf) {
+        Map<K, T> index = new HashMap<>();
+        for (T candidate : values) {
+            K key = keyOf.apply(candidate);
+            if (key != null) index.putIfAbsent(key, candidate);
+        }
+        return Map.copyOf(index);
+    }
+}

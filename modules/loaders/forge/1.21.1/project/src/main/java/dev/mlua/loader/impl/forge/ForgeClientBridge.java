@@ -1,0 +1,165 @@
+package dev.mlua.loader.impl.forge;
+
+import dev.mlua.core.MLuaLogger;
+import dev.mlua.loaderapi.ClientBridge;
+import dev.mlua.loaderapi.ClientOverlayRegistry;
+import dev.mlua.loaderapi.ClientWorldRenderContext;
+import dev.mlua.runtime.client.MLuaGuiRenderer;
+import dev.mlua.runtime.client.MLuaInputHandler;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.model.geom.ModelLayerLocation;
+import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
+public class ForgeClientBridge implements ClientBridge {
+    private final ClientOverlayRegistry overlays = new ClientOverlayRegistry();
+    private final List<KeyMapping> pendingKeyMappings = new ArrayList<>();
+    private final List<ModelLayerRegistration> pendingModelLayers = new ArrayList<>();
+    private boolean keyMappingsRegistered;
+    private boolean modelLayersRegistered;
+    private boolean inputHandlersRegistered;
+
+    private record ModelLayerRegistration(ModelLayerLocation location, LayerDefinition definition) { }
+
+    public ForgeClientBridge(IEventBus modBus) {
+        modBus.addListener((RegisterKeyMappingsEvent event) -> {
+            synchronized (this) {
+                for (KeyMapping mapping : pendingKeyMappings) event.register(mapping);
+                pendingKeyMappings.clear();
+                keyMappingsRegistered = true;
+            }
+        });
+        modBus.addListener((EntityRenderersEvent.RegisterLayerDefinitions event) -> {
+            synchronized (this) {
+                for (ModelLayerRegistration layer : pendingModelLayers) {
+                    event.registerLayerDefinition(layer.location(), () -> layer.definition());
+                }
+                pendingModelLayers.clear();
+                modelLayersRegistered = true;
+            }
+        });
+        modBus.addListener((AddGuiOverlayLayersEvent event) -> {
+            event.getLayeredDraw().add(ResourceLocation.fromNamespaceAndPath("mlua", "gui"),
+                (graphics, deltaTracker) -> {
+                    Minecraft minecraft = Minecraft.getInstance();
+                    MLuaGuiRenderer.renderAll(graphics,
+                        minecraft.getWindow().getGuiScaledWidth(), minecraft.getWindow().getGuiScaledHeight());
+                });
+            event.getLayeredDraw().add(ResourceLocation.fromNamespaceAndPath("mlua", "overlays"),
+                (graphics, deltaTracker) -> overlays.render(graphics));
+        });
+    }
+
+    @Override
+    public void registerOverlay(String id, Consumer<Object> renderer) {
+        overlays.register(id, renderer);
+    }
+
+    @Override
+    public void registerWorldRenderer(Consumer<dev.mlua.loaderapi.ClientWorldRenderContext> renderer) {
+        registerWorldRenderer("AFTER_ENTITIES", renderer);
+    }
+
+    @Override
+    public void registerWorldRenderer(String stage, Consumer<dev.mlua.loaderapi.ClientWorldRenderContext> renderer) {
+        ClientBridge.validateRenderer(renderer);
+        var selected = switch (ClientBridge.normalizeWorldRenderStage(stage)) {
+            case "BEFORE_ENTITIES" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_SOLID_BLOCKS;
+            case "AFTER_ENTITIES" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_ENTITIES;
+            case "AFTER_TRANSLUCENT" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS;
+            case "AFTER_LEVEL" -> net.minecraftforge.client.event.RenderLevelStageEvent.Stage.AFTER_LEVEL;
+            default -> throw new IllegalArgumentException("Unsupported world render stage: " + stage);
+        };
+        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.client.event.RenderLevelStageEvent event) -> {
+            if (event.getStage() != selected) return;
+            PoseStack pose = null;
+            if (event.getPoseStack() != null) {
+                pose = new PoseStack();
+                pose.last().pose().set(event.getPoseStack());
+            }
+            MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
+            ClientWorldRenderContext context = new ClientWorldRenderContext(event, pose, buffers, event.getCamera(),
+                () -> {
+                    try {
+                        buffers.endBatch();
+                    } catch (RuntimeException failure) {
+                        MLuaLogger.LOGGER.error("[MLua] Failed to flush the Forge world render buffers", failure);
+                    }
+                });
+            context.invoke(renderer);
+        });
+    }
+
+    @Override
+    public synchronized void registerKeyBinding(Object keyMapping) {
+        if (!(keyMapping instanceof KeyMapping mapping)) {
+            throw new IllegalArgumentException("Minecraft key binding must be a KeyMapping");
+        }
+        if (keyMappingsRegistered) {
+            throw new IllegalStateException("Key bindings must be registered before RegisterKeyMappingsEvent");
+        }
+        pendingKeyMappings.add(mapping);
+    }
+
+    @Override
+    public synchronized void registerModelLayer(Object layerLocation, Object modelPart) {
+        if (!(layerLocation instanceof ModelLayerLocation location)
+            || !(modelPart instanceof LayerDefinition definition)) {
+            throw new IllegalArgumentException("Model layers require a ModelLayerLocation and LayerDefinition");
+        }
+        if (modelLayersRegistered) {
+            throw new IllegalStateException("Model layers must be registered before RegisterLayerDefinitions");
+        }
+        pendingModelLayers.add(new ModelLayerRegistration(location, definition));
+    }
+
+    @Override
+    public synchronized void registerInputHandlers() {
+        if (inputHandlersRegistered) {
+            return;
+        }
+        MinecraftForge.EVENT_BUS.addListener((InputEvent.MouseButton.Pre event) -> {
+            if (MLuaInputHandler.handleMouseButton(event.getButton(), event.getAction())) {
+                event.setCanceled(true);
+            }
+        });
+        MinecraftForge.EVENT_BUS.addListener((InputEvent.MouseScrollingEvent event) -> {
+            if (MLuaInputHandler.handleMouseScroll(extractScrollDelta(event))) {
+                event.setCanceled(true);
+            }
+        });
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.END) {
+                MLuaInputHandler.handleClientTick();
+            }
+        });
+        inputHandlersRegistered = true;
+    }
+
+    private double extractScrollDelta(InputEvent.MouseScrollingEvent event) {
+        try {
+            return ((Number) event.getClass().getMethod("getDeltaY").invoke(event)).doubleValue();
+        } catch (ReflectiveOperationException ignored) {
+        }
+
+        try {
+            return ((Number) event.getClass().getMethod("getScrollDelta").invoke(event)).doubleValue();
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("[MLua] Failed to read Forge mouse scroll delta", exception);
+        }
+    }
+}

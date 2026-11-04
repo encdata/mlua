@@ -1,0 +1,47 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+group = 'org.luaj'
+version = '3.0.1-mlua'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // BCEL is needed for the LuaJ JIT compiler (luajc) which generates Java bytecode
+    // Exclude transitive deps that Forge provides at runtime
+    implementation('org.apache.bcel:bcel:6.7.0') {
+        transitive = false
+    }
+}
+
+def luajVersion = '3.0.1'
+def generatedVersionFile = layout.buildDirectory.file('generated/luaj-version/version.properties')
+def generateLuajVersion = tasks.register('generateLuajVersion') {
+    inputs.property('luajVersion', luajVersion)
+    inputs.property('mluaVersion', version.toString())
+    outputs.file(generatedVersionFile)
+    doLast {
+        def output = generatedVersionFile.get().asFile
+        output.parentFile.mkdirs()
+        output.setText("luaj.version=${luajVersion}\nluaj.source=${luajVersion}\nluaj.build=${version}\n", 'UTF-8')
+    }
+}
+
+sourceSets.main.resources.srcDir(layout.buildDirectory.dir('generated/luaj-version'))
+tasks.named('processResources') {
+    dependsOn generateLuajVersion
+    filteringCharset = 'UTF-8'
+}
+
+// Don't include any of the stock LuaJ sources we might accidentally depend on
+configurations.all {
+    exclude group: 'org.luaj', module: 'luaj-jse'
+}

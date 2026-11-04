@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+dependencies {
+    implementation project(':mlua-common')
+    implementation project(':mlua-luaj')
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'com.google.code.gson:gson:2.10'
+}

@@ -1,0 +1,5 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.15.4'
+}
+
+apply from: rootProject.file('gradle/mlua-fabric-project.gradle')

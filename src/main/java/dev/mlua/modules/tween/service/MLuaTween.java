@@ -1,0 +1,275 @@
+package dev.mlua.modules.tween.service;
+
+import dev.mlua.common.enums.EasingDirection;
+import dev.mlua.common.enums.EasingStyle;
+import dev.mlua.core.MLuaCallbackBudget;
+import dev.mlua.core.MLuaContext;
+import dev.mlua.core.engine.MLuaLuaBindings;
+import dev.mlua.core.signal.MLuaSignal;
+import dev.mlua.common.enums.Side;
+import dev.mlua.math.MLuaVector;
+import java.util.ArrayList;
+import java.util.List;
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+
+/** One property tween. Sampling and writes happen on the client render thread. */
+final class MLuaTween {
+    record Property(String name, LuaValue getter, LuaValue setter, LuaValue goal) { }
+    private record Track(Property property, LuaValue start, LuaValue lerp) { }
+    private enum PlaybackState { Created, Playing, Paused, Completed, Cancelled }
+
+    private LuaTable target;
+    private List<Property> properties;
+    private MLuaContext context;
+    private Globals globals;
+    private volatile Object ownerSession;
+    private final String ownerModId;
+    private final double duration;
+    private final EasingStyle style;
+    private final EasingDirection direction;
+    private final MLuaSignal completed = new MLuaSignal();
+    private volatile PlaybackState playbackState = PlaybackState.Created;
+    private List<Track> starts = List.of();
+    private boolean hasLerpTrack;
+    private long startedAtNanos;
+    private long pausedElapsedNanos;
+    private volatile String error;
+    private boolean completionPending;
+    private String pendingCompletionState;
+    private boolean disposed;
+
+    MLuaTween(LuaTable target, List<Property> properties, MLuaContext context,
+              double duration, EasingStyle style, EasingDirection direction) {
+        this.target = target;
+        this.properties = List.copyOf(properties);
+        this.context = context;
+        this.globals = context.globals();
+        this.ownerSession = context.session();
+        this.ownerModId = context.ownerModId();
+        this.duration = duration;
+        this.style = style;
+        this.direction = direction;
+    }
+
+    synchronized void play() {
+        requireNotDisposed();
+        error = null;
+        List<Track> current = new ArrayList<>(properties.size());
+        runBounded(() -> {
+            for (Property property : properties) {
+                LuaValue value = property.getter().call(target);
+                if (!compatible(value, property.goal())) {
+                    throw new LuaError("[MLua] Tween target property '" + property.name()
+                        + "' changed to an unsupported value type.");
+                }
+                LuaValue lerp = value.isnumber() ? LuaValue.NIL : value.get("Lerp");
+                if (!value.isnumber() && !lerp.isfunction()) {
+                    throw new LuaError("[MLua] Tween target property '" + property.name()
+                        + "' has no compatible Lerp function.");
+                }
+                current.add(new Track(property, value, lerp));
+            }
+            return null;
+        });
+        starts = List.copyOf(current);
+        hasLerpTrack = false;
+        for (Track track : current) {
+            if (track.lerp().isfunction()) {
+                hasLerpTrack = true;
+                break;
+            }
+        }
+        startedAtNanos = System.nanoTime();
+        pausedElapsedNanos = 0L;
+        if (duration == 0.0) {
+            apply(1.0);
+            playbackState = PlaybackState.Completed;
+            fireCompleted(playbackState.name());
+        } else {
+            MLuaTweenService.activate(this);
+            playbackState = PlaybackState.Playing;
+        }
+    }
+
+    synchronized void pause() {
+        if (playbackState != PlaybackState.Playing) return;
+        pausedElapsedNanos = Math.max(0L, System.nanoTime() - startedAtNanos);
+        playbackState = PlaybackState.Paused;
+        MLuaTweenService.deactivate(this);
+    }
+
+    synchronized void cancel() {
+        if (disposed) return;
+        if (playbackState == PlaybackState.Completed || playbackState == PlaybackState.Cancelled) return;
+        boolean wasActive = playbackState == PlaybackState.Playing || playbackState == PlaybackState.Paused;
+        boolean wasPlaying = playbackState == PlaybackState.Playing;
+        playbackState = PlaybackState.Cancelled;
+        if (wasPlaying) MLuaTweenService.deactivate(this);
+        starts = List.of();
+        hasLerpTrack = false;
+        pausedElapsedNanos = 0L;
+        if (wasActive) fireCompleted(playbackState.name());
+    }
+
+    synchronized void dispose() {
+        if (disposed) return;
+        if (playbackState == PlaybackState.Playing) MLuaTweenService.deactivate(this);
+        MLuaTweenRegistry.untrack(this);
+        disposed = true;
+        playbackState = PlaybackState.Cancelled;
+        starts = List.of();
+        hasLerpTrack = false;
+        completionPending = false;
+        pendingCompletionState = null;
+        completed.destroyPermanently();
+        target = null;
+        properties = List.of();
+        context = null;
+        globals = null;
+        ownerSession = null;
+    }
+
+    String playbackState() { return playbackState.name(); }
+    String error() { return error; }
+    Object ownerSession() { return ownerSession; }
+    String ownerModId() { return ownerModId; }
+    LuaTable completedSignal() {
+        return MLuaLuaBindings.signalInstance(completed, globals, context.scheduler(), ownerModId, Side.CLIENT);
+    }
+    private void fireCompleted(String state) {
+        completed.fireOnSide(Side.CLIENT, LuaValue.valueOf(state));
+    }
+    void firePendingCompletion() {
+        String state;
+        synchronized (this) {
+            if (!completionPending) return;
+            completionPending = false;
+            state = pendingCompletionState;
+            pendingCompletionState = null;
+        }
+        if (state != null) fireCompleted(state);
+    }
+
+    synchronized boolean sample(long nowNanos) {
+        if (playbackState != PlaybackState.Playing) return false;
+        long elapsed = Math.max(0L, nowNanos - startedAtNanos);
+        double alpha = Math.min(1.0, elapsed / (duration * 1_000_000_000.0));
+        try {
+            apply(ease(alpha));
+        } catch (Error fatal) {
+            throw fatal;
+        } catch (RuntimeException failure) {
+            error = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+            playbackState = PlaybackState.Cancelled;
+            setPendingCompletion();
+            return false;
+        }
+        if (alpha >= 1.0) {
+            playbackState = PlaybackState.Completed;
+            setPendingCompletion();
+            return false;
+        }
+        return true;
+    }
+
+    private void setPendingCompletion() {
+        pendingCompletionState = playbackState.name();
+        completionPending = true;
+    }
+
+    synchronized void resume() {
+        requireNotDisposed();
+        if (playbackState != PlaybackState.Paused) {
+            play();
+            return;
+        }
+        MLuaTweenService.activate(this);
+        startedAtNanos = System.nanoTime() - pausedElapsedNanos;
+        playbackState = PlaybackState.Playing;
+    }
+
+    private void requireNotDisposed() {
+        if (disposed) throw new LuaError("[MLua] This Tween was disposed when its addon runtime unloaded.");
+    }
+
+    private void apply(double alpha) {
+        LuaValue alphaValue = hasLerpTrack ? LuaValue.valueOf(alpha) : LuaValue.NIL;
+        runBounded(() -> {
+            for (int index = 0; index < properties.size(); index++) {
+                Track track = starts.get(index);
+                Property property = track.property();
+                LuaValue value = interpolate(track.start(), property.goal(), alpha, alphaValue, track.lerp());
+                property.setter().call(target, value);
+            }
+            return null;
+        });
+    }
+
+    private <T> T runBounded(java.util.function.Supplier<T> action) {
+        return MLuaLuaBindings.withExecutionLock(context,
+            () -> MLuaCallbackBudget.run(context, globals, action));
+    }
+
+    private double ease(double value) {
+        double t = Math.max(0.0, Math.min(1.0, value));
+        return switch (direction) {
+            case Out -> 1.0 - easeIn(1.0 - t);
+            case InOut -> t < 0.5
+                ? easeIn(t * 2.0) * 0.5
+                : 1.0 - easeIn((1.0 - t) * 2.0) * 0.5;
+            case In -> easeIn(t);
+        };
+    }
+
+    private double easeIn(double t) {
+        return switch (style) {
+            case Sine -> 1.0 - Math.cos(t * Math.PI / 2.0);
+            case Quad -> t * t;
+            case Cubic -> t * t * t;
+            case Quart -> t * t * t * t;
+            case Quint -> t * t * t * t * t;
+            case Expo -> t == 0.0 ? 0.0 : Math.pow(2.0, 10.0 * t - 10.0);
+            case Circ -> 1.0 - Math.sqrt(Math.max(0.0, 1.0 - t * t));
+            case Back -> 2.70158 * t * t * t - 1.70158 * t * t;
+            case Elastic -> t == 0.0 || t == 1.0 ? t
+                : -Math.pow(2.0, 10.0 * t - 10.0) * Math.sin((t * 10.0 - 10.75) * (2.0 * Math.PI / 3.0));
+            case Bounce -> 1.0 - easeOutBounce(1.0 - t);
+            case Linear -> t;
+        };
+    }
+
+    private static double easeOutBounce(double t) {
+        double n = 7.5625;
+        double d = 2.75;
+        if (t < 1.0 / d) return n * t * t;
+        if (t < 2.0 / d) { t -= 1.5 / d; return n * t * t + 0.75; }
+        if (t < 2.5 / d) { t -= 2.25 / d; return n * t * t + 0.9375; }
+        t -= 2.625 / d;
+        return n * t * t + 0.984375;
+    }
+
+    static LuaValue interpolate(LuaValue from, LuaValue to, double alpha,
+                                LuaValue alphaValue, LuaValue lerp) {
+        if (from.isnumber() && to.isnumber()) {
+            double value = from.todouble() + (to.todouble() - from.todouble()) * alpha;
+            if (!Double.isFinite(value)) throw new LuaError("[MLua] Tween produced a non-finite number.");
+            return LuaValue.valueOf(value);
+        }
+        if (lerp.isfunction()) {
+            return lerp.call(from, to, alphaValue);
+        }
+        throw new LuaError("[MLua] Tween supports numbers and native Vector2, Vector3, Color3, and CFrame values.");
+    }
+
+    private static boolean compatible(LuaValue from, LuaValue to) {
+        if (from.isnumber() && to.isnumber()) return Double.isFinite(from.todouble()) && Double.isFinite(to.todouble());
+        if (MLuaVector.isVector2(from)) return MLuaVector.isVector2(to);
+        if (MLuaVector.isVector3(from)) return MLuaVector.isVector3(to);
+        if (dev.mlua.math.MLuaCFrame.isCFrame(from)) return dev.mlua.math.MLuaCFrame.isCFrame(to);
+        if (dev.mlua.core.engine.MLuaLuauTypes.isColor3(from)) return dev.mlua.core.engine.MLuaLuauTypes.isColor3(to);
+        return false;
+    }
+}
