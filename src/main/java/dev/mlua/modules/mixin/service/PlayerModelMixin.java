@@ -1,9 +1,8 @@
 package dev.mlua.modules.mixin.service;
 
+import dev.mlua.minecraft.animation.MLuaEntityScope;
 import dev.mlua.runtime.client.MLuaHumanoidPoseApplier;
-import dev.mlua.runtime.client.MLuaClientRenderManager;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.mlua.runtime.client.MLuaPlayerModelState;
 import net.minecraft.client.model.HumanoidModel;
 //--version 1.20.1,1.21.1
 import net.minecraft.client.model.PlayerModel;
@@ -18,23 +17,23 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PlayerModel.class)
-public abstract class PlayerModelMixin {
-    private LivingEntity mlua$entity;
+public abstract class PlayerModelMixin implements MLuaPlayerModelState {
+    private MLuaEntityScope mlua$entityScope;
 
-    // PlayerModel inherits this renderer on some mappings (notably Fabric 1.20.1),
-    // so the method is not always declared directly on the target class.
-    @Inject(method = "renderToBuffer", at = @At("HEAD"), cancellable = true, require = 0)
-    private void mlua$hideReplacedPlayer(PoseStack poseStack, VertexConsumer vertexConsumer, int packedLight,
-            int packedOverlay, int color, int red, int green, int blue, int alpha, CallbackInfo ci) {
-        if (mlua$entity != null && MLuaClientRenderManager.hasEntityModel(mlua$entity)) {
-            ci.cancel();
-        }
+    @Override
+    public MLuaEntityScope mlua$getEntityScope() {
+        return mlua$entityScope;
+    }
+
+    @Override
+    public void mlua$setEntityScope(MLuaEntityScope scope) {
+        mlua$entityScope = scope;
     }
 
     @Inject(method = "setupAnim", at = @At("TAIL"))
     private void mlua$applyPlayerBonePoses(LivingEntity player, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
         if (player == null) return;
-        mlua$entity = player;
+        mlua$setEntityScope(MLuaEntityScope.of(player));
         MLuaHumanoidPoseApplier.apply((HumanoidModel<?>) (Object) this, player);
     }
 }

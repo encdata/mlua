@@ -11,6 +11,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
+import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.MLuaDocumentation;
@@ -31,7 +32,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    private static final String[] ENTRYPOINT_NAMES = new String[]{"run_mixin", "run_registry", "run_commands", "run_server", "run_client", "run_server_stopping", "run_world_load", "run_world_unload"};
    private final MLuaModuleResolver moduleResolver = new MLuaModuleResolver();
    private final Map<Side, Globals> globalsBySide = new EnumMap<>(Side.class);
-   private MLuaContext currentContext;
+   private final Map<RuntimeDocumentationKey, RuntimeDocumentationState> runtimeDocumentation = new java.util.HashMap<>();
 
    public LuaJEngineBackend(List<MLuaScript> scripts) {
       this.replaceScripts(scripts);
@@ -42,6 +43,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       this.moduleResolver.replaceScripts(scripts);
       this.evaluationCache.clear();
       this.compiledPrototypes.clear();
+      this.runtimeDocumentation.clear();
    }
 
    @Override
@@ -49,6 +51,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       this.globalsBySide.remove(side);
       this.evaluationCache.keySet().removeIf(key -> key.side() == side);
       this.compiledPrototypes.keySet().removeIf(key -> key.side() == side);
+      this.runtimeDocumentation.keySet().removeIf(key -> key.side() == side);
    }
 
    public String name() {
@@ -56,8 +59,6 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    }
 
    public synchronized MLuaValue execute(MLuaScript script, MLuaContext context) {
-      MLuaContext previousContext = this.currentContext;
-
       MLuaValue var8;
       try {
          LuaValue result = this.evaluate(script, context).result();
@@ -67,15 +68,12 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
          throw var12;
       } finally {
          this.writeRuntimeApiDocs(context);
-         this.currentContext = previousContext;
       }
 
       return var8;
    }
 
    public synchronized MLuaValue executeResumable(MLuaScript script, MLuaContext context) {
-      MLuaContext previousContext = this.currentContext;
-
       MLuaValue var9;
       try {
          Globals globals = this.globals(context);
@@ -101,7 +99,6 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
          throw var13;
       } finally {
          this.writeRuntimeApiDocs(context);
-         this.currentContext = previousContext;
       }
 
       return var9;
@@ -114,8 +111,6 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    @Override
    public synchronized boolean executeEntrypoint(MLuaScript script, MLuaContext context, String entrypointName,
                                                  LuaValue event) {
-      MLuaContext previousContext = this.currentContext;
-
       try {
          ScriptEvaluation evaluation = this.evaluate(script, context);
          LuaValue entrypoints = this.entrypointContainer(evaluation);
@@ -138,7 +133,6 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
          throw var12;
       } finally {
          this.writeRuntimeApiDocs(context);
-         this.currentContext = previousContext;
       }
    }
 
@@ -178,15 +172,21 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       Globals globals = this.globalsBySide.computeIfAbsent(context.side(), ignored -> this.createGlobals(context));
       context.bindGlobals(globals);
       this.configureContextGlobals(globals, context);
-      this.currentContext = context;
       return globals;
    }
 
    /** Writes a safe inventory of the Lua globals for this script's side and phase. */
    private void writeRuntimeApiDocs(MLuaContext context) {
+      Map<String, LuaTable> materializedServices = context.materializedServices();
+      RuntimeDocumentationKey key = new RuntimeDocumentationKey(
+         context.side(), context.phase(), context.script().displayName());
+      RuntimeDocumentationState state = new RuntimeDocumentationState(
+         MLuaModuleLoader.get().globalsRevision(),
+         materializedServices.keySet().stream().sorted().toList());
+      if (state.equals(this.runtimeDocumentation.get(key))) return;
       try {
          MLuaLuaApiCrawler.CrawlResult crawl = MLuaLuaApiCrawler.crawl(
-            this.globals(context), context.materializedServices(),
+            this.globals(context), materializedServices,
             MLuaDocumentation.registeredReturnTypes());
          MLuaDocumentation.writeRuntimeLuaApi(
             LoaderApi.platform().gameDir(),
@@ -195,6 +195,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
             context.script().displayName(),
             crawl
          );
+         this.runtimeDocumentation.put(key, state);
       } catch (RuntimeException error) {
          MLuaLogger.LOGGER.warn("Could not generate Lua API documentation", error);
       }
@@ -230,9 +231,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       });
       VarArgFunction requireFunction = new VarArgFunction() {
          public Varargs invoke(Varargs args) {
-            MLuaContext requireContext = LuaJEngineBackend.this.currentContext != null
-               ? LuaJEngineBackend.this.currentContext
-               : MLuaLuaBindings.boundContext(globals);
+            MLuaContext requireContext = MLuaLuaBindings.boundContext(globals);
             if (requireContext == null) {
                throw new LuaError("[MLua] Require called without an active script context");
             } else {
@@ -407,4 +406,6 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
 
    private static record EvaluationKey(MLuaScript script, Side side) { }
    private static record CompiledChunkKey(Side side, String chunkName, String source) { }
+   private static record RuntimeDocumentationKey(Side side, RegistrationPhase phase, String scriptName) { }
+   private static record RuntimeDocumentationState(long moduleRevision, List<String> materializedServices) { }
 }

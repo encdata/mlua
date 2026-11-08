@@ -226,7 +226,7 @@ public final class MLuaEntityService extends MLuaGameThreadReflectiveService {
         try {
             Object level = MLuaClientPlayerAccess.level();
             return level instanceof Level rawLevel ? rawLevel : null;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return null;
         }
     }

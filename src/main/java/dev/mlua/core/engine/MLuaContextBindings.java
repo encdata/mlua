@@ -229,6 +229,10 @@ final class MLuaContextBindings {
       WeakReference<MLuaContext> reference = ACTIVE_CONTEXT.get();
       MLuaContext context = reference == null ? null : reference.get();
       if (context == null && reference != null) ACTIVE_CONTEXT.remove();
+      if (context == null) {
+         LuaThread executingThread = LuaThread.executingThread();
+         if (executingThread != null) context = boundContext(executingThread.globals);
+      }
       return context;
    }
 

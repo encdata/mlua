@@ -15,6 +15,7 @@ public class QuestModule implements MLuaModule {
 
     @Override
     public void clearOwnedState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side, String ownerModId) {
+        if (side == Side.CLIENT) return;
         MLuaQuestRegistry.clearOwned(runtimeSession, ownerModId);
     }
 

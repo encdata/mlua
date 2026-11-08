@@ -1,7 +1,7 @@
 package dev.mlua.minecraft.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import java.lang.reflect.Field;
+import dev.mlua.modules.mixin.service.OptionsAccessor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -34,8 +34,6 @@ final class MLuaKeyMappingAccess {
     private static final Method KEY_GET_CATEGORY = findCategory();
     private static final Method KEY_RESET_MAPPING = findMethod(KeyMapping.class,
         Void.TYPE, true, new Class<?>[0], "resetMapping");
-    private static final Field MINECRAFT_OPTIONS = findMinecraftOptionsField();
-    private static final Field OPTIONS_KEY_MAPPINGS = findOptionsKeyMappingsField();
 
     private MLuaKeyMappingAccess() { }
 
@@ -82,9 +80,14 @@ final class MLuaKeyMappingAccess {
     }
 
     static boolean isDown(KeyMapping mapping) {
+        //--version 1.20.1,1.21.1
+        return mapping.isDown();
+        //--endversion
+        //--version 26.1
         Object value = invokeRequired(KEY_IS_DOWN, mapping, "read key mapping state");
         if (value instanceof Boolean down) return down;
         throw new IllegalStateException("[MLua] Minecraft returned an invalid key mapping state.");
+        //--endversion
     }
 
     static void setDown(KeyMapping mapping, boolean down) {
@@ -102,22 +105,30 @@ final class MLuaKeyMappingAccess {
     }
 
     static boolean consumeClick(KeyMapping mapping) {
+        //--version 1.20.1,1.21.1
+        return mapping.consumeClick();
+        //--endversion
+        //--version 26.1
         Object value = invokeRequired(KEY_CONSUME_CLICK, mapping, "consume key mapping click");
         if (value instanceof Boolean consumed) return consumed;
         throw new IllegalStateException("[MLua] Minecraft returned an invalid key click result.");
+        //--endversion
     }
 
     static String name(KeyMapping mapping) {
+        //--version 1.20.1,1.21.1
+        return mapping.getName();
+        //--endversion
+        //--version 26.1
         Object value = invokeRequired(KEY_GET_NAME, mapping, "read key mapping identifier");
         if (value instanceof String name) return name;
         throw new IllegalStateException("[MLua] Minecraft returned an invalid key mapping identifier.");
+        //--endversion
     }
 
     static String category(KeyMapping mapping) {
         //--version 1.20.1,1.21.1
-        Object value = invokeRequired(KEY_GET_CATEGORY, mapping, "read key mapping category");
-        if (value instanceof String category) return category;
-        throw new IllegalStateException("[MLua] Minecraft returned an invalid key mapping category.");
+        return mapping.getCategory();
         //--endversion
         //--version 26.1
         return mapping.getCategory().id().toString();
@@ -126,28 +137,14 @@ final class MLuaKeyMappingAccess {
 
     static KeyMapping[] keyMappings(Minecraft minecraft) {
         Options options = requireOptions(minecraft);
-        if (OPTIONS_KEY_MAPPINGS == null) {
-            throw new IllegalStateException("[MLua] This Minecraft version does not expose its key mapping array.");
-        }
-        try {
-            KeyMapping[] mappings = (KeyMapping[]) OPTIONS_KEY_MAPPINGS.get(options);
-            if (mappings == null) throw new IllegalStateException("[MLua] Minecraft returned a null key mapping array.");
-            return mappings;
-        } catch (IllegalAccessException | ClassCastException failure) {
-            throw new IllegalStateException("[MLua] Failed to read Minecraft's key mappings.", failure);
-        }
+        KeyMapping[] mappings = ((OptionsAccessor) (Object) options).mlua$getKeyMappings();
+        if (mappings == null) throw new IllegalStateException("[MLua] Minecraft returned a null key mapping array.");
+        return mappings;
     }
 
     static void setKeyMappings(Minecraft minecraft, KeyMapping[] mappings) {
         Options options = requireOptions(minecraft);
-        if (OPTIONS_KEY_MAPPINGS == null) {
-            throw new IllegalStateException("[MLua] This Minecraft version does not expose its key mapping array.");
-        }
-        try {
-            OPTIONS_KEY_MAPPINGS.set(options, mappings);
-        } catch (IllegalAccessException failure) {
-            throw new IllegalStateException("[MLua] Failed to update Minecraft's key mappings.", failure);
-        }
+        ((OptionsAccessor) (Object) options).mlua$setKeyMappings(mappings);
     }
 
     static void persist(KeyMapping mapping) {
@@ -168,16 +165,10 @@ final class MLuaKeyMappingAccess {
     }
 
     static Options requireOptions(Minecraft minecraft) {
-        Options options = null;
-        if (MINECRAFT_OPTIONS != null) {
-            try {
-                options = (Options) MINECRAFT_OPTIONS.get(minecraft);
-            } catch (IllegalAccessException | RuntimeException ignored) { }
-        }
-        if (options == null) {
+        if (minecraft == null || minecraft.options == null) {
             throw new IllegalStateException("[MLua] Minecraft options are not available; key mappings cannot be read or changed yet.");
         }
-        return options;
+        return minecraft.options;
     }
 
     private static Method findSetDown() {
@@ -204,35 +195,6 @@ final class MLuaKeyMappingAccess {
         //--version 26.1
         return findMethod(KeyMapping.class, KeyMapping.Category.class, false, new Class<?>[0], "getCategory");
         //--endversion
-    }
-
-    private static Field findMinecraftOptionsField() {
-        return findField(Minecraft.class, Options.class, "options");
-    }
-
-    private static Field findOptionsKeyMappingsField() {
-        return findField(Options.class, KeyMapping[].class, "keyMappings");
-    }
-
-    private static Field findField(Class<?> owner, Class<?> fieldType, String... names) {
-        for (String name : names) {
-            try {
-                Field field = owner.getDeclaredField(name);
-                if (field.getType() == fieldType && makeAccessible(field)) return field;
-            } catch (NoSuchFieldException ignored) { }
-        }
-        for (Field field : owner.getDeclaredFields()) {
-            if (field.getType() == fieldType && makeAccessible(field)) return field;
-        }
-        return null;
-    }
-
-    private static boolean makeAccessible(Field field) {
-        try {
-            return field.trySetAccessible() || Modifier.isPublic(field.getModifiers());
-        } catch (RuntimeException inaccessible) {
-            return Modifier.isPublic(field.getModifiers());
-        }
     }
 
     private static Method findMethod(Class<?> owner, Class<?> returnType, boolean isStatic,

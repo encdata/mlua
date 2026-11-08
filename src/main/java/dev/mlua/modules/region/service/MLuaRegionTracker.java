@@ -43,7 +43,7 @@ final class MLuaRegionTracker {
         try {
             Object level = MLuaClientPlayerAccess.level();
             return level instanceof Level clientLevel ? clientLevel : null;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+        } catch (RuntimeException | LinkageError unavailable) {
             return null;
         }
     }

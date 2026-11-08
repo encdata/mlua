@@ -117,4 +117,11 @@ public final class FabricClientBridge implements ClientBridge {
 
     public void flushKeyBindings(Consumer<Object> action) { keyBindings.forEach(action); keyBindings.clear(); }
     public void flushModelLayers(BiConsumer<Object, Object> action) { modelLayers.forEach(pair -> action.accept(pair[0], pair[1])); modelLayers.clear(); }
+
+    @Override public Object localPlayer() { return Minecraft.getInstance().player; }
+    @Override public Object level() { return Minecraft.getInstance().level; }
+    @Override public List<?> players() {
+        var level = Minecraft.getInstance().level;
+        return level == null ? List.of() : level.players();
+    }
 }

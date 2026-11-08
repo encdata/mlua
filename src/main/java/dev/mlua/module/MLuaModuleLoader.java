@@ -16,6 +16,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -59,7 +60,7 @@ public final class MLuaModuleLoader {
         return INSTANCE;
     }
 
-    public void loadAll() {
+    public synchronized void loadAll() {
         if (this.loaded) {
             return;
         }
@@ -104,7 +105,7 @@ public final class MLuaModuleLoader {
     }
 
     /** Loads module declarations for the offline documentation generator without initializing game hooks. */
-    public void loadForDocumentation() {
+    public synchronized void loadForDocumentation() {
         if (this.loaded || this.documentationLoaded) return;
         this.documentationLoaded = true;
         Iterable<MLuaModule> providers = ServiceLoader.load(MLuaModule.class);
@@ -146,15 +147,20 @@ public final class MLuaModuleLoader {
 
     private boolean registerInternal(MLuaModule module) {
         if (module == null || !module.enabled()) return false;
+        String moduleId = module.id();
+        if (moduleId == null || moduleId.isBlank()) {
+            throw new IllegalArgumentException("MLua module id must not be blank");
+        }
+        Side moduleSide = Objects.requireNonNull(module.side(), "module side");
         MLuaModuleSide sideMetadata = module.getClass().getAnnotation(MLuaModuleSide.class);
-        if (sideMetadata != null && module.side() != sideMetadata.value()) {
-            throw new IllegalArgumentException("MLua module '" + module.id() + "' declares side "
-                + sideMetadata.value() + " but reports " + module.side());
+        if (sideMetadata != null && moduleSide != sideMetadata.value()) {
+            throw new IllegalArgumentException("MLua module '" + moduleId + "' declares side "
+                + sideMetadata.value() + " but reports " + moduleSide);
         }
         boolean runtimeReady = this.loaded && this.registry != null;
-        if (runtimeReady && !this.supportsSide(module.side())) return false;
-        if (this.modules.stream().anyMatch(existing -> existing.id().equals(module.id()))) {
-            throw new IllegalArgumentException("Duplicate MLua module id: " + module.id());
+        if (runtimeReady && !this.supportsSide(moduleSide)) return false;
+        if (this.modules.stream().anyMatch(existing -> existing.id().equals(moduleId))) {
+            throw new IllegalArgumentException("Duplicate MLua module id: " + moduleId);
         }
         List<MLuaModule> candidate = new ArrayList<>(this.modules);
         candidate.add(module);
@@ -205,6 +211,7 @@ public final class MLuaModuleLoader {
         this.modules.addAll(candidate);
         this.publishModuleSnapshot();
         this.globalsRevision++;
+        this.failedModuleIds.remove(module.id());
         MLuaLogger.LOGGER.info("Registered module: {}", module.id());
         if (runtimeReady) {
             if (!this.registerEvents(module)) {
@@ -262,7 +269,7 @@ public final class MLuaModuleLoader {
     }
 
     /** Runs each discovered module after the runtime has installed base classes, services, and event hooks. */
-    public void initializeModules() {
+    public synchronized void initializeModules() {
         if (this.initializing) return;
         this.initializing = true;
         try {
@@ -301,12 +308,13 @@ public final class MLuaModuleLoader {
         return true;
     }
 
-    public void registerServices(MLuaServiceRegistry registry) {
-        this.registry = registry;
-        this.registerServices(registry, null);
+    public synchronized void registerServices(MLuaServiceRegistry registry) {
+        this.registerServices(Objects.requireNonNull(registry, "registry"), null);
     }
 
-    public void registerServices(MLuaServiceRegistry registry, Side side) {
+    public synchronized void registerServices(MLuaServiceRegistry registry, Side side) {
+        Objects.requireNonNull(registry, "registry");
+        this.registry = registry;
         for (MLuaModule module : this.modules) {
             if (side != null && module.side() != Side.BOTH && module.side() != side) continue;
             if (!this.dependenciesAvailable(module) || !this.registrations.registerServices(module, registry)) {
@@ -316,9 +324,9 @@ public final class MLuaModuleLoader {
         this.pruneFailedModules();
     }
 
-    public void registerServices(MLuaRuntime base) {
-        this.base = base;
-        this.registry = base.services();
+    public synchronized void registerServices(MLuaRuntime base) {
+        this.base = Objects.requireNonNull(base, "base");
+        this.registry = this.base.services();
         for (MLuaModule module : this.modules) {
             if (!this.dependenciesAvailable(module) || !this.registrations.registerServices(module, this.registry)) {
                 this.failedModuleIds.add(module.id());
@@ -327,11 +335,12 @@ public final class MLuaModuleLoader {
         this.pruneFailedModules();
     }
 
-    public void registerClasses(MLuaRegistration registration) {
+    public synchronized void registerClasses(MLuaRegistration registration) {
         this.registerClasses(registration, null);
     }
 
-    public void registerClasses(MLuaRegistration registration, Side side) {
+    public synchronized void registerClasses(MLuaRegistration registration, Side side) {
+        Objects.requireNonNull(registration, "registration");
         for (MLuaModule module : this.modules) {
             if (side != null && module.side() != Side.BOTH && module.side() != side) continue;
             if (!this.dependenciesAvailable(module) || !this.registrations.registerClasses(module, registration)) {
@@ -466,7 +475,7 @@ public final class MLuaModuleLoader {
         }
     }
 
-    public void registerEventListeners() {
+    public synchronized void registerEventListeners() {
         for (MLuaModule module : this.moduleSnapshot()) {
             this.registerEvents(module);
             MLuaLogger.LOGGER.debug("  Registered event hooks from module '{}'", module.id());
@@ -483,7 +492,11 @@ public final class MLuaModuleLoader {
     }
 
     public void onReload() {
-        for (MLuaReloadable reloadable : this.reloadables) {
+        List<MLuaReloadable> reloadableSnapshot;
+        synchronized (this) {
+            reloadableSnapshot = List.copyOf(this.reloadables);
+        }
+        for (MLuaReloadable reloadable : reloadableSnapshot) {
             try {
                 reloadable.onReload();
             } catch (Throwable throwable) {
@@ -492,7 +505,7 @@ public final class MLuaModuleLoader {
             }
         }
         for (MLuaModule module : this.moduleSnapshot()) {
-            if (!this.reloadables.contains(module)) {
+            if (!reloadableSnapshot.contains(module)) {
                 try {
                     module.onReload();
                 } catch (Throwable throwable) {
@@ -516,7 +529,10 @@ public final class MLuaModuleLoader {
     }
 
     public void onUnload() {
-        List<MLuaReloadable> reverse = new ArrayList<>(this.reloadables);
+        List<MLuaReloadable> reverse;
+        synchronized (this) {
+            reverse = new ArrayList<>(this.reloadables);
+        }
         Collections.reverse(reverse);
         for (MLuaReloadable reloadable : reverse) {
             try {
@@ -538,7 +554,7 @@ public final class MLuaModuleLoader {
         }
     }
 
-    public void registerReloadable(MLuaReloadable reloadable) {
+    public synchronized void registerReloadable(MLuaReloadable reloadable) {
         if (reloadable != null && !this.reloadables.contains(reloadable)) {
             this.reloadables.add(reloadable);
         }

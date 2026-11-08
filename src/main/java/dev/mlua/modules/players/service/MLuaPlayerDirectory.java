@@ -9,24 +9,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /** Resolves live player instances across the client and server player lists. */
 final class MLuaPlayerDirectory {
-    private static final ClassValue<ClientPlayerAccess> CLIENT_ACCESS = new ClassValue<>() {
+    private static final ClassValue<Method> CLIENT_WRAPPERS = new ClassValue<>() {
         @Override
-        protected ClientPlayerAccess computeValue(Class<?> playerType) {
-            return new ClientPlayerAccess(resolveWrapper(playerType),
-                method(playerType, "getName"), method(playerType, "getUUID"), method(playerType, "getId"));
-        }
-    };
-    private static final ClassValue<Method> COMPONENT_TEXT_ACCESS = new ClassValue<>() {
-        @Override
-        protected Method computeValue(Class<?> componentType) {
-            return method(componentType, "getString");
-        }
+        protected Method computeValue(Class<?> playerType) { return resolveWrapper(playerType); }
     };
 
     private final MLuaService.Context context;
@@ -39,7 +31,7 @@ final class MLuaPlayerDirectory {
         LuaTable players = new LuaTable();
         int index = 1;
         if (isClientSide()) {
-            for (Object player : clientPlayers()) players.set(index++, clientPlayerTable(player));
+            for (Object player : clientPlayers()) players.set(index++, clientPlayerTable((Player) player));
             return players;
         }
 
@@ -67,7 +59,8 @@ final class MLuaPlayerDirectory {
             return serverPlayerValue(player);
         }
         for (Object player : clientPlayers()) {
-            if (clientPlayerName(player).equals(name)) return clientPlayerTable(player);
+            Player clientPlayer = (Player) player;
+            if (clientPlayerName(clientPlayer).equals(name)) return clientPlayerTable(clientPlayer);
         }
         return LuaValue.NIL;
     }
@@ -83,8 +76,8 @@ final class MLuaPlayerDirectory {
         if (player != null) return MLuaPlayersService.playerTable(player, context.registration());
         if (isClientSide()) {
             for (Object local : clientPlayers()) {
-                if (uuid.equals(invoke(CLIENT_ACCESS.get(local.getClass()).uuid(), local, "getUUID"))) {
-                    return clientPlayerTable(local);
+                if (local instanceof Player clientPlayer && uuid.equals(clientPlayer.getUUID())) {
+                    return clientPlayerTable(clientPlayer);
                 }
             }
         }
@@ -99,8 +92,8 @@ final class MLuaPlayerDirectory {
         }
         if (isClientSide()) {
             for (Object player : clientPlayers()) {
-                if (((Number) invoke(CLIENT_ACCESS.get(player.getClass()).entityId(), player, "getId")).intValue() == id) {
-                    return clientPlayerTable(player);
+                if (player instanceof Player clientPlayer && clientPlayer.getId() == id) {
+                    return clientPlayerTable(clientPlayer);
                 }
             }
         }
@@ -111,8 +104,8 @@ final class MLuaPlayerDirectory {
         if (!isClientSide()) return LuaValue.NIL;
         try {
             Object player = MLuaClientPlayerAccess.localPlayer();
-            return player == null ? LuaValue.NIL : clientPlayerTable(player);
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+            return player instanceof Player clientPlayer ? clientPlayerTable(clientPlayer) : LuaValue.NIL;
+        } catch (RuntimeException | LinkageError error) {
             throw new IllegalStateException("Unable to read the local client player ("
                 + error.getClass().getSimpleName() + ": " + error.getMessage() + ")", error);
         }
@@ -130,28 +123,23 @@ final class MLuaPlayerDirectory {
     private java.util.List<?> clientPlayers() {
         try {
             return MLuaClientPlayerAccess.players();
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+        } catch (RuntimeException | LinkageError error) {
             throw new IllegalStateException("Unable to read players from the active client world", error);
         }
     }
 
-    private String clientPlayerName(Object player) {
-        Object component = invoke(CLIENT_ACCESS.get(player.getClass()).name(), player, "getName");
-        try {
-            return String.valueOf(COMPONENT_TEXT_ACCESS.get(component.getClass()).invoke(component));
-        } catch (InvocationTargetException error) {
-            throw invocationFailure("getString", error);
-        } catch (ReflectiveOperationException | RuntimeException error) {
-            throw new IllegalStateException("Unable to read client player name", error);
-        }
+    private String clientPlayerName(Player player) {
+        return player.getName().getString();
     }
 
-    private LuaTable clientPlayerTable(Object player) {
+    private LuaTable clientPlayerTable(Player player) {
         try {
-            return (LuaTable) CLIENT_ACCESS.get(player.getClass()).wrapper().invoke(
+            return (LuaTable) CLIENT_WRAPPERS.get(player.getClass()).invoke(
                 null, player, context.registration());
         } catch (InvocationTargetException error) {
-            throw invocationFailure("clientPlayerTable", error);
+            Throwable cause = error.getCause() == null ? error : error.getCause();
+            if (cause instanceof RuntimeException runtime) throw runtime;
+            throw new IllegalStateException("Client player wrapper failed", cause);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
             throw new IllegalStateException("Unable to create a Lua client player instance", error);
         }
@@ -168,31 +156,6 @@ final class MLuaPlayerDirectory {
     private static void requirePlayerName(String name, String operation) {
         if (name == null || name.isBlank()) {
             throw new LuaError("[MLua] " + operation + " expects a non-empty player name.");
-        }
-    }
-
-    private static Object invoke(Method method, Object target, String methodName) {
-        try {
-            return method.invoke(target);
-        } catch (InvocationTargetException error) {
-            throw invocationFailure(methodName, error);
-        } catch (ReflectiveOperationException | RuntimeException error) {
-            throw new IllegalStateException("Unable to call client player method '" + methodName + "'", error);
-        }
-    }
-
-    private static RuntimeException invocationFailure(String methodName, InvocationTargetException error) {
-        Throwable cause = error.getCause() == null ? error : error.getCause();
-        if (cause instanceof RuntimeException runtime) return runtime;
-        return new IllegalStateException("Client player method '" + methodName + "' failed", cause);
-    }
-
-    private static Method method(Class<?> type, String name) {
-        try {
-            return type.getMethod(name);
-        } catch (NoSuchMethodException error) {
-            throw new IllegalStateException("Client player type '" + type.getName()
-                + "' does not expose '" + name + "'", error);
         }
     }
 
@@ -216,6 +179,4 @@ final class MLuaPlayerDirectory {
         if (selected == null) throw new IllegalStateException("No client player wrapper accepts " + playerType.getName());
         return selected;
     }
-
-    private record ClientPlayerAccess(Method wrapper, Method name, Method uuid, Method entityId) { }
 }

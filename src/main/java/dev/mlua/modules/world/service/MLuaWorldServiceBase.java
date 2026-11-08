@@ -34,7 +34,7 @@ abstract class MLuaWorldServiceBase extends MLuaServiceBase {
         try {
             Object level = MLuaClientPlayerAccess.level();
             return level instanceof Level clientLevel ? clientLevel : null;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return null;
         }
     }

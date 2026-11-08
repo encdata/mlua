@@ -135,4 +135,11 @@ public final class NeoForgeClientBridge implements ClientBridge {
             throw new IllegalStateException("[MLua] Failed to read NeoForge mouse scroll delta", exception);
         }
     }
+
+    @Override public Object localPlayer() { return Minecraft.getInstance().player; }
+    @Override public Object level() { return Minecraft.getInstance().level; }
+    @Override public List<?> players() {
+        var level = Minecraft.getInstance().level;
+        return level == null ? List.of() : level.players();
+    }
 }

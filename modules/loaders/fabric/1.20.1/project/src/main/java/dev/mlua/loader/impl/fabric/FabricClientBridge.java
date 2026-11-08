@@ -136,4 +136,11 @@ public final class FabricClientBridge implements ClientBridge {
         }
         modelLayers.clear();
     }
+
+    @Override public Object localPlayer() { return Minecraft.getInstance().player; }
+    @Override public Object level() { return Minecraft.getInstance().level; }
+    @Override public List<?> players() {
+        var level = Minecraft.getInstance().level;
+        return level == null ? List.of() : level.players();
+    }
 }

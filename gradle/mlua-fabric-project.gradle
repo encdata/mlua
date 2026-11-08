@@ -98,6 +98,7 @@ if (isUnobfuscated) {
     rootExcludes += 'dev/mlua/modules/mixin/service/CameraMixin.java'
 
     rootExcludes += 'dev/mlua/modules/mixin/service/PlayerModelMixin.java'
+    rootExcludes += 'dev/mlua/modules/mixin/service/PlayerModelRenderMixin.java'
     rootExcludes += 'dev/mlua/minecraft/MLuaResourceLocations.java'
     rootExcludes += 'dev/mlua/runtime/registry/MLuaBlockFactory.java'
     rootExcludes += 'dev/mlua/runtime/client/MLuaProjectileRenderer.java'

@@ -73,18 +73,19 @@ def prepareNeoForgeAdapterSources = registerMergedTree(project, 'prepareNeoForge
 def targetVer = resolveMluaTargetValue(targetVersion, 'implementationTarget', target.minecraft).toString()
 def neoForgeServiceMixinNames = [
     'CameraInvoker', 'CameraMixin', 'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin',
-    'HumanoidModelMixin', 'KeyboardInputMixin', 'PlayerModelMixin',
+    'HumanoidModelMixin', 'KeyboardInputMixin', 'OptionsAccessor', 'PlayerModelMixin',
     'ScreenInitializationMixin', 'ScreenResizeMixin'
 ]
 if (is26Family) {
     neoForgeServiceMixinNames += 'ExperienceBarRendererMixin'
 } else {
+    neoForgeServiceMixinNames += 'PlayerModelRenderMixin'
     neoForgeServiceMixinNames += 'MouseHandlerMixin'
 }
 def neoForgeServiceSourceOverrides = neoForgeServiceMixinNames.collectEntries { name ->
     def sourcePath = "dev/mlua/modules/mixin/service/${name}.java"
     def sourceRoot = rootProject.file("modules/loaders/neoforge/${targetVer}/project/src/main/java")
-    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = null
+    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = rootProject.file('src/main/java')
     sourceRoot == null ? [:] : [(name): sourceRoot]
 }
 def missingNeoForgeServiceMixins = neoForgeServiceMixinNames.findAll { !neoForgeServiceSourceOverrides.containsKey(it) }

@@ -15,7 +15,7 @@ public class CommandsModule implements MLuaModule {
     public void clearRuntimeState(dev.mlua.module.MLuaRegistration runtime, Object runtimeSession, Side side) {
         MLuaCommandRegistry registry = MLuaCommandRegistry.get();
         if (side == Side.SERVER || side == Side.BOTH) registry.clear();
-        registry.clearClientCallbacks(runtime);
+        if (side == Side.CLIENT || side == Side.BOTH) registry.clearClientCallbacks(runtime);
     }
 
     @Override
@@ -23,7 +23,9 @@ public class CommandsModule implements MLuaModule {
                                   RegistrationPhase phase, Object phaseContext) {
         if (phase != RegistrationPhase.COMMANDS) return;
         if (side == Side.SERVER) MLuaCommandRegistry.get().clear();
-        MLuaCommandRegistry.get().clearClientCallbacks(runtime);
+        if (side == Side.CLIENT || side == Side.BOTH) {
+            MLuaCommandRegistry.get().clearClientCallbacks(runtime);
+        }
     }
 
     @Override

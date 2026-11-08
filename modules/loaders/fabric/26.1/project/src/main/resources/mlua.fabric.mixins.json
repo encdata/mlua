@@ -27,6 +27,7 @@
     "KeyboardInputMixin",
     "HumanoidModelMixin",
     "LivingEntityRendererMixin",
+    "OptionsAccessor",
     "PlayerModelMixin",
     "ScreenLayoutMixin",
     "ScreenInitializationMixin",

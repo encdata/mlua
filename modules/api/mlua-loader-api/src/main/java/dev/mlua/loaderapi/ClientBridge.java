@@ -20,6 +20,9 @@ public interface ClientBridge {
             @Override public void registerKeyBinding(Object keyMapping) { throw unavailable(); }
             @Override public void registerModelLayer(Object layerLocation, Object modelPart) { throw unavailable(); }
             @Override public void registerInputHandlers() { throw unavailable(); }
+            @Override public Object localPlayer() { throw unavailable(); }
+            @Override public Object level() { throw unavailable(); }
+            @Override public java.util.List<?> players() { throw unavailable(); }
         };
     }
 
@@ -108,4 +111,14 @@ public interface ClientBridge {
     void registerKeyBinding(Object keyMapping);
     void registerModelLayer(Object layerLocation, Object modelPart);
     void registerInputHandlers();
+
+    default Object localPlayer() {
+        throw new UnsupportedOperationException("Client player access is not implemented by this loader");
+    }
+    default Object level() {
+        throw new UnsupportedOperationException("Client world access is not implemented by this loader");
+    }
+    default java.util.List<?> players() {
+        throw new UnsupportedOperationException("Client player access is not implemented by this loader");
+    }
 }

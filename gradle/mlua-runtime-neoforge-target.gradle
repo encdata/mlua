@@ -82,18 +82,19 @@ def prepareRuntimeNeoForgeResources = registerMergedTree(project, 'prepareRuntim
     targetPathChain('modules/loaders/neoforge/%s/project/src/main/resources', targetVersion))
 def runtimeNeoForgeServiceMixinNames = [
     'CameraInvoker', 'CameraMixin', 'ChatHudMixin', 'ChatLineMixin', 'GuiHudMixin',
-    'HumanoidModelMixin', 'KeyboardInputMixin', 'PlayerModelMixin',
+    'HumanoidModelMixin', 'KeyboardInputMixin', 'OptionsAccessor', 'PlayerModelMixin',
     'ScreenInitializationMixin', 'ScreenResizeMixin'
 ]
 if (is26Family) {
     runtimeNeoForgeServiceMixinNames += 'ExperienceBarRendererMixin'
 } else {
+    runtimeNeoForgeServiceMixinNames += 'PlayerModelRenderMixin'
     runtimeNeoForgeServiceMixinNames += 'MouseHandlerMixin'
 }
 def runtimeNeoForgeServiceSourceOverrides = runtimeNeoForgeServiceMixinNames.collectEntries { name ->
     def sourcePath = "dev/mlua/modules/mixin/service/${name}.java"
     def sourceRoot = rootProject.file("modules/loaders/neoforge/${targetVer}/project/src/main/java")
-    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = null
+    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = rootProject.file('src/main/java')
     sourceRoot == null ? [:] : [(name): sourceRoot]
 }
 def missingRuntimeNeoForgeServiceMixins = runtimeNeoForgeServiceMixinNames.findAll {

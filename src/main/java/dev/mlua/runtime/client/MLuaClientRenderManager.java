@@ -537,7 +537,8 @@ public final class MLuaClientRenderManager {
         return false;
     }
 
-    private static boolean hasEntityModel(MLuaEntityScope scope) {
+    public static boolean hasEntityModel(MLuaEntityScope scope) {
+        if (scope == null) return false;
         java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(scope);
         return renderIds != null && renderIds.stream().map(RENDER_OBJECTS::get)
                 .anyMatch(object -> object != null && !object.destroyed && object.visible());

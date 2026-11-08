@@ -142,14 +142,13 @@ final class MLuaJavaToLuaConverter {
    private static void validateLuaOutput(LuaValue value, IdentityHashMap<Object, Boolean> active,
                                          int depth, int[] entryCount) {
       if (value == null || !value.istable()) return;
+      LuaTable table = value.checktable();
+      if (active.containsKey(table)) return;
       if (depth >= MLuaLuaCoercions.MAX_CONVERSION_DEPTH) {
          throw new IllegalArgumentException("Lua table nesting exceeds the maximum depth of "
             + MLuaLuaCoercions.MAX_CONVERSION_DEPTH);
       }
-      LuaTable table = value.checktable();
-      if (active.put(table, Boolean.TRUE) != null) {
-         throw new IllegalArgumentException("Cyclic Lua table cannot be returned as a Java service result");
-      }
+      active.put(table, Boolean.TRUE);
       try {
          LuaValue key = LuaValue.NIL;
          while (true) {

@@ -114,6 +114,11 @@ if (target.minecraft == '1.21.1') {
 
 task prepareForgeRootSources(type: Sync) {
     from fileTree(dir: "${rootProject.projectDir}/src/main/java", excludes: forgeRootExcludes + rootProject.ext.mluaCoreRuntimeSources)
+    if (target.minecraft == '1.21.1') {
+        from(rootProject.file('src/main/java')) {
+            include 'dev/mlua/modules/mixin/service/OptionsAccessor.java'
+        }
+    }
     from fileTree(dir: rootProject.file('modules/language/mlua-core/src/main/java'), includes: rootProject.ext.mluaCoreRuntimeSources)
     into file("${buildDir}/generated/forge-root-java")
     doLast {

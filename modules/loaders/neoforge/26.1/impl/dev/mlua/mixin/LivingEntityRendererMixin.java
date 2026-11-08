@@ -16,10 +16,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Restores MLua's live entity model access at the render-state submit stage. */
-@Mixin(LivingEntityRenderer.class)
+@Mixin(value = LivingEntityRenderer.class, remap = false)
 public abstract class LivingEntityRendererMixin<T extends LivingEntity,
         S extends LivingEntityRenderState, M extends EntityModel<? super S>> {
-    @Shadow protected M model;
+    @Shadow(remap = false) protected M model;
 
     @Inject(method = "submit", remap = false, at = @At("HEAD"))
     private void mlua$restoreRegisteredModelOverrides(S state, PoseStack poseStack,

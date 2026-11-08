@@ -19,11 +19,12 @@ public class RegistryModule implements MLuaModule {
     public void clearOwnedState(MLuaRegistration runtime, Object runtimeSession,
                                 dev.mlua.common.enums.Side side, String ownerModId) {
         MLuaRegistryService.clearOwnedCategories(runtimeSession, side, ownerModId);
+        MLuaBehaviorRegistry.clearOwner(ownerModId, runtimeSession,
+            side == dev.mlua.common.enums.Side.BOTH ? dev.mlua.common.enums.Side.BOTH : side);
+        if (side == dev.mlua.common.enums.Side.CLIENT) return;
         MLuaContentTypeRegistry.clearOwner(runtime, ownerModId);
         dev.mlua.runtime.registry.MLuaItemFactory.unregisterTypes(ownerModId);
         dev.mlua.runtime.registry.MLuaBlockFactory.unregisterTypes(ownerModId);
-        MLuaBehaviorRegistry.clearOwner(ownerModId, runtimeSession,
-            side == dev.mlua.common.enums.Side.BOTH ? dev.mlua.common.enums.Side.BOTH : side);
         dev.mlua.runtime.registry.MLuaLoaderRegistry.clearGeneratedDataResources(ownerModId);
         dev.mlua.runtime.registry.MLuaLoaderRegistry.clearGeneratedAssetResources(ownerModId);
     }

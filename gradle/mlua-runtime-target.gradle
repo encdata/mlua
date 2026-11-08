@@ -24,7 +24,7 @@ def forgeServiceMixinNames = target.minecraft == '1.21.1'
 def forgeServiceSourceOverrides = forgeServiceMixinNames.collectEntries { name ->
     def sourcePath = "dev/mlua/modules/mixin/service/${name}.java"
     def sourceRoot = rootProject.file("modules/loaders/forge/${target.minecraft}/project/src/main/java")
-    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = null
+    if (!new File(sourceRoot, sourcePath).isFile()) sourceRoot = rootProject.file('src/main/java')
     sourceRoot == null ? [:] : [(name): sourceRoot]
 }
 def missingForgeServiceMixins = forgeServiceMixinNames.findAll { !forgeServiceSourceOverrides.containsKey(it) }

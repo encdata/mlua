@@ -75,6 +75,12 @@ public class LuaThread extends LuaValue {
 	}
 
 	private static final ThreadLocal<ResumeWaitHook> RESUME_WAIT_HOOK = new ThreadLocal<>();
+	private static final ThreadLocal<LuaThread> EXECUTING_THREAD = new ThreadLocal<>();
+
+	/** Returns the Lua coroutine currently executing on this Java thread, if any. */
+	public static LuaThread executingThread() {
+		return EXECUTING_THREAD.get();
+	}
 
 	/** Runs a resume operation with an owner-thread wait strategy, restoring any outer strategy afterward. */
 	public static <T> T withResumeWaitHook(ResumeWaitHook hook, Supplier<T> callback) {
@@ -221,6 +227,10 @@ public class LuaThread extends LuaValue {
 		
 		public synchronized void run() {
 			this.executionThread = Thread.currentThread();
+			LuaThread previousThread = EXECUTING_THREAD.get();
+			LuaThread executingThread = (LuaThread) this.lua_thread.get();
+			if (executingThread == null) EXECUTING_THREAD.remove();
+			else EXECUTING_THREAD.set(executingThread);
 			try {
 				Varargs a = this.args;
 				this.args = LuaValue.NONE;
@@ -228,6 +238,8 @@ public class LuaThread extends LuaValue {
 			} catch (Throwable t) {
 				this.error = t.getMessage();
 			} finally {
+				if (previousThread == null) EXECUTING_THREAD.remove();
+				else EXECUTING_THREAD.set(previousThread);
 				this.status = LuaThread.STATUS_DEAD;
 				this.executionThread = null;
 				this.notify();

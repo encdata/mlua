@@ -16,18 +16,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Render-state version of the living entity adapter hook. */
-@Mixin(LivingEntityRenderer.class)
+@Mixin(value = LivingEntityRenderer.class, remap = false)
 public abstract class LivingEntityRendererMixin<T extends LivingEntity,
         S extends LivingEntityRenderState, M extends EntityModel<? super S>> {
-    @Shadow protected M model;
+    @Shadow(remap = false) protected M model;
 
-    @Inject(method = "submit", at = @At("HEAD"))
+    @Inject(method = "submit", remap = false, at = @At("HEAD"))
     private void mlua$restoreRegisteredModelOverrides(S state, PoseStack poseStack,
             SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo info) {
         MLuaClientModelManager.restoreOverrides(model);
     }
 
-    @Inject(method = "submit", at = @At("RETURN"))
+    @Inject(method = "submit", remap = false, at = @At("RETURN"))
     private void mlua$clearRegisteredModelOverrides(S state, PoseStack poseStack,
             SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo info) {
         MLuaClientModelManager.restoreOverrides(model);

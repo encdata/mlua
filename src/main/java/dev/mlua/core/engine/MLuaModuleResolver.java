@@ -23,17 +23,21 @@ final class MLuaModuleResolver {
 
    void replaceScripts(List<MLuaScript> scripts) {
       Map<ModuleKey, List<MLuaScript>> mutable = new HashMap<>();
-      Map<String, Resolution> qualified = new HashMap<>();
+      Map<String, List<Resolution>> qualified = new HashMap<>();
       for (MLuaScript script : scripts) {
          if (!isRequireable(script)) continue;
          ModuleKey key = new ModuleKey(script.ownerModId(), script.moduleId());
          mutable.computeIfAbsent(key, ignored -> new ArrayList<>()).add(script);
-         qualified.putIfAbsent(script.ownerModId() + "." + script.moduleId(),
-            new Resolution(script.ownerModId(), script.moduleId()));
+         Resolution resolution = new Resolution(script.ownerModId(), script.moduleId());
+         List<Resolution> candidates = qualified.computeIfAbsent(
+            script.ownerModId() + "." + script.moduleId(), ignored -> new ArrayList<>());
+         if (!candidates.contains(resolution)) candidates.add(resolution);
       }
       Map<ModuleKey, List<MLuaScript>> indexedModules = new HashMap<>(mutable.size());
       mutable.forEach((key, matches) -> indexedModules.put(key, List.copyOf(matches)));
-      this.snapshot = new Snapshot(Map.copyOf(indexedModules), Map.copyOf(qualified));
+      Map<String, List<Resolution>> indexedQualified = new HashMap<>(qualified.size());
+      qualified.forEach((key, candidates) -> indexedQualified.put(key, List.copyOf(candidates)));
+      this.snapshot = new Snapshot(Map.copyOf(indexedModules), Map.copyOf(indexedQualified));
    }
 
    Resolution resolve(String requested, MLuaScript current) {
@@ -55,9 +59,13 @@ final class MLuaModuleResolver {
          return new Resolution(owner, module);
       }
 
-      String dotPath = path.replace('/', '.');
-      Resolution explicit = this.snapshot.modulesByQualifiedId().get(dotPath);
-      return explicit != null ? explicit : new Resolution(current.ownerModId(), dotPath);
+      String dotPath = normalizeModule(path, requested);
+      List<Resolution> explicit = this.snapshot.modulesByQualifiedId().get(dotPath);
+      if (explicit != null && explicit.size() > 1) {
+         throw new LuaError("[MLua] Ambiguous Require path '" + requested
+            + "'. Use require(\"modid:scriptname\") to select an addon explicitly.");
+      }
+      return explicit != null ? explicit.get(0) : new Resolution(current.ownerModId(), dotPath);
    }
 
    List<MLuaScript> find(String ownerModId, String moduleId) {
@@ -74,7 +82,7 @@ final class MLuaModuleResolver {
          throw new LuaError("[MLua] Relative Require escaped script root: " + requested);
       }
       String relativePath = resolved.toString().replace(root.getFileSystem().getSeparator(), "/");
-      return new Resolution(current.ownerModId(), stripLuaSuffix(relativePath));
+      return new Resolution(current.ownerModId(), normalizeModule(relativePath, requested));
    }
 
    private static String normalizeModule(String path, String requested) {
@@ -93,11 +101,6 @@ final class MLuaModuleResolver {
       return module;
    }
 
-   private static String stripLuaSuffix(String path) {
-      String id = path.endsWith(".lua") ? path.substring(0, path.length() - 4) : path;
-      return id.replace('/', '.');
-   }
-
    private static boolean isRequireable(MLuaScript script) {
       return script.type() == ScriptType.MODULE || script.type() == ScriptType.REGISTRY
          || script.type() == ScriptType.ENTRYPOINT;
@@ -109,11 +112,11 @@ final class MLuaModuleResolver {
    }
 
    record Resolution(String ownerModId, String moduleId) {
-      String cacheId() { return this.ownerModId + "." + this.moduleId; }
+      String cacheId() { return this.ownerModId.length() + ":" + this.ownerModId + this.moduleId; }
    }
 
    private record Snapshot(Map<ModuleKey, List<MLuaScript>> modulesById,
-                           Map<String, Resolution> modulesByQualifiedId) {
+                           Map<String, List<Resolution>> modulesByQualifiedId) {
       static Snapshot empty() { return new Snapshot(Map.of(), Map.of()); }
    }
 

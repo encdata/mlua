@@ -51,7 +51,7 @@ public final class MLuaPlayerResolver {
         try {
             Object player = MLuaClientPlayerAccess.localPlayer();
             return player instanceof Player local ? local : null;
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return null;
         }
     }

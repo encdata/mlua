@@ -1,14 +1,11 @@
 package dev.mlua.modules.entity;
 
 import dev.mlua.module.MLuaRegistration;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.function.Consumer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -20,16 +17,6 @@ public final class MLuaEntityQuery {
     public static final int MAX_FILTER_ARRAY_ENTRIES = 1024;
     /** Avoid scanning millions of empty entity sections for broad, finite radius queries. */
     private static final double MAX_INDEXED_QUERY_RADIUS = 128.0D;
-    private static final ClassValue<Optional<Method>> CLIENT_RENDER_ENTITIES = new ClassValue<>() {
-        @Override
-        protected Optional<Method> computeValue(Class<?> levelType) {
-            try {
-                return Optional.of(levelType.getMethod("entitiesForRendering"));
-            } catch (NoSuchMethodException | SecurityException unavailable) {
-                return Optional.empty();
-            }
-        }
-    };
 
     private MLuaEntityQuery() {
     }
@@ -169,45 +156,7 @@ public final class MLuaEntityQuery {
     public static Iterable<Entity> loadedEntities(Level level) {
         if (level == null) return List.of();
         if (level instanceof ServerLevel serverLevel) return serverLevel.getAllEntities();
-        try {
-            Method accessor = CLIENT_RENDER_ENTITIES.get(level.getClass()).orElse(null);
-            if (accessor == null) return List.of();
-            Object value = accessor.invoke(level);
-            if (value instanceof Iterable<?> iterable) {
-                // Query paths often only need to count or find a matching entity. Materializing
-                // the entire client entity view here made every such call allocate a second
-                // world-sized list before applying its filter. Adapt the iterable lazily instead.
-                return () -> new Iterator<>() {
-                    private final Iterator<?> source = iterable.iterator();
-                    private Entity next;
-                    private boolean ready;
-
-                    @Override
-                    public boolean hasNext() {
-                        if (ready) return true;
-                        while (source.hasNext()) {
-                            Object candidate = source.next();
-                            if (candidate instanceof Entity entity) {
-                                next = entity;
-                                ready = true;
-                                return true;
-                            }
-                        }
-                        return false;
-                    }
-
-                    @Override
-                    public Entity next() {
-                        if (!hasNext()) throw new NoSuchElementException();
-                        Entity result = next;
-                        next = null;
-                        ready = false;
-                        return result;
-                    }
-                };
-            }
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
-        }
+        if (level instanceof ClientLevel clientLevel) return clientLevel.entitiesForRendering();
         return List.of();
     }
 
