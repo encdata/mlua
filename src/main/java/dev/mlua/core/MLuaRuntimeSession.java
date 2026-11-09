@@ -17,8 +17,8 @@ import org.luaj.vm2.LuaTable;
 public final class MLuaRuntimeSession {
     private static final Map<MinecraftServer, WeakReference<MLuaRuntimeSession>> SERVER_SESSIONS =
             Collections.synchronizedMap(new WeakHashMap<>());
-    private final MLuaModuleCache serverModules = new MLuaModuleCache();
-    private final MLuaModuleCache clientModules = new MLuaModuleCache();
+    private volatile MLuaModuleCache serverModules = new MLuaModuleCache();
+    private volatile MLuaModuleCache clientModules = new MLuaModuleCache();
     private final MLuaTaskScheduler serverScheduler = new MLuaTaskScheduler();
     private final MLuaTaskScheduler clientScheduler = new MLuaTaskScheduler();
     private final MLuaRuntimeSessionServices sessionServices = new MLuaRuntimeSessionServices();
@@ -37,8 +37,8 @@ public final class MLuaRuntimeSession {
         return scheduler == this.serverScheduler || scheduler == this.clientScheduler;
     }
 
-    public MLuaModuleCache serverModules() { return serverModules; }
-    public MLuaModuleCache clientModules() { return clientModules; }
+    public MLuaModuleCache serverModules() { return this.serverModules; }
+    public MLuaModuleCache clientModules() { return this.clientModules; }
     public MLuaTaskScheduler serverScheduler() { return serverScheduler; }
     public MLuaTaskScheduler clientScheduler() { return clientScheduler; }
     public MinecraftServer server() { return server; }
@@ -105,11 +105,11 @@ public final class MLuaRuntimeSession {
         this.clearServiceInstances(side);
         if (side == Side.SERVER || side == Side.BOTH) {
             this.serverScheduler.Destroy();
-            this.serverModules.Destroy();
+            this.serverModules = new MLuaModuleCache();
         }
         if (side == Side.CLIENT || side == Side.BOTH) {
             this.clientScheduler.Destroy();
-            this.clientModules.Destroy();
+            this.clientModules = new MLuaModuleCache();
         }
         MLuaSignal.destroyAllOnSession(this, side);
     }
@@ -119,8 +119,8 @@ public final class MLuaRuntimeSession {
     }
 
     public void clearModuleCache(Side side) {
-        if (side == Side.SERVER || side == Side.BOTH) this.serverModules.Destroy();
-        if (side == Side.CLIENT || side == Side.BOTH) this.clientModules.Destroy();
+        if (side == Side.SERVER || side == Side.BOTH) this.serverModules = new MLuaModuleCache();
+        if (side == Side.CLIENT || side == Side.BOTH) this.clientModules = new MLuaModuleCache();
     }
 
     public int clearOwnedTasks(Side side, String ownerModId) {

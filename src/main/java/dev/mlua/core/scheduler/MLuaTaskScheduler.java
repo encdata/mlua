@@ -32,12 +32,22 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
       .thenComparingLong(task -> task.sequence);
    private final PriorityQueue<MLuaScheduledTask> tasks = new PriorityQueue<>(TASK_ORDER);
    private final Map<TaskOwner, Integer> pendingByOwner = new HashMap<>();
+   private final Map<TaskOwner, Long> ownerGenerations = new HashMap<>();
    private final Map<String, Integer> pendingByAddon = new HashMap<>();
    /** Due tasks are kept here until execution finishes so owner teardown can cancel them. */
    private final Set<MLuaScheduledTask> inFlight = new HashSet<>();
    private long currentTick;
    private long nextTaskSequence;
+   private long lifecycleGeneration;
    private volatile BiConsumer<String, Throwable> failureReporter;
+
+   public synchronized long lifecycleGeneration() {
+      return this.lifecycleGeneration;
+   }
+
+   public synchronized long ownerGeneration(String ownerModId, Side side) {
+      return this.ownerGenerations.getOrDefault(new TaskOwner(ownerModId, side), 0L);
+   }
 
    public void setFailureReporter(BiConsumer<String, Throwable> failureReporter) {
       this.failureReporter = failureReporter;
@@ -81,7 +91,11 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    @Override
    public synchronized void scheduleThread(Globals globals, long ticks, LuaThread thread, Varargs resumeArgs,
                                            String ownerModId, Side side) {
-      MLuaContext context = this.contextFor(globals);
+      this.scheduleThread(globals, ticks, thread, resumeArgs, ownerModId, side, this.contextFor(globals));
+   }
+
+   public synchronized void scheduleThread(Globals globals, long ticks, LuaThread thread, Varargs resumeArgs,
+                                           String ownerModId, Side side, MLuaContext context) {
       if (context != null) {
          if (ownerModId == null) ownerModId = context.ownerModId();
          if (side == null) side = context.side();
@@ -143,6 +157,12 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    }
 
    private void enqueue(MLuaScheduledTask task) {
+      if (task.context != null && task.context.scheduler() == this) {
+         if (task.context.schedulerGeneration() != this.lifecycleGeneration) return;
+         if (java.util.Objects.equals(task.context.ownerModId(), task.ownerModId)
+               && task.context.side() == task.side
+               && task.context.schedulerOwnerGeneration() != this.ownerGeneration(task.ownerModId, task.side)) return;
+      }
       TaskOwner owner = new TaskOwner(task.ownerModId, task.side);
       if (this.tasks.size() >= MAX_PENDING_TASKS) {
          throw new LuaError("[MLua] Pending task limit reached (" + MAX_PENDING_TASKS + ")");
@@ -187,21 +207,34 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
    }
 
    public synchronized void Destroy() {
+      this.lifecycleGeneration++;
       this.inFlight.forEach(task -> task.cancelled = true);
       this.inFlight.clear();
       this.tasks.clear();
       this.pendingByOwner.clear();
       this.pendingByAddon.clear();
+      this.ownerGenerations.clear();
     }
 
    public synchronized int removeOwned(String ownerModId) {
       if (ownerModId == null) return 0;
+      this.invalidateOwnerGeneration(ownerModId, Side.BOTH);
       return this.removeTasks(task -> ownerModId.equals(task.ownerModId));
    }
 
    public synchronized int removeOwned(Side side, String ownerModId) {
       if (side == null || ownerModId == null) return 0;
+      this.invalidateOwnerGeneration(ownerModId, side);
       return this.removeTasks(task -> sideMatches(task.side, side) && ownerModId.equals(task.ownerModId));
+   }
+
+   private void invalidateOwnerGeneration(String ownerModId, Side side) {
+      for (Side taskSide : Side.values()) {
+         if (side == Side.BOTH || sideMatches(taskSide, side)) {
+            TaskOwner owner = new TaskOwner(ownerModId, taskSide);
+            this.ownerGenerations.merge(owner, 1L, Long::sum);
+         }
+      }
    }
 
    public synchronized int removeSide(Side side) {

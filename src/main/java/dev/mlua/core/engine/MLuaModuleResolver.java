@@ -21,31 +21,42 @@ final class MLuaModuleResolver {
 
    private volatile Snapshot snapshot = Snapshot.empty();
 
+   Object snapshot() {
+      return this.snapshot;
+   }
+
+   long generation(Object snapshotToken) {
+      return snapshotToken instanceof Snapshot captured ? captured.generation() : this.snapshot.generation();
+   }
+
    void replaceScripts(List<MLuaScript> scripts) {
       Map<ModuleKey, List<MLuaScript>> mutable = new HashMap<>();
-      Map<String, List<Resolution>> qualified = new HashMap<>();
+      Map<String, List<ModuleKey>> qualified = new HashMap<>();
       for (MLuaScript script : scripts) {
          if (!isRequireable(script)) continue;
          ModuleKey key = new ModuleKey(script.ownerModId(), script.moduleId());
          mutable.computeIfAbsent(key, ignored -> new ArrayList<>()).add(script);
-         Resolution resolution = new Resolution(script.ownerModId(), script.moduleId());
-         List<Resolution> candidates = qualified.computeIfAbsent(
+         List<ModuleKey> candidates = qualified.computeIfAbsent(
             script.ownerModId() + "." + script.moduleId(), ignored -> new ArrayList<>());
-         if (!candidates.contains(resolution)) candidates.add(resolution);
+         if (!candidates.contains(key)) candidates.add(key);
       }
       Map<ModuleKey, List<MLuaScript>> indexedModules = new HashMap<>(mutable.size());
       mutable.forEach((key, matches) -> indexedModules.put(key, List.copyOf(matches)));
-      Map<String, List<Resolution>> indexedQualified = new HashMap<>(qualified.size());
+      Map<String, List<ModuleKey>> indexedQualified = new HashMap<>(qualified.size());
       qualified.forEach((key, candidates) -> indexedQualified.put(key, List.copyOf(candidates)));
-      this.snapshot = new Snapshot(Map.copyOf(indexedModules), Map.copyOf(indexedQualified));
+      this.snapshot = new Snapshot(this.snapshot.generation() + 1,
+         Map.copyOf(indexedModules), Map.copyOf(indexedQualified));
    }
 
-   Resolution resolve(String requested, MLuaScript current) {
+   Resolution resolve(String requested, MLuaScript current, Object snapshotToken) {
+      Snapshot snapshot = snapshotToken instanceof Snapshot captured ? captured : this.snapshot;
       String path = requested.replace('\\', '/');
       if (path.isBlank() || path.contains("//")) {
          throw new LuaError("[MLua] Invalid Require path: " + requested);
       }
-      if (path.startsWith("./") || path.startsWith("../")) return this.resolveRelative(path, requested, current);
+      if (path.startsWith("./") || path.startsWith("../")) {
+         return this.resolveRelative(path, requested, current, snapshot);
+      }
 
       int namespaceSeparator = path.indexOf(':');
       if (namespaceSeparator >= 0) {
@@ -56,23 +67,22 @@ final class MLuaModuleResolver {
          String owner = path.substring(0, namespaceSeparator);
          String module = normalizeModule(path.substring(namespaceSeparator + 1), requested);
          if (!owner.matches("[a-z0-9_.-]+") || module.isBlank()) throw invalidNamespacePath(requested);
-         return new Resolution(owner, module);
+         return this.resolution(snapshot, owner, module);
       }
 
       String dotPath = normalizeModule(path, requested);
-      List<Resolution> explicit = this.snapshot.modulesByQualifiedId().get(dotPath);
+      List<ModuleKey> explicit = snapshot.modulesByQualifiedId().get(dotPath);
       if (explicit != null && explicit.size() > 1) {
          throw new LuaError("[MLua] Ambiguous Require path '" + requested
             + "'. Use require(\"modid:scriptname\") to select an addon explicitly.");
       }
-      return explicit != null ? explicit.get(0) : new Resolution(current.ownerModId(), dotPath);
+      ModuleKey module = explicit != null
+         ? explicit.get(0) : new ModuleKey(current.ownerModId(), dotPath);
+      return this.resolution(snapshot, module.ownerModId(), module.moduleId());
    }
 
-   List<MLuaScript> find(String ownerModId, String moduleId) {
-      return this.snapshot.modulesById().getOrDefault(new ModuleKey(ownerModId, moduleId), List.of());
-   }
-
-   private Resolution resolveRelative(String path, String requested, MLuaScript current) {
+   private Resolution resolveRelative(String path, String requested, MLuaScript current,
+                                      Snapshot snapshot) {
       Path currentPath = current.path();
       Path root = current.root();
       Path currentDir = currentPath.getParent();
@@ -82,7 +92,13 @@ final class MLuaModuleResolver {
          throw new LuaError("[MLua] Relative Require escaped script root: " + requested);
       }
       String relativePath = resolved.toString().replace(root.getFileSystem().getSeparator(), "/");
-      return new Resolution(current.ownerModId(), normalizeModule(relativePath, requested));
+      return this.resolution(snapshot, current.ownerModId(), normalizeModule(relativePath, requested));
+   }
+
+   private Resolution resolution(Snapshot snapshot, String ownerModId, String moduleId) {
+      ModuleKey key = new ModuleKey(ownerModId, moduleId);
+      return new Resolution(snapshot.generation(), ownerModId, moduleId,
+         snapshot.modulesById().getOrDefault(key, List.of()));
    }
 
    private static String normalizeModule(String path, String requested) {
@@ -111,13 +127,15 @@ final class MLuaModuleResolver {
          + ". Use require(\"modid:scriptname\").");
    }
 
-   record Resolution(String ownerModId, String moduleId) {
-      String cacheId() { return this.ownerModId.length() + ":" + this.ownerModId + this.moduleId; }
+   record Resolution(long generation, String ownerModId, String moduleId, List<MLuaScript> matches) {
+      String cacheId() {
+         return this.generation + ":" + this.ownerModId.length() + ":" + this.ownerModId + this.moduleId;
+      }
    }
 
-   private record Snapshot(Map<ModuleKey, List<MLuaScript>> modulesById,
-                           Map<String, List<Resolution>> modulesByQualifiedId) {
-      static Snapshot empty() { return new Snapshot(Map.of(), Map.of()); }
+   private record Snapshot(long generation, Map<ModuleKey, List<MLuaScript>> modulesById,
+                           Map<String, List<ModuleKey>> modulesByQualifiedId) {
+      static Snapshot empty() { return new Snapshot(0, Map.of(), Map.of()); }
    }
 
    private record ModuleKey(String ownerModId, String moduleId) { }

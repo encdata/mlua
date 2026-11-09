@@ -22,24 +22,27 @@ import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.module.MLuaModuleLoader;
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class LuaJEngineBackend implements MLuaEngineBackend {
    private static final MLuaLuauTranspiler TRANSPILER = new MLuaLuauTranspiler();
    private static final String[] ENTRYPOINT_NAMES = new String[]{"run_mixin", "run_registry", "run_commands", "run_server", "run_client", "run_server_stopping", "run_world_load", "run_world_unload"};
    private final MLuaModuleResolver moduleResolver = new MLuaModuleResolver();
-   private final Map<Side, Globals> globalsBySide = new EnumMap<>(Side.class);
-   private final Map<RuntimeDocumentationKey, RuntimeDocumentationState> runtimeDocumentation = new java.util.HashMap<>();
+   private final Map<Side, Object> executionLocks = Map.of(
+      Side.SERVER, new Object(), Side.CLIENT, new Object(), Side.BOTH, new Object());
+   // client and server callbacks run on different owner threads and share this backend.
+   private final Map<Side, Globals> globalsBySide = new ConcurrentHashMap<>();
+   private final Map<RuntimeDocumentationKey, RuntimeDocumentationState> runtimeDocumentation = new ConcurrentHashMap<>();
 
    public LuaJEngineBackend(List<MLuaScript> scripts) {
       this.replaceScripts(scripts);
    }
 
    @Override
-   public synchronized void replaceScripts(List<MLuaScript> scripts) {
+   public void replaceScripts(List<MLuaScript> scripts) {
       this.moduleResolver.replaceScripts(scripts);
       this.evaluationCache.clear();
       this.compiledPrototypes.clear();
@@ -47,125 +50,137 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    }
 
    @Override
-   public synchronized void resetSide(Side side) {
-      this.globalsBySide.remove(side);
-      this.evaluationCache.keySet().removeIf(key -> key.side() == side);
-      this.compiledPrototypes.keySet().removeIf(key -> key.side() == side);
-      this.runtimeDocumentation.keySet().removeIf(key -> key.side() == side);
+   public void resetSide(Side side) {
+      synchronized (this.executionLock(side)) {
+         this.globalsBySide.remove(side);
+         this.evaluationCache.keySet().removeIf(key -> key.side() == side);
+         this.compiledPrototypes.keySet().removeIf(key -> key.side() == side);
+         this.runtimeDocumentation.keySet().removeIf(key -> key.side() == side);
+      }
+   }
+
+   @Override
+   public Object executionLock(Side side) {
+      return this.executionLocks.get(side);
    }
 
    public String name() {
       return "MLua";
    }
 
-   public synchronized MLuaValue execute(MLuaScript script, MLuaContext context) {
-      MLuaValue var8;
-      try {
-         LuaValue result = this.evaluate(script, context).result();
-         var8 = new MLuaValue(result);
-      } catch (LuaError var12) {
-         MLuaLogger.LOGGER.error("Script error in {}\nType: {}\nSide: {}\nPhase: {}\nError: {}\nRequire chain:\n{}", new Object[]{script.displayName(), script.type(), context.side(), context.phase(), var12.getMessage(), this.requireChain(context)});
-         throw var12;
-      } finally {
-         this.writeRuntimeApiDocs(context);
-      }
-
-      return var8;
-   }
-
-   public synchronized MLuaValue executeResumable(MLuaScript script, MLuaContext context) {
-      MLuaValue var9;
-      try {
-         Globals globals = this.globals(context);
-         LuaTable previousEntrypoints = this.snapshotEntrypoints(globals);
-
+   public MLuaValue execute(MLuaScript script, MLuaContext context) {
+      synchronized (this.executionLock(context.side())) {
+         this.bindModuleResolverSnapshot(context);
          try {
-            LuaValue chunk = this.loadChunk(globals, script, context.side());
-            LuaThread thread = new LuaThread(globals, chunk);
-            Varargs result = MLuaCallbackBudget.runScript(context, globals,
-               () -> thread.resume(LuaValue.NONE));
-            if (!result.arg1().toboolean()) {
-               throw new LuaError(result.arg(2).tojstring());
-            }
-
-            context.scheduler().scheduleResumableThread(globals, thread, result);
-            LuaValue value = result.narg() >= 2 ? result.arg(2) : LuaValue.NIL;
-            var9 = new MLuaValue(value);
+            LuaValue result = this.evaluate(script, context).result();
+            return new MLuaValue(result);
+         } catch (LuaError error) {
+            MLuaLogger.LOGGER.error("Script error in {}\nType: {}\nSide: {}\nPhase: {}\nError: {}\nRequire chain:\n{}", new Object[]{script.displayName(), script.type(), context.side(), context.phase(), error.getMessage(), this.requireChain(context)});
+            throw error;
          } finally {
-            this.restoreEntrypoints(globals, previousEntrypoints);
+            this.writeRuntimeApiDocs(context);
          }
-      } catch (LuaError var13) {
-         MLuaLogger.LOGGER.error("Script error in {}\nType: {}\nSide: {}\nPhase: {}\nError: {}\nRequire chain:\n{}", new Object[]{script.displayName(), script.type(), context.side(), context.phase(), var13.getMessage(), this.requireChain(context)});
-         throw var13;
-      } finally {
-         this.writeRuntimeApiDocs(context);
       }
-
-      return var9;
    }
 
-   public synchronized boolean executeEntrypoint(MLuaScript script, MLuaContext context, String entrypointName) {
+   public MLuaValue executeResumable(MLuaScript script, MLuaContext context) {
+      synchronized (this.executionLock(context.side())) {
+         this.bindModuleResolverSnapshot(context);
+         try {
+            Globals globals = this.globals(context);
+            LuaTable previousEntrypoints = this.snapshotEntrypoints(globals);
+            try {
+               LuaValue chunk = this.loadChunk(globals, script, context.side());
+               LuaThread thread = new LuaThread(globals, chunk);
+               Varargs result = MLuaCallbackBudget.runScript(context, globals,
+                  () -> thread.resume(LuaValue.NONE));
+               if (!result.arg1().toboolean()) {
+                  throw new LuaError(result.arg(2).tojstring());
+               }
+
+               context.scheduler().scheduleResumableThread(globals, thread, result);
+               LuaValue value = result.narg() >= 2 ? result.arg(2) : LuaValue.NIL;
+               return new MLuaValue(value);
+            } finally {
+               this.restoreEntrypoints(globals, previousEntrypoints);
+            }
+         } catch (LuaError error) {
+            MLuaLogger.LOGGER.error("Script error in {}\nType: {}\nSide: {}\nPhase: {}\nError: {}\nRequire chain:\n{}", new Object[]{script.displayName(), script.type(), context.side(), context.phase(), error.getMessage(), this.requireChain(context)});
+            throw error;
+         } finally {
+            this.writeRuntimeApiDocs(context);
+         }
+      }
+   }
+
+   public boolean executeEntrypoint(MLuaScript script, MLuaContext context, String entrypointName) {
       return this.executeEntrypoint(script, context, entrypointName, null);
    }
 
    @Override
-   public synchronized boolean executeEntrypoint(MLuaScript script, MLuaContext context, String entrypointName,
-                                                 LuaValue event) {
-      try {
-         ScriptEvaluation evaluation = this.evaluate(script, context);
-         LuaValue entrypoints = this.entrypointContainer(evaluation);
-         LuaValue function = entrypoints.get(entrypointName);
-         if (function.isnil()) {
-            return false;
-         } else if (!function.isfunction()) {
-            throw new LuaError("[MLua] Entrypoint '" + entrypointName + "' in " + script.displayName() + " must be a function.");
-         } else {
-            LuaValue scriptContext = MLuaLuaBindings.scriptContextTable(context);
-            MLuaCallbackBudget.runScript(context, null, () -> {
-               if (event == null) function.call(scriptContext);
-               else function.invoke(LuaValue.varargsOf(new LuaValue[]{scriptContext, event}));
-               return null;
-            });
-            return true;
+   public boolean executeEntrypoint(MLuaScript script, MLuaContext context, String entrypointName,
+                                    LuaValue event) {
+      synchronized (this.executionLock(context.side())) {
+         this.bindModuleResolverSnapshot(context);
+         try {
+            ScriptEvaluation evaluation = this.evaluate(script, context);
+            LuaValue entrypoints = this.entrypointContainer(evaluation);
+            LuaValue function = entrypoints.get(entrypointName);
+            if (function.isnil()) {
+               return false;
+            } else if (!function.isfunction()) {
+               throw new LuaError("[MLua] Entrypoint '" + entrypointName + "' in " + script.displayName() + " must be a function.");
+            } else {
+               LuaValue scriptContext = MLuaLuaBindings.scriptContextTable(context);
+               MLuaCallbackBudget.runScript(context, null, () -> {
+                  if (event == null) function.call(scriptContext);
+                  else function.invoke(LuaValue.varargsOf(new LuaValue[]{scriptContext, event}));
+                  return null;
+               });
+               return true;
+            }
+         } catch (LuaError error) {
+            MLuaLogger.LOGGER.error("Script error in {}\nType: {}\nSide: {}\nPhase: {}\nError: {}\nRequire chain:\n{}", new Object[]{script.displayName(), script.type(), context.side(), context.phase(), error.getMessage(), this.requireChain(context)});
+            throw error;
+         } finally {
+            this.writeRuntimeApiDocs(context);
          }
-      } catch (LuaError var12) {
-         MLuaLogger.LOGGER.error("Script error in {}\nType: {}\nSide: {}\nPhase: {}\nError: {}\nRequire chain:\n{}", new Object[]{script.displayName(), script.type(), context.side(), context.phase(), var12.getMessage(), this.requireChain(context)});
-         throw var12;
-      } finally {
-         this.writeRuntimeApiDocs(context);
       }
    }
 
-   public synchronized MLuaValue require(String path, MLuaContext context) {
-      MLuaModuleResolver.Resolution resolved = this.moduleResolver.resolve(path, context.script());
-      String id = resolved.cacheId();
-      if (context.moduleCache().contains(id)) {
-         return context.moduleCache().get(id);
-      } else {
-         List<MLuaScript> matches = this.moduleResolver.find(resolved.ownerModId(), resolved.moduleId());
+   public MLuaValue require(String path, MLuaContext context) {
+      synchronized (this.executionLock(context.side())) {
+         this.bindModuleResolverSnapshot(context);
+         MLuaModuleResolver.Resolution resolved = this.moduleResolver.resolve(
+            path, context.script(), context.moduleResolverSnapshot());
+         String id = resolved.cacheId();
+         if (context.moduleCache().contains(id)) return context.moduleCache().get(id);
+
+         List<MLuaScript> matches = resolved.matches();
          if (matches.isEmpty()) {
             throw new LuaError("[MLua] Require could not find module '" + path + "' resolved as '" + id + "' from " + context.script().displayName());
          }
          if (matches.size() > 1) {
             String candidates = matches.stream().map(MLuaScript::displayName)
                .sorted().collect(java.util.stream.Collectors.joining("\n  "));
-            throw new LuaError("[MLua] Require found " + matches.size() + " scripts named '" + id
+            String moduleName = resolved.ownerModId() + "." + resolved.moduleId();
+            throw new LuaError("[MLua] Require found " + matches.size() + " scripts named '" + moduleName
                + "'. Keep module names unique within a mod:\n  " + candidates);
          }
          MLuaScript module = matches.get(0);
          context.moduleCache().enter(id);
-
-         MLuaValue var7;
          try {
             MLuaValue value = this.execute(module, context.withScript(module));
             context.moduleCache().put(id, value);
-            var7 = value;
+            return value;
          } finally {
             context.moduleCache().exit(id);
          }
-
-         return var7;
       }
+   }
+
+   private void bindModuleResolverSnapshot(MLuaContext context) {
+      context.bindModuleResolverSnapshot(this.moduleResolver.snapshot());
    }
 
    private Globals globals(MLuaContext context) {
@@ -263,8 +278,8 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       MLuaLuaBindings.configureContextGlobals(globals, context);
    }
 
-   private final Map<EvaluationKey, ScriptEvaluation> evaluationCache = new java.util.HashMap<>();
-   private final Map<CompiledChunkKey, Prototype> compiledPrototypes = new java.util.HashMap<>();
+   private final Map<EvaluationKey, ScriptEvaluation> evaluationCache = new ConcurrentHashMap<>();
+   private final Map<CompiledChunkKey, Prototype> compiledPrototypes = new ConcurrentHashMap<>();
 
    private LuaValue loadChunk(Globals globals, MLuaScript script, Side side) {
       String chunkName = script.displayName();
@@ -273,8 +288,9 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       Prototype prototype = this.compiledPrototypes.get(key);
       try {
          if (prototype == null) {
-            prototype = globals.compilePrototype(new StringReader(source), chunkName);
-            this.compiledPrototypes.put(key, prototype);
+            Prototype compiled = globals.compilePrototype(new StringReader(source), chunkName);
+            Prototype previous = this.compiledPrototypes.putIfAbsent(key, compiled);
+            prototype = previous == null ? compiled : previous;
          }
          return globals.loader.load(prototype, chunkName, globals);
       } catch (IOException error) {
@@ -283,9 +299,11 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
    }
 
    private ScriptEvaluation evaluate(MLuaScript script, MLuaContext context) {
-      EvaluationKey key = new EvaluationKey(script, context.side());
-      if (script.type() == ScriptType.ENTRYPOINT && this.evaluationCache.containsKey(key)) {
-         return this.evaluationCache.get(key);
+      long moduleGeneration = this.moduleResolver.generation(context.moduleResolverSnapshot());
+      EvaluationKey key = new EvaluationKey(script, context.side(), moduleGeneration);
+      ScriptEvaluation cached = this.evaluationCache.get(key);
+      if (script.type() == ScriptType.ENTRYPOINT && cached != null) {
+         return cached;
       }
 
       Globals globals = this.globals(context);
@@ -297,7 +315,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
          LuaTable currentEntrypoints = this.snapshotEntrypoints(globals);
          ScriptEvaluation evaluation = new ScriptEvaluation(result, currentEntrypoints);
          if (script.type() == ScriptType.ENTRYPOINT) {
-            this.evaluationCache.put(key, evaluation);
+            this.evaluationCache.putIfAbsent(key, evaluation);
          }
          return evaluation;
       } finally {
@@ -404,7 +422,7 @@ public final class LuaJEngineBackend implements MLuaEngineBackend {
       }
    }
 
-   private static record EvaluationKey(MLuaScript script, Side side) { }
+   private static record EvaluationKey(MLuaScript script, Side side, long moduleGeneration) { }
    private static record CompiledChunkKey(Side side, String chunkName, String source) { }
    private static record RuntimeDocumentationKey(Side side, RegistrationPhase phase, String scriptName) { }
    private static record RuntimeDocumentationState(long moduleRevision, List<String> materializedServices) { }

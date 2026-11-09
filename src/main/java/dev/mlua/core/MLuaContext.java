@@ -34,8 +34,11 @@ public final class MLuaContext implements MLuaContextView {
    private final BiConsumer<String, Throwable> failureReporter;
    private final MLuaRuntimeSession session;
    private final MLuaRegistration registration;
+   private long schedulerGeneration;
+   private long schedulerOwnerGeneration;
    private volatile Globals globals;
    private volatile Object executionLock;
+   private volatile Object moduleResolverSnapshot;
    private final Map<String, LuaTable> materializedServices = new LinkedHashMap<>();
    private volatile Map<String, LuaValue> contextGlobals = Map.of();
    private volatile boolean contextGlobalsConfigured;
@@ -68,6 +71,8 @@ public final class MLuaContext implements MLuaContextView {
       this.failureReporter = failureReporter;
       this.session = session;
       this.registration = registration;
+      this.schedulerGeneration = scheduler == null ? -1 : scheduler.lifecycleGeneration();
+      this.schedulerOwnerGeneration = scheduler == null ? -1 : scheduler.ownerGeneration(script.ownerModId(), side);
       this.executionLock = this;
    }
 
@@ -154,6 +159,10 @@ public final class MLuaContext implements MLuaContextView {
       return this.scheduler;
    }
 
+   public long schedulerGeneration() { return this.schedulerGeneration; }
+
+   public long schedulerOwnerGeneration() { return this.schedulerOwnerGeneration; }
+
    @Override
    public Globals globals() { return this.globals; }
 
@@ -178,6 +187,12 @@ public final class MLuaContext implements MLuaContextView {
 
    @Override
    public Object executionLock() { return this.executionLock; }
+
+   public Object moduleResolverSnapshot() { return this.moduleResolverSnapshot; }
+
+   public void bindModuleResolverSnapshot(Object snapshot) {
+      if (this.moduleResolverSnapshot == null) this.moduleResolverSnapshot = snapshot;
+   }
 
    public void bindExecutionLock(Object executionLock) {
       this.executionLock = executionLock == null ? this : executionLock;
@@ -253,6 +268,11 @@ public final class MLuaContext implements MLuaContextView {
       MLuaContext context = new MLuaContext(script, this.side, this.phase, this.services, this.scheduler, this.moduleCache, this.server, this.filesRoot, this.failureReporter, this.session, this.registration);
       context.bindGlobals(this.globals);
       context.bindExecutionLock(this.executionLock);
+      context.bindModuleResolverSnapshot(this.moduleResolverSnapshot);
+      context.schedulerGeneration = this.schedulerGeneration;
+      if (script.ownerModId().equals(this.script.ownerModId())) {
+         context.schedulerOwnerGeneration = this.schedulerOwnerGeneration;
+      }
       return context;
    }
 }

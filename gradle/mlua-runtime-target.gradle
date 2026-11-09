@@ -41,6 +41,18 @@ def prepareRuntimeForgeServiceMixinSources = tasks.register('prepareRuntimeForge
     into layout.buildDirectory.dir('generated/runtime-forge-service-mixin-java')
     doLast {
         rootProject.ext.filterMluaVersionMarkers(project, destinationDir, target.minecraft)
+        if (target.minecraft == '1.21.1') {
+            // Forge 1.21.1 keeps Mojang names at runtime; don't emit SRG names in these mixins.
+            fileTree(destinationDir).matching { include '**/*.java' }.each { sourceFile ->
+                def source = sourceFile.getText('UTF-8')
+                def mapped = source.replaceAll(/@Mixin\(([^)]*)\)/) { match, arguments ->
+                    if (arguments.contains('remap =')) return match
+                    def values = arguments.contains('=') ? arguments : "value = ${arguments}"
+                    "@Mixin(${values}, remap = false)"
+                }
+                if (mapped != source) sourceFile.setText(mapped, 'UTF-8')
+            }
+        }
     }
 }
 def prepareRuntimeForgeClientMixinSources = tasks.register('prepareRuntimeForgeClientMixinSources', Sync) {
@@ -189,6 +201,10 @@ tasks.named('test', Test).configure {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    from(rootProject.file('src/main/resources/Icon.png')) {
+        into ''
+        rename { 'icon.png' }
+    }
     var replaceProperties = [
             minecraft_version: minecraft_version,
             minecraft_version_range: minecraft_version_range,

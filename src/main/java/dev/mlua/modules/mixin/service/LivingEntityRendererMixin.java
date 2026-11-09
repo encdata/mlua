@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Applies Lua-registered bone mappings after Minecraft has prepared any living entity model. */
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extends EntityModel<T>> {
-    @Shadow(aliases = "f_115290_") protected M model;
+    @Shadow protected M model;
 
     @Inject(method = "render", at = @At("HEAD"))
     private void mlua$restoreRegisteredModelOverrides(T entity, float entityYaw, float partialTick,

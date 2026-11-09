@@ -155,7 +155,7 @@ tasks.named('test').configure {
 tasks.named('processResources', ProcessResources).configure {
     configureMluaIcon(delegate)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    dependsOn 'generateMethodMapping', runtimeProject.tasks.named('jar'), prepareForgeProjectResources
+    dependsOn 'generateMethodMapping', runtimeProject.tasks.named('reobfJar'), prepareForgeProjectResources
     from(file("${buildDir}/generated/prepareForgeProjectResources/META-INF/mods.toml")) {
         into 'META-INF'
         expand(

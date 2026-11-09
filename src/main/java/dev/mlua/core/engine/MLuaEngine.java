@@ -23,4 +23,6 @@ public interface MLuaEngine {
    void replaceScripts(List<MLuaScript> scripts);
 
    void resetSide(Side side);
+
+   default Object executionLock(Side side) { return this; }
 }

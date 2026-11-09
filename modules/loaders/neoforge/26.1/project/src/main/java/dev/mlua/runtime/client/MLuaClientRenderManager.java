@@ -15,7 +15,6 @@ import dev.mlua.runtime.registry.MLuaAssetResolver;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.client.Minecraft;
@@ -41,9 +40,7 @@ public final class MLuaClientRenderManager {
     public static final double MAX_WORLD_RENDER_DISTANCE = 4096.0D;
     private static final MLuaRenderObjectRegistry RENDER_OBJECTS = new MLuaRenderObjectRegistry();
     private static final MLuaRenderTickIndex<MLuaRenderObject> TICKING_OBJECTS = new MLuaRenderTickIndex<>();
-    private record HeldItemRenderKey(RenderTarget target, String itemId) { }
-    private static final ConcurrentHashMap<HeldItemRenderKey, java.util.Set<Integer>> HELD_ITEM_MODELS = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<MLuaEntityScope, java.util.Set<Integer>> ENTITY_MODELS = new ConcurrentHashMap<>();
+    private static final MLuaRenderTargetIndex RENDER_TARGET_INDEX = new MLuaRenderTargetIndex();
     private static volatile RenderObject[] drawOrderSnapshot = new RenderObject[0];
     private static volatile boolean drawOrderDirty = true;
     private static final Identifier ATTACHMENT_TEXTURE = Identifier.fromNamespaceAndPath(
@@ -142,53 +139,17 @@ public final class MLuaClientRenderManager {
         }
     }
 
-    private static List<RenderObject> orderedEntityAttachments(java.util.Set<Integer> renderIds) {
-        List<RenderObject> attached = new ArrayList<>(renderIds.size());
-        for (Integer renderId : renderIds) {
-            RenderObject object = RENDER_OBJECTS.get(renderId);
-            if (object != null) attached.add(object);
-        }
-        attached.sort(Comparator.comparingInt(RenderObject::zIndex).thenComparingInt(RenderObject::id));
-        return attached;
-    }
-
     static void updateHeldItemModelIndex(MLuaRenderObject object, RenderTarget oldTarget, String oldItemId) {
-        removeHeldItemModelIndex(object.id, oldTarget, oldItemId);
-        RenderTarget target = object.target();
-        String itemId = object.heldItemId();
-        if (object.destroyed() || itemId == null
-                || (object.type() != RenderType.MESH && object.type() != RenderType.BBMODEL)
-                || (target != RenderTarget.FIRST_PERSON_ITEM && target != RenderTarget.THIRD_PERSON_ITEM)) return;
-        HeldItemRenderKey key = new HeldItemRenderKey(target, itemId);
-        HELD_ITEM_MODELS.compute(key, (ignored, ids) -> {
-            java.util.Set<Integer> updated = ids == null ? ConcurrentHashMap.newKeySet() : ids;
-            updated.add(object.id);
-            return updated;
-        });
+        RENDER_TARGET_INDEX.updateHeldItem(object);
     }
 
     static void invalidateRenderOrder() {
         invalidateDrawOrder();
-    }
-
-    private static void removeHeldItemModelIndex(int objectId, RenderTarget target, String itemId) {
-        if (target == null || itemId == null) return;
-        HELD_ITEM_MODELS.computeIfPresent(new HeldItemRenderKey(target, itemId), (ignored, ids) -> {
-            ids.remove(objectId);
-            return ids.isEmpty() ? null : ids;
-        });
+        RENDER_TARGET_INDEX.invalidateOrder();
     }
 
     private static List<RenderObject> orderedHeldItemModels(RenderTarget target, String itemId) {
-        java.util.Set<Integer> ids = HELD_ITEM_MODELS.get(new HeldItemRenderKey(target, itemId));
-        if (ids == null || ids.isEmpty()) return List.of();
-        List<RenderObject> objects = new ArrayList<>(ids.size());
-        for (Integer id : ids) {
-            RenderObject object = RENDER_OBJECTS.get(id);
-            if (object != null) objects.add(object);
-        }
-        objects.sort(Comparator.comparingInt(RenderObject::zIndex).thenComparingInt(RenderObject::id));
-        return objects;
+        return RENDER_TARGET_INDEX.orderedHeldItemModels(target, itemId);
     }
 
     private static Object invokeOptional(Object target, String... names) {
@@ -270,9 +231,7 @@ public final class MLuaClientRenderManager {
     public static void renderEntityAttachments(Object model, MLuaEntityScope scope, PoseStack pose,
                                                SubmitNodeCollector collector, int light, float partialTick) {
         if (scope == null || pose == null || collector == null) return;
-        java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
-        if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
-        for (RenderObject object : orderedEntityAttachments(attachedRenderIds)) {
+        for (RenderObject object : RENDER_TARGET_INDEX.orderedEntityModels(scope)) {
             int renderId = object.id;
             synchronized (object.executionLock()) {
                 if (object.destroyed || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
@@ -343,9 +302,7 @@ public final class MLuaClientRenderManager {
             MultiBufferSource buffers, int light, int overlay, float partialTick) {
         if (scope == null || pose == null || buffers == null
                 || !MLuaClientRenderThread.require("entity model attachments")) return;
-        java.util.Set<Integer> attachedRenderIds = ENTITY_MODELS.get(scope);
-        if (attachedRenderIds == null || attachedRenderIds.isEmpty()) return;
-        for (RenderObject object : orderedEntityAttachments(attachedRenderIds)) {
+        for (RenderObject object : RENDER_TARGET_INDEX.orderedEntityModels(scope)) {
             int renderId = object.id;
             synchronized (object.executionLock()) {
                 if (object.destroyed || !object.visible || object.target() != RenderTarget.ENTITY_MODEL
@@ -750,10 +707,7 @@ public final class MLuaClientRenderManager {
             }
             invalidateDrawOrder();
         }
-        ENTITY_MODELS.forEach((scope, ids) -> {
-            ids.remove(id);
-            if (ids.isEmpty()) ENTITY_MODELS.remove(scope, ids);
-        });
+        RENDER_TARGET_INDEX.removeObject(id);
     }
 
     public static void remove(int id, MLuaRenderOwnershipRegistry.Owner owner) {
@@ -784,7 +738,7 @@ public final class MLuaClientRenderManager {
     /** Removes render objects attached to an entity that has left the client level. */
     public static void clearEntity(Entity entity) {
         if (entity == null) return;
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.remove(MLuaEntityScope.of(entity));
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.removeEntityModels(MLuaEntityScope.of(entity));
         if (renderIds == null) return;
         List.copyOf(renderIds).forEach(MLuaClientRenderManager::remove);
     }
@@ -793,7 +747,7 @@ public final class MLuaClientRenderManager {
         List<Integer> ids = RENDER_OBJECTS.ids();
         ids.forEach(MLuaClientRenderManager::remove);
         invalidateDrawOrder();
-        ENTITY_MODELS.clear();
+        RENDER_TARGET_INDEX.clear();
         RENDER_OBJECTS.clearOwners();
     }
 
@@ -842,14 +796,14 @@ public final class MLuaClientRenderManager {
     }
 
     public static void resetEntityModel(MLuaEntityScope scope) {
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.remove(scope);
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.removeEntityModels(scope);
         if (renderIds != null) renderIds.forEach(MLuaClientRenderManager::remove);
     }
 
     /** Removes only this addon's model attachments from one entity. */
     public static int resetEntityModel(MLuaEntityScope scope, MLuaRenderOwnershipRegistry.Owner owner) {
         if (scope == null || owner == null) return 0;
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.get(scope);
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(scope);
         if (renderIds == null) return 0;
         int removed = 0;
         for (int renderId : List.copyOf(renderIds)) {
@@ -870,7 +824,7 @@ public final class MLuaClientRenderManager {
 
     public static boolean hasEntityBoneAttachments(Entity entity) {
         if (entity == null) return false;
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.get(MLuaEntityScope.of(entity));
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(MLuaEntityScope.of(entity));
         if (renderIds == null) return false;
         for (Integer renderId : renderIds) {
             RenderObject object = RENDER_OBJECTS.get(renderId);
@@ -883,22 +837,17 @@ public final class MLuaClientRenderManager {
     }
 
     private static boolean hasEntityModel(MLuaEntityScope scope) {
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.get(scope);
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(scope);
         return renderIds != null && renderIds.stream().map(RENDER_OBJECTS::get)
                 .anyMatch(object -> object != null && !object.destroyed && object.visible());
     }
 
     static void registerEntityModel(MLuaEntityScope scope, int id) {
-        if (scope == null) return;
-        ENTITY_MODELS.computeIfAbsent(scope, ignored -> ConcurrentHashMap.newKeySet()).add(id);
+        RENDER_TARGET_INDEX.registerEntityModel(scope, id);
     }
 
     static void unregisterEntityModel(MLuaEntityScope scope, int id) {
-        if (scope == null) return;
-        java.util.Set<Integer> ids = ENTITY_MODELS.get(scope);
-        if (ids == null) return;
-        ids.remove(id);
-        if (ids.isEmpty()) ENTITY_MODELS.remove(scope, ids);
+        RENDER_TARGET_INDEX.unregisterEntityModel(scope, id);
     }
 
     public static void playEntityAnimation(int entityId, String name, boolean loop, float speed) {
@@ -916,7 +865,7 @@ public final class MLuaClientRenderManager {
 
     private static void playEntityAnimation(MLuaEntityScope scope, String name, Boolean loopOverride,
                                             float speed, float fadeDuration) {
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.get(scope);
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(scope);
         if (renderIds == null) return;
         for (Integer renderId : renderIds) {
             RenderObject object = RENDER_OBJECTS.get(renderId);
@@ -927,7 +876,7 @@ public final class MLuaClientRenderManager {
     }
 
     private static void playEntityAnimation(MLuaEntityScope scope, String name, boolean loop, float speed) {
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.get(scope);
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(scope);
         if (renderIds == null) return;
         for (Integer renderId : renderIds) {
             RenderObject object = RENDER_OBJECTS.get(renderId);
@@ -944,7 +893,7 @@ public final class MLuaClientRenderManager {
     }
 
     private static void stopEntityAnimation(MLuaEntityScope scope) {
-        java.util.Set<Integer> renderIds = ENTITY_MODELS.get(scope);
+        java.util.Set<Integer> renderIds = RENDER_TARGET_INDEX.entityModelIds(scope);
         if (renderIds == null) return;
         for (Integer renderId : renderIds) {
             RenderObject object = RENDER_OBJECTS.get(renderId);

@@ -25,11 +25,12 @@ final class MLuaRuntimeScriptExecutor {
         this.runtime = runtime;
     }
 
-    synchronized void replaceScripts(List<MLuaScript> scripts, long generation) {
-        if (this.engine != null && this.scriptGeneration == generation) return;
+    synchronized boolean replaceScripts(List<MLuaScript> scripts, long generation) {
+        if (this.engine != null && this.scriptGeneration == generation) return false;
         if (this.engine == null) this.engine = new LuaJEngineBackend(scripts);
         else this.engine.replaceScripts(scripts);
         this.scriptGeneration = generation;
+        return true;
     }
 
     boolean initialized() { return this.engine != null; }
@@ -82,7 +83,7 @@ final class MLuaRuntimeScriptExecutor {
         MLuaModuleCache moduleCache = serverSide ? session.serverModules() : session.clientModules();
         MLuaContext context = new MLuaContext(script, side, phase, services, scheduler, moduleCache, server,
             LoaderApi.platform().mluaDataDir(), this.runtime::reportRuntimeFailure, session, registration);
-        context.bindExecutionLock(this.engine);
+        context.bindExecutionLock(this.engine.executionLock(side));
         return context;
     }
 

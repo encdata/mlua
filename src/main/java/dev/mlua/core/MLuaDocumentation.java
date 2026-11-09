@@ -107,8 +107,8 @@ public final class MLuaDocumentation {
    }
 
    private static String iconDataUri() throws IOException {
-      try (var icon = MLuaDocumentation.class.getResourceAsStream("/Icon.png")) {
-         if (icon == null) throw new IOException("Missing /Icon.png resource");
+      try (var icon = MLuaDocumentation.class.getResourceAsStream("/icon.png")) {
+         if (icon == null) throw new IOException("Missing /icon.png resource");
          return "data:image/png;base64," + Base64.getEncoder().encodeToString(icon.readAllBytes());
       }
    }

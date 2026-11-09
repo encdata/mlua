@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -63,7 +64,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    private final MLuaServiceRegistry services = new MLuaServiceRegistry();
    private final MLuaClassRegistry classes = new MLuaClassRegistry();
    private final MLuaRuntimeServiceRegistration serviceRegistration;
-   private volatile long lifecycleEpoch;
+   private final AtomicLong lifecycleEpoch = new AtomicLong();
    private final MLuaRuntimeWorldLifecycle worldLifecycle = new MLuaRuntimeWorldLifecycle();
    private final MLuaRuntimeScriptExecutor scriptExecutor;
    private final MLuaRuntimeRegistryScripts registryScripts;
@@ -415,11 +416,11 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    public long lifecycleEpoch() {
-      return this.lifecycleEpoch;
+      return this.lifecycleEpoch.get();
    }
 
    void advanceLifecycleEpoch() {
-      this.lifecycleEpoch++;
+      this.lifecycleEpoch.incrementAndGet();
    }
 
    void executeRuntimeScript(MLuaScript script, Side side, RegistrationPhase phase, MinecraftServer server) {
@@ -458,7 +459,7 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public synchronized void onServerStopping(MinecraftServer server) {
       if (!this.lifecycleScripts.ownsServer(server)) return;
-      this.lifecycleEpoch++;
+      this.lifecycleEpoch.incrementAndGet();
       this.lifecycleScripts.onServerStopping(server);
    }
 
@@ -486,7 +487,9 @@ public final class MLuaRuntime implements MLuaRegistration {
    private void refreshScripts(boolean force) {
       MLuaRuntimeScriptCatalog.ScriptSnapshot snapshot =
          this.scriptCatalog.refresh(force || !this.scriptExecutor.initialized());
-      this.scriptExecutor.replaceScripts(snapshot.scripts(), snapshot.generation());
+      if (this.scriptExecutor.replaceScripts(snapshot.scripts(), snapshot.generation())) {
+         this.session.clearModuleCache(Side.BOTH);
+      }
    }
 
    public void deliverPendingServerDiagnostics(ServerPlayer player) {
@@ -558,7 +561,7 @@ public final class MLuaRuntime implements MLuaRegistration {
    }
 
    public void reloadClientOnly() {
-      this.lifecycleEpoch++;
+      this.lifecycleEpoch.incrementAndGet();
       this.clientScripts.reload();
     }
 

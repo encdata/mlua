@@ -494,26 +494,38 @@ public final class MLuaSignal {
       synchronized (this) {
          if (side == null && session == null) {
             waiting = List.copyOf(this.waiters);
-            this.clearWaiters();
          } else {
             waiting = this.waiters.stream().filter(entry -> matchesSide(entry.side(), side)
                   && matchesSession(entry.context(), entry.scheduler(), session)).toList();
-            this.removeWaiters(entry -> matchesSide(entry.side(), side)
-                  && matchesSession(entry.context(), entry.scheduler(), session));
          }
       }
 
       for (WaitEntry entry : waiting) {
          try {
             if (entry.scheduler() != null) {
-               Runnable schedule = () -> entry.scheduler().scheduleThread(entry.globals(), 1L,
-                  entry.thread(), args, entry.ownerKey(), entry.side());
-               if (entry.context() == null) {
-                  MLuaLuaBindings.withoutContext(entry.globals(), () -> { schedule.run(); return null; });
-               } else {
-                  schedule.run();
+               synchronized (this) {
+                  if (!this.waiters.remove(entry)) continue;
+                  this.removeWaiterOwnerCount(entry.ownerKey());
+                  Runnable schedule = () -> {
+                     if (entry.scheduler() instanceof MLuaTaskScheduler runtimeScheduler) {
+                        runtimeScheduler.scheduleThread(entry.globals(), 1L, entry.thread(), args,
+                           entry.ownerKey(), entry.side(), entry.context());
+                     } else {
+                        entry.scheduler().scheduleThread(entry.globals(), 1L, entry.thread(), args,
+                           entry.ownerKey(), entry.side());
+                     }
+                  };
+                  if (entry.context() == null) {
+                     MLuaLuaBindings.withoutContext(entry.globals(), () -> { schedule.run(); return null; });
+                  } else {
+                     schedule.run();
+                  }
                }
                continue;
+            }
+            synchronized (this) {
+               if (!this.waiters.remove(entry)) continue;
+               this.removeWaiterOwnerCount(entry.ownerKey());
             }
             Runnable resume = () -> {
                if (entry.thread() != null) {

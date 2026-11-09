@@ -109,15 +109,21 @@ final class MLuaAnimationEventState {
         }
         try {
             event.callback().invoke(LuaValue.valueOf(this.trackId), LuaValue.valueOf(event.triggerTime()));
+        } catch (AssertionError callbackFailure) {
+            disable(event, callbackFailure);
         } catch (Error fatal) {
             throw fatal;
-        } catch (Throwable error) {
-            synchronized (this.events) {
-                if (this.events.remove(event)) releaseCallbacks(this.owner, 1);
-            }
-            MLuaLogger.LOGGER.warn("[MLua] Disabled animation event callback for track {} at t={} after it failed",
-                this.trackId, event.triggerTime(), error);
+        } catch (Throwable callbackFailure) {
+            disable(event, callbackFailure);
         }
+    }
+
+    private void disable(Event event, Throwable callbackFailure) {
+        synchronized (this.events) {
+            if (this.events.remove(event)) releaseCallbacks(this.owner, 1);
+        }
+        MLuaLogger.LOGGER.warn("[MLua] Disabled animation event callback for track {} at t={} after it failed",
+            this.trackId, event.triggerTime(), callbackFailure);
     }
 
     static int activeCallbackCount() { return ACTIVE_CALLBACKS.get(); }
