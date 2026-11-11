@@ -96,9 +96,19 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
 
    public synchronized void scheduleThread(Globals globals, long ticks, LuaThread thread, Varargs resumeArgs,
                                            String ownerModId, Side side, MLuaContext context) {
+      this.scheduleThread(globals, ticks, thread, resumeArgs, ownerModId, side, context, -1L, -1L);
+   }
+
+   public synchronized void scheduleThread(Globals globals, long ticks, LuaThread thread, Varargs resumeArgs,
+                                           String ownerModId, Side side, MLuaContext context,
+                                           long expectedLifecycleGeneration, long expectedOwnerGeneration) {
       if (context != null) {
          if (ownerModId == null) ownerModId = context.ownerModId();
          if (side == null) side = context.side();
+      } else if (expectedLifecycleGeneration >= 0L) {
+         if (expectedLifecycleGeneration != this.lifecycleGeneration) return;
+         if (expectedOwnerGeneration >= 0L
+               && expectedOwnerGeneration != this.ownerGeneration(ownerModId, side)) return;
       }
       this.enqueue(new MLuaScheduledTask(this.dueTick(Math.max(1L, ticks)), this.nextTaskSequence++, globals, thread, (LuaValue)null,
          resumeArgs, context, ownerModId, side));

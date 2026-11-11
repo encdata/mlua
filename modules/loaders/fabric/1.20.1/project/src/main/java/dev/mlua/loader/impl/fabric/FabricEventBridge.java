@@ -302,6 +302,21 @@ public final class FabricEventBridge implements EventBridge {
         advancementCallbacks.add(callback);
     }
 
+    @Override
+    public void removeListener(String hook, Object callback) {
+        switch (hook) {
+            case "onBlockPlace" -> blockPlaceCallbacks.remove((BlockPlaceCallback) callback);
+            case "onProjectileHit" -> projectileHitCallbacks.remove((ProjectileCallback) callback);
+            case "onItemDrop" -> itemDropCallbacks.remove((ItemStackCallback) callback);
+            case "onItemPickup" -> itemPickupCallbacks.remove((ItemStackCallback) callback);
+            case "onContainerOpen" -> containerOpenCallbacks.remove((ContainerCallback) callback);
+            case "onContainerClose" -> containerCloseCallbacks.remove((ContainerCallback) callback);
+            case "onItemCraft" -> itemCraftCallbacks.remove((ItemStackCallback) callback);
+            case "onExplosion" -> explosionCallbacks.remove((ExplosionCallback) callback);
+            case "onAdvancement" -> advancementCallbacks.remove((AdvancementCallback) callback);
+        }
+    }
+
     public static void fireItemDrop(Object player, Object stack) {
         for (ItemStackCallback callback : itemDropCallbacks) {
             callback.handle(player, stack);

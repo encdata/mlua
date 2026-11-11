@@ -37,6 +37,8 @@ public final class MLuaModuleLoader {
     private final Set<MLuaModule> initialized = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<MLuaModule> eventRegistered = Collections.newSetFromMap(new IdentityHashMap<>());
     private final IdentityHashMap<MLuaModule, ScopedEventBridge> eventScopes = new IdentityHashMap<>();
+    private final IdentityHashMap<MLuaModule, Long> moduleRegistrationIds = new IdentityHashMap<>();
+    private long nextModuleRegistrationId;
     private final MLuaModuleRegistrations registrations = new MLuaModuleRegistrations();
     private final Set<String> failedModuleIds = new HashSet<>();
     private boolean initializing;
@@ -134,13 +136,11 @@ public final class MLuaModuleLoader {
             throw new IllegalStateException("MLua module '" + (module == null ? "null" : module.id())
                 + "' was not registered");
         }
-        java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean();
-        Object closeLock = new Object();
+        long registrationId = this.moduleRegistrationIds.get(module);
         return () -> {
-            synchronized (closeLock) {
-                if (closed.get()) return;
+            synchronized (this) {
+                if (!Objects.equals(this.moduleRegistrationIds.get(module), registrationId)) return;
                 this.unregister(module);
-                closed.set(true);
             }
         };
     }
@@ -209,6 +209,7 @@ public final class MLuaModuleLoader {
 
         this.modules.clear();
         this.modules.addAll(candidate);
+        this.moduleRegistrationIds.put(module, ++this.nextModuleRegistrationId);
         this.publishModuleSnapshot();
         this.globalsRevision++;
         this.failedModuleIds.remove(module.id());
@@ -239,6 +240,11 @@ public final class MLuaModuleLoader {
     }
 
     private void removeModule(MLuaModule module, boolean notifyUnload) {
+        this.moduleRegistrationIds.remove(module);
+        if (this.modules.removeIf(registered -> registered == module)) {
+            this.publishModuleSnapshot();
+            this.globalsRevision++;
+        }
         ScopedEventBridge eventScope = this.eventScopes.remove(module);
         if (eventScope != null) eventScope.close();
         this.initialized.remove(module);
@@ -248,10 +254,6 @@ public final class MLuaModuleLoader {
         }
         this.registrations.rollbackClasses(module, null);
         this.registrations.unregisterServices(module);
-        if (this.modules.removeIf(registered -> registered == module)) {
-            this.publishModuleSnapshot();
-            this.globalsRevision++;
-        }
     }
 
     /** Revision used to refresh context-bound Lua globals after addon module changes. */
@@ -299,11 +301,17 @@ public final class MLuaModuleLoader {
     private boolean registerEvents(MLuaModule module) {
         if (this.eventRegistered.contains(module)) return true;
         ScopedEventBridge scope = new ScopedEventBridge(this.events());
+        this.eventScopes.put(module, scope);
         if (!this.invokeSuccessfully(module, "events", () -> module.registerEvents(scope.bridge()))) {
+            this.eventScopes.remove(module, scope);
             scope.close();
             return false;
         }
-        this.eventScopes.put(module, scope);
+        if (!this.isRegistered(module)) {
+            this.eventScopes.remove(module, scope);
+            scope.close();
+            return false;
+        }
         this.eventRegistered.add(module);
         return true;
     }
@@ -413,9 +421,14 @@ public final class MLuaModuleLoader {
     /** Keeps lifecycle dispatch side filtering and callback failure isolation consistent. */
     private void dispatchLifecycle(Side side, String phase, Consumer<MLuaModule> callback) {
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
             this.invoke(module, phase, () -> callback.accept(module));
         }
+    }
+
+    private boolean isRegistered(MLuaModule module) {
+        return this.moduleSnapshot.byId().get(module.id()) == module;
     }
 
     private boolean dependenciesAvailable(MLuaModule module) {
@@ -463,6 +476,7 @@ public final class MLuaModuleLoader {
 
     public void contributeGlobals(Globals globals, Side side) {
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             if (side != null && module.side() != Side.BOTH && module.side() != side) continue;
             this.invoke(module, "globals", () -> module.contributeGlobals(globals));
         }
@@ -470,6 +484,7 @@ public final class MLuaModuleLoader {
 
     public void contributeContextGlobals(Globals globals, MLuaContext context) {
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             if (module.side() != Side.BOTH && module.side() != context.side()) continue;
             this.invoke(module, "globals", () -> module.contributeGlobals(globals, context));
         }
@@ -477,6 +492,7 @@ public final class MLuaModuleLoader {
 
     public synchronized void registerEventListeners() {
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             this.registerEvents(module);
             MLuaLogger.LOGGER.debug("  Registered event hooks from module '{}'", module.id());
         }
@@ -484,7 +500,9 @@ public final class MLuaModuleLoader {
 
     public void generateDocs(MLuaDocBuilder docs) {
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             this.invoke(module, "docs", () -> module.contributeDocs(docs));
+            if (!this.isRegistered(module)) continue;
             this.invoke(module, "service docs", () -> module.services().forEach(service ->
                 service.functionDescriptions().forEach((name, description) ->
                     docs.register(MLuaDocBuilder.Registration.serviceFunction(service.name(), service.className(), name, description)))));
@@ -505,6 +523,7 @@ public final class MLuaModuleLoader {
             }
         }
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             if (!reloadableSnapshot.contains(module)) {
                 try {
                     module.onReload();
@@ -518,6 +537,7 @@ public final class MLuaModuleLoader {
 
     public void onReload(Side side) {
         for (MLuaModule module : this.moduleSnapshot()) {
+            if (!this.isRegistered(module)) continue;
             if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
             try {
                 module.onReload(side);
@@ -545,6 +565,7 @@ public final class MLuaModuleLoader {
         List<MLuaModule> reverseModules = new ArrayList<>(this.moduleSnapshot());
         Collections.reverse(reverseModules);
         for (MLuaModule module : reverseModules) {
+            if (!this.isRegistered(module)) continue;
             try {
                 module.onUnload();
             } catch (Throwable throwable) {

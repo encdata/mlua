@@ -2,6 +2,8 @@ package dev.mlua.loader.impl.forge;
 
 import dev.mlua.loaderapi.LifecycleBridge;
 import dev.mlua.loaderapi.FrameClock;
+import dev.mlua.core.MLuaLogger;
+import net.minecraft.server.MinecraftServer;
 import java.util.function.DoubleConsumer;
 import java.util.function.Consumer;
 import net.minecraftforge.common.MinecraftForge;
@@ -104,12 +106,8 @@ public class ForgeLifecycleBridge implements LifecycleBridge {
         return dev.mlua.loaderapi.MLuaListenerChain.append(current, next);
     }
 
-    private synchronized void handleServerStarted(ServerStartedEvent event) {
-        Object server = event.getServer();
-        startedServer = server;
-        if (onServerStarted != null) {
-            onServerStarted.accept(server);
-        }
+    private void handleServerStarted(ServerStartedEvent event) {
+        startServer(event.getServer(), true);
     }
 
     private synchronized void handleServerStopping(ServerStoppingEvent event) {
@@ -125,9 +123,21 @@ public class ForgeLifecycleBridge implements LifecycleBridge {
     }
 
     private void handleServerTick(TickEvent.ServerTickEvent event) {
+        if (startedServer != event.getServer()) {
+            startServer(event.getServer(), false);
+        }
         if (event.phase == TickEvent.Phase.END && onServerTickEnd != null) {
             onServerTickEnd.run();
         }
+    }
+
+    private synchronized void startServer(MinecraftServer server, boolean startupEvent) {
+        if (startedServer == server) return;
+        startedServer = server;
+        MLuaLogger.LOGGER.info(startupEvent
+            ? "forge server started event fired"
+            : "forge server start event missed; initializing from first server tick");
+        if (onServerStarted != null) onServerStarted.accept(server);
     }
 
     private void handleClientTick(TickEvent.ClientTickEvent event) {

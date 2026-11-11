@@ -96,6 +96,19 @@ public final class FabricEventBridge implements EventBridge {
     @Override public void onItemCraft(ItemStackCallback callback) { itemCraftCallbacks.add(callback); }
     @Override public void onExplosion(ExplosionCallback callback) { explosionCallbacks.add(callback); }
     @Override public void onAdvancement(AdvancementCallback callback) { advancementCallbacks.add(callback); }
+    @Override public void removeListener(String hook, Object callback) {
+        switch (hook) {
+            case "onBlockPlace" -> blockPlaceCallbacks.remove((BlockPlaceCallback) callback);
+            case "onProjectileHit" -> projectileHitCallbacks.remove((ProjectileCallback) callback);
+            case "onItemDrop" -> itemDropCallbacks.remove((ItemStackCallback) callback);
+            case "onItemPickup" -> itemPickupCallbacks.remove((ItemStackCallback) callback);
+            case "onContainerOpen" -> containerOpenCallbacks.remove((ContainerCallback) callback);
+            case "onContainerClose" -> containerCloseCallbacks.remove((ContainerCallback) callback);
+            case "onItemCraft" -> itemCraftCallbacks.remove((ItemStackCallback) callback);
+            case "onExplosion" -> explosionCallbacks.remove((ExplosionCallback) callback);
+            case "onAdvancement" -> advancementCallbacks.remove((AdvancementCallback) callback);
+        }
+    }
     public static void fireItemDrop(Object player, Object stack) { itemDropCallbacks.forEach(callback -> callback.handle(player, stack)); }
     public static void fireItemPickup(Object player, Object stack) { itemPickupCallbacks.forEach(callback -> callback.handle(player, stack)); }
     public static void fireContainerOpen(Object player, Object container) { containerOpenCallbacks.forEach(callback -> callback.handle(player, container)); }

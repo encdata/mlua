@@ -16,9 +16,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * addon callback references and makes any retained loader wrapper inert.
  */
 public final class ScopedEventBridge implements AutoCloseable {
+    private static final System.Logger LOGGER = System.getLogger(ScopedEventBridge.class.getName());
     private final EventBridge delegate;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final List<AtomicReference<Object>> callbackTargets = new ArrayList<>();
+    private final List<CallbackTarget> callbackTargets = new ArrayList<>();
     private final EventBridge scoped;
 
     public ScopedEventBridge(EventBridge delegate) {
@@ -34,10 +35,20 @@ public final class ScopedEventBridge implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!this.closed.compareAndSet(false, true)) return;
+        List<CallbackTarget> callbacks;
         synchronized (this.callbackTargets) {
-            for (AtomicReference<Object> target : this.callbackTargets) target.set(null);
+            if (!this.closed.compareAndSet(false, true)) return;
+            callbacks = List.copyOf(this.callbackTargets);
             this.callbackTargets.clear();
+            callbacks.forEach(callback -> callback.target().set(null));
+        }
+        for (CallbackTarget callback : callbacks) {
+            try {
+                this.delegate.removeListener(callback.hook(), callback.proxy());
+            } catch (RuntimeException failure) {
+                LOGGER.log(System.Logger.Level.WARNING,
+                    "Failed to remove loader callback for " + callback.hook(), failure);
+            }
         }
     }
 
@@ -50,14 +61,30 @@ public final class ScopedEventBridge implements AutoCloseable {
                 default -> null;
             };
         }
-        if (this.closed.get()) throw new IllegalStateException("Event bridge scope is closed");
         Object[] forwarded = arguments == null ? null : arguments.clone();
         Class<?>[] parameterTypes = method.getParameterTypes();
         if (forwarded != null && forwarded.length > 0 && parameterTypes.length > 0
             && forwarded[0] != null && method.getName().startsWith("on")
             && parameterTypes[0].isInterface() && isFunctional(parameterTypes[0])) {
-            forwarded[0] = this.revocableCallback(forwarded[0], parameterTypes[0]);
+            synchronized (this.callbackTargets) {
+                if (this.closed.get()) throw new IllegalStateException("Event bridge scope is closed");
+                CallbackTarget callback = this.revocableCallback(
+                    method.getName(), forwarded[0], parameterTypes[0]);
+                forwarded[0] = callback.proxy();
+                try {
+                    return this.invokeDelegate(method, forwarded);
+                } catch (Throwable failure) {
+                    callback.target().set(null);
+                    this.callbackTargets.remove(callback);
+                    throw failure;
+                }
+            }
         }
+        if (this.closed.get()) throw new IllegalStateException("Event bridge scope is closed");
+        return this.invokeDelegate(method, forwarded);
+    }
+
+    private Object invokeDelegate(Method method, Object[] forwarded) throws Throwable {
         try {
             return method.invoke(this.delegate, forwarded);
         } catch (InvocationTargetException failure) {
@@ -65,12 +92,8 @@ public final class ScopedEventBridge implements AutoCloseable {
         }
     }
 
-    private Object revocableCallback(Object callback, Class<?> callbackType) {
+    private CallbackTarget revocableCallback(String hook, Object callback, Class<?> callbackType) {
         AtomicReference<Object> target = new AtomicReference<>(callback);
-        synchronized (this.callbackTargets) {
-            if (this.closed.get()) throw new IllegalStateException("Event bridge scope is closed");
-            this.callbackTargets.add(target);
-        }
         InvocationHandler handler = (proxy, method, arguments) -> {
             if (method.getDeclaringClass() == Object.class) {
                 return switch (method.getName()) {
@@ -88,7 +111,13 @@ public final class ScopedEventBridge implements AutoCloseable {
                 throw failure.getCause();
             }
         };
-        return Proxy.newProxyInstance(callbackType.getClassLoader(), new Class<?>[]{callbackType}, handler);
+        Object proxy = Proxy.newProxyInstance(callbackType.getClassLoader(), new Class<?>[]{callbackType}, handler);
+        CallbackTarget registeredCallback = new CallbackTarget(hook, proxy, target);
+        synchronized (this.callbackTargets) {
+            if (this.closed.get()) throw new IllegalStateException("Event bridge scope is closed");
+            this.callbackTargets.add(registeredCallback);
+        }
+        return registeredCallback;
     }
 
     private static boolean isFunctional(Class<?> type) {
@@ -99,4 +128,6 @@ public final class ScopedEventBridge implements AutoCloseable {
         }
         return abstractMethods == 1;
     }
+
+    private record CallbackTarget(String hook, Object proxy, AtomicReference<Object> target) { }
 }

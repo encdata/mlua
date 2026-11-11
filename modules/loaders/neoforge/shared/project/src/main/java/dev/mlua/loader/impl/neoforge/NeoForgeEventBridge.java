@@ -2,6 +2,7 @@ package dev.mlua.loader.impl.neoforge;
 
 import dev.mlua.loaderapi.EventBridge;
 import dev.mlua.loaderapi.ClientWorldLifecycleTracker;
+import dev.mlua.loaderapi.EventListenerRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
@@ -25,32 +26,57 @@ import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.Event;
+import java.util.function.Consumer;
 
 public class NeoForgeEventBridge implements EventBridge {
     private ClientWorldLifecycleTracker clientWorldTracker;
     private boolean clientWorldTrackerRegistered;
+    private final EventListenerRegistry listeners = new EventListenerRegistry();
 
     public NeoForgeEventBridge(IEventBus modBus) {
     }
 
+    private <T extends Event> void addListener(String hook, Object callback, Consumer<T> listener) {
+        this.listeners.register(hook, callback, listener, () -> NeoForge.EVENT_BUS.addListener(listener));
+    }
+
+    @Override
+    public void removeListener(String hook, Object callback) {
+        if ("onClientWorldLoad".equals(hook) || "onClientWorldUnload".equals(hook)) {
+            ClientWorldLifecycleTracker tracker;
+            synchronized (this) {
+                tracker = this.clientWorldTracker;
+            }
+            if (tracker != null && callback instanceof Consumer<?> consumer) {
+                @SuppressWarnings("unchecked") Consumer<Object> listener = (Consumer<Object>) consumer;
+                if ("onClientWorldLoad".equals(hook)) tracker.removeLoadListener(listener);
+                else tracker.removeUnloadListener(listener);
+            }
+            return;
+        }
+
+        this.listeners.unregister(hook, callback, NeoForge.EVENT_BUS::unregister);
+    }
+
     @Override
     public void onClientTickStart(Runnable callback) {
-        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre event) -> callback.run());
+        this.addListener("onClientTickStart", callback, (ClientTickEvent.Pre event) -> callback.run());
     }
 
     @Override
     public void onClientTickEnd(Runnable callback) {
-        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> callback.run());
+        this.addListener("onClientTickEnd", callback, (ClientTickEvent.Post event) -> callback.run());
     }
 
     @Override
     public void onServerTickEnd(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post event) -> callback.accept(event.getServer()));
+        this.addListener("onServerTickEnd", callback, (ServerTickEvent.Post event) -> callback.accept(event.getServer()));
     }
 
     @Override
     public void onServerLevelTickEnd(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((LevelTickEvent.Post event) -> {
+        this.addListener("onServerLevelTickEnd", callback, (LevelTickEvent.Post event) -> {
             if (!event.getLevel().isClientSide()) {
                 callback.accept(event.getLevel());
             }
@@ -60,15 +86,15 @@ public class NeoForgeEventBridge implements EventBridge {
     @Override
     public void onClientDisconnect(Runnable callback) {
         java.util.concurrent.atomic.AtomicBoolean notified = new java.util.concurrent.atomic.AtomicBoolean();
-        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> notified.set(false));
-        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
+        this.addListener("onClientDisconnect", callback, (ClientPlayerNetworkEvent.LoggingIn event) -> notified.set(false));
+        this.addListener("onClientDisconnect", callback, (ClientPlayerNetworkEvent.LoggingOut event) -> {
             if (notified.compareAndSet(false, true)) callback.run();
         });
     }
 
     @Override
     public void onPlayerJoin(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
+        this.addListener("onPlayerJoin", callback, (PlayerEvent.PlayerLoggedInEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer player) {
                 callback.accept(player);
             }
@@ -77,7 +103,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onPlayerLeave(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> {
+        this.addListener("onPlayerLeave", callback, (PlayerEvent.PlayerLoggedOutEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer player) {
                 callback.accept(player);
             }
@@ -86,7 +112,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onServerChat(ServerChatCallback callback) {
-        NeoForge.EVENT_BUS.addListener((ServerChatEvent event) -> {
+        this.addListener("onServerChat", callback, (ServerChatEvent event) -> {
             ChatResult result = callback.handle(event.getPlayer(), event.getMessage().getString());
             if (result == null) {
                 return;
@@ -107,7 +133,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityHurt(EntityHurtCallback callback) {
-        NeoForge.EVENT_BUS.addListener((LivingIncomingDamageEvent event) -> {
+        this.addListener("onEntityHurt", callback, (LivingIncomingDamageEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getSource(), event.getAmount());
         });
@@ -115,7 +141,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityDeath(EntityDeathCallback callback) {
-        NeoForge.EVENT_BUS.addListener((LivingDeathEvent event) -> {
+        this.addListener("onEntityDeath", callback, (LivingDeathEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getSource());
         });
@@ -123,7 +149,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockBreak(BlockBreakCallback callback) {
-        NeoForge.EVENT_BUS.addListener((BlockEvent.BreakEvent event) -> {
+        this.addListener("onBlockBreak", callback, (BlockEvent.BreakEvent event) -> {
             if (event.getLevel().isClientSide()) return;
             callback.handle(event.getPlayer(), event.getLevel(), event.getPos());
         });
@@ -131,7 +157,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockPlace(BlockPlaceCallback callback) {
-        NeoForge.EVENT_BUS.addListener((BlockEvent.EntityPlaceEvent event) -> {
+        this.addListener("onBlockPlace", callback, (BlockEvent.EntityPlaceEvent event) -> {
             if (event.getLevel().isClientSide()) return;
             callback.handle(event.getEntity(), event.getLevel(), event.getPos());
         });
@@ -139,22 +165,22 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemUse(ItemUseCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerInteractEvent.RightClickItem event) -> callback.handle(event.getEntity(), event.getHand(), event.getItemStack()));
+        this.addListener("onItemUse", callback, (PlayerInteractEvent.RightClickItem event) -> callback.handle(event.getEntity(), event.getHand(), event.getItemStack()));
     }
 
     @Override
     public void onEntityInteract(EntityInteractCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerInteractEvent.EntityInteract event) -> callback.handle(event.getEntity(), event.getHand(), event.getTarget()));
+        this.addListener("onEntityInteract", callback, (PlayerInteractEvent.EntityInteract event) -> callback.handle(event.getEntity(), event.getHand(), event.getTarget()));
     }
 
     @Override
     public void onPlayerRespawn(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent event) -> callback.accept(event.getEntity()));
+        this.addListener("onPlayerRespawn", callback, (PlayerEvent.PlayerRespawnEvent event) -> callback.accept(event.getEntity()));
     }
 
     @Override
     public void onEntitySpawn(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((EntityJoinLevelEvent event) -> {
+        this.addListener("onEntitySpawn", callback, (EntityJoinLevelEvent event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getEntity());
         });
     }
@@ -164,21 +190,21 @@ public class NeoForgeEventBridge implements EventBridge {
         if (!dev.mlua.loaderapi.LoaderApi.platform().isClient()) {
             throw new UnsupportedOperationException("Client entity unload events are unavailable on a dedicated server");
         }
-        NeoForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+        this.addListener("onClientEntityUnload", callback, (EntityLeaveLevelEvent event) -> {
             if (event.getLevel().isClientSide()) callback.accept(event.getEntity());
         });
     }
 
     @Override
     public void onWorldLoad(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((LevelEvent.Load event) -> {
+        this.addListener("onWorldLoad", callback, (LevelEvent.Load event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getLevel());
         });
     }
 
     @Override
     public void onWorldUnload(java.util.function.Consumer<Object> callback) {
-        NeoForge.EVENT_BUS.addListener((LevelEvent.Unload event) -> {
+        this.addListener("onWorldUnload", callback, (LevelEvent.Unload event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getLevel());
         });
     }
@@ -212,7 +238,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockRightClick(BlockInteractionCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerInteractEvent.RightClickBlock event) -> {
+        this.addListener("onBlockRightClick", callback, (PlayerInteractEvent.RightClickBlock event) -> {
             BlockInteractionResult result = callback.handle(event.getEntity(), event.getHand(), event.getLevel(), event.getPos());
             if (result != null && result.cancel()) event.setCanceled(true);
         });
@@ -220,7 +246,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityHurtEvent(CancellableEntityHurtCallback callback) {
-        NeoForge.EVENT_BUS.addListener((LivingIncomingDamageEvent event) -> {
+        this.addListener("onEntityHurtEvent", callback, (LivingIncomingDamageEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             CancellableResult result = callback.handle(event.getEntity(), event.getSource(), event.getAmount());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -229,7 +255,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockBreakEvent(CancellableBlockCallback callback) {
-        NeoForge.EVENT_BUS.addListener((BlockEvent.BreakEvent event) -> {
+        this.addListener("onBlockBreakEvent", callback, (BlockEvent.BreakEvent event) -> {
             if (event.getLevel().isClientSide()) return;
             CancellableResult result = callback.handle(event.getPlayer(), event.getLevel(), event.getPos());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -238,7 +264,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemUseEvent(CancellableItemUseCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerInteractEvent.RightClickItem event) -> {
+        this.addListener("onItemUseEvent", callback, (PlayerInteractEvent.RightClickItem event) -> {
             if (event.getEntity().level().isClientSide()) return;
             CancellableResult result = callback.handle(event.getEntity(), event.getHand(), event.getItemStack());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -247,7 +273,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityInteractEvent(CancellableEntityInteractCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerInteractEvent.EntityInteract event) -> {
+        this.addListener("onEntityInteractEvent", callback, (PlayerInteractEvent.EntityInteract event) -> {
             if (event.getEntity().level().isClientSide()) return;
             CancellableResult result = callback.handle(event.getEntity(), event.getHand(), event.getTarget());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -256,12 +282,12 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemDrop(ItemStackCallback callback) {
-        NeoForge.EVENT_BUS.addListener((ItemTossEvent event) -> callback.handle(event.getPlayer(), event.getEntity().getItem()));
+        this.addListener("onItemDrop", callback, (ItemTossEvent event) -> callback.handle(event.getPlayer(), event.getEntity().getItem()));
     }
 
     @Override
     public void onItemPickup(ItemStackCallback callback) {
-        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post event) -> {
+        this.addListener("onItemPickup", callback, (net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post event) -> {
             if (event.getPlayer().level().isClientSide()) return;
             ItemStack original = event.getOriginalStack();
             ItemStack remaining = event.getCurrentStack();
@@ -275,12 +301,12 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemCraft(ItemStackCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerEvent.ItemCraftedEvent event) -> callback.handle(event.getEntity(), event.getCrafting()));
+        this.addListener("onItemCraft", callback, (PlayerEvent.ItemCraftedEvent event) -> callback.handle(event.getEntity(), event.getCrafting()));
     }
 
     @Override
     public void onContainerOpen(ContainerCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerContainerEvent.Open event) -> {
+        this.addListener("onContainerOpen", callback, (PlayerContainerEvent.Open event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getContainer());
         });
@@ -288,7 +314,7 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onContainerClose(ContainerCallback callback) {
-        NeoForge.EVENT_BUS.addListener((PlayerContainerEvent.Close event) -> {
+        this.addListener("onContainerClose", callback, (PlayerContainerEvent.Close event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getContainer());
         });
@@ -296,19 +322,19 @@ public class NeoForgeEventBridge implements EventBridge {
 
     @Override
     public void onProjectileHit(ProjectileCallback callback) {
-        NeoForge.EVENT_BUS.addListener((ProjectileImpactEvent event) -> callback.handle(event.getProjectile(), event.getRayTraceResult()));
+        this.addListener("onProjectileHit", callback, (ProjectileImpactEvent event) -> callback.handle(event.getProjectile(), event.getRayTraceResult()));
     }
 
     @Override
     public void onExplosion(ExplosionCallback callback) {
-        NeoForge.EVENT_BUS.addListener((ExplosionEvent.Start event) -> {
+        this.addListener("onExplosion", callback, (ExplosionEvent.Start event) -> {
             callback.handle(event.getLevel(), event.getExplosion().center());
         });
     }
 
     @Override
     public void onAdvancement(AdvancementCallback callback) {
-        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) -> {
+        this.addListener("onAdvancement", callback, (net.neoforged.neoforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) -> {
             callback.handle(event.getEntity(), event.getAdvancement().id().toString());
         });
     }

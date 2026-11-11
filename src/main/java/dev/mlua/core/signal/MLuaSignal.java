@@ -191,8 +191,15 @@ public final class MLuaSignal {
          this.ensureOpen();
          MLuaContext context = MLuaLuaBindings.boundContext(globals);
          MLuaTaskSchedulerView ownerScheduler = context != null ? context.scheduler() : this.scheduler;
+         if (ownerKey == null && context != null) ownerKey = context.ownerModId();
+         if (side == null && context != null) side = context.side();
          this.ensureWaiterCapacity(ownerKey);
-         waiter = new WaitEntry(globals, thread, ownerKey, side, context, ownerScheduler);
+         long schedulerGeneration = ownerScheduler instanceof MLuaTaskScheduler runtimeScheduler
+            ? runtimeScheduler.lifecycleGeneration() : -1L;
+         long ownerGeneration = ownerScheduler instanceof MLuaTaskScheduler runtimeScheduler
+            ? runtimeScheduler.ownerGeneration(ownerKey, side) : -1L;
+         waiter = new WaitEntry(globals, thread, ownerKey, side, context, ownerScheduler,
+            schedulerGeneration, ownerGeneration);
          this.waiters.add(waiter);
          this.addWaiterOwnerCount(ownerKey);
       }
@@ -503,18 +510,21 @@ public final class MLuaSignal {
       for (WaitEntry entry : waiting) {
          try {
             if (entry.scheduler() != null) {
-               synchronized (this) {
-                  if (!this.waiters.remove(entry)) continue;
-                  this.removeWaiterOwnerCount(entry.ownerKey());
-                  Runnable schedule = () -> {
-                     if (entry.scheduler() instanceof MLuaTaskScheduler runtimeScheduler) {
-                        runtimeScheduler.scheduleThread(entry.globals(), 1L, entry.thread(), args,
-                           entry.ownerKey(), entry.side(), entry.context());
-                     } else {
-                        entry.scheduler().scheduleThread(entry.globals(), 1L, entry.thread(), args,
-                           entry.ownerKey(), entry.side());
-                     }
-                  };
+               if (entry.scheduler() instanceof MLuaTaskScheduler runtimeScheduler) {
+                  synchronized (this) {
+                     if (!this.waiters.remove(entry)) continue;
+                     this.removeWaiterOwnerCount(entry.ownerKey());
+                     runtimeScheduler.scheduleThread(entry.globals(), 1L, entry.thread(), args,
+                        entry.ownerKey(), entry.side(), entry.context(), entry.schedulerGeneration(),
+                        entry.ownerGeneration());
+                  }
+               } else {
+                  synchronized (this) {
+                     if (!this.waiters.remove(entry)) continue;
+                     this.removeWaiterOwnerCount(entry.ownerKey());
+                  }
+                  Runnable schedule = () -> entry.scheduler().scheduleThread(entry.globals(), 1L,
+                     entry.thread(), args, entry.ownerKey(), entry.side());
                   if (entry.context() == null) {
                      MLuaLuaBindings.withoutContext(entry.globals(), () -> { schedule.run(); return null; });
                   } else {
@@ -612,7 +622,8 @@ public final class MLuaSignal {
                                 MLuaConnection connection) {
    }
 
-   private record WaitEntry(Globals globals, LuaThread thread, String ownerKey, Side side, MLuaContext context, MLuaTaskSchedulerView scheduler) {
+   private record WaitEntry(Globals globals, LuaThread thread, String ownerKey, Side side, MLuaContext context,
+                            MLuaTaskSchedulerView scheduler, long schedulerGeneration, long ownerGeneration) {
    }
 
 }

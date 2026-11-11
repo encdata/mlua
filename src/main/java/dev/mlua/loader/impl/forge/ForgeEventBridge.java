@@ -2,6 +2,7 @@ package dev.mlua.loader.impl.forge;
 
 import dev.mlua.loaderapi.EventBridge;
 import dev.mlua.loaderapi.ClientWorldLifecycleTracker;
+import dev.mlua.loaderapi.EventListenerRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
@@ -13,7 +14,6 @@ import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerContainerEvent;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
@@ -22,25 +22,50 @@ import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.IEventBus;
+import java.util.function.Consumer;
 
 public class ForgeEventBridge implements EventBridge {
     private ClientWorldLifecycleTracker clientWorldTracker;
     private boolean clientWorldTrackerRegistered;
+    private final EventListenerRegistry listeners = new EventListenerRegistry();
 
     public ForgeEventBridge(IEventBus modBus) {
     }
 
+    private <T extends Event> void addListener(String hook, Object callback, Consumer<T> listener) {
+        this.listeners.register(hook, callback, listener, () -> MinecraftForge.EVENT_BUS.addListener(listener));
+    }
+
+    @Override
+    public void removeListener(String hook, Object callback) {
+        if ("onClientWorldLoad".equals(hook) || "onClientWorldUnload".equals(hook)) {
+            ClientWorldLifecycleTracker tracker;
+            synchronized (this) {
+                tracker = this.clientWorldTracker;
+            }
+            if (tracker != null && callback instanceof Consumer<?> consumer) {
+                @SuppressWarnings("unchecked") Consumer<Object> listener = (Consumer<Object>) consumer;
+                if ("onClientWorldLoad".equals(hook)) tracker.removeLoadListener(listener);
+                else tracker.removeUnloadListener(listener);
+            }
+            return;
+        }
+
+        this.listeners.unregister(hook, callback, MinecraftForge.EVENT_BUS::unregister);
+    }
+
     @Override
     public void onClientTickStart(Runnable callback) {
-        MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+        this.addListener("onClientTickStart", callback, (TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.START) callback.run();
         });
     }
 
     @Override
     public void onClientTickEnd(Runnable callback) {
-        MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+        this.addListener("onClientTickEnd", callback, (TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) {
                 callback.run();
             }
@@ -49,7 +74,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onServerTickEnd(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent event) -> {
+        this.addListener("onServerTickEnd", callback, (TickEvent.ServerTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) {
                 callback.accept(event.getServer());
             }
@@ -58,7 +83,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onServerLevelTickEnd(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((TickEvent.LevelTickEvent event) -> {
+        this.addListener("onServerLevelTickEnd", callback, (TickEvent.LevelTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END && !event.level.isClientSide()) {
                 callback.accept(event.level);
             }
@@ -68,15 +93,15 @@ public class ForgeEventBridge implements EventBridge {
     @Override
     public void onClientDisconnect(Runnable callback) {
         java.util.concurrent.atomic.AtomicBoolean notified = new java.util.concurrent.atomic.AtomicBoolean();
-        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> notified.set(false));
-        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
+        this.addListener("onClientDisconnect", callback, (ClientPlayerNetworkEvent.LoggingIn event) -> notified.set(false));
+        this.addListener("onClientDisconnect", callback, (ClientPlayerNetworkEvent.LoggingOut event) -> {
             if (notified.compareAndSet(false, true)) callback.run();
         });
     }
 
     @Override
     public void onPlayerJoin(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
+        this.addListener("onPlayerJoin", callback, (PlayerEvent.PlayerLoggedInEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer player) {
                 callback.accept(player);
             }
@@ -85,7 +110,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onPlayerLeave(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> {
+        this.addListener("onPlayerLeave", callback, (PlayerEvent.PlayerLoggedOutEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer player) {
                 callback.accept(player);
             }
@@ -94,7 +119,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onServerChat(ServerChatCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((ServerChatEvent event) -> {
+        this.addListener("onServerChat", callback, (ServerChatEvent event) -> {
             ChatResult result = callback.handle(event.getPlayer(), event.getMessage().getString());
             if (result == null) {
                 return;
@@ -115,7 +140,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityHurt(EntityHurtCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((LivingHurtEvent event) -> {
+        this.addListener("onEntityHurt", callback, (LivingHurtEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getSource(), event.getAmount());
         });
@@ -123,7 +148,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityDeath(EntityDeathCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((LivingDeathEvent event) -> {
+        this.addListener("onEntityDeath", callback, (LivingDeathEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getSource());
         });
@@ -131,7 +156,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockBreak(BlockBreakCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((BlockEvent.BreakEvent event) -> {
+        this.addListener("onBlockBreak", callback, (BlockEvent.BreakEvent event) -> {
             if (event.getLevel().isClientSide()) return;
             callback.handle(event.getPlayer(), event.getLevel(), event.getPos());
         });
@@ -139,7 +164,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockPlace(BlockPlaceCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((BlockEvent.EntityPlaceEvent event) -> {
+        this.addListener("onBlockPlace", callback, (BlockEvent.EntityPlaceEvent event) -> {
             if (event.getLevel().isClientSide()) return;
             callback.handle(event.getEntity(), event.getLevel(), event.getPos());
         });
@@ -147,22 +172,22 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemUse(ItemUseCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerInteractEvent.RightClickItem event) -> callback.handle(event.getEntity(), event.getHand(), event.getItemStack()));
+        this.addListener("onItemUse", callback, (PlayerInteractEvent.RightClickItem event) -> callback.handle(event.getEntity(), event.getHand(), event.getItemStack()));
     }
 
     @Override
     public void onEntityInteract(EntityInteractCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerInteractEvent.EntityInteract event) -> callback.handle(event.getEntity(), event.getHand(), event.getTarget()));
+        this.addListener("onEntityInteract", callback, (PlayerInteractEvent.EntityInteract event) -> callback.handle(event.getEntity(), event.getHand(), event.getTarget()));
     }
 
     @Override
     public void onPlayerRespawn(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent event) -> callback.accept(event.getEntity()));
+        this.addListener("onPlayerRespawn", callback, (PlayerEvent.PlayerRespawnEvent event) -> callback.accept(event.getEntity()));
     }
 
     @Override
     public void onEntitySpawn(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((EntityJoinLevelEvent event) -> {
+        this.addListener("onEntitySpawn", callback, (EntityJoinLevelEvent event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getEntity());
         });
     }
@@ -172,21 +197,21 @@ public class ForgeEventBridge implements EventBridge {
         if (!dev.mlua.loaderapi.LoaderApi.platform().isClient()) {
             throw new UnsupportedOperationException("Client entity unload events are unavailable on a dedicated server");
         }
-        MinecraftForge.EVENT_BUS.addListener((EntityLeaveLevelEvent event) -> {
+        this.addListener("onClientEntityUnload", callback, (EntityLeaveLevelEvent event) -> {
             if (event.getLevel().isClientSide()) callback.accept(event.getEntity());
         });
     }
 
     @Override
     public void onWorldLoad(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((LevelEvent.Load event) -> {
+        this.addListener("onWorldLoad", callback, (LevelEvent.Load event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getLevel());
         });
     }
 
     @Override
     public void onWorldUnload(java.util.function.Consumer<Object> callback) {
-        MinecraftForge.EVENT_BUS.addListener((LevelEvent.Unload event) -> {
+        this.addListener("onWorldUnload", callback, (LevelEvent.Unload event) -> {
             if (!event.getLevel().isClientSide()) callback.accept(event.getLevel());
         });
     }
@@ -222,7 +247,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockRightClick(BlockInteractionCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerInteractEvent.RightClickBlock event) -> {
+        this.addListener("onBlockRightClick", callback, (PlayerInteractEvent.RightClickBlock event) -> {
             BlockInteractionResult result = callback.handle(event.getEntity(), event.getHand(), event.getLevel(), event.getPos());
             if (result != null && result.cancel()) event.setCanceled(true);
         });
@@ -230,7 +255,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityHurtEvent(CancellableEntityHurtCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((LivingHurtEvent event) -> {
+        this.addListener("onEntityHurtEvent", callback, (LivingHurtEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             CancellableResult result = callback.handle(event.getEntity(), event.getSource(), event.getAmount());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -239,7 +264,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onBlockBreakEvent(CancellableBlockCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((BlockEvent.BreakEvent event) -> {
+        this.addListener("onBlockBreakEvent", callback, (BlockEvent.BreakEvent event) -> {
             if (event.getLevel().isClientSide()) return;
             CancellableResult result = callback.handle(event.getPlayer(), event.getLevel(), event.getPos());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -248,7 +273,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemUseEvent(CancellableItemUseCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerInteractEvent.RightClickItem event) -> {
+        this.addListener("onItemUseEvent", callback, (PlayerInteractEvent.RightClickItem event) -> {
             if (event.getEntity().level().isClientSide()) return;
             CancellableResult result = callback.handle(event.getEntity(), event.getHand(), event.getItemStack());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -257,7 +282,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onEntityInteractEvent(CancellableEntityInteractCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerInteractEvent.EntityInteract event) -> {
+        this.addListener("onEntityInteractEvent", callback, (PlayerInteractEvent.EntityInteract event) -> {
             if (event.getEntity().level().isClientSide()) return;
             CancellableResult result = callback.handle(event.getEntity(), event.getHand(), event.getTarget());
             if (result != null && result.cancel()) event.setCanceled(true);
@@ -266,12 +291,12 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemDrop(ItemStackCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((ItemTossEvent event) -> callback.handle(event.getPlayer(), event.getEntity().getItem()));
+        this.addListener("onItemDrop", callback, (ItemTossEvent event) -> callback.handle(event.getPlayer(), event.getEntity().getItem()));
     }
 
     @Override
     public void onItemPickup(ItemStackCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.ItemPickupEvent event) -> {
+        this.addListener("onItemPickup", callback, (PlayerEvent.ItemPickupEvent event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getStack());
         });
@@ -279,12 +304,12 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onItemCraft(ItemStackCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.ItemCraftedEvent event) -> callback.handle(event.getEntity(), event.getCrafting()));
+        this.addListener("onItemCraft", callback, (PlayerEvent.ItemCraftedEvent event) -> callback.handle(event.getEntity(), event.getCrafting()));
     }
 
     @Override
     public void onContainerOpen(ContainerCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerContainerEvent.Open event) -> {
+        this.addListener("onContainerOpen", callback, (PlayerContainerEvent.Open event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getContainer());
         });
@@ -292,7 +317,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onContainerClose(ContainerCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((PlayerContainerEvent.Close event) -> {
+        this.addListener("onContainerClose", callback, (PlayerContainerEvent.Close event) -> {
             if (event.getEntity().level().isClientSide()) return;
             callback.handle(event.getEntity(), event.getContainer());
         });
@@ -300,12 +325,12 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onProjectileHit(ProjectileCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((ProjectileImpactEvent event) -> callback.handle(event.getProjectile(), event.getRayTraceResult()));
+        this.addListener("onProjectileHit", callback, (ProjectileImpactEvent event) -> callback.handle(event.getProjectile(), event.getRayTraceResult()));
     }
 
     @Override
     public void onExplosion(ExplosionCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((ExplosionEvent.Start event) -> {
+        this.addListener("onExplosion", callback, (ExplosionEvent.Start event) -> {
             //--version 1.20.1
             callback.handle(event.getLevel(), event.getExplosion().getPosition());
             //--endversion
@@ -317,7 +342,7 @@ public class ForgeEventBridge implements EventBridge {
 
     @Override
     public void onAdvancement(AdvancementCallback callback) {
-        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) -> {
+        this.addListener("onAdvancement", callback, (net.minecraftforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent event) -> {
             //--version 1.20.1
             callback.handle(event.getEntity(), event.getAdvancement().getId().toString());
             //--endversion

@@ -7,6 +7,8 @@ import java.util.function.Consumer;
  * silently discarding a callback; shared modules can then report loader gaps clearly.
  */
 public interface EventBridge {
+    default void removeListener(String hook, Object callback) { }
+
     /** Runs on the client thread immediately before Minecraft begins a client tick. */
     void onClientTickStart(Runnable callback);
     void onClientTickEnd(Runnable callback);

@@ -602,9 +602,10 @@ public final class MLuaRuntime implements MLuaRegistration {
 
    public int clearOwnedScriptState(Side side, String ownerModId) {
       if (side == null || ownerModId == null || ownerModId.isBlank()) return 0;
+      int removedTasks = this.session.clearOwnedTasks(side, ownerModId);
       MLuaSignal.destroyAllOwned(this.session, ownerModId, side);
       MLuaModuleLoader.get().clearOwnedState(this, this.session, side, ownerModId);
-      return this.session.clearOwnedTasks(side, ownerModId);
+      return removedTasks;
    }
 
 }

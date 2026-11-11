@@ -23,8 +23,16 @@ public final class ClientWorldLifecycleTracker {
         loadListeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
+    public void removeLoadListener(Consumer<Object> listener) {
+        loadListeners.remove(listener);
+    }
+
     public void onUnload(Consumer<Object> listener) {
         unloadListeners.add(Objects.requireNonNull(listener, "listener"));
+    }
+
+    public void removeUnloadListener(Consumer<Object> listener) {
+        unloadListeners.remove(listener);
     }
 
     /** Call once at the end of each client tick. Unload is delivered before load on a dimension swap. */
