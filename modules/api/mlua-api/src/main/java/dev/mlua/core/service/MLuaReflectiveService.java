@@ -3,6 +3,7 @@ package dev.mlua.core.service;
 import dev.mlua.api.MLuaDescription;
 import dev.mlua.api.MLuaLuaCoercions;
 import dev.mlua.common.service.MLuaServiceMetadata;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.module.MLuaRegistration;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
@@ -110,6 +111,7 @@ public abstract class MLuaReflectiveService extends MLuaServiceBase {
                   }
                } catch (InvocationTargetException failure) {
                   Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+                  MLuaFatalErrors.rethrowIfFatal(cause);
                   if (cause instanceof LuaError luaError) throw luaError;
                   if (cause instanceof IllegalArgumentException argumentError) {
                      throw argumentError(name, argumentError);

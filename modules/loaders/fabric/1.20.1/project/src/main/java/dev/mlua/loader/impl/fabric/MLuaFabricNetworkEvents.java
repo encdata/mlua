@@ -2,6 +2,7 @@ package dev.mlua.loader.impl.fabric;
 
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -27,5 +28,10 @@ public final class MLuaFabricNetworkEvents {
     public static void registerClient(Runnable clientJoin, Runnable clientDisconnect) {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> clientJoin.run());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clientDisconnect.run());
+    }
+
+    public static void registerClient(Runnable clientJoin, Runnable clientDisconnect, Runnable clientTick) {
+        registerClient(clientJoin, clientDisconnect);
+        ClientTickEvents.END_CLIENT_TICK.register(client -> clientTick.run());
     }
 }

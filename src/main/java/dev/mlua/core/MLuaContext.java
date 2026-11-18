@@ -1,6 +1,7 @@
 package dev.mlua.core;
 
 import dev.mlua.common.enums.RegistrationPhase;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.require.MLuaModuleCache;
@@ -206,6 +207,7 @@ public final class MLuaContext implements MLuaContextView {
       try {
          this.failureReporter.accept(summary, throwable);
       } catch (Throwable reporterFailure) {
+         MLuaFatalErrors.rethrowIfFatal(reporterFailure);
          MLuaLogger.LOGGER.error("MLua runtime failure reporter itself failed", reporterFailure);
          this.scheduler.reportRuntimeFailure(summary, throwable);
       }

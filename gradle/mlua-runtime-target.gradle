@@ -248,6 +248,7 @@ tasks.named('jar', Jar).configure {
         ])
     }
     exclude 'dev/mlua/common/mixin/**'
+    exclude 'dev/mlua/common/MLuaFatalErrors.class'
     // Common enums are shared with the loader artifact. Keep one runtime copy
     // so early ModLauncher transforms and Lua registrations use identical types.
     exclude 'dev/mlua/common/enums/**'
@@ -263,6 +264,7 @@ tasks.register('gendocs', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'dev.mlua.core.MLuaDocGenerator'
     doFirst {
+        systemProperty 'mlua.documentation.loader', 'forge'
         def minecraftJars = sourceSets.main.runtimeClasspath.findAll {
             def name = it.isFile() ? it.name.toLowerCase() : ''
             name.contains('client') || name.contains('forge') || name.contains('minecraft')

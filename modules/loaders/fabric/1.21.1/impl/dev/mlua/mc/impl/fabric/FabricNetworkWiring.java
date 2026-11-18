@@ -21,9 +21,7 @@ public final class FabricNetworkWiring {
         CustomPacketPayload.Type<ChannelPayload> channelType = ensureRegistered(channelId);
 
         bridge.setSendToServer(packet -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                ClientPlayNetworking.send(new ChannelPayload(channelType, readBytes(buf)));
-            }
+            ClientPlayNetworking.send(new ChannelPayload(channelType, readBytes(requireBuffer(packet))));
         });
         bridge.setRemotePresence(ignored -> ClientPlayNetworking.canSend(channelId));
     }
@@ -35,20 +33,17 @@ public final class FabricNetworkWiring {
         CustomPacketPayload.Type<ChannelPayload> channelType = ensureRegistered(channelId);
 
         bridge.setSendToClient((packet, playerId) -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                var player = server.getPlayerList().getPlayerByName(playerId);
-                if (player != null) {
-                    ServerPlayNetworking.send(player, new ChannelPayload(channelType, readBytes(buf)));
-                }
+            FriendlyByteBuf buf = requireBuffer(packet);
+            var player = server.getPlayerList().getPlayerByName(playerId);
+            if (player != null) {
+                ServerPlayNetworking.send(player, new ChannelPayload(channelType, readBytes(buf)));
             }
         });
 
         bridge.setSendToAll(packet -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                ChannelPayload payload = new ChannelPayload(channelType, readBytes(buf));
-                for (var player : server.getPlayerList().getPlayers()) {
-                    ServerPlayNetworking.send(player, payload);
-                }
+            ChannelPayload payload = new ChannelPayload(channelType, readBytes(requireBuffer(packet)));
+            for (var player : server.getPlayerList().getPlayers()) {
+                ServerPlayNetworking.send(player, payload);
             }
         });
         bridge.setRemotePresence(playerId -> {
@@ -58,6 +53,11 @@ public final class FabricNetworkWiring {
             var player = server.getPlayerList().getPlayerByName(playerId);
             return player != null && ServerPlayNetworking.canSend(player, channelId);
         });
+    }
+
+    private static FriendlyByteBuf requireBuffer(Object packet) {
+        if (packet instanceof FriendlyByteBuf buffer) return buffer;
+        throw new IllegalArgumentException("MLua network bridge expects a FriendlyByteBuf packet");
     }
 
     private static byte[] readBytes(FriendlyByteBuf buf) {

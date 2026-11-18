@@ -124,7 +124,7 @@ public final class MLuaRunService extends MLuaReflectiveService {
    @MLuaDescription("Returns the MLua mod version string.")
    public String GetMluaVersion() {
       String version = MLuaRunService.class.getPackage().getImplementationVersion();
-      return version == null || version.isBlank() ? "0.6.0" : version;
+      return version == null || version.isBlank() ? "0.6" : version;
    }
 
    @MLuaDescription("Returns the active mod loader name.")

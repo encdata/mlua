@@ -1,5 +1,6 @@
 package dev.mlua.module;
 
+import dev.mlua.common.MLuaFatalErrors;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -27,6 +28,7 @@ final class MLuaModuleOrder {
             try {
                 dependencies.put(module.id(), List.copyOf(module.dependencies()));
             } catch (Throwable error) {
+                MLuaFatalErrors.rethrowIfFatal(error);
                 failures.put(module.id(), new Failure("invalid dependency declaration", error));
             }
         }

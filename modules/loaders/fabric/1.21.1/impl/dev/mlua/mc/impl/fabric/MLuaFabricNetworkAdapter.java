@@ -55,6 +55,10 @@ public final class MLuaFabricNetworkAdapter {
         return ServerPlayNetworking.canSend(player, channel);
     }
 
+    public static boolean canSendToServer(ResourceLocation channel) {
+        return ClientPlayNetworking.canSend(channel);
+    }
+
     public static FriendlyByteBuf createBuf(Consumer<FriendlyByteBuf> writer) {
         FriendlyByteBuf buf = PacketByteBufs.create();
         writer.accept(buf);
@@ -62,9 +66,13 @@ public final class MLuaFabricNetworkAdapter {
     }
 
     private static byte[] readBytes(FriendlyByteBuf buf) {
-        byte[] data = new byte[buf.readableBytes()];
-        buf.readBytes(data);
-        return data;
+        try {
+            byte[] data = new byte[buf.readableBytes()];
+            buf.readBytes(data);
+            return data;
+        } finally {
+            buf.release();
+        }
     }
 
     private static CustomPacketPayload.Type<ByteBufPayload> getOrCreateType(ResourceLocation channel, boolean registerPayload) {

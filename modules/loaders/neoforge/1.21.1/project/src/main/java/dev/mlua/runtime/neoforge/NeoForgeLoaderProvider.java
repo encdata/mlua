@@ -1,6 +1,7 @@
 package dev.mlua.runtime.neoforge;
 
 import dev.mlua.common.mixin.MLuaGeneratedMappingResolver;
+import dev.mlua.mc.impl.forge.MLuaForgeNetworkAdapter;
 import dev.mlua.loader.impl.neoforge.NeoForgeClientBridge;
 import dev.mlua.loader.impl.neoforge.NeoForgeConfigBridge;
 import dev.mlua.loader.impl.neoforge.NeoForgeEventBridge;
@@ -29,6 +30,7 @@ public final class NeoForgeLoaderProvider implements LoaderApi.LoaderProvider {
     private final ClientBridge client;
 
     public NeoForgeLoaderProvider(IEventBus modBus) {
+        modBus.addListener(MLuaForgeNetworkAdapter::registerPayloadHandlers);
         MLuaNeoForgeRegistry.get().attach(modBus);
         modBus.addListener(MLuaNeoForgeRegistry.get()::onEntityAttributeCreation);
         events = new NeoForgeEventBridge(modBus);

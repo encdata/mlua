@@ -1,5 +1,6 @@
 package dev.mlua.common.mixin;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
 import java.net.URL;
@@ -56,6 +57,7 @@ public final class MLuaEarlyMixinBootstrap {
             LOGGER.info("[MLua] Early bootstrap found no mixin scripts in {}", gameDir);
          }
       } catch (Throwable e) {
+         MLuaFatalErrors.rethrowIfFatal(e);
          LOGGER.error("[MLua] Early bootstrap failed", e);
       }
    }
@@ -326,6 +328,7 @@ public final class MLuaEarlyMixinBootstrap {
          LOGGER.info("[MLua] Early-executed mixin script: {} from {}", name, sourceLabel);
          return true;
       } catch (Throwable e) {
+         MLuaFatalErrors.rethrowIfFatal(e);
          MixinRuleEngine.get().unregisterScope(scope);
          LOGGER.error("[MLua] Early mixin script '" + name + "' from " + sourceLabel + " failed", e);
          if (e instanceof Error error) throw error;

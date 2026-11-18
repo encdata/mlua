@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.binding;
 
+import dev.mlua.common.MLuaFatalErrors;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -39,6 +40,7 @@ public final class MLuaTextureBindings {
             add(table, id.toString(), "item");
          });
       } catch (Throwable var2) {
+         MLuaFatalErrors.rethrowIfFatal(var2);
       }
 
       return table;
@@ -52,6 +54,7 @@ public final class MLuaTextureBindings {
             add(table, id.toString(), "block");
          });
       } catch (Throwable var2) {
+         MLuaFatalErrors.rethrowIfFatal(var2);
       }
 
       return table;

@@ -42,6 +42,10 @@ public final class MLuaFabricNetworkAdapter {
         return ServerPlayNetworking.canSend(player, channel);
     }
 
+    public static boolean canSendToServer(ResourceLocation channel) {
+        return ClientPlayNetworking.canSend(channel);
+    }
+
     public static FriendlyByteBuf createBuf(Consumer<FriendlyByteBuf> writer) {
         FriendlyByteBuf buf = PacketByteBufs.create();
         writer.accept(buf);

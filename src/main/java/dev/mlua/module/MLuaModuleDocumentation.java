@@ -1,5 +1,6 @@
 package dev.mlua.module;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.MLuaLogger;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -19,6 +20,7 @@ final class MLuaModuleDocumentation {
         try {
             module.contributeDocs(contribution);
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             MLuaLogger.LOGGER.warn("MLua module '{}' failed while contributing API descriptions", module.id(), error);
         }
         return new MLuaModuleDocumentation(contribution);

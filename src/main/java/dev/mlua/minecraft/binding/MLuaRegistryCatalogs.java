@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.binding;
 
+import dev.mlua.common.MLuaFatalErrors;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import java.util.Locale;
@@ -15,6 +16,7 @@ public final class MLuaRegistryCatalogs {
       try {
          BuiltInRegistries.ITEM.keySet().forEach(id -> add(table, id.toString()));
       } catch (Throwable var2) {
+         MLuaFatalErrors.rethrowIfFatal(var2);
       }
 
       return table;
@@ -26,6 +28,7 @@ public final class MLuaRegistryCatalogs {
       try {
          BuiltInRegistries.BLOCK.keySet().forEach(id -> add(table, id.toString()));
       } catch (Throwable var2) {
+         MLuaFatalErrors.rethrowIfFatal(var2);
       }
 
       return table;

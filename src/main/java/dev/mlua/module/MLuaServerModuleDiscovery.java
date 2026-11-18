@@ -1,5 +1,6 @@
 package dev.mlua.module;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.enums.Side;
 import dev.mlua.core.MLuaLogger;
 import java.io.BufferedReader;
@@ -25,6 +26,7 @@ final class MLuaServerModuleDiscovery {
                 readProviders(resources.nextElement(), classLoader, modules);
             }
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             MLuaLogger.LOGGER.warn("Could not discover MLua server module providers", error);
         }
         return modules;
@@ -40,6 +42,7 @@ final class MLuaServerModuleDiscovery {
                 loadProvider(providerName, classLoader, modules);
             }
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             MLuaLogger.LOGGER.warn("Could not read MLua server module providers from {}", resource, error);
         }
     }
@@ -55,6 +58,7 @@ final class MLuaServerModuleDiscovery {
             Class<?> provider = Class.forName(providerName, true, classLoader);
             modules.add((MLuaModule) provider.getDeclaredConstructor().newInstance());
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             MLuaLogger.LOGGER.debug("Skipped unavailable MLua server module provider {}", providerName, error);
         }
     }

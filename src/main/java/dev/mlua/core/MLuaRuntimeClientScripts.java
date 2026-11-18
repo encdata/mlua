@@ -1,5 +1,6 @@
 package dev.mlua.core;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
@@ -128,6 +129,7 @@ final class MLuaRuntimeClientScripts {
       try {
          return (boolean) invokeClientHook("isWindowActive", new Class<?>[]{boolean.class}, lastWindowActive);
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          return lastWindowActive;
       }
    }

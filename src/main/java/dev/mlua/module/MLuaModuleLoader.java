@@ -3,6 +3,7 @@ package dev.mlua.module;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaLogger;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import dev.mlua.loaderapi.LoaderApi;
 import dev.mlua.loaderapi.EventBridge;
@@ -38,6 +39,7 @@ public final class MLuaModuleLoader {
     private final Set<MLuaModule> eventRegistered = Collections.newSetFromMap(new IdentityHashMap<>());
     private final IdentityHashMap<MLuaModule, ScopedEventBridge> eventScopes = new IdentityHashMap<>();
     private final IdentityHashMap<MLuaModule, Long> moduleRegistrationIds = new IdentityHashMap<>();
+    private final IdentityHashMap<MLuaModule, Set<String>> failedLifecycleCallbacks = new IdentityHashMap<>();
     private long nextModuleRegistrationId;
     private final MLuaModuleRegistrations registrations = new MLuaModuleRegistrations();
     private final Set<String> failedModuleIds = new HashSet<>();
@@ -97,7 +99,7 @@ public final class MLuaModuleLoader {
                 if (module.enabled()) this.register(module);
                 else MLuaLogger.LOGGER.info("Skipped disabled MLua module: {}", module.id());
             } catch (Throwable error) {
-                rethrowIfFatal(error);
+                MLuaFatalErrors.rethrowIfFatal(error);
                 MLuaLogger.LOGGER.error("Failed to load one MLua module; continuing with the remaining modules", error);
             }
         }
@@ -118,7 +120,7 @@ public final class MLuaModuleLoader {
                 MLuaModule module = iterator.next();
                 if (module.enabled()) this.register(module);
             } catch (Throwable error) {
-                rethrowIfFatal(error);
+                MLuaFatalErrors.rethrowIfFatal(error);
                 MLuaLogger.LOGGER.error("Failed to load one MLua module for documentation; continuing", error);
             }
         }
@@ -172,7 +174,7 @@ public final class MLuaModuleLoader {
             try {
                 serviceBatch = this.registrations.serviceRegistrations(module);
             } catch (Throwable error) {
-                rethrowIfFatal(error);
+                MLuaFatalErrors.rethrowIfFatal(error);
                 this.registrations.forgetServiceEntries(module);
                 MLuaLogger.LOGGER.error("MLua module '{}' failed while declaring services and was not registered", module.id(), error);
                 return false;
@@ -180,7 +182,7 @@ public final class MLuaModuleLoader {
             try {
                 this.registry.validateBatch(module.side(), serviceBatch);
             } catch (Throwable error) {
-                rethrowIfFatal(error);
+                MLuaFatalErrors.rethrowIfFatal(error);
                 this.registrations.forgetServiceEntries(module);
                 MLuaLogger.LOGGER.error("MLua module '{}' has conflicting services and was not registered", module.id(), error);
                 return false;
@@ -198,7 +200,7 @@ public final class MLuaModuleLoader {
                 this.registry.registerBatch(module.side(), serviceBatch);
                 this.registrations.rememberServices(this.registry, module, serviceBatch);
             } catch (Throwable error) {
-                rethrowIfFatal(error);
+                MLuaFatalErrors.rethrowIfFatal(error);
                 this.registry.unregisterBatch(module.side(), serviceBatch);
                 this.registrations.rollbackClasses(module, this.base);
                 this.registrations.forgetServiceEntries(module);
@@ -241,19 +243,22 @@ public final class MLuaModuleLoader {
 
     private void removeModule(MLuaModule module, boolean notifyUnload) {
         this.moduleRegistrationIds.remove(module);
+        synchronized (this.failedLifecycleCallbacks) {
+            this.failedLifecycleCallbacks.remove(module);
+        }
         if (this.modules.removeIf(registered -> registered == module)) {
             this.publishModuleSnapshot();
             this.globalsRevision++;
         }
         ScopedEventBridge eventScope = this.eventScopes.remove(module);
-        if (eventScope != null) eventScope.close();
+        if (eventScope != null) this.cleanup(module, "event listeners", eventScope::close);
         this.initialized.remove(module);
         this.eventRegistered.remove(module);
         if (notifyUnload) {
             this.invoke(module, "unload", module::onUnload);
         }
-        this.registrations.rollbackClasses(module, null);
-        this.registrations.unregisterServices(module);
+        this.cleanup(module, "registered classes", () -> this.registrations.rollbackClasses(module, null));
+        this.cleanup(module, "services", () -> this.registrations.unregisterServices(module));
     }
 
     /** Revision used to refresh context-bound Lua globals after addon module changes. */
@@ -423,7 +428,34 @@ public final class MLuaModuleLoader {
         for (MLuaModule module : this.moduleSnapshot()) {
             if (!this.isRegistered(module)) continue;
             if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
-            this.invoke(module, phase, () -> callback.accept(module));
+            this.invokeLifecycle(module, phase, () -> callback.accept(module));
+        }
+    }
+
+    private void invokeLifecycle(MLuaModule module, String phase, Runnable callback) {
+        synchronized (this.failedLifecycleCallbacks) {
+            if (this.failedLifecycleCallbacks.getOrDefault(module, Set.of()).contains(phase)) return;
+        }
+        try {
+            callback.run();
+        } catch (Throwable failure) {
+            MLuaFatalErrors.rethrowIfFatal(failure);
+            synchronized (this.failedLifecycleCallbacks) {
+                this.failedLifecycleCallbacks.computeIfAbsent(module, ignored -> new HashSet<>()).add(phase);
+            }
+            MLuaLogger.LOGGER.error("MLua module '{}' failed during {}; that lifecycle callback is disabled until the next reload",
+                module.id(), phase, failure);
+        }
+    }
+
+    private void clearFailedLifecycleCallbacks(Side side) {
+        synchronized (this.failedLifecycleCallbacks) {
+            if (side == null) {
+                this.failedLifecycleCallbacks.clear();
+                return;
+            }
+            this.failedLifecycleCallbacks.keySet().removeIf(module ->
+                side == Side.BOTH || module.side() == Side.BOTH || module.side() == side);
         }
     }
 
@@ -510,6 +542,7 @@ public final class MLuaModuleLoader {
     }
 
     public void onReload() {
+        this.clearFailedLifecycleCallbacks(null);
         List<MLuaReloadable> reloadableSnapshot;
         synchronized (this) {
             reloadableSnapshot = List.copyOf(this.reloadables);
@@ -518,7 +551,7 @@ public final class MLuaModuleLoader {
             try {
                 reloadable.onReload();
             } catch (Throwable throwable) {
-                rethrowIfFatal(throwable);
+                MLuaFatalErrors.rethrowIfFatal(throwable);
                 MLuaLogger.LOGGER.error("Failed to reload MLua lifecycle owner {}", reloadable.getClass().getName(), throwable);
             }
         }
@@ -528,7 +561,7 @@ public final class MLuaModuleLoader {
                 try {
                     module.onReload();
                 } catch (Throwable throwable) {
-                    rethrowIfFatal(throwable);
+                    MLuaFatalErrors.rethrowIfFatal(throwable);
                     MLuaLogger.LOGGER.error("Failed to reload MLua module '{}'", module.id(), throwable);
                 }
             }
@@ -536,13 +569,14 @@ public final class MLuaModuleLoader {
     }
 
     public void onReload(Side side) {
+        this.clearFailedLifecycleCallbacks(side);
         for (MLuaModule module : this.moduleSnapshot()) {
             if (!this.isRegistered(module)) continue;
             if (side != Side.BOTH && module.side() != Side.BOTH && module.side() != side) continue;
             try {
                 module.onReload(side);
             } catch (Throwable throwable) {
-                rethrowIfFatal(throwable);
+                MLuaFatalErrors.rethrowIfFatal(throwable);
                 MLuaLogger.LOGGER.error("Failed to reload MLua module '{}' for {}", module.id(), side, throwable);
             }
         }
@@ -558,7 +592,7 @@ public final class MLuaModuleLoader {
             try {
                 reloadable.onUnload();
             } catch (Throwable throwable) {
-                rethrowIfFatal(throwable);
+                MLuaFatalErrors.rethrowIfFatal(throwable);
                 MLuaLogger.LOGGER.error("Failed to unload MLua lifecycle owner {}", reloadable.getClass().getName(), throwable);
             }
         }
@@ -569,7 +603,7 @@ public final class MLuaModuleLoader {
             try {
                 module.onUnload();
             } catch (Throwable throwable) {
-                rethrowIfFatal(throwable);
+                MLuaFatalErrors.rethrowIfFatal(throwable);
                 MLuaLogger.LOGGER.error("Failed to unload MLua module '{}'", module.id(), throwable);
             }
         }
@@ -613,20 +647,25 @@ public final class MLuaModuleLoader {
         this.invokeSuccessfully(module, phase, action);
     }
 
+    private void cleanup(MLuaModule module, String resource, Runnable action) {
+        try {
+            action.run();
+        } catch (Throwable failure) {
+            MLuaFatalErrors.rethrowIfFatal(failure);
+            MLuaLogger.LOGGER.error("Failed to remove MLua module '{}' {} during cleanup; continuing",
+                module.id(), resource, failure);
+        }
+    }
+
     private boolean invokeSuccessfully(MLuaModule module, String phase, Runnable action) {
         try {
             action.run();
             return true;
         } catch (Throwable throwable) {
-            rethrowIfFatal(throwable);
+            MLuaFatalErrors.rethrowIfFatal(throwable);
             MLuaLogger.LOGGER.error("MLua module '{}' failed during {} and was isolated", module.id(), phase, throwable);
             return false;
         }
     }
 
-    @SuppressWarnings("removal")
-    private static void rethrowIfFatal(Throwable failure) {
-        if (failure instanceof VirtualMachineError fatal) throw fatal;
-        if (failure instanceof ThreadDeath fatal) throw fatal;
-    }
 }

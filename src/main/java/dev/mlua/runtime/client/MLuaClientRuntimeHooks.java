@@ -1,5 +1,6 @@
 package dev.mlua.runtime.client;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.runtime.assets.MLuaGeneratedAssetPack;
 import dev.mlua.loaderapi.LoaderApi.LoaderProvider;
 import dev.mlua.core.MLuaCallbackBudget;
@@ -69,6 +70,7 @@ public final class MLuaClientRuntimeHooks {
         try {
             return MLuaMinecraftClient.instance().isWindowActive();
         } catch (Throwable unavailable) {
+            MLuaFatalErrors.rethrowIfFatal(unavailable);
             return fallback;
         }
     }

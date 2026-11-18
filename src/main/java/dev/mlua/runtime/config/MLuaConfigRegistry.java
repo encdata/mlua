@@ -1,6 +1,7 @@
 package dev.mlua.runtime.config;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.loaderapi.LoaderApi;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -236,6 +237,7 @@ public final class MLuaConfigRegistry {
       try {
          return LoaderApi.platform().hasMod(modId);
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          return false;
       }
    }
@@ -248,6 +250,7 @@ public final class MLuaConfigRegistry {
       try {
          return LoaderApi.platform().configDir();
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          return Path.of("config");
       }
    }

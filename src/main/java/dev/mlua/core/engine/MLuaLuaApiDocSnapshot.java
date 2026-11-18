@@ -1,5 +1,6 @@
 package dev.mlua.core.engine;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
@@ -95,6 +96,7 @@ public final class MLuaLuaApiDocSnapshot {
             try {
                 materialized.put(name, MLuaLuaBindings.materializeServiceTable(context, name));
             } catch (Throwable error) {
+                MLuaFatalErrors.rethrowIfFatal(error);
                 failures.put(name, error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
             }
         }

@@ -63,6 +63,7 @@ $builds = foreach ($targetConfig in $selectedTargets) {
         }
     }
 }
+$expectedArtifactCount = @($builds).Count
 
 $groups = @($builds | Group-Object -Property loader, gradle, java)
 $plannedGroups = foreach ($group in $groups) {
@@ -106,7 +107,20 @@ $plannedGroups = foreach ($group in $groups) {
 $wrapperJar = Join-Path $repoRoot 'gradle\wrapper\gradle-wrapper.jar'
 if (-not (Test-Path -LiteralPath $wrapperJar)) { throw "missing gradle wrapper jar: $wrapperJar" }
 
+$aggregateArtifacts = $Tasks -contains 'build'
+if ($aggregateArtifacts) {
+    $buildOutputDir = Join-Path $repoRoot 'build\loader-jars'
+    $aggregationDir = Join-Path $repoRoot "build\loader-jars-aggregate-$PID"
+    if (Test-Path -LiteralPath $aggregationDir) {
+        Remove-Item -LiteralPath $aggregationDir -Recurse -Force
+    }
+    $groupOutputRoot = Join-Path $aggregationDir 'groups'
+    $resultOutputDir = Join-Path $aggregationDir 'result'
+    New-Item -ItemType Directory -Path $groupOutputRoot, $resultOutputDir | Out-Null
+}
+
 $failures = @()
+$manifestEntries = @()
 foreach ($plan in $plannedGroups) {
     $wrapperHome = Join-Path $env:TEMP "mlua-gradle-wrapper-$($plan.gradle)"
     New-Item -ItemType Directory -Force -Path $wrapperHome | Out-Null
@@ -124,12 +138,20 @@ foreach ($plan in $plannedGroups) {
     Set-Content -LiteralPath (Join-Path $wrapperHome 'gradle-wrapper.properties') -Value $properties -Encoding ASCII
 
     $java = Join-Path $plan.javaHome 'bin\java.exe'
+    $groupOutputDir = $null
     $arguments = @(
         '-classpath', $localWrapperJar, 'org.gradle.wrapper.GradleWrapperMain',
         '-p', $repoRoot,
         "-PmluaTarget=$($plan.targets -join ',')",
         "-PmluaLoader=$($plan.loader)"
     ) + $Tasks
+    if ($aggregateArtifacts) {
+        $groupName = "$($plan.loader)-$($plan.targets -join '-')"
+        $groupOutputDir = Join-Path $groupOutputRoot $groupName
+        New-Item -ItemType Directory -Path $groupOutputDir | Out-Null
+        $arguments = @($arguments[0..($arguments.Count - $Tasks.Count - 1)]) +
+            "-PmluaArtifactOutputDir=$groupOutputDir" + $Tasks
+    }
     Write-Host "running $($plan.loader) for $($plan.targets -join ', ') with gradle $($plan.gradle) and java $($plan.java)"
     $previousErrorAction = $ErrorActionPreference
     $previousNativeErrorAction = $PSNativeCommandUseErrorActionPreference
@@ -141,9 +163,66 @@ foreach ($plan in $plannedGroups) {
     $PSNativeCommandUseErrorActionPreference = $previousNativeErrorAction
     if ($gradleExitCode -ne 0) {
         $failures += "$($plan.loader) $($plan.targets -join ', '): gradle exited with code $gradleExitCode"
+        continue
+    }
+    if (-not $aggregateArtifacts) { continue }
+
+    $groupManifestPath = Join-Path $groupOutputDir 'manifest.json'
+    if (-not (Test-Path -LiteralPath $groupManifestPath)) {
+        $failures += "$($plan.loader) $($plan.targets -join ', '): build did not produce its artifact manifest"
+        continue
+    }
+    $groupManifest = Get-Content -Raw -LiteralPath $groupManifestPath | ConvertFrom-Json
+    foreach ($entry in $groupManifest) {
+        $artifactPath = Join-Path $groupOutputDir ([string]$entry.file)
+        if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
+            $failures += "$($plan.loader) $($plan.targets -join ', '): missing validated artifact '$($entry.file)'"
+            continue
+        }
+        $destinationPath = Join-Path $resultOutputDir ([string]$entry.file)
+        if (Test-Path -LiteralPath $destinationPath) {
+            $failures += "duplicate loader artifact '$($entry.file)' across build groups"
+            continue
+        }
+        Copy-Item -LiteralPath $artifactPath -Destination $destinationPath
+        $manifestEntries += $entry
     }
 }
 
 if ($failures.Count -gt 0) {
+    if ($aggregateArtifacts -and $aggregationDir -and (Test-Path -LiteralPath $aggregationDir)) {
+        Remove-Item -LiteralPath $aggregationDir -Recurse -Force
+    }
     throw "mlua build groups failed:`n$($failures -join "`n")"
 }
+if (-not $aggregateArtifacts) { return }
+
+if ($manifestEntries.Count -ne $expectedArtifactCount) {
+    Remove-Item -LiteralPath $aggregationDir -Recurse -Force
+    throw "expected $expectedArtifactCount loader artifacts, collected $($manifestEntries.Count)"
+}
+
+$orderedManifest = @($manifestEntries | Sort-Object loader, minecraft)
+$manifestJson = ConvertTo-Json -InputObject $orderedManifest -Depth 5
+[System.IO.File]::WriteAllText(
+    (Join-Path $resultOutputDir 'manifest.json'),
+    $manifestJson + [Environment]::NewLine,
+    [System.Text.UTF8Encoding]::new($false))
+
+$previousOutputDir = Join-Path $repoRoot "build\loader-jars-previous-$PID"
+$hadPreviousOutput = Test-Path -LiteralPath $buildOutputDir
+if ($hadPreviousOutput) {
+    Move-Item -LiteralPath $buildOutputDir -Destination $previousOutputDir
+}
+try {
+    Move-Item -LiteralPath $resultOutputDir -Destination $buildOutputDir
+} catch {
+    if ($hadPreviousOutput -and (Test-Path -LiteralPath $previousOutputDir)) {
+        Move-Item -LiteralPath $previousOutputDir -Destination $buildOutputDir
+    }
+    throw
+}
+if ($hadPreviousOutput) {
+    Remove-Item -LiteralPath $previousOutputDir -Recurse -Force
+}
+Remove-Item -LiteralPath $aggregationDir -Recurse -Force

@@ -200,7 +200,10 @@ public final class MLuaLuaApiCrawler {
             addProperties(metaProperties.istable() ? metaProperties : metaPropertyDocs,
                 metaPropertyDocs, path, entries);
             LuaValue index = meta.rawget(LuaValue.valueOf("__index"));
-            if (index.istable()) addIndexedMembers((LuaTable) index, path, depth + 1, entries, seen);
+            if (index.istable() && !table.rawget("__class").toboolean()) {
+                addIndexedMembers((LuaTable) index, path, depth + 1, entries,
+                    new IdentitySet());
+            }
         }
     }
 
@@ -223,8 +226,25 @@ public final class MLuaLuaApiCrawler {
         }
         addMethodDescriptions(table.rawget("__mlua_doc_methods"), path, "function description", entries);
         if (table.rawget("__class").toboolean()) {
-            addMethodDescriptions(table.rawget("__mlua_doc_inherited_methods"), path,
+            LuaValue inheritedMethods = table.rawget("__mlua_doc_inherited_methods");
+            addMethodDescriptions(inheritedMethods, path,
                 "inherited function description", entries);
+            addInheritedFunctions(inheritedMethods, path, entries);
+            addProperties(table.rawget("__mlua_doc_inherited_properties"), LuaValue.NIL,
+                path, entries);
+        }
+    }
+
+    private static void addInheritedFunctions(LuaValue methodsValue, String path, List<Entry> entries) {
+        if (!methodsValue.istable()) return;
+        LuaValue key = LuaValue.NIL;
+        while (entries.size() < MAX_ENTRIES) {
+            Varargs next = methodsValue.checktable().next(key);
+            key = next.arg1();
+            if (key.isnil()) return;
+            if (!key.isstring() || !next.arg(2).isstring()) continue;
+            String methodPath = childPath(path, key);
+            if (methodPath != null) entries.add(new Entry(methodPath, "function", null));
         }
     }
 
@@ -242,16 +262,17 @@ public final class MLuaLuaApiCrawler {
         }
     }
 
-    private static void addIndexedMembers(LuaTable table, String path, int depth, List<Entry> entries, IdentitySet seen) {
-        if (depth >= MAX_DEPTH || !seen.add(table)) return;
-        addChildren(table, path, depth, entries, seen);
+    private static void addIndexedMembers(LuaTable table, String path, int depth, List<Entry> entries,
+                                          IdentitySet lineage) {
+        if (depth >= MAX_DEPTH || !lineage.add(table)) return;
+        addChildren(table, path, depth, entries, lineage);
         addProperties(table.rawget(PROPERTIES), table.rawget(DOC_PROPERTIES), path, entries);
         LuaValue metatable = table.getmetatable();
         if (metatable != null && metatable.istable()) {
             LuaTable meta = (LuaTable) metatable;
             addProperties(meta.rawget(PROPERTIES), meta.rawget(DOC_PROPERTIES), path, entries);
             LuaValue parent = meta.rawget(LuaValue.valueOf("__index"));
-            if (parent.istable()) addIndexedMembers((LuaTable) parent, path, depth + 1, entries, seen);
+            if (parent.istable()) addIndexedMembers((LuaTable) parent, path, depth + 1, entries, lineage);
         }
     }
 

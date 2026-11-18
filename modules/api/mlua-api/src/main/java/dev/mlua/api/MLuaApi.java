@@ -277,23 +277,23 @@ public final class MLuaApi {
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory) {
-      registerService(name, Side.BOTH, factory, null, Map.of());
+      throw serviceMetadataRequired();
    }
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory) {
-      registerService(name, side, factory, null, Map.of());
+      throw serviceMetadataRequired();
    }
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory, String description) {
-      registerService(name, factory, description, Map.of());
+      throw serviceMetadataRequired();
    }
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, Side side, Function<MLuaService.Context, MLuaService> factory,
                                       String description) {
-      registerService(name, side, factory, description, Map.of());
+      throw serviceMetadataRequired();
    }
 
    public static void registerService(String name, Function<MLuaService.Context, MLuaService> factory,
@@ -312,25 +312,25 @@ public final class MLuaApi {
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className,
                                       Function<MLuaService.Context, MLuaService> factory) {
-      registerService(name, className, Side.BOTH, factory, null, Map.of());
+      throw serviceMetadataRequired();
    }
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className, Side side,
                                       Function<MLuaService.Context, MLuaService> factory) {
-      registerService(name, className, side, factory, null, Map.of());
+      throw serviceMetadataRequired();
    }
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className,
                                       Function<MLuaService.Context, MLuaService> factory, String description) {
-      registerService(name, className, Side.BOTH, factory, description, Map.of());
+      throw serviceMetadataRequired();
    }
 
    @Deprecated(forRemoval = false)
    public static void registerService(String name, String className, Side side,
                                       Function<MLuaService.Context, MLuaService> factory, String description) {
-      registerService(name, className, side, factory, description, Map.of());
+      throw serviceMetadataRequired();
    }
 
    public static void registerService(String name, String className,
@@ -404,5 +404,10 @@ public final class MLuaApi {
     */
    public static EventSignal registerEventSignal(String owner, String name, String description) {
       return requireBridge().registerEventSignal(owner, name, description);
+   }
+
+   private static UnsupportedOperationException serviceMetadataRequired() {
+      return new UnsupportedOperationException(
+         "service descriptions and function descriptions are required; use MLuaApi.service(...).description(...).function(...).register()");
    }
 }

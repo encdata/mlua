@@ -1,6 +1,7 @@
 package dev.mlua.core;
 
 import dev.mlua.common.mixin.MLuaClassViewer;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.mixin.MLuaMappingResolvers;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -62,6 +63,7 @@ final class MLuaRuntimeCommands {
                 if (!line.isBlank()) source.sendSuccess(() -> Component.literal(line), false);
             }
         } catch (Throwable throwable) {
+            MLuaFatalErrors.rethrowIfFatal(throwable);
             source.sendFailure(Component.literal("[MLua] Inspect failed: " + throwable.getMessage()));
         }
     }

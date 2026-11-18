@@ -1,6 +1,7 @@
 package dev.mlua.core.scheduler;
 
 import dev.mlua.common.enums.Side;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.MLuaCallbackBudget;
 import dev.mlua.core.MLuaContext;
 import dev.mlua.core.MLuaLogger;
@@ -60,6 +61,7 @@ public final class MLuaTaskScheduler implements MLuaTaskSchedulerView {
             reporter.accept(summary, throwable);
             return;
          } catch (Throwable reporterFailure) {
+            MLuaFatalErrors.rethrowIfFatal(reporterFailure);
             MLuaLogger.LOGGER.error("MLua runtime failure reporter itself failed", reporterFailure);
          }
       }

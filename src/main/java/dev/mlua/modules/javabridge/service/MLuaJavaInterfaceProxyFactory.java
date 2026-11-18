@@ -1,5 +1,6 @@
 package dev.mlua.modules.javabridge.service;
 
+import dev.mlua.common.MLuaFatalErrors;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -158,6 +159,7 @@ final class MLuaJavaInterfaceProxyFactory {
                     try {
                         return InvocationHandler.invokeDefault(proxy, method, args);
                     } catch (Throwable t) {
+                        MLuaFatalErrors.rethrowIfFatal(t);
                         throw new RuntimeException(t);
                     }
                 }

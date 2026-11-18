@@ -75,6 +75,10 @@ final class MLuaClassMetadata {
 
     void refreshAttachedPropertyDescriptionsFrom(String changedClass) {
       this.invalidatePropertyLookupsFrom(changedClass);
+      this.refreshInheritedPropertyDescriptors(changedClass);
+      for (String descendant : this.hierarchy.descendantsOf(changedClass)) {
+         this.refreshInheritedPropertyDescriptors(descendant);
+      }
       for (LuaTable instance : this.liveInstances.ofClassAndDescendants(
             changedClass, this.hierarchy.descendantsOf(changedClass))) {
          String instanceClassName = instance.rawget("__type").optjstring("");
@@ -82,6 +86,53 @@ final class MLuaClassMetadata {
          this.collectPropertyDescriptions(instanceClassName, descriptions, new HashSet<>());
          instance.rawset("__mlua_doc_properties", descriptions);
       }
+   }
+
+    private void refreshInheritedPropertyDescriptors(String className) {
+      LuaTable classTable = this.classes.get(className);
+      if (classTable == null) return;
+      LuaTable inherited = new LuaTable();
+      String parentName = this.hierarchy.parentOf(className);
+      if (parentName != null) {
+         this.collectPropertyDescriptors(parentName, inherited, new HashSet<>());
+      }
+      LuaValue ownValue = classTable.rawget("__mlua_properties");
+      if (ownValue.istable()) {
+         LuaTable own = ownValue.checktable();
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = own.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            inherited.rawset(key, LuaValue.NIL);
+         }
+      }
+      classTable.rawset("__mlua_doc_inherited_properties", inherited);
+   }
+
+    private void collectPropertyDescriptors(String className, LuaTable output, Set<String> visited) {
+      if (!visited.add(className)) return;
+      LuaTable classTable = this.classes.get(className);
+      if (classTable == null) return;
+      LuaValue descriptorsValue = classTable.rawget("__mlua_properties");
+      LuaValue descriptionsValue = classTable.rawget("__mlua_doc_properties");
+      if (descriptorsValue.istable()) {
+         LuaTable descriptors = descriptorsValue.checktable();
+         LuaValue key = LuaValue.NIL;
+         while (true) {
+            Varargs next = descriptors.next(key);
+            key = next.arg1();
+            if (key.isnil()) break;
+            if (!key.isstring() || !next.arg(2).istable() || !output.rawget(key).isnil()) continue;
+            LuaTable descriptor = copyTableOrNil(next.arg(2)).checktable();
+            LuaValue description = descriptionsValue.istable()
+               ? descriptionsValue.checktable().rawget(key) : LuaValue.NIL;
+            if (description.isstring()) descriptor.rawset("description", description);
+            output.rawset(key, descriptor);
+         }
+      }
+      String parentName = this.hierarchy.parentOf(className);
+      if (parentName != null) this.collectPropertyDescriptors(parentName, output, visited);
    }
 
     LuaTable findPropertyDescriptor(String className, String propertyName) {
@@ -279,6 +330,7 @@ final class MLuaClassMetadata {
          }
       }
       classTable.rawset("__mlua_doc_inherited_methods", inherited);
+      this.refreshInheritedPropertyDescriptors(className);
       LuaTable documentedMixins = new LuaTable();
       int mixinIndex = 1;
       for (String mixinName : this.mixinApplications.directlyApplied(className)) {

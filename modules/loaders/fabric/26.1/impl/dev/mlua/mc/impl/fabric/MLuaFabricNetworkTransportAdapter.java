@@ -23,6 +23,7 @@ import net.minecraft.server.level.ServerPlayer;
 public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTransportAdapter {
     private final Set<UUID> mluaClients = ConcurrentHashMap.newKeySet();
     private volatile boolean serverHasMLua;
+    private int handshakeRetryTicks;
     private Identifier channelId;
 
     @Override
@@ -33,21 +34,23 @@ public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTrans
     @Override
     public void init(MLuaNetworkManager manager, String protocolVersion) {
         this.channelId = MLuaResourceLocations.build("mlua", "main_network");
-        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
-            MLuaFabricNetworkAdapter.registerC2S(this.channelId, (payload, context) -> {
-                this.mluaClients.add(context.player().getUUID());
-                FriendlyByteBuf buf = wrap(payload.bytes());
-                try {
-                    manager.handleServerPacket(context.server(), context.player(), buf);
-                } finally {
-                    buf.release();
-                }
-            });
-            MLuaFabricNetworkEvents.registerServer(
-                this::sendHandshakeToClient,
-                player -> this.mluaClients.remove(player.getUUID())
-            );
-        } else {
+        MLuaFabricNetworkAdapter.registerC2S(this.channelId, (payload, context) -> {
+            this.mluaClients.add(context.player().getUUID());
+            byte[] bytes = payload.bytes();
+            boolean handshake = bytes.length > 0 && bytes[0] == MLuaNetworkWireCodec.TYPE_HANDSHAKE;
+            FriendlyByteBuf buf = wrap(bytes);
+            try {
+                manager.handleServerPacket(context.server(), context.player(), buf);
+            } finally {
+                buf.release();
+            }
+            if (handshake) context.server().execute(() -> this.sendHandshakeToClient(context.player()));
+        });
+        MLuaFabricNetworkEvents.registerServer(
+            this::sendHandshakeToClient,
+            player -> this.mluaClients.remove(player.getUUID())
+        );
+        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             MLuaFabricNetworkAdapter.registerS2C(this.channelId, (payload, context) -> {
                 this.serverHasMLua = true;
                 FriendlyByteBuf buf = wrap(payload.bytes());
@@ -60,10 +63,26 @@ public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTrans
             MLuaFabricNetworkEvents.registerClient(
                 () -> {
                     this.serverHasMLua = false;
+                    this.handshakeRetryTicks = 0;
                     this.sendHandshakeToServer();
                 },
-                () -> this.serverHasMLua = false
+                () -> {
+                    this.serverHasMLua = false;
+                    this.handshakeRetryTicks = 0;
+                },
+                this::retryServerHandshake
             );
+        }
+    }
+
+    private void retryServerHandshake() {
+        if (this.serverHasMLua || !MLuaFabricNetworkAdapter.canSendToServer(this.channelId)) {
+            this.handshakeRetryTicks = 0;
+            return;
+        }
+        if (++this.handshakeRetryTicks >= 20) {
+            this.handshakeRetryTicks = 0;
+            this.sendHandshakeToServer();
         }
     }
 
@@ -125,6 +144,7 @@ public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTrans
 
     private void sendHandshakeToServer() {
         try {
+            if (!MLuaFabricNetworkAdapter.canSendToServer(this.channelId)) return;
             MLuaFabricNetworkAdapter.sendToServer(this.channelId,
                 MLuaNetworkWireCodec.createPayload(MLuaNetworkWireCodec.TYPE_HANDSHAKE, buf -> {}));
         } catch (RuntimeException exception) {

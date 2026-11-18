@@ -11,7 +11,6 @@ import dev.mlua.runtime.data.MLuaDataManager;
 import dev.mlua.runtime.data.MLuaDataSyncPacket;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,22 +80,7 @@ public final class MLuaClientNetworkHandler {
 
     public static Connection resolveConnection() {
         ClientPacketListener listener = MLuaMinecraftClient.instance().getConnection();
-        if (listener == null) return null;
-
-        try {
-            Object value = listener.getClass().getMethod("getConnection").invoke(listener);
-            if (value instanceof Connection connection) return connection;
-        } catch (ReflectiveOperationException ignored) {
-        }
-
-        try {
-            Field field = findField(listener.getClass(), "connection");
-            if (field == null) return null;
-            Object value = field.get(listener);
-            return value instanceof Connection connection ? connection : null;
-        } catch (ReflectiveOperationException ignored) {
-            return null;
-        }
+        return listener == null ? null : listener.getConnection();
     }
 
     private static byte[] readRemaining(FriendlyByteBuf buf) {
@@ -127,17 +111,4 @@ public final class MLuaClientNetworkHandler {
         }
     }
 
-    private static Field findField(Class<?> type, String name) {
-        Class<?> current = type;
-        while (current != null) {
-            try {
-                Field field = current.getDeclaredField(name);
-                field.setAccessible(true);
-                return field;
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            }
-        }
-        return null;
-    }
 }

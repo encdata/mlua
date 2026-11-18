@@ -1,5 +1,6 @@
 package dev.mlua.minecraft.network;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.MLuaThreadHandoff;
@@ -363,7 +364,7 @@ public final class MLuaNetworkManager {
 
       Object listener = player.connection;
       try {
-         Field field = this.findField(listener.getClass(), "connection");
+         Field field = this.findConnectionField(listener.getClass());
          if (field != null) {
             Object value = field.get(listener);
             return value instanceof Connection connection ? connection : null;
@@ -384,6 +385,7 @@ public final class MLuaNetworkManager {
       try {
          return (Connection) invokeClientHandler("resolveConnection", new Class<?>[0]);
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          return null;
       }
    }
@@ -403,17 +405,17 @@ public final class MLuaNetworkManager {
       }
    }
 
-   private Field findField(Class<?> type, String name) {
+   private Field findConnectionField(Class<?> type) {
       Class<?> current = type;
 
       while(current != null) {
-         try {
-            Field field = current.getDeclaredField(name);
-            field.setAccessible(true);
-            return field;
-         } catch (NoSuchFieldException ignored) {
-            current = current.getSuperclass();
+         for (Field field : current.getDeclaredFields()) {
+            if (field.getType() == Connection.class) {
+               field.setAccessible(true);
+               return field;
+            }
          }
+         current = current.getSuperclass();
       }
 
       return null;

@@ -305,6 +305,16 @@ public final class FabricEventBridge implements EventBridge {
     @Override
     public void removeListener(String hook, Object callback) {
         switch (hook) {
+            case "onClientWorldLoad", "onClientWorldUnload" -> {
+                ClientWorldLifecycleTracker tracker;
+                synchronized (this) {
+                    tracker = this.clientWorldTracker;
+                }
+                if (tracker != null && callback instanceof Consumer<?> listener) {
+                    if ("onClientWorldLoad".equals(hook)) tracker.removeLoadListener(listener);
+                    else tracker.removeUnloadListener(listener);
+                }
+            }
             case "onBlockPlace" -> blockPlaceCallbacks.remove((BlockPlaceCallback) callback);
             case "onProjectileHit" -> projectileHitCallbacks.remove((ProjectileCallback) callback);
             case "onItemDrop" -> itemDropCallbacks.remove((ItemStackCallback) callback);

@@ -1,5 +1,6 @@
 package dev.mlua.core;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.common.enums.RegistrationPhase;
 import dev.mlua.common.enums.ScriptType;
 import dev.mlua.common.enums.Side;
@@ -53,6 +54,7 @@ final class MLuaRuntimeResourceReload {
          try {
             this.runtime.executeRegistryScript(script, script.type() != ScriptType.REGISTRY);
          } catch (Throwable failure) {
+            MLuaFatalErrors.rethrowIfFatal(failure);
             this.runtime.reportRuntimeFailure("Registry script '" + script.displayName()
                + "' failed during reload", failure);
          }
@@ -75,6 +77,7 @@ final class MLuaRuntimeResourceReload {
                this.runtime.executeRuntimeScript(script, Side.CLIENT, RegistrationPhase.RUNTIME, server);
             }
          } catch (Throwable failure) {
+            MLuaFatalErrors.rethrowIfFatal(failure);
             if (script.type().isMixin()) this.runtime.unregisterMixinScope(script.path());
             this.runtime.reportRuntimeFailure("Resource-pack script '" + script.displayName()
                + "' failed during reload", failure);

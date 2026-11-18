@@ -16,6 +16,9 @@ validateMluaTargetConfig(targetConfig)
 def documentationOnly = providers.gradleProperty('mluaDocsOnly').isPresent()
 def requestedLoader = providers.gradleProperty('mluaLoader').orNull
 def activeTargets = selectMluaBuildTargets(targetConfig, providers.gradleProperty('mluaTarget').orNull, documentationOnly)
+def loaderArtifactOutput = providers.gradleProperty('mluaArtifactOutputDir')
+    .map { file(it) }
+    .orElse(layout.buildDirectory.dir('loader-jars').map { it.asFile })
 def allLoaderProjects = activeTargets.collectMany { target ->
     def loaders = requestedLoader == null ? target.loaders : target.loaders.findAll { it == requestedLoader }
     loaders.collect { loader -> [loader: loader, target: target.minecraft, path: ":${loader}:${target.minecraft}"] }
@@ -44,7 +47,7 @@ def collectLoaderJars = tasks.register('collectLoaderJars', Copy) {
             into ''
         }
     }
-    into(layout.buildDirectory.dir('loader-jars'))
+    into(loaderArtifactOutput)
 }
 
 tasks.named('assemble').configure {
@@ -64,7 +67,7 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
     dependsOn collectLoaderJars
     doLast {
         def json = new groovy.json.JsonSlurper()
-        def outputDir = layout.buildDirectory.dir('loader-jars').get().asFile
+        def outputDir = loaderArtifactOutput.get()
         def manifest = []
         allLoaderProjects.each { loaderProject ->
             def artifact = new File(outputDir, "mlua-${loaderProject.loader}-${loaderProject.target}-${mod_version}.jar")
@@ -230,7 +233,7 @@ def validateLoaderArtifacts = tasks.register('validateLoaderArtifacts') {
             manifest << [loader: loaderProject.loader, minecraft: loaderProject.target, file: artifact.name,
                          bytes: artifact.length(), sha256: sha256(artifact)]
         }
-        def manifestFile = layout.buildDirectory.file('loader-jars/manifest.json').get().asFile
+        def manifestFile = new File(outputDir, 'manifest.json')
         manifestFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(manifest)) + System.lineSeparator()
     }
 }

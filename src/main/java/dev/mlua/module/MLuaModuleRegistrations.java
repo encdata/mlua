@@ -1,5 +1,6 @@
 package dev.mlua.module;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import java.util.ArrayList;
@@ -79,6 +80,7 @@ final class MLuaModuleRegistrations {
                 .put(module, moduleRollbackActions);
             return true;
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             runRollbackActions(moduleRollbackActions, 0, error);
             restoreClassSnapshots(registration, snapshots);
             rollbackMixinChanges(registration, newMixins, newMixinApplications);
@@ -126,6 +128,7 @@ final class MLuaModuleRegistrations {
                 .put(module, moduleRollbackActions);
             return true;
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             runRollbackActions(moduleRollbackActions, rollbackActionStart, error);
             restoreClassSnapshots(registration, snapshots);
             rollbackMixinChanges(registration, newMixins, newMixinApplications);
@@ -200,6 +203,7 @@ final class MLuaModuleRegistrations {
             try {
                 actions.get(index).run();
             } catch (Throwable cleanupFailure) {
+                MLuaFatalErrors.rethrowIfFatal(cleanupFailure);
                 if (primaryFailure != null) primaryFailure.addSuppressed(cleanupFailure);
                 else MLuaLogger.LOGGER.error("MLua module registration cleanup failed", cleanupFailure);
             }

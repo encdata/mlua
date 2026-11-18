@@ -35,10 +35,7 @@ public final class MLuaNetworkWireCodec {
    }
 
    public static void writeArgumentList(FriendlyByteBuf buf, List<MLuaNetworkValue> arguments) {
-      buf.writeVarInt(arguments.size());
-      for (MLuaNetworkValue value : arguments) {
-         MLuaNetworkSerializer.writePacketValue(value, buf);
-      }
+      MLuaNetworkSerializer.writePacketValues(arguments, buf);
    }
 
    public static List<MLuaNetworkValue> readArgumentList(FriendlyByteBuf buf) {

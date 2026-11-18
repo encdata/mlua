@@ -7,7 +7,6 @@ import org.luaj.vm2.Varargs;
 import dev.mlua.math.MLuaCFrame;
 import dev.mlua.math.MLuaVector;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,13 +54,7 @@ public final class MLuaNetworkSerializer {
 
    public static void encode(MLuaNetworkPacket packet, FriendlyByteBuf buf) {
       buf.writeUtf(packet.remoteName(), 128);
-      buf.writeVarInt(packet.arguments().size());
-      Iterator var2 = packet.arguments().iterator();
-
-      while(var2.hasNext()) {
-         MLuaNetworkValue value = (MLuaNetworkValue)var2.next();
-         writeValue(value, buf, 0);
-      }
+      writePacketValues(packet.arguments(), buf);
 
    }
 
@@ -230,7 +223,19 @@ public final class MLuaNetworkSerializer {
    }
 
    public static void writePacketValue(MLuaNetworkValue value, FriendlyByteBuf buf) {
-      writeValue(value, buf, 0);
+      writeValue(value, buf, 0, new int[]{0});
+   }
+
+   public static void writePacketValues(List<MLuaNetworkValue> values, FriendlyByteBuf buf) {
+      if (values == null || values.size() > MAX_ARGUMENTS) {
+         throw new IllegalArgumentException("[MLua] Invalid network argument count: "
+            + (values == null ? "null" : values.size()));
+      }
+      buf.writeVarInt(values.size());
+      int[] nodes = new int[]{0};
+      for (MLuaNetworkValue value : values) {
+         writeValue(value, buf, 0, nodes);
+      }
    }
 
    public static MLuaNetworkValue readPacketValue(FriendlyByteBuf buf) {
@@ -243,7 +248,8 @@ public final class MLuaNetworkSerializer {
 
    public static int[] newReadBudget() { return new int[]{0}; }
 
-   private static void writeValue(MLuaNetworkValue value, FriendlyByteBuf buf, int depth) {
+   private static void writeValue(MLuaNetworkValue value, FriendlyByteBuf buf, int depth, int[] nodes) {
+      countWireNode(nodes);
       if (depth > MAX_DEPTH) {
          throw new IllegalArgumentException("[MLua] Network payload table nesting is too deep");
       }
@@ -257,32 +263,34 @@ public final class MLuaNetworkSerializer {
       } else if (value instanceof MLuaNetworkValue.Num) {
          MLuaNetworkValue.Num num = (MLuaNetworkValue.Num)value;
          buf.writeByte(2);
-         buf.writeDouble(num.value());
+         buf.writeDouble(finiteWire(num.value()));
       } else if (value instanceof MLuaNetworkValue.Str) {
          MLuaNetworkValue.Str str = (MLuaNetworkValue.Str)value;
          buf.writeByte(3);
          buf.writeUtf(str.value(), MAX_STRING);
       } else if (value instanceof MLuaNetworkValue.Arr) {
          MLuaNetworkValue.Arr arr = (MLuaNetworkValue.Arr)value;
+         requireContainerSize(arr.values().size(), nodes, "array");
          buf.writeByte(4);
          buf.writeVarInt(arr.values().size());
          arr.values().forEach((item) -> {
-            writeValue(item, buf, depth + 1);
+            writeValue(item, buf, depth + 1, nodes);
          });
       } else if (value instanceof MLuaNetworkValue.Obj) {
          MLuaNetworkValue.Obj obj = (MLuaNetworkValue.Obj)value;
+         requireContainerSize(obj.values().size(), nodes, "object");
          buf.writeByte(5);
          buf.writeVarInt(obj.values().size());
          obj.values().forEach((key, item) -> {
             buf.writeUtf(key, MAX_STRING);
-            writeValue(item, buf, depth + 1);
+            writeValue(item, buf, depth + 1, nodes);
          });
       } else if (value instanceof MLuaNetworkValue.Vec3) {
          MLuaNetworkValue.Vec3 vec = (MLuaNetworkValue.Vec3)value;
          buf.writeByte(6);
-         buf.writeDouble(vec.x());
-         buf.writeDouble(vec.y());
-         buf.writeDouble(vec.z());
+         buf.writeDouble(finiteWire(vec.x()));
+         buf.writeDouble(finiteWire(vec.y()));
+         buf.writeDouble(finiteWire(vec.z()));
       } else {
          if (!(value instanceof MLuaNetworkValue.Cf)) {
             throw new IllegalArgumentException("[MLua] Unsupported network value");
@@ -290,18 +298,18 @@ public final class MLuaNetworkSerializer {
 
          MLuaNetworkValue.Cf cf = (MLuaNetworkValue.Cf)value;
          buf.writeByte(7);
-         buf.writeDouble(cf.x());
-         buf.writeDouble(cf.y());
-         buf.writeDouble(cf.z());
-         buf.writeDouble(cf.r00());
-         buf.writeDouble(cf.r01());
-         buf.writeDouble(cf.r02());
-         buf.writeDouble(cf.r10());
-         buf.writeDouble(cf.r11());
-         buf.writeDouble(cf.r12());
-         buf.writeDouble(cf.r20());
-         buf.writeDouble(cf.r21());
-         buf.writeDouble(cf.r22());
+         buf.writeDouble(finiteWire(cf.x()));
+         buf.writeDouble(finiteWire(cf.y()));
+         buf.writeDouble(finiteWire(cf.z()));
+         buf.writeDouble(finiteWire(cf.r00()));
+         buf.writeDouble(finiteWire(cf.r01()));
+         buf.writeDouble(finiteWire(cf.r02()));
+         buf.writeDouble(finiteWire(cf.r10()));
+         buf.writeDouble(finiteWire(cf.r11()));
+         buf.writeDouble(finiteWire(cf.r12()));
+         buf.writeDouble(finiteWire(cf.r20()));
+         buf.writeDouble(finiteWire(cf.r21()));
+         buf.writeDouble(finiteWire(cf.r22()));
       }
 
    }

@@ -23,7 +23,7 @@ public final class ClientWorldLifecycleTracker {
         loadListeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
-    public void removeLoadListener(Consumer<Object> listener) {
+    public void removeLoadListener(Consumer<?> listener) {
         loadListeners.remove(listener);
     }
 
@@ -31,7 +31,7 @@ public final class ClientWorldLifecycleTracker {
         unloadListeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
-    public void removeUnloadListener(Consumer<Object> listener) {
+    public void removeUnloadListener(Consumer<?> listener) {
         unloadListeners.remove(listener);
     }
 

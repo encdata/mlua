@@ -21,6 +21,7 @@ import net.fabricmc.api.EnvType;
 public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTransportAdapter {
    private final Set<UUID> mluaClients = ConcurrentHashMap.newKeySet();
    private volatile boolean serverHasMLua;
+   private int handshakeRetryTicks;
    private ResourceLocation channelId;
 
    @Override
@@ -31,16 +32,18 @@ public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTrans
    @Override
    public void init(MLuaNetworkManager manager, String protocolVersion) {
       this.channelId = MLuaResourceLocations.build("mlua", "main_network");
-      if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
-         MLuaFabricNetworkAdapter.registerC2S(this.channelId, (server, player, handler, buf, responseSender) -> {
-            this.mluaClients.add(player.getUUID());
-            manager.handleServerPacket(server, player, buf);
-         });
-         MLuaFabricNetworkEvents.registerServer(
-            this::sendHandshakeToClient,
-            player -> this.mluaClients.remove(player.getUUID())
-         );
-      } else {
+      MLuaFabricNetworkAdapter.registerC2S(this.channelId, (server, player, handler, buf, responseSender) -> {
+         this.mluaClients.add(player.getUUID());
+         boolean handshake = buf.isReadable()
+            && buf.getByte(buf.readerIndex()) == MLuaNetworkWireCodec.TYPE_HANDSHAKE;
+         manager.handleServerPacket(server, player, buf);
+         if (handshake) server.execute(() -> this.sendHandshakeToClient(player));
+      });
+      MLuaFabricNetworkEvents.registerServer(
+         this::sendHandshakeToClient,
+         player -> this.mluaClients.remove(player.getUUID())
+      );
+      if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
          MLuaFabricNetworkAdapter.registerS2C(this.channelId, (client, handler, buf, responseSender) -> {
             this.serverHasMLua = true;
             manager.handleClientPacket(client, buf);
@@ -48,10 +51,26 @@ public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTrans
          MLuaFabricNetworkEvents.registerClient(
             () -> {
                this.serverHasMLua = false;
+               this.handshakeRetryTicks = 0;
                this.sendHandshakeToServer();
             },
-            () -> this.serverHasMLua = false
+            () -> {
+               this.serverHasMLua = false;
+               this.handshakeRetryTicks = 0;
+            },
+            this::retryServerHandshake
          );
+      }
+   }
+
+   private void retryServerHandshake() {
+      if (this.serverHasMLua || !MLuaFabricNetworkAdapter.canSendToServer(this.channelId)) {
+         this.handshakeRetryTicks = 0;
+         return;
+      }
+      if (++this.handshakeRetryTicks >= 20) {
+         this.handshakeRetryTicks = 0;
+         this.sendHandshakeToServer();
       }
    }
 
@@ -107,6 +126,7 @@ public final class MLuaFabricNetworkTransportAdapter implements MLuaNetworkTrans
 
    private void sendHandshakeToServer() {
       try {
+         if (!MLuaFabricNetworkAdapter.canSendToServer(this.channelId)) return;
          MLuaFabricNetworkAdapter.sendToServer(this.channelId, MLuaNetworkWireCodec.createPayload(MLuaNetworkWireCodec.TYPE_HANDSHAKE, (buf) -> {
          }));
       } catch (RuntimeException exception) {

@@ -1,5 +1,6 @@
 package dev.mlua.module;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.MLuaLogger;
 import dev.mlua.core.service.MLuaServiceRegistry;
 import java.util.ArrayList;
@@ -29,9 +30,11 @@ final class MLuaModuleServiceRegistrations {
             }
             return true;
         } catch (Throwable error) {
+            MLuaFatalErrors.rethrowIfFatal(error);
             try {
                 registry.unregisterBatch(module.side(), batch);
             } catch (Throwable rollbackFailure) {
+                MLuaFatalErrors.rethrowIfFatal(rollbackFailure);
                 error.addSuppressed(rollbackFailure);
             }
             forgetServiceEntries(module);

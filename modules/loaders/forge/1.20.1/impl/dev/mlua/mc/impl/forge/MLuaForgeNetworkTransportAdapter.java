@@ -15,6 +15,7 @@ import java.util.List;
 import net.minecraft.network.Connection;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
@@ -31,8 +32,7 @@ public final class MLuaForgeNetworkTransportAdapter implements MLuaNetworkTransp
    public void init(MLuaNetworkManager manager, String protocolVersion) {
       this.manager = manager;
       this.channel = MLuaForgeNetworkAdapter.createChannel(MLuaResourceLocations.build("mlua", "main"), protocolVersion);
-      MLuaForgeNetworkAdapter.registerC2SPacket(this.channel, MLuaNetworkPacket.class, 0, MLuaNetworkSerializer::encode, MLuaNetworkSerializer::decode, this::handleServerRemote);
-      MLuaForgeNetworkAdapter.registerS2CPacket(this.channel, MLuaNetworkPacket.class, 1, MLuaNetworkSerializer::encode, MLuaNetworkSerializer::decode, this::handleClientRemote);
+      MLuaForgeNetworkAdapter.registerPacket(this.channel, MLuaNetworkPacket.class, 0, MLuaNetworkSerializer::encode, MLuaNetworkSerializer::decode, this::handleRemote);
       MLuaForgeNetworkAdapter.registerS2CPacket(this.channel, MLuaReloadPacket.class, 2, MLuaReloadPacket::encode, MLuaReloadPacket::new, this::handleClientReload);
       MLuaForgeNetworkAdapter.registerS2CPacket(this.channel, MLuaClientCommandPacket.class, 3, MLuaClientCommandPacket::encode, MLuaClientCommandPacket::new, this::handleClientCommand);
       MLuaForgeNetworkAdapter.registerS2CPacket(this.channel, MLuaAnimationSyncPacket.class, 4, MLuaAnimationSyncPacket::encode, MLuaAnimationSyncPacket::new, this::handleClientAnimationSync);
@@ -81,22 +81,20 @@ public final class MLuaForgeNetworkTransportAdapter implements MLuaNetworkTransp
       this.channel.send(PacketDistributor.PLAYER.with(() -> player), packet);
    }
 
-   private void handleServerRemote(MLuaNetworkPacket packet, java.util.function.Supplier<NetworkEvent.Context> supplier) {
+   private void handleRemote(MLuaNetworkPacket packet, java.util.function.Supplier<NetworkEvent.Context> supplier) {
       NetworkEvent.Context context = supplier.get();
       context.enqueueWork(() -> {
-         ServerPlayer sender = context.getSender();
-         if (sender == null) {
-            MLuaLogger.LOGGER.warn("MLua Network packet '{}' had no server sender", packet.remoteName());
+         if (context.getDirection() == NetworkDirection.PLAY_TO_SERVER) {
+            ServerPlayer sender = context.getSender();
+            if (sender == null) {
+               MLuaLogger.LOGGER.warn("MLua Network packet '{}' had no server sender", packet.remoteName());
+               return;
+            }
+            this.manager.receiveRemoteFromClient(sender, packet.remoteName(), packet.arguments());
             return;
          }
-         this.manager.receiveRemoteFromClient(sender, packet.remoteName(), packet.arguments());
+         this.manager.receiveRemoteFromServer(packet.remoteName(), packet.arguments());
       });
-      context.setPacketHandled(true);
-   }
-
-   private void handleClientRemote(MLuaNetworkPacket packet, java.util.function.Supplier<NetworkEvent.Context> supplier) {
-      NetworkEvent.Context context = supplier.get();
-      context.enqueueWork(() -> this.manager.receiveRemoteFromServer(packet.remoteName(), packet.arguments()));
       context.setPacketHandled(true);
    }
 

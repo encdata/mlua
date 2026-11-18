@@ -1,5 +1,6 @@
 package dev.mlua.runtime;
 
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.api.MLuaApi;
 import dev.mlua.api.RuntimeMLuaApiBridge;
 import dev.mlua.common.mixin.MLuaMappingResolvers;
@@ -124,6 +125,7 @@ public final class MLuaBootstrap {
             Class<?> bootstrap = Class.forName("dev.mlua.agent.MLuaAgentBootstrap");
             bootstrap.getMethod("ensureAttached").invoke(null);
         } catch (Throwable throwable) {
+            MLuaFatalErrors.rethrowIfFatal(throwable);
             MLuaLogger.LOGGER.warn("[MLua] Failed to prepare runtime transformer before mixin bootstrap", throwable);
         }
     }

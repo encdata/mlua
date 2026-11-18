@@ -1,5 +1,6 @@
 package dev.mlua.common.mixin;
 
+import dev.mlua.common.MLuaFatalErrors;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -143,10 +144,12 @@ public final class MLuaMixinTargetMapper {
                   resolver, className, runtimeClassName, methodName, "official");
                return inferred != null ? inferred : new ResolvedMethod(runtimeClassName, methodName, descriptor);
             } catch (Throwable ignored) {
+               MLuaFatalErrors.rethrowIfFatal(ignored);
                return new ResolvedMethod(runtimeClassName, methodName, descriptor);
             }
          }
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          // Continue with the bundled Yarn map or the older named-namespace resolver.
       }
 
@@ -188,9 +191,11 @@ public final class MLuaMixinTargetMapper {
                resolver, sourceClassName, runtimeClassName, methodName, "named");
             return inferred != null ? inferred : new ResolvedMethod(runtimeClassName, methodName, descriptor);
          } catch (Throwable ignored) {
+            MLuaFatalErrors.rethrowIfFatal(ignored);
             return new ResolvedMethod(runtimeClassName, methodName, descriptor);
          }
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          return new ResolvedMethod(className, methodName, descriptor);
       }
    }
@@ -268,6 +273,7 @@ public final class MLuaMixinTargetMapper {
                .invoke(resolver, "named", namedName);
          }
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          // Older bootstrap stages may not expose Fabric's resolver yet.
       }
       TinyMappings tinyMappings = loadTinyMappings();
@@ -359,6 +365,7 @@ public final class MLuaMixinTargetMapper {
          Class.forName("net.fabricmc.loader.api.FabricLoader", false, MLuaMixinTargetMapper.class.getClassLoader());
          return true;
       } catch (Throwable ignored) {
+         MLuaFatalErrors.rethrowIfFatal(ignored);
          return false;
       }
    }

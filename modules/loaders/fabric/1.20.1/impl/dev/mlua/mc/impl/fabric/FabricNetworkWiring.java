@@ -18,9 +18,7 @@ public final class FabricNetworkWiring {
         ResourceLocation channelId = MLuaResourceLocations.build(modId, "main_network");
 
         bridge.setSendToServer(packet -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                ClientPlayNetworking.send(channelId, buf);
-            }
+            ClientPlayNetworking.send(channelId, requireBuffer(packet));
         });
         bridge.setRemotePresence(ignored -> ClientPlayNetworking.canSend(channelId));
     }
@@ -31,19 +29,17 @@ public final class FabricNetworkWiring {
         ResourceLocation channelId = MLuaResourceLocations.build(modId, "main_network");
 
         bridge.setSendToClient((packet, playerId) -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                var player = server.getPlayerList().getPlayerByName(playerId);
-                if (player != null) {
-                    ServerPlayNetworking.send(player, channelId, buf);
-                }
+            FriendlyByteBuf buf = requireBuffer(packet);
+            var player = server.getPlayerList().getPlayerByName(playerId);
+            if (player != null) {
+                ServerPlayNetworking.send(player, channelId, buf);
             }
         });
 
         bridge.setSendToAll(packet -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                for (var player : server.getPlayerList().getPlayers()) {
-                    ServerPlayNetworking.send(player, channelId, buf);
-                }
+            FriendlyByteBuf buf = requireBuffer(packet);
+            for (var player : server.getPlayerList().getPlayers()) {
+                ServerPlayNetworking.send(player, channelId, buf);
             }
         });
         bridge.setRemotePresence(playerId -> {
@@ -53,5 +49,10 @@ public final class FabricNetworkWiring {
             var player = server.getPlayerList().getPlayerByName(playerId);
             return player != null && ServerPlayNetworking.canSend(player, channelId);
         });
+    }
+
+    private static FriendlyByteBuf requireBuffer(Object packet) {
+        if (packet instanceof FriendlyByteBuf buffer) return buffer;
+        throw new IllegalArgumentException("MLua network bridge expects a FriendlyByteBuf packet");
     }
 }

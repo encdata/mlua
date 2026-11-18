@@ -1,6 +1,7 @@
 package dev.mlua.runtime;
 
 import dev.mlua.core.MLuaLogger;
+import dev.mlua.common.MLuaFatalErrors;
 import dev.mlua.core.MLuaRuntime;
 import dev.mlua.core.script.MLuaScript;
 import dev.mlua.core.script.MLuaScriptLoader;
@@ -38,6 +39,7 @@ public final class MLuaPalladiumIntegration {
         } catch (ClassNotFoundException ignored) {
             // Palladium is optional.
         } catch (Throwable throwable) {
+            MLuaFatalErrors.rethrowIfFatal(throwable);
             MLuaLogger.LOGGER.warn("[MLua] Failed to install Palladium addon-pack integration", throwable);
         }
     }

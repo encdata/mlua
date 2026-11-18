@@ -13,11 +13,7 @@ public record MLuaClientCommandPacket(String commandName, List<MLuaNetworkValue>
 
    public void encode(FriendlyByteBuf buf) {
       buf.writeUtf(this.commandName, 128);
-      buf.writeVarInt(this.arguments.size());
-
-      for (MLuaNetworkValue argument : this.arguments) {
-         MLuaNetworkSerializer.writePacketValue(argument, buf);
-      }
+      MLuaNetworkSerializer.writePacketValues(this.arguments, buf);
    }
 
    private static List<MLuaNetworkValue> readArguments(FriendlyByteBuf buf) {

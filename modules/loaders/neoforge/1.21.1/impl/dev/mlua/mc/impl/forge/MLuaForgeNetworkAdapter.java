@@ -90,10 +90,7 @@ public final class MLuaForgeNetworkAdapter {
     }
 
     private static void writeArguments(RegistryFriendlyByteBuf buf, List<MLuaNetworkValue> arguments) {
-        buf.writeVarInt(arguments.size());
-        for (MLuaNetworkValue argument : arguments) {
-            MLuaNetworkSerializer.writePacketValue(argument, buf);
-        }
+        MLuaNetworkSerializer.writePacketValues(arguments, buf);
     }
 
     public record RemotePayload(String remoteName, List<MLuaNetworkValue> arguments) implements CustomPacketPayload {

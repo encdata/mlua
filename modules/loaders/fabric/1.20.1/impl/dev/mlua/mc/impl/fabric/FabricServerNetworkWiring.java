@@ -14,20 +14,22 @@ public final class FabricServerNetworkWiring {
         if (modId == null) return;
         var channelId = MLuaResourceLocations.build(modId, "main_network");
         bridge.setSendToClient((packet, playerId) -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                var player = server.getPlayerList().getPlayerByName(playerId);
-                if (player != null) MLuaFabricNetworkAdapter.sendToClient(channelId, buf, player);
-            }
+            FriendlyByteBuf buf = requireBuffer(packet);
+            var player = server.getPlayerList().getPlayerByName(playerId);
+            if (player != null) MLuaFabricNetworkAdapter.sendToClient(channelId, buf, player);
         });
         bridge.setSendToAll(packet -> {
-            if (packet instanceof FriendlyByteBuf buf) {
-                MLuaFabricNetworkAdapter.sendToAll(channelId, buf, server.getPlayerList().getPlayers());
-            }
+            MLuaFabricNetworkAdapter.sendToAll(channelId, requireBuffer(packet), server.getPlayerList().getPlayers());
         });
         bridge.setRemotePresence(playerId -> {
             if (playerId == null || playerId.isBlank()) return false;
             var player = server.getPlayerList().getPlayerByName(playerId);
             return player != null && MLuaFabricNetworkAdapter.canSendToClient(player, channelId);
         });
+    }
+
+    private static FriendlyByteBuf requireBuffer(Object packet) {
+        if (packet instanceof FriendlyByteBuf buffer) return buffer;
+        throw new IllegalArgumentException("MLua network bridge expects a FriendlyByteBuf packet");
     }
 }
